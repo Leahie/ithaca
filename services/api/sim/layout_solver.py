@@ -43,6 +43,8 @@ WALKWAY_COST = 8.0  # soft cost per m² of furniture standing in a walkway
 GLASS_TO_FLOOR_M = 0.3  # a "window" whose sill is lower than this is a glass door: people walk through it
 FLOAT_COST = 2.0  # soft cost for a piece (or group) standing in the open, away from every wall
 GROUP_GAP_M = 0.8  # pieces this close belong to one group
+BACK_GAP_M = 0.2  # a piece is "on" a wall when its whole back is within this of a solid stretch of it
+LOW_PIECE_M = 0.6  # pieces lower than this may stand under a window
 # Pieces that look wrong away from a wall. They get a mild against_wall wish if the designer gave none.
 WALL_PIECES = {"sofa", "loveseat", "sectional", "bed", "crib", "bookshelf", "cabinet", "dresser", "wardrobe", "tv_stand", "console_table", "nightstand", "desk"}
 
@@ -157,6 +159,12 @@ class _Scene:
     walkways: list[Polygon] = field(default_factory=list)  # straight lines people walk between the ways in
     lanes: Polygon | None = None  # all walkways merged, computed once
     routes: object | None = None  # centerlines of the walking routes the scan itself followed, if known
+    # solid stretches of wall: (wall, stretch) with no door, glass or window in them; and the same
+    # with only doors and floor-level glass removed, for pieces low enough to stand under a window
+    solid: list = field(default_factory=list)
+    solid_low: list = field(default_factory=list)
+    solid_zone: object | None = None
+    solid_low_zone: object | None = None
     strict: bool = False  # True: no piece may stand on a route centerline
 
 
@@ -195,6 +203,8 @@ def _scene(room: Room, openings: list[Opening], twin_walls: list[Wall] | None = 
         walls.append(_Wall(a, b, (nx, nz)))
 
     scene = _Scene(poly, walls, [], [], [], [], [], poly.representative_point() if not poly.contains(poly.centroid) else poly.centroid)
+    walk_through: list[LineString] = []  # doors and glass down to the floor
+    see_through: list[LineString] = []  # windows with a sill
     for o in openings:
         if room.room_id not in (o.room_id, o.other_room_id):
             continue
@@ -207,8 +217,10 @@ def _scene(room: Room, openings: list[Opening], twin_walls: list[Wall] | None = 
             if wall:
                 wall.has_window = True
         if o.kind == "window" and sill >= GLASS_TO_FLOOR_M:
+            see_through.append(seg)
             scene.window_zones.append((seg.buffer(WINDOW_CLEAR_M, cap_style="flat").intersection(poly), sill))
         else:  # a door, a slider, or glass down to the floor: all need clear floor in front
+            walk_through.append(seg)
             scene.door_zones.append(seg.buffer(DOOR_CLEAR_M, cap_style="flat").intersection(poly))
             scene.door_points.append(mid)
             n = wall.normal if wall else (0.0, 0.0)
@@ -223,6 +235,21 @@ def _scene(room: Room, openings: list[Opening], twin_walls: list[Wall] | None = 
         scene.door_points.append(mid)
         scene.door_entries.append(Point(mid.x + n[0] * (PATH_M / 2 + 0.1), mid.y + n[1] * (PATH_M / 2 + 0.1)))
     routes = _scan_routes(room, poly, sweeps or [], scene)
+    passages = [p.buffer(0.6) for p in scene.door_points[len(walk_through):]]  # ways in with no door segment
+
+    def stretches(gaps: list) -> list:
+        out = []
+        cut = unary_union([g.buffer(0.2) if g.geom_type == "LineString" else g for g in gaps]) if gaps else None
+        for w in walls:
+            line = LineString([w.a, w.b])
+            rest = line.difference(cut) if cut is not None else line
+            out += [(w, part) for part in getattr(rest, "geoms", [rest]) if not part.is_empty and part.length >= 0.4]
+        return out
+
+    scene.solid = stretches(walk_through + see_through + passages)
+    scene.solid_low = stretches(walk_through + passages)
+    scene.solid_zone = unary_union([part for _, part in scene.solid]).buffer(BACK_GAP_M) if scene.solid else None
+    scene.solid_low_zone = unary_union([part for _, part in scene.solid_low]).buffer(BACK_GAP_M) if scene.solid_low else None
     scene.linked_doors = _walkable_pairs(scene, [])
     if routes:
         scene.routes = unary_union(routes).intersection(poly.buffer(-0.05))
@@ -365,6 +392,8 @@ def _violations(scene: _Scene, items: list[Item], poses: dict[str, Pose]) -> lis
             out.append(f"{i.label} stands in front of a window")
         if scene.strict and scene.routes is not None and fp.intersects(scene.routes):
             out.append(f"{i.label} stands on a walking route")
+        if scene.strict and i.item_class in WALL_PIECES and _off_wall(scene, i, fp) > 0:
+            out.append(f"{i.label} is not backed against a solid wall")
     solid = [i for i in items if not i.is_rug]
     for k, a in enumerate(solid):
         for b in solid[k + 1 :]:
@@ -387,6 +416,10 @@ def _hard_energy(scene: _Scene, items: list[Item], shapes: dict[str, Polygon]) -
         e += sum(fp.intersection(z).area for z, sill in scene.window_zones if i.h > sill + 0.05 and fp.intersects(z)) * 2
         if scene.strict and scene.routes is not None and fp.intersects(scene.routes):
             e += 0.05 + fp.intersection(scene.routes).length
+        if scene.strict and i.item_class in WALL_PIECES and scene.solid_zone is not None:
+            off = _off_wall(scene, i, fp)
+            if off > 0:
+                e += 0.2 * off + 0.1 * min(2.0, scene.solid_zone.distance(fp))
     solid = [i for i in items if not i.is_rug]
     for k, a in enumerate(solid):
         for b in solid[k + 1 :]:
@@ -460,6 +493,18 @@ def _in_walkways(scene: _Scene, items: list[Item], shapes: dict[str, Polygon]) -
     return sum(shapes[i.item_id].intersection(scene.lanes).area for i in items if not i.is_rug and shapes[i.item_id].intersects(scene.lanes))
 
 
+def _off_wall(scene: _Scene, item: Item, shape: Polygon) -> float:
+    """0 when the piece's whole back runs along a solid stretch of wall, up to 1 when none of it does.
+    A window, a door or a glass door behind the piece doesn't count as wall (low pieces may stand
+    under a window)."""
+    zone = scene.solid_low_zone if item.h < LOW_PIECE_M else scene.solid_zone
+    if zone is None:
+        return 1.0
+    back = LineString(list(shape.exterior.coords)[:2])  # footprint() lists the two back corners first
+    covered = back.intersection(zone).length / back.length
+    return 0.0 if covered >= 0.9 else 1.0 - covered
+
+
 def _floating(scene: _Scene, items: list[Item], shapes: dict[str, Polygon]) -> dict[str, float]:
     """item_id -> how much a piece stands in the open (0 = anchored, 1 = adrift).
 
@@ -486,11 +531,26 @@ def _floating(scene: _Scene, items: list[Item], shapes: dict[str, Polygon]) -> d
     for i in solid:
         r = root(i.item_id)
         nearest[r] = min(nearest.get(r, math.inf), wall_gap[i.item_id])
-    return {i.item_id: 0.0 if nearest[root(i.item_id)] <= 0.15 else min(1.0, nearest[root(i.item_id)] / 1.2) for i in solid}
+    # a group is anchored by a wall piece whose back is on solid wall, or any other piece touching a wall
+    anchored = {
+        root(i.item_id)
+        for i in solid
+        if (_off_wall(scene, i, shapes[i.item_id]) == 0.0 if i.item_class in WALL_PIECES else wall_gap[i.item_id] <= 0.15)
+    }
+    return {i.item_id: 0.0 if root(i.item_id) in anchored else max(0.3, min(1.0, nearest[root(i.item_id)] / 1.2)) for i in solid}
 
 
 def _soft(scene: _Scene, constraints: list[Constraint], by_id: dict[str, Item], poses: dict[str, Pose]) -> float:
     return sum(c.weight * _cost(scene, c, by_id, poses) for c in constraints)
+
+
+def _stretches_for(scene: _Scene, item: Item, target: str | None) -> list:
+    """Solid stretches of wall this piece's back fits on, the ones the wish asks for first."""
+    pool = scene.solid_low if item.h < LOW_PIECE_M else scene.solid
+    fits = [(w, part) for w, part in pool if part.length >= item.w]
+    wanted = {id(w) for w in _walls_for(scene, target or "any")}
+    first = [x for x in fits if id(x[0]) in wanted]
+    return sorted(first, key=lambda x: -x[1].length) + sorted((x for x in fits if id(x[0]) not in wanted), key=lambda x: -x[1].length)
 
 
 def _on_wall(scene: _Scene, item: Item, wall: _Wall, t: float) -> Pose:
@@ -503,10 +563,10 @@ def _on_wall(scene: _Scene, item: Item, wall: _Wall, t: float) -> Pose:
 
 
 def _anneal(
-    scene: _Scene, items: list[Item], constraints: list[Constraint], rng: random.Random, pin: tuple[str, _Wall] | None = None
+    scene: _Scene, items: list[Item], constraints: list[Constraint], rng: random.Random, pin: tuple | None = None
 ) -> dict[str, Pose]:
-    """One annealing run. `pin` = (item_id, wall): that piece may only stand on that wall, which is how
-    different runs are made to explore different walls."""
+    """One annealing run. `pin` = (item_id, (wall, stretch)): that piece may only stand on that
+    stretch of wall, which is how different runs are made to explore different walls."""
     by_id = {i.item_id: i for i in items}
     yaws = sorted({round(w.yaw) % 360 for w in scene.walls}) or [0]
     minx, minz, maxx, maxz = scene.room.bounds
@@ -515,12 +575,19 @@ def _anneal(
 
     def wall_pose(item: Item) -> Pose:
         if pin and pin[0] == item.item_id:
-            walls = [pin[1]]
+            options = [pin[1]]
         else:
-            walls = [w for w in _walls_for(scene, wall_wish.get(item.item_id, "any")) if w.length >= item.w] or scene.walls
-        wall = rng.choices(walls, weights=[w.length for w in walls])[0]
-        margin = min(0.45, item.w / 2 / wall.length)
-        return _on_wall(scene, item, wall, rng.uniform(margin, 1 - margin))
+            options = _stretches_for(scene, item, wall_wish.get(item.item_id, "any"))
+        if not options:  # no solid stretch is long enough: anywhere along a wall
+            walls = [w for w in scene.walls if w.length >= item.w] or scene.walls
+            wall = rng.choices(walls, weights=[w.length for w in walls])[0]
+            margin = min(0.45, item.w / 2 / wall.length)
+            return _on_wall(scene, item, wall, rng.uniform(margin, 1 - margin))
+        wall, part = rng.choices(options, weights=[part.length for _, part in options])[0]
+        slack = max(0.0, part.length - item.w)
+        spot = part.interpolate(item.w / 2 + rng.uniform(0, slack))  # the piece's whole back fits on the stretch
+        off = item.d / 2 + WALL_GAP_M
+        return Pose(spot.x + wall.normal[0] * off, spot.y + wall.normal[1] * off, wall.yaw)
 
     def follow_pose(c: Constraint, poses: dict[str, Pose]) -> Pose:
         item, other, tp = by_id[c.item], by_id[c.target], poses[c.target]
@@ -601,13 +668,13 @@ def solve(
         if i.item_class in WALL_PIECES and i.item_id not in walled and i.item_id not in followers
     ]
     scene = _scene(room, openings, walls, sweeps)
-    scene.strict = scene.routes is not None
+    scene.strict = True  # wall pieces on solid wall, nothing on a walking route; relaxed below if nothing fits
     labels = {i.item_id: i.label for i in items}
     total_weight = sum(c.weight for c in constraints) or 1.0
 
     anchor_item = max(items, key=lambda i: i.w * i.d)
     wish = next((c.target for c in constraints if c.kind == "against_wall" and c.item == anchor_item.item_id), None)
-    anchor_walls = sorted((w for w in _walls_for(scene, wish) if w.length >= anchor_item.w), key=lambda w: -w.length) if wish else []
+    anchor_walls = _stretches_for(scene, anchor_item, wish) if wish else []  # the wished kind of wall first, then the rest
 
     def search() -> list[Variant]:
         found: list[Variant] = []
@@ -635,7 +702,7 @@ def solve(
 
     found = search()
     relaxed = False
-    if not found and scene.strict:  # nothing fits beside the walking routes: allow standing on one, and say so
+    if not found and scene.strict:  # nothing fits under the strict rules: relax them, and say so
         scene.strict, relaxed = False, True
         found = search()
     found.sort(key=lambda v: -v.score)
@@ -662,7 +729,7 @@ def solve(
         return SolveResult([], f"no arrangement fits: the pieces cover {area:.1f} m² of a {scene.room.area:.1f} m² room once doors, windows and a walking path are kept clear")
     reason = None if len(chosen) == n else f"only {len(chosen)} clearly different arrangement{'s' if len(chosen) != 1 else ''} fit this room"
     if relaxed:
-        note = "the room is too tight to keep its walking routes fully clear, so a piece stands on one"
+        note = "the room is too tight to put every large piece on a solid wall clear of the walking routes, so one rule was relaxed"
         reason = f"{reason}; {note}" if reason else note
     return SolveResult(chosen, reason)
 

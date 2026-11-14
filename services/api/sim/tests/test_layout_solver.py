@@ -91,3 +91,21 @@ def test_glass_to_the_floor_scan_routes_and_floating_pieces():
     # a big open-plan room: the scan shows ways through that the door list doesn't have
     big = room("cdz3fkt38kae7tapstpt0eaeb")
     assert len(ls._scene(big, TWIN.openings, TWIN.walls, TWIN.sweeps).door_points) > len(ls._scene(big, TWIN.openings, TWIN.walls).door_points)
+
+
+def test_large_pieces_stand_with_their_back_on_solid_wall_even_when_asked_onto_a_window_wall():
+    from services.api.agent import views
+
+    living = room("tt6gm2a0463x9wmnx7rn6gugc")
+    living = living.model_copy(update={"floor_y": views.floor_height(TWIN, living.room_id)})
+    scene = ls._scene(living, TWIN.openings, TWIN.walls, TWIN.sweeps)
+    onto_glass = [ls.Constraint(kind="against_wall", item=SOFA, target="window"), ls.Constraint(kind="in_front_of", item=TABLE, target=SOFA)]
+    result = ls.solve(living, TWIN.openings, ITEMS[:2], onto_glass, n=3, walls=TWIN.walls, sweeps=TWIN.sweeps)
+    assert result.variants
+    for v in result.variants:
+        sofa = ls.footprint(ITEMS[0], v.poses[SOFA])
+        assert ls._off_wall(scene, ITEMS[0], sofa) == 0  # whole back on wall with no window, door or glass behind it
+        assert any("against a wall (window)" in u for u in v.unmet)  # and the designer is told its wish was not met
+
+    sideways = ls.Pose(v.poses[SOFA].x, v.poses[SOFA].z, v.poses[SOFA].yaw + 90)  # an end touching the wall is not "on the wall"
+    assert ls._off_wall(scene, ITEMS[0], ls.footprint(ITEMS[0], sideways)) > 0.5

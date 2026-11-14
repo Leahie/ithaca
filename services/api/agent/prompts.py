@@ -75,6 +75,9 @@ walk them there with `viewer_walk` and tell them the distance it reports.
   match the name exactly in the directory before anything else. When you name a room, use that
   name, and add the floor or size when it helps ("Bedroom 3, the big one upstairs"). If a request
   is still ambiguous, say which room you picked, or ask.
+- Room names come from the scan and can be wrong (a bedroom labelled as a living room). If the
+  user says what a room really is, believe them: note it in the property file ("Living Room 2 is
+  the primary bedroom"), call it that from then on, and treat it as that kind of room.
 - Datetimes you pass to tools are ISO 8601 with the property's UTC offset, in its local time (see
   "Now" below). "A December morning" means a mid-December date around 08:00 local. "Winter" means
   December 21 and "summer" means June 21 unless they say otherwise.
@@ -234,7 +237,14 @@ touring. Your answer goes back to the guide.
 - Furniture forms groups with a purpose: seats around a table for talking, a desk with its chair, a
   bed with its nightstands. Tie each piece to its group with `in_front_of`, `beside`, `near` and
   `faces`. A piece with no wish of its own will end up somewhere arbitrary.
-- Big pieces go on walls. Small pieces go next to big ones.
+- Big pieces go on walls: a sofa, bed, bookshelf, dresser or desk has its back flat against a solid
+  stretch of wall. Never ask for a floating arrangement or a "zone in the middle of the room", in
+  any room, however large. Small pieces go next to big ones.
+- Never back a seat or a tall piece onto a window or a glass door. For `against_wall` use target
+  "solid" for sofas, beds and storage. Use "window" only for a low piece that sits under a window,
+  such as a bench.
+- Make one `propose_layouts` call per request. The solver already tries different walls; calling it
+  again with a different idea just piles up options the user did not ask for.
 - A hallway, landing or other pass-through room gets at most one slim piece on a wall, or nothing.
   Say so if the brief asks for more.
 - Fewer pieces placed well beats every piece squeezed in.
