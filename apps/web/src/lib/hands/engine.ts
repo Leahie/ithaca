@@ -4,6 +4,8 @@
  *
  * - one hand pinches and moves: drag the view, as a mouse drag would (the scene follows the hand)
  * - both hands pinch: pull them apart to zoom in, together to zoom out
+ * - one open hand sweeps sideways: turn on the spot, the way the hand goes
+ * - one open hand pushes toward the camera: one step forward; pulls away: one step back
  *
  * Views listen with `onHandNav`. The cursor overlay reads `HandEngine.hands`.
  */
@@ -16,7 +18,11 @@ export type HandNav =
   /** Viewport fractions the pinching hand moved: du right, dv down. */
   | { type: 'drag'; du: number; dv: number }
   /** Ratio of the hands' spread now to a frame ago: over 1 is apart (zoom in). */
-  | { type: 'zoom'; factor: number };
+  | { type: 'zoom'; factor: number }
+  /** An open hand swept sideways: viewport fractions it moved, positive to the right. */
+  | { type: 'turn'; du: number }
+  /** An open hand pushed toward the camera (forward) or pulled away from it. */
+  | { type: 'step'; forward: boolean };
 
 const navListeners = new Set<(nav: HandNav) => void>();
 
@@ -42,6 +48,19 @@ const STALE_S = 0.1;
 /** The hand settles as the fingers close: motion in the first moments of a pinch is not a drag. */
 const GRAB_SETTLE_S = 0.08;
 
+/** An open hand turning the view: only a quick, mostly sideways move counts, so bringing the hand
+ * back slowly (or just holding it up) does nothing. Speeds in viewport widths per second. */
+export const SWEEP = { minSpeed: 0.9, sideways: 2, armS: 0.2 } as const;
+/** Walking: the hand's size in the picture against where it has been resting. Pushing it toward
+ * the camera makes it bigger. One step per push, then a pause in which the hand comes back. */
+export const PUSH = { forward: 1.2, back: 0.84, restS: 0.9, cooldownS: 0.9, maxSpeed: 1.2 } as const;
+
+/** The palm's size in the picture, in frame heights (as in pinch.ts: length, or width scaled to match). */
+function palmSize(image: HandSample['image'], aspect: number): number {
+  const d = (a: number, b: number) => Math.hypot((image[a]!.x - image[b]!.x) * aspect, image[a]!.y - image[b]!.y);
+  return Math.max(d(9, 0), 1.25 * d(5, 17));
+}
+
 interface Track {
   id: number;
   side: Side;
@@ -54,6 +73,12 @@ interface Track {
   pos: P2 | null;
   /** Position at the last tick it was dragging from, or null. */
   dragFrom: P2 | null;
+  /** Open-hand gestures: position and time at the last tick, palm size now and at rest, and
+   * until when a step just taken keeps the next one from firing. */
+  last: { pos: P2; t: number } | null;
+  size: number;
+  rest: number;
+  quietUntil: number;
 }
 
 /** What the overlay draws for one hand. */
@@ -72,7 +97,7 @@ export interface HandView {
   landmarks: HandSample['image'];
 }
 
-export type Gesture = 'none' | 'drag' | 'zoom';
+export type Gesture = 'none' | 'drag' | 'zoom' | 'turn';
 
 export class HandEngine {
   private tracks: Track[] = [];
@@ -118,6 +143,10 @@ export class HandEngine {
         lastSeen: t,
         pos: null,
         dragFrom: null,
+        last: null,
+        size: 0,
+        rest: 0,
+        quietUntil: 0,
       };
       this.feed(track, hand, f, t);
       this.tracks.push(track);
@@ -130,6 +159,8 @@ export class HandEngine {
     tr.features = f;
     tr.lastSeen = t;
     tr.side = sample.side;
+    const size = palmSize(sample.image, this.aspect);
+    tr.size = tr.size ? tr.size + (size - tr.size) * 0.5 : size;
     tr.motion.update(f.palm, t);
     tr.pinch.update(f, t, tr.motion.speed);
   }
@@ -168,9 +199,10 @@ export class HandEngine {
         tr.dragFrom = pos;
         this.gesture = 'drag';
       } else {
-        this.gesture = 'none';
+        this.gesture = this.openHand(now) ? 'turn' : 'none';
       }
     }
+    for (const t of this.tracks) t.last = t.pos ? { pos: t.pos, t: now } : null;
 
     this.hands = this.tracks.map((tr) => {
       const p = tr.pos ?? tr.features.palm;
@@ -185,6 +217,40 @@ export class HandEngine {
         landmarks: tr.sample.image,
       };
     });
+  }
+
+  /** One open hand in view: a sideways sweep turns, a push or pull steps. True while turning. */
+  private openHand(now: number): boolean {
+    const fresh = this.tracks.filter((t) => now - t.lastSeen <= STALE_S);
+    const tr = fresh[0];
+    // Two hands up are getting ready to zoom; a hand that just let go of a pinch is still settling.
+    if (fresh.length !== 1 || !tr || !tr.pos || !tr.last || tr.pinch.pinching || now - tr.pinch.since < SWEEP.armS) {
+      for (const t of fresh) t.rest = t.size;
+      return false;
+    }
+    const dt = now - tr.last.t;
+    if (dt <= 0 || dt > 0.1) return false;
+    const du = (tr.pos[0] - tr.last.pos[0]) / (BOX.w * this.aspect);
+    const dv = (tr.pos[1] - tr.last.pos[1]) / BOX.h;
+    const speed = Math.abs(du) / dt;
+    if (speed >= SWEEP.minSpeed && Math.abs(du) >= SWEEP.sideways * Math.abs(dv)) {
+      emit({ type: 'turn', du });
+      tr.rest = tr.size; // a sweep also moves the hand nearer or farther: that is not a push
+      return true;
+    }
+    if (!tr.rest || now < tr.quietUntil || speed > PUSH.maxSpeed) {
+      tr.rest = tr.size;
+      return false;
+    }
+    const ratio = tr.size / tr.rest;
+    if (ratio >= PUSH.forward || ratio <= PUSH.back) {
+      emit({ type: 'step', forward: ratio > 1 });
+      tr.quietUntil = now + PUSH.cooldownS; // the hand comes back during the pause
+      tr.rest = tr.size;
+    } else {
+      tr.rest += (tr.size - tr.rest) * Math.min(1, dt / PUSH.restS); // drift with a hand held still
+    }
+    return false;
   }
 
   reset(): void {

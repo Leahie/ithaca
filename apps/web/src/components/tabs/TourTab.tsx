@@ -41,7 +41,7 @@ declare global {
 }
 
 /** How far a hand gesture turns and zooms the tour. A drag across the whole view is `*PerView` degrees. */
-const HAND_TOUR = { yawDegPerView: 160, pitchDegPerView: 90, speedDegPerS: 900, zoomGain: 2 } as const;
+const HAND_TOUR = { yawDegPerView: 160, pitchDegPerView: 90, speedDegPerS: 900, zoomGain: 2, sweepDegPerView: 220 } as const;
 
 // Phone look and zoom are eased: quick off the mark, soft landing (an ease-out bezier).
 const LOOK_EASE = cubicBezier(0.22, 0.8, 0.3, 1);
@@ -132,6 +132,8 @@ export function TourTab({ twin, active }: { twin: PropertyTwin; active: boolean 
   /** The first view is in place: the loading screen fades out, then goes. */
   const [revealed, setRevealed] = useState(false);
   const firstMove = useRef<MpSdk | null>(null);
+  /** One hop the given way, for the hand gestures; set while the tour can walk. */
+  const handStep = useRef<((angleDeg: number, steps: number) => void) | null>(null);
   const [loaderGone, setLoaderGone] = useState(false);
   const [frame, setFrame] = useState<FrameCheck | null>(null);
   const [placed, setPlaced] = useState<{ count: number; error: string | null }>({ count: 0, error: null });
@@ -580,6 +582,7 @@ export function TourTab({ twin, active }: { twin: PropertyTwin; active: boolean 
           else runQueued();
         });
     };
+    handStep.current = hop;
     const off = onSessionEvent((event) => {
       if (event.type !== 'viewer.step' || useSession.getState().viewer.mode !== 'tour') return;
       hop(event.payload.angle_deg ?? (event.payload.direction === 'back' ? 180 : 0), event.payload.steps ?? 1);
@@ -623,6 +626,12 @@ export function TourTab({ twin, active }: { twin: PropertyTwin; active: boolean 
         // The scene follows the hand: moving it right turns the view left.
         yaw -= nav.du * HAND_TOUR.yawDegPerView;
         pitch += nav.dv * HAND_TOUR.pitchDegPerView;
+      } else if (nav.type === 'turn') {
+        // An open-hand sweep turns you the way the hand goes, on the spot.
+        yaw += nav.du * HAND_TOUR.sweepDegPerView;
+      } else if (nav.type === 'step') {
+        handStep.current?.(nav.forward ? 0 : 180, 1); // the same hop as the phone's stick
+        return;
       } else {
         zoom += (nav.factor - 1) * HAND_TOUR.zoomGain;
       }

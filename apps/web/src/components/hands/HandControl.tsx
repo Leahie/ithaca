@@ -164,9 +164,10 @@ function drawSkeletons(canvas: HTMLCanvasElement, hands: HandView[]) {
 }
 
 const HINT = {
-  none: 'Pinch thumb and index to grab the view',
+  none: 'Sweep an open hand to turn, push it forward to step, pinch to grab the view',
   drag: 'Dragging the view',
   zoom: 'Spread hands to zoom in, bring together to zoom out',
+  turn: 'Turning',
 } as const;
 
 /**

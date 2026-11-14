@@ -859,6 +859,7 @@ function CameraRig({
         if (!c || useSession.getState().viewer.mode !== 'sun') return;
         const walk = here.current !== null;
         if (nav.type === 'drag') void c.rotate(-nav.du * HAND_ORBIT_PER_VIEW * (walk ? -1 : 1), -nav.dv * HAND_ORBIT_PER_VIEW * 0.6 * (walk ? -1 : 1), false);
+        else if (nav.type !== 'zoom') return; // open-hand turning and stepping belong to the tour
         else if (walk) void c.zoomTo(Math.min(5, Math.max(1, (c.camera as PerspectiveCamera).zoom * nav.factor)), false);
         else void c.dollyTo(c.distance / nav.factor, false);
       }),
