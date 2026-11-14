@@ -6,7 +6,7 @@ The main prompt has two parts:
 - render_property_context(twin): generated each turn from the PropertyTwin. Address, local time,
   a room directory that tells duplicate labels apart, and data-quality caveats (C3).
 
-build_system_prompt() joins them. Memory files (/memories/*) are loaded into context by the
+graph.py joins them (the context is appended on every model call). Memory files (/memories/*) are loaded into context by the
 deepagents memory setup in graph.py, not here.
 """
 
@@ -24,7 +24,7 @@ SQFT_PER_M2 = 10.7639
 # where the agent has nothing worth saying).
 SILENT = "[silent]"
 
-MAIN_PERSONA = f"""\
+_PERSONA_TEMPLATE = f"""\
 You are the guide inside Ithaca, a website where people live in a house before they buy it. The
 user is exploring a digital twin of a real home on their screen, and maybe controlling it from
 their phone. You play two roles at once and move between them naturally:
@@ -78,17 +78,7 @@ view with `viewer_set_mode`. For noise, use `sound_set_scenario`. For layouts, u
 - The property context lists data caveats. When a caveat changes an answer, mention it once,
   briefly.
 
-## Delegate
-- `designer`: laying out a room, fitting the user's furniture, critiquing a layout. Give it the
-  `room_id`, the `item_id`s, what the user wants from the room, and the relevant preferences
-  word for word.
-- `analyst`: sun and noise questions that need several reports or comparisons across rooms or
-  times.
-- `scout`: neighborhood, amenities, commute, comps and pricing.
-Answer quick single-tool questions yourself. Retell subagent results in your own voice; don't
-paste them.
-
-## Memory
+{{delegate}}## Memory
 You keep memory for each user under `/memories/`. It is how you know this person across visits and
 across houses. The files are in your context every turn.
 - `/memories/profile.md`: who they are. Household, pets, work from home, commute, daily schedule,
@@ -150,6 +140,29 @@ Some turns start with an app event instead of a user message, written as
   area (race, religion, national origin, familial status, disability, sex). Don't steer people
   toward or away from areas for those reasons.
 """
+
+
+_DELEGATE = """\
+## Delegate
+- `designer`: laying out a room, fitting the user's furniture, critiquing a layout. Give it the
+  `room_id`, the `item_id`s, what the user wants from the room, and the relevant preferences
+  word for word.
+- `analyst`: sun and noise questions that need several reports or comparisons across rooms or
+  times.
+- `scout`: neighborhood, amenities, commute, comps and pricing.
+Answer quick single-tool questions yourself. Retell subagent results in your own voice; don't
+paste them.
+
+"""
+
+# Full persona, for when the designer / analyst / scout subagents exist.
+MAIN_PERSONA = _PERSONA_TEMPLATE.replace("{delegate}", _DELEGATE)
+
+
+def main_persona(subagents: bool = True) -> str:
+    """The static persona. Without subagents the Delegate section is left out, so the agent
+    doesn't try to call helpers that aren't there."""
+    return _PERSONA_TEMPLATE.replace("{delegate}", _DELEGATE if subagents else "")
 
 
 _COMPASS = ["N", "NE", "E", "SE", "S", "SW", "W", "NW"]
@@ -226,12 +239,22 @@ def data_caveats(quality: TwinQuality) -> list[str]:
     ]
 
 
+def render_room_directory(twin: PropertyTwin) -> str:
+    names = room_display_names(twin)
+    floor_order = {f.floor_id: f.index for f in twin.floors}
+    lines = ["Name (label · floor · m²) · room_id · sq ft · floor material · windows"]
+    for r in sorted(twin.rooms, key=lambda r: (floor_order.get(r.floor_id, 0), r.label, -(r.area_m2 or 0))):
+        lines.append(
+            f"- {names[r.room_id]} · `{r.room_id}` · {_sqft_text(r)} · "
+            f"{r.floor_material} · {_exposure(twin, r.room_id)}"
+        )
+    return "\n".join(lines)
+
+
 def render_property_context(twin: PropertyTwin, now: datetime | None = None) -> str:
     tz = ZoneInfo(twin.timezone)
     now_local = (now or datetime.now(tz)).astimezone(tz)
-    names = room_display_names(twin)
     floors = _floor_names(twin)
-    floor_order = {f.floor_id: f.index for f in twin.floors}
 
     lines = [
         "# This property",
@@ -241,13 +264,8 @@ def render_property_context(twin: PropertyTwin, now: datetime | None = None) -> 
         f"- Floors: {', '.join(floors[f.floor_id] for f in sorted(twin.floors, key=lambda f: f.index))}",
         "",
         "## Room directory",
-        "Name (label · floor · m²) · room_id · sq ft · floor material · windows",
+        render_room_directory(twin),
     ]
-    for r in sorted(twin.rooms, key=lambda r: (floor_order.get(r.floor_id, 0), r.label, -(r.area_m2 or 0))):
-        lines.append(
-            f"- {names[r.room_id]} · `{r.room_id}` · {_sqft_text(r)} · "
-            f"{r.floor_material} · {_exposure(twin, r.room_id)}"
-        )
 
     caveats = data_caveats(twin.quality)
     if caveats:
@@ -255,5 +273,3 @@ def render_property_context(twin: PropertyTwin, now: datetime | None = None) -> 
     return "\n".join(lines)
 
 
-def build_system_prompt(twin: PropertyTwin, now: datetime | None = None) -> str:
-    return f"{MAIN_PERSONA}\n\n{render_property_context(twin, now)}\n"
