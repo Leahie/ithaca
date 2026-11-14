@@ -14,6 +14,9 @@ plan and in the Sun Lab next to the realtime shadows.
 ## What you need to do
 - [ ] Add a weather toggle next to the time scrubber: `clear` (a clear day) or `typical` (NSRDB
       typical-year weather). The user chooses. Pass it as `sky` when the REST endpoints land.
+      Both work offline for `onXQLXhfyQv` (the typical year is a committed fixture). In
+      `typical`, many hours are hazy or overcast, so show "overcast" rather than a sun patch when
+      `DaylightMoment.dni_w_m2 < 120`.
 - [ ] Optional floor-plan overlay: draw `RoomDaylight.grid` (`LuxGrid`) per room on a **log**
       color scale (20 to 20,000 lux; `out/twin/daylight_*.png` from
       `python -m services.api.twin.daylight_cli` shows the intended look).

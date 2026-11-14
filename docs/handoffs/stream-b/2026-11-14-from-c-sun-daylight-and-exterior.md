@@ -16,8 +16,10 @@ added sun and daylight questions the agent can answer at the property's local ti
 - [ ] Wrap the new functions below as agent tools (or extend your sun tool). All live in
       `services/api/twin/service.py`; the schemas are in `packages/schema/reports.py`.
 - [ ] Catch `IntegrationNotConfigured` from `daylight_at(..., sky="typical")` and
-      `daylight_spot(..., sky="typical")` (NSRDB weather needs `NREL_API_KEY` + `NREL_EMAIL`). Offer
-      `sky="clear"` instead, which always works.
+      `daylight_spot(..., sky="typical")`, and offer `sky="clear"` instead, which always works.
+      For `onXQLXhfyQv` the typical year is committed
+      (`fixtures/integrations/nsrdb/tmy-*.json`), so it works offline in every mode. Other
+      properties need `NREL_API_KEY` + `NREL_EMAIL` (https://developer.nlr.gov/signup/) once.
 - [ ] Rebase or merge `stream-c/twin-v0`: the twin is now **version 3** (adds `exterior`).
 
 ## Details
@@ -48,6 +50,9 @@ added sun and daylight questions the agent can answer at the property's local ti
 - `x, z` are interior-frame meters (the same frame as `Room.polygon`).
 - `sky` is the user's choice (the UI should offer it): `"clear"` = a clear day,
   `"typical"` = NSRDB typical-year weather for that date and hour (Houston is often hazy).
+- `sun_area_m2` and `DaylightSpot.direct_sun` follow the WMO sunshine definition (direct beam
+  at least 120 W/m²). On an overcast typical-year hour the sun's geometry still reaches the
+  room, but it doesn't count as sun.
 - `RoomDaylight.level` is one of `dark | dim | moderate | bright | very_bright` (<50, <300, <1000,
   <3000 lux, after Useful Daylight Illuminance). Use it in speech instead of raw lux.
 - Only rooms with an exterior window appear in `SunMoment.rooms` / `DaylightMoment.rooms`. A
