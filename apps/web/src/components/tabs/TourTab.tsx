@@ -362,7 +362,7 @@ export function TourTab({ twin, active }: { twin: PropertyTwin; active: boolean 
     };
   }, [sdk]);
 
-  // viewer.step (the phone's arrows): hop to the neighbouring scan position that lies most nearly
+  // viewer.step (the phone's joystick): hop to the neighbouring scan position that lies most nearly
   // ahead of (or behind) the way the camera faces, keeping the camera's direction.
   useEffect(() => {
     if (!sdk) return;
@@ -381,9 +381,10 @@ export function TourTab({ twin, active }: { twin: PropertyTwin; active: boolean 
       if (!from || !neighbors.length) return;
       // Showcase yaw: 0 looks along -Z, positive turns left.
       const yaw = (rotation.y * Math.PI) / 180;
-      const sign = event.payload.direction === 'forward' ? 1 : -1;
-      const fx = -Math.sin(yaw) * sign;
-      const fz = -Math.cos(yaw) * sign;
+      // The way to go, clockwise from straight ahead (the joystick), or just ahead / behind.
+      const angle = ((event.payload.angle_deg ?? (event.payload.direction === 'back' ? 180 : 0)) * Math.PI) / 180;
+      const fx = -Math.sin(yaw) * Math.cos(angle) + Math.cos(yaw) * Math.sin(angle);
+      const fz = -Math.cos(yaw) * Math.cos(angle) - Math.sin(yaw) * Math.sin(angle);
       let best: string | null = null;
       let bestScore = 0.35; // within about 70 degrees of straight ahead
       for (const id of neighbors) {

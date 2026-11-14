@@ -10,12 +10,11 @@ import { Badge, Button, Notice, Segmented, Spinner, Toggle, cn } from '@/compone
 import { IconCamera, IconCheck, IconDesign, IconMap, IconMic, IconSend, IconSound, IconSun, IconTour } from '@/components/ui/icons';
 import { useInventory, useLayouts, useTwin } from '@/lib/data/hooks';
 import { visibleLayouts } from '@/lib/layouts';
-import { roomName } from '@/lib/rooms';
+import { roomArea, roomName, roomsOnFloor } from '@/lib/rooms';
 import { usePushToTalk } from '@/lib/speech/usePushToTalk';
 import { useFamily, useMemberName } from '@/lib/store/family';
 import { useSession } from '@/lib/store/session';
-import { FloorTabs, PlanSvg, useFloor } from '@/components/house/HousePlan';
-import { LookPad } from './LookPad';
+import { MovePad } from './MovePad';
 
 const AS_BUILT: NoiseScenario = { glazing: null, add_carpet: false, include_furniture: true };
 
@@ -207,38 +206,29 @@ const VIEWS: { view: RemoteView; label: string; icon: typeof IconTour }[] = [
   { view: 'light', label: 'Light', icon: IconSun },
 ];
 
-/** Look by dragging; the arrows take one step or a quarter-turn. */
-function Move() {
-  const dispatch = useSession((s) => s.dispatch);
-  const arrow = 'flex h-14 w-14 items-center justify-center rounded-full border border-line bg-raised text-xl active:bg-ink';
-  return (
-    <div className="space-y-4">
-      <LookPad />
-      <div className="mx-auto grid w-fit grid-cols-3 gap-2" data-testid="step-pad">
-        <span />
-        <button type="button" aria-label="Step forward" className={arrow} onClick={() => dispatch('viewer.step', { direction: 'forward' })}>↑</button>
-        <span />
-        <button type="button" aria-label="Turn left" className={arrow} onClick={() => dispatch('viewer.look', { yaw_delta_deg: -45, pitch_delta_deg: 0 })}>←</button>
-        <button type="button" aria-label="Step back" className={arrow} onClick={() => dispatch('viewer.step', { direction: 'back' })}>↓</button>
-        <button type="button" aria-label="Turn right" className={arrow} onClick={() => dispatch('viewer.look', { yaw_delta_deg: 45, pitch_delta_deg: 0 })}>→</button>
-      </div>
-    </div>
-  );
-}
-
-/** The plan to tap. The big screen shows the same plan while this is open. */
-function RoomPlan({ twin, onPicked }: { twin: PropertyTwin; onPicked(): void }) {
+/** Big blocks to tap, floor by floor. The map itself is on the big screen while this is open. */
+function RoomBlocks({ twin, onPicked }: { twin: PropertyTwin; onPicked(): void }) {
   const roomId = useSession((s) => s.viewer.room_id);
   const dispatch = useSession((s) => s.dispatch);
-  const [floorId, setFloor] = useFloor(twin, roomId);
   return (
-    <div className="space-y-2">
-      <div className="flex gap-1.5">
-        <FloorTabs twin={twin} floorId={floorId} onPick={setFloor} />
-      </div>
-      <PlanSvg twin={twin} floorId={floorId} roomId={roomId} className="w-full"
-        onPick={(id) => { dispatch('viewer.goto', { room_id: id }); onPicked(); }} />
-      <p className="text-xs text-muted">You are in {roomName(twin, roomId)}. Tap a room to go there.</p>
+    <div className="space-y-5" data-testid="remote-rooms">
+      <p className="text-sm text-muted">The map is on the big screen. Tap where you want to go.</p>
+      {[...twin.floors].sort((a, b) => a.index - b.index).map((floor) => (
+        <section key={floor.floor_id}>
+          <h2 className="mb-2 text-[11px] font-semibold tracking-wider text-faint uppercase">{floor.label ?? `Floor ${floor.index + 1}`}</h2>
+          <div className="grid grid-cols-2 gap-2">
+            {roomsOnFloor(twin, floor.floor_id).map((r) => (
+              <button key={r.room_id} type="button" data-room-id={r.room_id} aria-pressed={r.room_id === roomId}
+                onClick={() => { dispatch('viewer.goto', { room_id: r.room_id }); onPicked(); }}
+                className={cn('flex min-h-16 flex-col items-start justify-center rounded-[var(--radius-frame)] border px-3.5 py-2.5 text-left',
+                  r.room_id === roomId ? 'border-main bg-main text-on-main' : 'border-line bg-raised text-text active:bg-ink')}>
+                <span className="text-[15px] leading-5 font-semibold">{roomName(twin, r.room_id)}</span>
+                <span className={cn('font-mono text-xs', r.room_id === roomId ? 'text-on-main/70' : 'text-muted')}>{roomArea(r).toFixed(0)} m²</span>
+              </button>
+            ))}
+          </div>
+        </section>
+      ))}
     </div>
   );
 }
@@ -285,7 +275,7 @@ function Remote({ propertyId }: { propertyId: string }) {
   };
 
   return (
-    <div className="mx-auto flex h-dvh max-w-md flex-col" data-testid="remote" data-status={status} data-mode={mode} data-view={view}>
+    <div className="relative mx-auto flex h-dvh max-w-md flex-col" data-testid="remote" data-status={status} data-mode={mode} data-view={view}>
       <header className="flex shrink-0 items-center justify-between gap-3 border-b border-line bg-ink/95 px-4 pt-[max(12px,env(safe-area-inset-top))] pb-3">
         <div className="flex min-w-0 items-center gap-2 font-display text-base font-semibold">
           <span className="h-3 w-3 shrink-0 rounded-full bg-sun shadow-[0_0_0_1.5px_var(--color-main)]" />
@@ -295,7 +285,12 @@ function Remote({ propertyId }: { propertyId: string }) {
         <Badge tone={status === 'open' ? (desktopOn ? 'leaf' : 'sun') : 'danger'}>{status === 'open' ? (desktopOn ? 'connected' : 'waiting for desktop') : status}</Badge>
       </header>
 
-      <main className="min-h-0 flex-1 space-y-3 overflow-y-auto px-4 py-4">
+      {view === 'move' && (
+        <div className="min-h-0 flex-1">
+          <MovePad hint={twin.data ? `You are in ${roomName(twin.data, roomId)}` : ''} />
+        </div>
+      )}
+      <main className={cn('min-h-0 flex-1 space-y-3 overflow-y-auto px-4 pt-4 pb-24', view === 'move' && 'hidden')}>
         {sessionError && (
           <Notice tone="error" title="Could not join the session">
             {sessionError}. Pairing codes are single-use and expire after 10 minutes: ask for a new code on the desktop.
@@ -307,16 +302,7 @@ function Remote({ propertyId }: { propertyId: string }) {
           </Notice>
         )}
         {!twin.data && !twin.error && <Spinner label="Loading the home…" />}
-        {twin.data && view === 'move' && (
-          <Card title={`Look and walk · ${roomName(twin.data, roomId)}`}>
-            <Move />
-          </Card>
-        )}
-        {twin.data && view === 'rooms' && (
-          <Card title="Rooms" testId="remote-rooms">
-            <RoomPlan twin={twin.data} onPicked={() => setView('move')} />
-          </Card>
-        )}
+        {twin.data && view === 'rooms' && <RoomBlocks twin={twin.data} onPicked={() => setView('move')} />}
         {twin.data && view === 'guide' && (
           <Card title="Your guide">
             <AgentFeed memberId={me?.member_id ?? null} count={12} />
@@ -361,31 +347,32 @@ function Remote({ propertyId }: { propertyId: string }) {
         )}
       </main>
 
+      {/* Talk floats over every screen, bottom left. */}
+      <div className="pointer-events-none absolute bottom-[calc(68px+env(safe-area-inset-bottom))] left-4 z-30 flex items-end gap-2">
+        <button
+          type="button"
+          disabled={!ptt.supported}
+          aria-label="Hold to talk to the guide"
+          title={ptt.supported ? 'Hold to talk' : 'Speech recognition is not available in this browser'}
+          data-testid="ptt"
+          className={cn('pointer-events-auto flex h-14 w-14 touch-none items-center justify-center rounded-full shadow-float transition-transform select-none disabled:opacity-40',
+            ptt.listening ? 'scale-110 bg-leaf text-main' : 'bg-main text-on-main')}
+          onPointerDown={(e) => {
+            e.currentTarget.setPointerCapture(e.pointerId);
+            ptt.start();
+          }}
+          onPointerUp={ptt.stop}
+          onPointerCancel={ptt.stop}
+          onContextMenu={(e) => e.preventDefault()}
+        >
+          <IconMic width={24} height={24} />
+        </button>
+        {(ptt.listening || ptt.error) && (
+          <span className={cn('mb-3 rounded-full bg-raised px-3 py-1 text-xs shadow-float', ptt.error ? 'text-danger' : 'text-text')}>{ptt.error ?? 'Listening…'}</span>
+        )}
+      </div>
       <footer className="shrink-0 border-t border-line bg-ink/95">
-        {/* Talk is on every screen; the guide's last words show here unless its own screen is open. */}
-        <div className="flex items-end gap-3 px-4 pt-3">
-          <div className="line-clamp-2 min-w-0 flex-1 text-[13px] [&_p]:text-[13px] [&_p]:leading-5">{view !== 'guide' && <AgentFeed memberId={me?.member_id ?? null} count={1} />}</div>
-          <Button
-            variant={ptt.listening ? 'primary' : 'subtle'}
-            size="lg"
-            disabled={!ptt.supported}
-            aria-label="Hold to talk to the guide"
-            title={ptt.supported ? 'Hold to talk' : 'Speech recognition is not available in this browser'}
-            data-testid="ptt"
-            className={cn('shrink-0 touch-none select-none', ptt.listening && 'scale-105')}
-            onPointerDown={(e) => {
-              e.currentTarget.setPointerCapture(e.pointerId);
-              ptt.start();
-            }}
-            onPointerUp={ptt.stop}
-            onPointerCancel={ptt.stop}
-            onContextMenu={(e) => e.preventDefault()}
-          >
-            <IconMic width={20} height={20} /> {ptt.listening ? 'Listening' : 'Hold to talk'}
-          </Button>
-        </div>
-        {ptt.error && <p className="px-4 pt-1 text-xs text-danger">{ptt.error}</p>}
-        <nav aria-label="Remote screens" className="mt-3 grid grid-cols-5 border-t border-line pb-[max(8px,env(safe-area-inset-bottom))]">
+        <nav aria-label="Remote screens" className="grid grid-cols-5 pb-[max(8px,env(safe-area-inset-bottom))]">
           {VIEWS.map(({ view: v, label, icon: Icon }) => (
             <button key={v} type="button" data-tab={v} aria-pressed={v === view} onClick={() => setView(v)}
               className={cn('flex flex-col items-center gap-1 pt-2.5 pb-1 text-[11px]', v === view ? 'font-semibold text-sun-deep' : 'text-muted')}>

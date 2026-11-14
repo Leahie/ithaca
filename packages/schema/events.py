@@ -115,9 +115,12 @@ class ViewerLookPayload(Model):
 
 class ViewerStepPayload(Model):
     """Additive to v0. The phone's arrows: one hop to the next scan position ahead of, or behind,
-    the way the camera faces. Turning is a `viewer.look`."""
+    the way the camera faces. Turning is a `viewer.look`. `angle_deg` (the phone's joystick) is the
+    way to go, clockwise from straight ahead: 0 forward, 90 right, 180 back; it wins over
+    `direction`."""
 
-    direction: Literal["forward", "back"]
+    direction: Literal["forward", "back"] = "forward"
+    angle_deg: float | None = None
 
 
 class RemoteViewPayload(Model):

@@ -791,10 +791,13 @@ export interface ViewerState {
 
 /**
  * Additive to v0. The phone's arrows: one hop to the next scan position ahead of, or behind,
- * the way the camera faces. Turning is a `viewer.look`.
+ * the way the camera faces. Turning is a `viewer.look`. `angle_deg` (the phone's joystick) is the
+ * way to go, clockwise from straight ahead: 0 forward, 90 right, 180 back; it wins over
+ * `direction`.
  */
 export interface ViewerStepPayload {
-  direction: "forward" | "back";
+  direction?: "forward" | "back";
+  angle_deg?: number | null;
 }
 
 /**
