@@ -140,60 +140,54 @@ function SoundControls({ twin }: { twin: PropertyTwin }) {
 }
 
 /**
- * The latest thing the agent said or did, so the phone user sees their words landed. In a family,
- * a phone shows its own member's conversation and the family board; the big screen shows all.
+ * The conversation as messages: yours on the right, the guide's on the left, newest at the bottom
+ * and kept in view. The box to type in stays put under it.
  */
-function AgentFeed({ memberId, count = 4 }: { memberId: string | null; count?: number }) {
+function Messages({ memberId }: { memberId: string | null }) {
   const chat = useSession((s) => s.chat);
   const interim = useSession((s) => s.interim);
   const nameOf = useMemberName();
+  const end = useRef<HTMLDivElement>(null);
   const mine = memberId
     ? chat.filter((c) => (c.kind === 'ask' ? c.from_member_id === memberId || c.to_member_id === memberId : c.kind === 'note' || c.member_id === memberId))
     : chat;
-  const recent = mine.slice(-count);
-  if (!recent.length && !interim) return <p className="text-sm leading-5 text-muted">Hold the button below and speak. For example: “Take me to the kitchen.”</p>;
+  const lastText = mine[mine.length - 1];
+  const tail = lastText && 'text' in lastText ? lastText.text.length : 0;
+  useEffect(() => {
+    end.current?.scrollIntoView({ block: 'end' });
+  }, [mine.length, tail, interim?.text]);
+
+  const left = 'max-w-[85%] self-start rounded-2xl rounded-bl-md border border-line bg-raised px-3.5 py-2 text-[15px] leading-[1.45]';
+  const right = 'max-w-[85%] self-end rounded-2xl rounded-br-md bg-main px-3.5 py-2 text-[15px] leading-[1.45] text-on-main';
+  const aside = 'self-center text-center text-xs text-muted';
   return (
-    <div className="space-y-2" aria-live="polite" data-testid="remote-feed">
-      {recent.map((c) =>
+    <div className="flex min-h-full flex-col justify-end gap-2" aria-live="polite" data-testid="remote-feed">
+      {!mine.length && !interim && <p className={aside}>Say or type anything. For example: “Take me to the kitchen.”</p>}
+      {mine.map((c) =>
         c.kind === 'user' ? (
-          <p key={c.id} className="text-right text-sm text-muted">
-            “{c.text}”
-          </p>
+          <p key={c.id} className={right}>{c.text}</p>
         ) : c.kind === 'agent' ? (
-          <p key={c.id} className={cn('text-sm leading-5', c.streaming && 'streaming-caret')}>
-            {c.text}
-          </p>
+          <p key={c.id} className={cn(left, c.streaming && 'streaming-caret')}>{c.text}</p>
         ) : c.kind === 'action' ? (
-          <div key={c.id}>
-            <Badge tone="sun">
-              <IconCheck width={11} height={11} />
-              {c.summary}
-            </Badge>
-          </div>
+          <p key={c.id} className={aside}>✓ {c.summary}</p>
         ) : c.kind === 'note' ? (
-          <p key={c.id} className="rounded-[var(--radius-frame)] border border-line bg-raised px-3 py-2 text-sm leading-5">
-            <span className="font-semibold">{nameOf(c.member_id) ? `${nameOf(c.member_id)}'s agent` : 'The guide'}</span> on the family board: {c.text}
+          <p key={c.id} className={left}>
+            <span className="font-semibold">{nameOf(c.member_id) ? `${nameOf(c.member_id)}'s guide` : 'The guide'}</span> on the family board: {c.text}
           </p>
         ) : c.kind === 'ask' ? (
-          <p key={c.id} className="rounded-[var(--radius-frame)] border border-line bg-raised px-3 py-2 text-sm leading-5">
-            <span className="font-semibold">{nameOf(c.to_member_id) ?? 'Another member'}'s agent</span>: {c.answer ?? 'thinking…'}
+          <p key={c.id} className={left}>
+            <span className="font-semibold">{nameOf(c.to_member_id) ?? 'Another member'}'s guide</span>: {c.answer ?? 'thinking…'}
           </p>
         ) : c.kind === 'layouts' ? (
-          <p key={c.id} className="text-sm text-muted">
-            {c.layout_ids.length} layout option{c.layout_ids.length === 1 ? '' : 's'} on the big screen.
-          </p>
+          <p key={c.id} className={aside}>{c.layout_ids.length} layout option{c.layout_ids.length === 1 ? '' : 's'} on the big screen</p>
         ) : c.kind === 'catalog' ? (
-          // Picture cards are for the big screen; the phone just says they are there.
-          <p key={c.id} className="text-sm text-muted">
-            Showing {c.pieces.length} piece{c.pieces.length === 1 ? '' : 's'} on the big screen: {c.pieces.map((x) => x.label).join(', ')}.
-          </p>
+          <p key={c.id} className={aside}>On the big screen: {c.pieces.map((x) => x.label).join(', ')}</p>
         ) : (
-          <p key={c.id} className="text-sm text-danger">
-            {c.message}
-          </p>
+          <p key={c.id} className="self-center text-xs text-danger">{c.message}</p>
         ),
       )}
-      {interim && <p className="text-right text-sm text-faint italic">{interim.text || 'Listening…'}</p>}
+      {interim && <p className={cn(right, 'opacity-60')}>{interim.text || 'Listening…'}</p>}
+      <div ref={end} />
     </div>
   );
 }
@@ -330,7 +324,30 @@ function Remote({ propertyId }: { propertyId: string }) {
           <MovePad side={hand} hint={twin.data ? `You are in ${roomName(twin.data, roomId)}` : ''} />
         </div>
       )}
-      <main className={cn('min-h-0 flex-1 space-y-3 overflow-y-auto px-4 pt-4 pb-24', view === 'move' && 'hidden')}>
+      {view === 'guide' && (
+        <div className="flex min-h-0 flex-1 flex-col" data-testid="remote-guide">
+          <div className="min-h-0 flex-1 overflow-y-auto px-4 py-3">
+            <Messages memberId={me?.member_id ?? null} />
+          </div>
+          <form className="flex shrink-0 items-center gap-2 border-t border-line bg-raised px-3 py-2" onSubmit={(e) => { e.preventDefault(); send(); }}>
+            <input value={text} onChange={(e) => setText(e.target.value)} placeholder="Message" aria-label="Message the guide" enterKeyHint="send"
+              className="h-11 min-w-0 flex-1 rounded-full border border-line bg-surface px-4 text-base placeholder:text-faint focus:border-line-strong focus:outline-none" />
+            {text.trim() ? (
+              <button type="submit" aria-label="Send" className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-main text-on-main">
+                <IconSend width={18} height={18} />
+              </button>
+            ) : (
+              <button type="button" disabled={!ptt.supported} aria-label="Hold to talk to the guide" data-testid="ptt-inline"
+                className={cn('flex h-11 w-11 shrink-0 touch-none items-center justify-center rounded-full select-none disabled:opacity-40', ptt.listening ? 'scale-110 bg-leaf text-main' : 'bg-main text-on-main')}
+                onPointerDown={(e) => { e.currentTarget.setPointerCapture(e.pointerId); ptt.start(); }}
+                onPointerUp={ptt.stop} onPointerCancel={ptt.stop} onContextMenu={(e) => e.preventDefault()}>
+                <IconMic width={20} height={20} />
+              </button>
+            )}
+          </form>
+        </div>
+      )}
+      <main className={cn('min-h-0 flex-1 space-y-3 overflow-y-auto px-4 pt-4 pb-24', (view === 'move' || view === 'guide') && 'hidden')}>
         {sessionError && (
           <Notice tone="error" title="Could not join the session">
             {sessionError}. Pairing codes are single-use and expire after 10 minutes: ask for a new code on the desktop.
@@ -343,18 +360,6 @@ function Remote({ propertyId }: { propertyId: string }) {
         )}
         {!twin.data && !twin.error && <Spinner label="Loading the home…" />}
         {twin.data && view === 'rooms' && <RoomBlocks twin={twin.data} onPicked={() => setView('move')} />}
-        {twin.data && view === 'guide' && (
-          <Card title="Your guide">
-            <AgentFeed memberId={me?.member_id ?? null} count={12} />
-            <form className="mt-3 flex gap-2" onSubmit={(e) => { e.preventDefault(); send(); }}>
-              <input value={text} onChange={(e) => setText(e.target.value)} placeholder="Type to the guide" aria-label="Message the guide"
-                className="h-12 min-w-0 flex-1 rounded-xl border border-line bg-surface px-3 text-base placeholder:text-faint focus:border-line-strong focus:outline-none" />
-              <Button type="submit" variant="subtle" size="lg" square aria-label="Send" disabled={!text.trim()}>
-                <IconSend width={18} height={18} />
-              </Button>
-            </form>
-          </Card>
-        )}
         {twin.data && view === 'furniture' && (
           <>
             <Card title="Layouts" testId="remote-layouts">
@@ -388,7 +393,7 @@ function Remote({ propertyId }: { propertyId: string }) {
       </main>
 
       {/* Talk floats over every screen, in the corner away from the walking stick. */}
-      <div className={cn('pointer-events-none absolute bottom-[calc(68px+env(safe-area-inset-bottom))] z-30 flex items-end gap-2', hand === 'right' ? 'left-4' : 'right-4 flex-row-reverse')}>
+      <div className={cn('pointer-events-none absolute bottom-[calc(68px+env(safe-area-inset-bottom))] z-30 flex items-end gap-2', hand === 'right' ? 'left-4' : 'right-4 flex-row-reverse', view === 'guide' && 'hidden')}>
         <button
           type="button"
           disabled={!ptt.supported}
