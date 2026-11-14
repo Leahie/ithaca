@@ -1,5 +1,6 @@
 'use client';
 
+import { shownLayouts } from '@/lib/layouts';
 import type { Opening, PropertyTwin } from '@ithaca/schema';
 import { Canvas } from '@react-three/fiber';
 import { useCallback, useEffect, useMemo, useState } from 'react';
@@ -63,9 +64,9 @@ export function SunLabTab({ twin, active }: { twin: PropertyTwin; active: boolea
 
   // Furniture of the chosen layout.
   const placements = useMemo<PlacedItem[]>(() => {
-    const layout = layouts.data?.find((l) => l.layout_id === selectedLayoutId);
     const items = new Map((inventory.data ?? []).map((i) => [i.item_id, i]));
-    return (layout?.placements ?? []).flatMap((p) => {
+    // Every room keeps its furniture: the layout on screen plus the chosen one of each other room.
+    return shownLayouts(layouts.data, selectedLayoutId).flatMap((l) => l.placements).flatMap((p) => {
       const item = items.get(p.item_id);
       return item ? [{ item_id: p.item_id, url: item.glb_url, position: p.position, yaw_deg: p.yaw_deg }] : [];
     });

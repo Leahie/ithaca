@@ -1,5 +1,6 @@
 'use client';
 
+import { shownLayouts } from '@/lib/layouts';
 import type { InventoryItem, LayoutVariant, PropertyTwin } from '@ithaca/schema';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { HouseLoader } from '@/components/house/HouseLoader';
@@ -307,9 +308,9 @@ export function TourTab({ twin, active }: { twin: PropertyTwin; active: boolean 
 
   // The chosen layout's furniture, in the Showcase scene.
   const placements = useMemo(() => {
-    const layout: LayoutVariant | undefined = layouts.data?.find((l) => l.layout_id === selectedLayoutId);
     const items = new Map<string, InventoryItem>((inventory.data ?? []).map((i) => [i.item_id, i]));
-    return (layout?.placements ?? []).flatMap((p) => {
+    // Every room keeps its furniture: the layout on screen plus the chosen one of each other room.
+    return shownLayouts(layouts.data, selectedLayoutId).flatMap((l) => l.placements).flatMap((p) => {
       const item = items.get(p.item_id);
       return item ? [{ ...p, url: api().assetUrl(item.glb_url) }] : [];
     });
