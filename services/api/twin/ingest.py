@@ -116,8 +116,6 @@ def build_twin(
     ]
     floor_index = {f.floor_id: f.index for f in floors}
     rooms = _rooms(kept, elevations)
-    relabel = annotations.load_room_labels(property_id)  # keeps room ids and floor materials
-    rooms = [r.model_copy(update={"label": relabel[r.room_id]}) if r.room_id in relabel else r for r in rooms]
     rooms.sort(key=lambda r: (floor_index.get(r.floor_id, 0), r.room_id))
     annotated = annotations.load_openings(property_id)
     openings = annotated if annotated is not None else _openings(
@@ -129,7 +127,7 @@ def build_twin(
     walls = _walls(edges, vertices, kept, every_room, {o.opening_id for o in openings})
     floor_openings = _floor_openings(kept, every_room, rooms, openings, edges, floor_index)
 
-    return PropertyTwin(
+    return annotations.apply_room_corrections(PropertyTwin(
         property_id=property_id,
         version=1,
         sources=TwinSources(
@@ -155,7 +153,7 @@ def build_twin(
             traffic="none",
             walls="inferred" if walls else "none",
         ),
-    )
+    ))
 
 
 def write_twin(twin: PropertyTwin, path: Path) -> PropertyTwin:

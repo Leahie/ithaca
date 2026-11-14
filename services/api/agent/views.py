@@ -96,6 +96,9 @@ def best_view(twin: PropertyTwin, room_id: str) -> View | None:
     sweeps = [s for s in twin.sweeps if s.room_id == room_id]
     if not sweeps:
         return None
+    # a room outline can take in a staircase: never stand on a step
+    level = sorted(s.position.y for s in sweeps)[len(sweeps) // 2]
+    sweeps = [s for s in sweeps if abs(s.position.y - level) < 0.4]
     poly = Polygon(room.polygon).buffer(0.15)
     fx, fz = _focus(twin, room)
 

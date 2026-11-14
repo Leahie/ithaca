@@ -29,14 +29,72 @@ def load_openings(property_id: str) -> list[Opening] | None:
     return [Opening.model_validate(o) for o in json.loads(path.read_text(encoding="utf-8"))]
 
 
-def room_labels_path(property_id: str) -> Path:
+def rooms_path(property_id: str) -> Path:
     return fixtures_dir() / "twin" / "annotations" / f"{property_id}.rooms.json"
 
 
-def load_room_labels(property_id: str) -> dict[str, str]:
-    """room_id -> corrected label (from the published floor plan), where Matterport's own is wrong."""
-    path = room_labels_path(property_id)
-    return json.loads(path.read_text(encoding="utf-8")) if path.exists() else {}
+def apply_room_corrections(twin: PropertyTwin) -> PropertyTwin:
+    """Room corrections from the published floor plan, where Matterport's rooms are wrong.
+
+    `labels`: room_id -> label. `carve`: a piece cut out of the room `from`, either as a new room
+    (`room_id`, `label`, `floor_material`) or, with a null label, as no room at all (a stairwell).
+    Scan positions, openings and walls on the piece move with it. Existing room ids never change.
+    """
+    from shapely.geometry import Point, Polygon
+
+    from services.api.twin import frames
+    from services.api.twin import rooms as plan
+
+    path = rooms_path(twin.property_id)
+    if not path.exists():
+        return twin
+    spec = json.loads(path.read_text(encoding="utf-8"))
+    labels = spec.get("labels", {})
+    rooms = {r.room_id: (r.model_copy(update={"label": labels[r.room_id]}) if r.room_id in labels else r) for r in twin.rooms}
+    sweeps, openings, walls = list(twin.sweeps), list(twin.openings), list(twin.walls)
+
+    def outline(shape) -> list[tuple[float, float]]:
+        pts = [(round(x, 3), round(z, 3)) for x, z in shape.exterior.coords[:-1]]
+        return plan.start_at_min(frames.ccw_from_above(pts))
+
+    for c in spec.get("carve", []):
+        parent = rooms.get(c["from"])
+        if parent is None or (c["room_id"] and c["room_id"] in rooms):
+            continue
+        piece = Polygon(c["polygon"])
+        rest = Polygon(parent.polygon).buffer(0).difference(piece)
+        rest = max(getattr(rest, "geoms", [rest]), key=lambda g: g.area)
+        rooms[parent.room_id] = parent.model_copy(update={"polygon": outline(rest), "area_m2": round(rest.area, 2)})
+        new_id = c["room_id"] if c.get("label") else None
+        if new_id:
+            rooms[new_id] = parent.model_copy(update={
+                "room_id": new_id, "label": c["label"], "polygon": outline(piece), "area_m2": round(piece.area, 2),
+                "floor_material": c.get("floor_material", parent.floor_material)})
+        sweeps = [s.model_copy(update={"room_id": new_id}) if s.room_id == parent.room_id and piece.contains(Point(s.position.x, s.position.z)) else s
+                  for s in sweeps]
+        if not new_id:
+            continue
+
+        def moved(x: float, z: float) -> bool:  # on the piece's edge and no longer on the parent's
+            p = Point(x, z)
+            return piece.exterior.distance(p) < 0.15 and rest.exterior.distance(p) > 0.15
+
+        def swap(o):
+            x = sum(v.x for v in o.polygon) / len(o.polygon)
+            z = sum(v.z for v in o.polygon) / len(o.polygon)
+            if not moved(x, z):
+                return o
+            if o.room_id == parent.room_id:
+                return o.model_copy(update={"room_id": new_id})
+            return o.model_copy(update={"other_room_id": new_id}) if o.other_room_id == parent.room_id else o
+
+        openings = [swap(o) for o in openings]
+        walls = [w.model_copy(update={"room_ids": [new_id if r == parent.room_id else r for r in w.room_ids]})
+                 if parent.room_id in w.room_ids and moved((w.ends[0][0] + w.ends[1][0]) / 2, (w.ends[0][1] + w.ends[1][1]) / 2) else w
+                 for w in walls]
+    order = {f.floor_id: f.index for f in twin.floors}
+    return twin.model_copy(update={"rooms": sorted(rooms.values(), key=lambda r: (order.get(r.floor_id, 0), r.room_id)),
+                                   "sweeps": sweeps, "openings": openings, "walls": walls})
 
 
 def validate(twin: PropertyTwin, openings: list[Opening]) -> None:

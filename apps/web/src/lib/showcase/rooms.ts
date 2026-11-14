@@ -2,6 +2,18 @@ import type { PropertyTwin, Room, Sweep } from '@ithaca/schema';
 import { centroid } from '@/lib/geometry/polygon';
 import { roomArea } from '@/lib/rooms';
 
+/**
+ * The scan positions that stand on a room's floor. A room outline can take in a staircase, whose
+ * positions sit part-way between floors; going "to the room" must not land on a step.
+ */
+export function floorSweeps(twin: PropertyTwin, roomId: string): Sweep[] {
+  const inRoom = twin.sweeps.filter((s) => s.room_id === roomId);
+  const ys = inRoom.map((s) => s.position.y).sort((a, b) => a - b);
+  const median = ys[Math.floor(ys.length / 2)] ?? 0;
+  const level = inRoom.filter((s) => Math.abs(s.position.y - median) < 0.4);
+  return level.length ? level : inRoom;
+}
+
 /** The sweep to stand on when asked to go to a room: the one nearest the room's center. */
 export function sweepForRoom(twin: PropertyTwin, roomId: string): Sweep | undefined {
   const room = twin.rooms.find((r) => r.room_id === roomId);
@@ -9,8 +21,7 @@ export function sweepForRoom(twin: PropertyTwin, roomId: string): Sweep | undefi
   const [cx, cz] = centroid(room.polygon);
   let best: Sweep | undefined;
   let bestDist = Infinity;
-  for (const s of twin.sweeps) {
-    if (s.room_id !== roomId) continue;
+  for (const s of floorSweeps(twin, roomId)) {
     const d = Math.hypot(s.position.x - cx, s.position.z - cz);
     if (d < bestDist) {
       bestDist = d;
@@ -50,7 +61,7 @@ type P3 = { x: number; y: number; z: number };
  */
 export function viewForRoom(twin: PropertyTwin, roomId: string): { sweep: Sweep; lookAt: P3 } | undefined {
   const room = twin.rooms.find((r) => r.room_id === roomId);
-  const inRoom = twin.sweeps.filter((s) => s.room_id === roomId);
+  const inRoom = floorSweeps(twin, roomId);
   if (!room || !inRoom.length) return undefined;
   let [fx, fz] = centroid(room.polygon);
   const windows = twin.openings.filter((o) => o.room_id === roomId && o.kind !== 'door' && o.exterior !== false && o.polygon.length >= 2);

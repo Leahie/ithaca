@@ -1,8 +1,18 @@
 {
- "19ab05tns5h6y4qm42esqqpea": "Closet",
- "2qdmc5i9byxi79ry1pxdkqzea": "Office",
- "3ygfq6yfyyw3hi9x7u5rm2iqa": "Family Room",
- "a5f9age4zzxewres6iqux2emc": "Office",
- "n81qfe51azs8iexnbqwspye6c": "Pantry",
- "tt6gm2a0463x9wmnx7rn6gugc": "Bedroom"
+ "labels": {
+  "19ab05tns5h6y4qm42esqqpea": "Closet",
+  "2qdmc5i9byxi79ry1pxdkqzea": "Office",
+  "3ygfq6yfyyw3hi9x7u5rm2iqa": "Family Room",
+  "a5f9age4zzxewres6iqux2emc": "Office",
+  "n81qfe51azs8iexnbqwspye6c": "Pantry",
+  "tt6gm2a0463x9wmnx7rn6gugc": "Bedroom"
+ },
+ "carve": [
+  {"room_id": "carve-f1-bathroom", "from": "cdz3fkt38kae7tapstpt0eaeb", "label": "Bathroom", "floor_material": "tile",
+   "polygon": [[-4.9, -10.5], [-2.9, -10.5], [-2.5, -10.9], [-2.5, -12.9], [-4.3, -12.9], [-4.3, -11.6], [-4.9, -11.6]]},
+  {"room_id": "carve-f1-dining", "from": "cdz3fkt38kae7tapstpt0eaeb", "label": "Dining Room", "floor_material": "hardwood",
+   "polygon": [[-3.0, 0.8], [1.1, 0.8], [1.1, -4.3], [-3.0, -4.3]]},
+  {"room_id": null, "from": "3ygfq6yfyyw3hi9x7u5rm2iqa", "label": null,
+   "polygon": [[-16.1, -3.65], [-16.1, -0.7], [-12.2, -0.7], [-12.2, -3.5], [-14.2, -3.6]]}
+ ]
 }

@@ -1,6 +1,6 @@
 {
   "property_id": "onXQLXhfyQv",
-  "version": 8,
+  "version": 9,
   "sources": {
     "matterport_model_id": "onXQLXhfyQv",
     "vexcel_parcel_id": null,
@@ -228,6 +228,72 @@
       "area_m2": 12.39
     },
     {
+      "room_id": "carve-f1-bathroom",
+      "floor_id": "tsmq1wak12rhgn0mawksxcwcd",
+      "label": "Bathroom",
+      "polygon": [
+        [
+          -4.9,
+          -11.6
+        ],
+        [
+          -4.9,
+          -10.5
+        ],
+        [
+          -2.9,
+          -10.5
+        ],
+        [
+          -2.5,
+          -10.9
+        ],
+        [
+          -2.5,
+          -12.9
+        ],
+        [
+          -4.3,
+          -12.9
+        ],
+        [
+          -4.3,
+          -11.6
+        ]
+      ],
+      "floor_y": -0.413,
+      "height_m": 2.43,
+      "floor_material": "tile",
+      "area_m2": 4.9
+    },
+    {
+      "room_id": "carve-f1-dining",
+      "floor_id": "tsmq1wak12rhgn0mawksxcwcd",
+      "label": "Dining Room",
+      "polygon": [
+        [
+          -3.0,
+          -4.3
+        ],
+        [
+          -3.0,
+          0.8
+        ],
+        [
+          1.1,
+          0.8
+        ],
+        [
+          1.1,
+          -4.3
+        ]
+      ],
+      "floor_y": -0.413,
+      "height_m": 2.43,
+      "floor_material": "hardwood",
+      "area_m2": 20.91
+    },
+    {
       "room_id": "cdz3fkt38kae7tapstpt0eaeb",
       "floor_id": "tsmq1wak12rhgn0mawksxcwcd",
       "label": "Living Room",
@@ -269,8 +335,16 @@
           0.765
         ],
         [
-          1.054,
-          0.766
+          -3.0,
+          0.765
+        ],
+        [
+          -3.0,
+          -4.3
+        ],
+        [
+          1.055,
+          -4.3
         ],
         [
           1.055,
@@ -298,34 +372,14 @@
         ],
         [
           -3.617,
-          -10.502
+          -10.5
         ],
         [
-          -2.932,
-          -10.501
+          -4.9,
+          -10.5
         ],
         [
-          -2.458,
-          -10.919
-        ],
-        [
-          -2.458,
-          -12.894
-        ],
-        [
-          -4.309,
-          -12.894
-        ],
-        [
-          -4.31,
-          -11.603
-        ],
-        [
-          -4.874,
-          -11.604
-        ],
-        [
-          -4.874,
+          -4.9,
           -10.502
         ],
         [
@@ -368,7 +422,7 @@
       "floor_y": -0.413,
       "height_m": 2.43,
       "floor_material": "hardwood",
-      "area_m2": 117.54
+      "area_m2": 92.05
     },
     {
       "room_id": "ediidma5zg15dufx3n0qyq21a",
@@ -716,11 +770,23 @@
       "label": "Family Room",
       "polygon": [
         [
-          -16.03,
-          -3.577
+          -14.237,
+          -5.593
         ],
         [
-          -16.03,
+          -14.237,
+          -3.601
+        ],
+        [
+          -14.2,
+          -3.6
+        ],
+        [
+          -12.2,
+          -3.5
+        ],
+        [
+          -12.2,
           -0.816
         ],
         [
@@ -794,20 +860,12 @@
         [
           -8.92,
           -5.592
-        ],
-        [
-          -14.237,
-          -5.593
-        ],
-        [
-          -14.237,
-          -3.577
         ]
       ],
       "floor_y": 2.719,
       "height_m": 2.44,
       "floor_material": "hardwood",
-      "area_m2": 84.91
+      "area_m2": 74.39
     },
     {
       "room_id": "4mpd3yxnm0wrnpak1ibnr29wc",
@@ -1681,7 +1739,7 @@
     },
     {
       "opening_id": "6t342k06kr4hsye67bggr4d6c",
-      "room_id": "cdz3fkt38kae7tapstpt0eaeb",
+      "room_id": "carve-f1-dining",
       "kind": "window",
       "polygon": [
         {
@@ -2440,7 +2498,7 @@
     },
     {
       "opening_id": "s1pazfh2rrz71b284yfhs64mc",
-      "room_id": "cdz3fkt38kae7tapstpt0eaeb",
+      "room_id": "carve-f1-dining",
       "kind": "window",
       "polygon": [
         {
@@ -2605,7 +2663,7 @@
     },
     {
       "opening_id": "wsacsf5w68qfwduyymeh1e9ab",
-      "room_id": "cdz3fkt38kae7tapstpt0eaeb",
+      "room_id": "carve-f1-bathroom",
       "kind": "door",
       "polygon": [
         {
@@ -2638,7 +2696,7 @@
     },
     {
       "opening_id": "x039pk286m5yduy2kf8mh1y3c",
-      "room_id": "cdz3fkt38kae7tapstpt0eaeb",
+      "room_id": "carve-f1-dining",
       "kind": "window",
       "polygon": [
         {
@@ -2803,7 +2861,7 @@
     },
     {
       "opening_id": "yqadfepgs1udbwibbs51yytfc",
-      "room_id": "cdz3fkt38kae7tapstpt0eaeb",
+      "room_id": "carve-f1-dining",
       "kind": "window",
       "polygon": [
         {
@@ -3627,7 +3685,7 @@
       ],
       "thickness_m": 0.13,
       "room_ids": [
-        "cdz3fkt38kae7tapstpt0eaeb",
+        "carve-f1-bathroom",
         "h26t7ky77ew74yb0pg8qqf5rd"
       ],
       "exterior": false,
@@ -3933,7 +3991,7 @@
       ],
       "thickness_m": 0.16,
       "room_ids": [
-        "cdz3fkt38kae7tapstpt0eaeb"
+        "carve-f1-dining"
       ],
       "exterior": true,
       "assembly": "exterior_brick_veneer_frame",
@@ -4068,7 +4126,7 @@
       ],
       "thickness_m": 0.13,
       "room_ids": [
-        "cdz3fkt38kae7tapstpt0eaeb"
+        "carve-f1-bathroom"
       ],
       "exterior": false,
       "assembly": "interior_stud_gypsum",
@@ -4223,7 +4281,7 @@
       "thickness_m": 0.13,
       "room_ids": [
         "2qdmc5i9byxi79ry1pxdkqzea",
-        "cdz3fkt38kae7tapstpt0eaeb"
+        "carve-f1-bathroom"
       ],
       "exterior": false,
       "assembly": "interior_stud_gypsum",
@@ -4739,7 +4797,7 @@
       ],
       "thickness_m": 0.12,
       "room_ids": [
-        "cdz3fkt38kae7tapstpt0eaeb"
+        "carve-f1-bathroom"
       ],
       "exterior": false,
       "assembly": "interior_stud_gypsum",
@@ -5087,7 +5145,7 @@
       ],
       "thickness_m": 0.12,
       "room_ids": [
-        "cdz3fkt38kae7tapstpt0eaeb"
+        "carve-f1-bathroom"
       ],
       "exterior": false,
       "assembly": "interior_stud_gypsum",
@@ -5942,7 +6000,7 @@
       ],
       "thickness_m": 0.16,
       "room_ids": [
-        "cdz3fkt38kae7tapstpt0eaeb"
+        "carve-f1-dining"
       ],
       "exterior": true,
       "assembly": "exterior_brick_veneer_frame",
@@ -6141,7 +6199,7 @@
       ],
       "thickness_m": 0.12,
       "room_ids": [
-        "cdz3fkt38kae7tapstpt0eaeb"
+        "carve-f1-bathroom"
       ],
       "exterior": false,
       "assembly": "interior_stud_gypsum",
@@ -6292,7 +6350,7 @@
       "thickness_m": 0.17,
       "room_ids": [
         "2qdmc5i9byxi79ry1pxdkqzea",
-        "cdz3fkt38kae7tapstpt0eaeb"
+        "carve-f1-bathroom"
       ],
       "exterior": false,
       "assembly": "exterior_brick_veneer_frame",
@@ -7414,7 +7472,7 @@
     {
       "sweep_id": "61mmtu0wsbg3p1h5hhygtcsda",
       "floor_id": "pd0i1c4yq9w0y2zsb07ed23sb",
-      "room_id": "3ygfq6yfyyw3hi9x7u5rm2iqa",
+      "room_id": null,
       "position": {
         "x": -12.686,
         "y": 2.507,
@@ -7484,7 +7542,7 @@
     {
       "sweep_id": "71mufd0pez0pswrw3566me0pd",
       "floor_id": "pd0i1c4yq9w0y2zsb07ed23sb",
-      "room_id": "3ygfq6yfyyw3hi9x7u5rm2iqa",
+      "room_id": null,
       "position": {
         "x": -13.827,
         "y": 1.767,
@@ -7526,7 +7584,7 @@
     {
       "sweep_id": "7xikruphbxxbnmkr11puc3g6a",
       "floor_id": "tsmq1wak12rhgn0mawksxcwcd",
-      "room_id": "cdz3fkt38kae7tapstpt0eaeb",
+      "room_id": "carve-f1-bathroom",
       "position": {
         "x": -3.994,
         "y": 1.456,
@@ -7900,7 +7958,7 @@
     {
       "sweep_id": "dug2uk7yg7zhsqrn12kg7t9aa",
       "floor_id": "tsmq1wak12rhgn0mawksxcwcd",
-      "room_id": "cdz3fkt38kae7tapstpt0eaeb",
+      "room_id": "carve-f1-dining",
       "position": {
         "x": -2.332,
         "y": 1.38,
@@ -7952,7 +8010,7 @@
     {
       "sweep_id": "dzxqgrybsee0r5tyri4t7mx5a",
       "floor_id": "tsmq1wak12rhgn0mawksxcwcd",
-      "room_id": "cdz3fkt38kae7tapstpt0eaeb",
+      "room_id": "carve-f1-dining",
       "position": {
         "x": 0.449,
         "y": 1.39,
@@ -8845,7 +8903,7 @@
     {
       "sweep_id": "t84tw3x7dezpb045wz0nc53pb",
       "floor_id": "tsmq1wak12rhgn0mawksxcwcd",
-      "room_id": "cdz3fkt38kae7tapstpt0eaeb",
+      "room_id": "carve-f1-dining",
       "position": {
         "x": -2.256,
         "y": 1.394,
@@ -8889,7 +8947,7 @@
     {
       "sweep_id": "ter0iuxd2bc2a9hinc63i83nb",
       "floor_id": "pd0i1c4yq9w0y2zsb07ed23sb",
-      "room_id": "3ygfq6yfyyw3hi9x7u5rm2iqa",
+      "room_id": null,
       "position": {
         "x": -12.75,
         "y": 3.407,
