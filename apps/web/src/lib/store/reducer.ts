@@ -1,4 +1,4 @@
-import type { AnyEvent, ClientKind, EventSource, JobProgressPayload, SoundSetScenarioPayload, ViewerMode, ViewerState } from '@ithaca/schema';
+import type { AnyEvent, CatalogPiece, ClientKind, EventSource, JobProgressPayload, SoundSetScenarioPayload, ViewerMode, ViewerState } from '@ithaca/schema';
 
 /**
  * Viewer state and its reducer (A1). Every change to what the viewer shows is an event:
@@ -15,6 +15,8 @@ export interface ViewerSlice {
   sound_scenario: SoundSetScenarioPayload | null;
   shown_layout_ids: string[];
   selected_layout_id: string | null;
+  /** Where to stand and what to face in `room_id`, when the last goto said (the agent's best view). */
+  view: { at_sweep_id: string; look_at: { x: number; y: number; z: number } } | null;
   /** Bumps on every goto, so a repeated goto to the same room still moves the camera. */
   goto_seq: number;
 }
@@ -28,6 +30,10 @@ export type ChatItem =
   | { kind: 'agent'; id: string; text: string; streaming: boolean; member_id: string | null }
   | { kind: 'action'; id: string; tool: string; summary: string; member_id: string | null }
   | { kind: 'error'; id: string; message: string; member_id: string | null }
+  /** Layout options the agent made, shown as small plans the user can click to put in the room. */
+  | { kind: 'layouts'; id: string; layout_ids: string[]; member_id: string | null }
+  /** Catalog pieces the agent suggested, shown as picture cards the user can click to add. */
+  | { kind: 'catalog'; id: string; property_id: string; room_id: string | null; near_item_id: string | null; pieces: CatalogPiece[]; member_id: string | null }
   /** A note one member's agent shared on the family board. */
   | { kind: 'note'; id: string; text: string; room_id: string | null; member_id: string }
   /** One member's agent asked another's; `answer` arrives later. */
@@ -56,7 +62,7 @@ const MAX_CHAT = 300;
 
 export function initialCore(datetime: string): CoreState {
   return {
-    viewer: { mode: 'tour', room_id: null, sweep_id: null, datetime, sound_scenario: null, shown_layout_ids: [], selected_layout_id: null, goto_seq: 0 },
+    viewer: { mode: 'tour', room_id: null, sweep_id: null, datetime, sound_scenario: null, shown_layout_ids: [], selected_layout_id: null, view: null, goto_seq: 0 },
     chat: [],
     interim: null,
     jobs: {},
@@ -105,9 +111,10 @@ export function applyEvent(state: CoreState, event: AnyEvent): CoreState {
       return { ...state, peers: { ...state.peers, [client]: false } };
     }
     case 'viewer.goto': {
-      const { room_id, sweep_id } = event.payload;
-      if (room_id) return { ...state, viewer: { ...v, room_id, sweep_id: null, goto_seq: v.goto_seq + 1 } };
-      if (sweep_id) return { ...state, viewer: { ...v, sweep_id, room_id: state.sweepRooms[sweep_id] ?? v.room_id, goto_seq: v.goto_seq + 1 } };
+      const { room_id, sweep_id, at_sweep_id, look_at } = event.payload;
+      const view = at_sweep_id && look_at ? { at_sweep_id, look_at } : null;
+      if (room_id) return { ...state, viewer: { ...v, room_id, sweep_id: null, view, goto_seq: v.goto_seq + 1 } };
+      if (sweep_id) return { ...state, viewer: { ...v, sweep_id, room_id: state.sweepRooms[sweep_id] ?? v.room_id, view: null, goto_seq: v.goto_seq + 1 } };
       return state;
     }
     case 'viewer.setTime':
@@ -115,7 +122,11 @@ export function applyEvent(state: CoreState, event: AnyEvent): CoreState {
     case 'viewer.setMode':
       return { ...state, viewer: { ...v, mode: event.payload.mode } };
     case 'design.showVariants':
-      return { ...state, viewer: { ...v, shown_layout_ids: event.payload.layout_ids } };
+      return {
+        ...state,
+        viewer: { ...v, shown_layout_ids: event.payload.layout_ids },
+        chat: event.payload.layout_ids.length ? push(state.chat, { kind: 'layouts', id: event.id, layout_ids: event.payload.layout_ids, member_id: event.member_id ?? null }) : state.chat,
+      };
     case 'layout.select':
       return { ...state, viewer: { ...v, selected_layout_id: event.payload.layout_id } };
     case 'sound.setScenario':
@@ -176,11 +187,22 @@ export function applyEvent(state: CoreState, event: AnyEvent): CoreState {
     }
     case 'job.progress':
       return { ...state, jobs: { ...state.jobs, [event.payload.job_id]: event.payload } };
+    case 'viewer.walk': {
+      // The Tour plays the walk from the event itself. Here the session only learns where it ends.
+      // goto_seq stays as it is, so the goto effect doesn't also jump the camera.
+      const last = event.payload.sweep_ids[event.payload.sweep_ids.length - 1] ?? null;
+      return { ...state, viewer: { ...v, room_id: event.payload.to_room_id, sweep_id: last, view: null } };
+    }
+    case 'catalog.suggest': {
+      const p = event.payload;
+      return { ...state, chat: push(state.chat, { kind: 'catalog', id: event.id, property_id: p.property_id, room_id: p.room_id ?? null, near_item_id: p.near_item_id ?? null, pieces: p.pieces, member_id: event.member_id ?? null }) };
+    }
+    case 'catalog.picked': // the user's click; the agent is told by the server
+    case 'layout.confirm': // "keep this layout": the agent records it; the view already shows it
     case 'viewer.look':
     case 'capture.upload':
     case 'sound.placeSource': // TODO(A): C's place-a-sound demo (docs/handoffs/stream-a)
     case 'sound.clearSource':
-    case 'viewer.walk': // TODO(A): play the walk (see docs/handoffs/stream-a); for now only the chip shows
     case 'agent.turn': // brackets one agent turn; nothing stored yet (use it for a typing indicator)
       return state; // transient: handled by event listeners, not stored
     default: {

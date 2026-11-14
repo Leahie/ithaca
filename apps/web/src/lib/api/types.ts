@@ -1,10 +1,12 @@
 import type {
+  CatalogPiece,
   AreaProfile,
   Household,
   InventoryItem,
   JoinHouseholdResult,
   JobRef,
   LayoutVariant,
+  PlacementDrop,
   PlacementMove,
   NoiseReport,
   NoiseScenario,
@@ -72,6 +74,16 @@ export interface ApiClient {
    * center leaves the room.
    */
   movePlacement(layoutId: string, itemId: string, pose: PlacementMove): Promise<LayoutVariant>;
+  /**
+   * Put one owned piece near a spot. The server moves it to the nearest place that works. With
+   * `layout_id` it joins that layout; with `room_id` (or `floor_id`) and no layout, a new one starts.
+   */
+  /** Take one piece out of a layout. It stays in the inventory. */
+  removePlacement(layoutId: string, itemId: string): Promise<LayoutVariant>;
+  dropItem(drop: PlacementDrop): Promise<LayoutVariant>;
+  /** Ready-made furniture that can be added without a photo. */
+  listCatalog(): Promise<CatalogPiece[]>;
+  addFromCatalog(catalogId: string): Promise<InventoryItem>;
   listMemory(): Promise<string[]>;
   getMemory(path: string): Promise<string>;
   putMemory(path: string, text: string): Promise<void>;

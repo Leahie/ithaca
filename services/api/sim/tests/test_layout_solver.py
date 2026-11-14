@@ -5,6 +5,8 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+from shapely.geometry import Polygon
+
 from services.api.sim import layout_solver as ls
 from services.api.twin.service import get_twin
 
@@ -27,11 +29,14 @@ def room(room_id: str):
 
 def test_every_variant_is_valid_and_variants_differ():
     living = room("tt6gm2a0463x9wmnx7rn6gugc")
-    result = ls.solve(living, TWIN.openings, ITEMS, WISHES, n=3)
+    result = ls.solve(living, TWIN.openings, ITEMS, WISHES, n=3, walls=TWIN.walls, sweeps=TWIN.sweeps)  # as the agent calls it
     assert len(result.variants) >= 2  # this room has few usable walls; fewer than 3 comes with a reason
     assert (len(result.variants) == 3) == (result.reason is None)
+    outline = Polygon(living.polygon)
     for v in result.variants:
-        assert ls.violations(living, TWIN.openings, ITEMS, v.poses) == []  # inside, no overlap, doors and path clear
+        assert ls.violations(living, TWIN.openings, ITEMS, v.poses, walls=TWIN.walls, sweeps=TWIN.sweeps) == []  # inside, no overlap, doors and path clear
+        # outlines run down the middle of the walls: nothing may sit inside the wall's thickness
+        assert all(outline.exterior.distance(ls.footprint(i, v.poses[i.item_id])) >= 0.07 for i in ITEMS)
         assert "Gray three-seat sofa against a wall (any)" in v.met
     poses = [v.poses for v in result.variants]
     assert all(ls._difference(a, b) >= 0.6 for i, a in enumerate(poses) for b in poses[i + 1 :])

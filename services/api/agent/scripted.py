@@ -128,6 +128,7 @@ def stream_turn_scripted(text: str, context: AgentContext, thread_id: str) -> It
                 "look_at": r.look_at.model_dump(), "distance_m": round(r.distance_m, 1), "duration_s": round(r.seconds, 1),
             }
             yield ("action", "viewer_walk", {"from_room_id": a.room_id, "to_room_id": b.room_id})
+            yield ("ui", {"type": "viewer.setMode", "payload": {"mode": "tour"}})
             yield ("ui", {"type": "viewer.walk", "payload": payload})
             yield from _say(f"From this bedroom to its bathroom is {r.distance_m:.1f} meters, about {r.seconds:.0f} seconds.")
             return

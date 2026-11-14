@@ -329,6 +329,7 @@ def viewer_walk(from_room_id: str, to_room_id: str, runtime: Runtime) -> str:
             f"The scan has no walkable path recorded between {names[from_room_id]} and {names[to_room_id]}. "
             "Say you can't trace that walk, and offer to show each room instead."
         )
+    _emit(runtime, "viewer.setMode", {"mode": "tour"})  # a walk is watched in the photo tour
     _emit(
         runtime,
         "viewer.walk",

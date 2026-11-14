@@ -48,7 +48,7 @@ def get_inventory_item(item_id: str, x_user_id: str = Header("demo")) -> Invento
 
 @router.delete("/inventory/{item_id}", status_code=204)
 def delete_inventory_item(item_id: str, request: Request, x_user_id: str = Header("demo")) -> Response:
-    _found(furniture_store().delete_item(x_user_id, item_id), "item")
+    _found(furniture_store().delete_item_everywhere(x_user_id, item_id) is not None, "item")  # also leaves its rooms
     memory_files.sync_inventory(request.app.state.memory_store, x_user_id, furniture_store().list_items(x_user_id))
     return Response(status_code=204)
 
@@ -120,6 +120,12 @@ def move_placement(layout_id: str, item_id: str, body: PlacementMove, x_user_id:
     moved = layout.model_copy(update={"placements": placements})
     store.put_layout(moved)
     return moved.model_copy(update={"warnings": problems or None})
+
+
+@router.delete("/layouts/{layout_id}/placements/{item_id}")
+def remove_placement(layout_id: str, item_id: str, x_user_id: str = Header("demo")) -> LayoutVariant:
+    """Take one piece out of the room. It stays in the user's inventory."""
+    return _found(furniture_store().remove_placement(x_user_id, layout_id, item_id), "piece in that layout")
 
 
 @router.post("/layouts/drop")

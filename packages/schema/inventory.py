@@ -33,3 +33,23 @@ class InventoryItem(Model):
     mask_url: str | None = None
     price: float | None = None
     product_url: str | None = None
+
+
+class CatalogPiece(Model):
+    """A ready-made piece the user can add to their inventory without a photo."""
+
+    catalog_id: str
+    label: str
+    item_class: str
+    dims_m: ItemDims  # the model's own size; the user may override it when adding
+    thumbnail_url: str
+    source: str  # where the model comes from and its license
+
+
+class CatalogAddRequest(Model):
+    """Body of POST /catalog/{catalog_id}/add. Give all three sizes to resize the piece, or none."""
+
+    label: str | None = None
+    width_m: float | None = None
+    depth_m: float | None = None
+    height_m: float | None = None

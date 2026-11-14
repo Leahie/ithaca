@@ -39,3 +39,49 @@ export function defaultStartSweep(twin: PropertyTwin): Sweep | undefined {
   }
   return twin.sweeps.find((s) => s.room_id);
 }
+
+
+type P3 = { x: number; y: number; z: number };
+
+/**
+ * Where to stand and what to face so a room shows well: the sweep farthest from the room's focus
+ * (its middle, pulled toward its windows), looking at that focus. Used when the user picks a room
+ * themselves; the agent sends its own view with the goto (same idea, computed on the server).
+ */
+export function viewForRoom(twin: PropertyTwin, roomId: string): { sweep: Sweep; lookAt: P3 } | undefined {
+  const room = twin.rooms.find((r) => r.room_id === roomId);
+  const inRoom = twin.sweeps.filter((s) => s.room_id === roomId);
+  if (!room || !inRoom.length) return undefined;
+  let [fx, fz] = centroid(room.polygon);
+  const windows = twin.openings.filter((o) => o.room_id === roomId && o.kind !== 'door' && o.exterior !== false && o.polygon.length >= 2);
+  if (windows.length) {
+    const wx = windows.reduce((sum, o) => sum + (o.polygon[0]!.x + o.polygon[1]!.x) / 2, 0) / windows.length;
+    const wz = windows.reduce((sum, o) => sum + (o.polygon[0]!.z + o.polygon[1]!.z) / 2, 0) / windows.length;
+    fx += (wx - fx) * 0.35;
+    fz += (wz - fz) * 0.35;
+  }
+  const far = (s: Sweep) => Math.hypot(s.position.x - fx, s.position.z - fz);
+  const sweep = inRoom.reduce((best, s) => (far(s) > far(best) ? s : best));
+  if (far(sweep) < 0.6) {
+    // Standing on the focus: face the far end of the room instead.
+    const [vx, vz] = room.polygon.reduce((best, p) => (Math.hypot(p[0] - sweep.position.x, p[1] - sweep.position.z) > Math.hypot(best[0] - sweep.position.x, best[1] - sweep.position.z) ? p : best));
+    fx = vx;
+    fz = vz;
+  }
+  return { sweep, lookAt: { x: fx, y: sweep.position.y - 0.25, z: fz } };
+}
+
+/**
+ * The Showcase camera rotation (degrees) that looks from one point toward another. `x` is pitch,
+ * up positive; `y` is yaw about the vertical axis, where 0 looks along -Z and positive turns left
+ * (the three.js camera convention the Showcase pose uses).
+ */
+export function rotationToward(from: P3, to: P3): { x: number; y: number } {
+  const dx = to.x - from.x;
+  const dy = to.y - from.y;
+  const dz = to.z - from.z;
+  const flat = Math.hypot(dx, dz);
+  if (flat < 1e-6) return { x: 0, y: 0 };
+  const deg = 180 / Math.PI;
+  return { x: Math.max(-35, Math.min(35, Math.atan2(dy, flat) * deg)), y: Math.atan2(-dx, -dz) * deg };
+}

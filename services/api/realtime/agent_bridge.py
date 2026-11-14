@@ -59,6 +59,11 @@ def action_summary(tool: str, args: dict) -> str:
         "task": f"Asking the {args.get('subagent_type', 'helper')}",
         "inventory_search": "Looking at your furniture",
         "propose_layouts": "Arranging the room",
+        "catalog_search": "Looking through the furniture catalog",
+        "catalog_add": "Adding a piece to your furniture",
+        "catalog_suggest": "Showing you some pieces",
+        "remove_from_room": "Taking a piece out of the room",
+        "delete_from_inventory": "Deleting a piece from your furniture",
         "design_apply_layout": "Placing that option in the room",
         "design_show_variants": "Showing layouts",
         "area_profile": "Looking up the listing and nearby homes",
@@ -123,7 +128,7 @@ class AgentBridge:
         elif event.type == "viewer.walk":
             self._last_room[sid] = p["to_room_id"]
             log_.enter_room(p["to_room_id"], by_user=False)
-        elif event.type == "layout.select" and by_user:
+        elif event.type == "layout.confirm" and by_user:  # a click on an option only previews it (layout.select)
             from services.api.agent.design_tools import describe_layout
             from services.api.furniture.store import furniture_store
 
@@ -132,6 +137,14 @@ class AgentBridge:
             if picked:
                 self._signal(room)
                 self._start(room, event_message("layout_chosen", picked), proactive=False)
+        elif event.type == "catalog.picked" and by_user:
+            from services.api.furniture.store import furniture_store
+
+            item = furniture_store().get_item(room.user_id, p["item_id"])
+            if item:
+                self._signal(room)
+                note = f"{item.label} ({item.item_class}), item_id {item.item_id}, room_id {p.get('room_id') or 'the room they are in'}"
+                self._start(room, event_message("catalog_picked", note), proactive=False)
         elif event.type == "viewer.setMode":
             log_.set_view(p["mode"])
         elif event.type == "viewer.setTime" and by_user:

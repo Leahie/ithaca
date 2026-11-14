@@ -108,6 +108,30 @@ class FurnitureStore:
         self.put_layout(chosen)
         return chosen
 
+    def remove_placement(self, user_id: str, layout_id: str, item_id: str) -> LayoutVariant | None:
+        """Take one piece out of a layout. The piece stays in the inventory. None if the layout or
+        the piece in it doesn't exist."""
+        layout = self.get_layout(user_id, layout_id)
+        if layout is None or all(str(p.item_id) != item_id for p in layout.placements):
+            return None
+        updated = layout.model_copy(update={"placements": [p for p in layout.placements if str(p.item_id) != item_id]})
+        self.put_layout(updated)
+        return updated
+
+    def layouts_with_item(self, user_id: str, item_id: str) -> list[LayoutVariant]:
+        return [l for l in self.list_layouts(user_id) if any(str(p.item_id) == item_id for p in l.placements)]
+
+    def delete_item_everywhere(self, user_id: str, item_id: str) -> list[str] | None:
+        """Delete a piece from the inventory and take it out of every layout it stood in.
+        Returns the ids of the layouts that changed, or None if the user has no such piece."""
+        if self.get_item(user_id, item_id) is None:
+            return None
+        changed = [str(l.layout_id) for l in self.layouts_with_item(user_id, item_id)]
+        for layout_id in changed:
+            self.remove_placement(user_id, layout_id, item_id)
+        self.delete_item(user_id, item_id)
+        return changed
+
     def set_feedback(self, user_id: str, layout_id: str, feedback: str) -> LayoutVariant | None:
         layout = self.get_layout(user_id, layout_id)
         if layout is None:

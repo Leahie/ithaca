@@ -56,3 +56,27 @@ def test_sample_layouts_resolve_and_choosing_one_sticks(client):
     by_id = {l["layout_id"]: l["status"] for l in client.get(f"/api/layouts?property_id={PROPERTY}", headers=demo).json()}
     assert by_id[first] == "proposed" and by_id[second] == "chosen"  # one chosen layout per room
     assert client.get("/api/layouts/nope", headers=demo).status_code == 404
+
+
+def test_removing_a_piece_keeps_it_owned_and_deleting_it_clears_it_from_every_room(client):
+    import uuid
+
+    from packages.schema.layout import LayoutVariant, Placement
+    from packages.schema.twin import Vec3
+
+    alice = {"X-User-Id": "alice"}
+    sofa, table = [i["item_id"] for i in client.get("/api/inventory", headers=alice).json()[:2]]
+    layout = LayoutVariant(
+        layout_id=uuid.uuid4(), user_id="alice", property_id=PROPERTY, room_id="tt6gm2a0463x9wmnx7rn6gugc", score=0, rationale="", status="proposed",
+        placements=[Placement(item_id=i, position=Vec3(x=-9, y=0, z=-15 - n), yaw_deg=0) for n, i in enumerate((sofa, table))],
+    )
+    store.furniture_store().put_layout(layout)
+    url = f"/api/layouts/{layout.layout_id}"
+
+    removed = client.delete(f"{url}/placements/{table}", headers=alice)
+    assert removed.status_code == 200 and [p["item_id"] for p in removed.json()["placements"]] == [sofa]
+    assert table in [i["item_id"] for i in client.get("/api/inventory", headers=alice).json()]  # still owned
+    assert client.delete(f"{url}/placements/{table}", headers=alice).status_code == 404  # not in the room any more
+
+    assert client.delete(f"/api/inventory/{sofa}", headers=alice).status_code == 204
+    assert client.get(url, headers=alice).json()["placements"] == []  # deleted pieces leave their rooms too

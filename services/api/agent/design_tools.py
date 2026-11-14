@@ -42,6 +42,108 @@ def inventory_search(runtime: Runtime, query: str = "") -> str:
 
 
 @tool
+def catalog_search(runtime: Runtime, query: str = "") -> str:
+    """Ready-made furniture the user can add without a photo: generic pieces at real size, not
+    products to buy. query filters by a word in the name or kind ("bed", "round table", "bookshelf").
+    Leave it empty to see the kinds available."""
+    from services.api.objects.providers import catalog
+
+    words = query.lower().replace("_", " ").split()
+    rows = [r for r in catalog.PIECES if all(w in f"{r[2]} {r[1].replace('_', ' ')}".lower() for w in words)]
+    if not words:
+        kinds = sorted({r[1].replace("_", " ") for r in catalog.PIECES})
+        return f"{len(catalog.PIECES)} pieces. Kinds: {', '.join(kinds)}. Search with one of these words to see the pieces."
+    if not rows:
+        return f"Nothing in the catalog matches {query!r}. Call with no query to see the kinds available."
+    return "\n".join(f"- {label} ({cls}) · catalog_id {cid} · {w:.2f} m wide × {d:.2f} m deep × {h:.2f} m high" for cid, cls, label, w, d, h in rows[:12])
+
+
+@tool
+def catalog_suggest(catalog_ids: list[str], runtime: Runtime, room_id: str | None = None, near_item_id: str | None = None) -> str:
+    """Show catalog pieces to the user as picture cards in the chat. They add one with a click, and
+    it is placed in the room at once. Use this whenever you recommend catalog pieces: two to four
+    good candidates, best first. Do not list them in words as well.
+
+    room_id: the room the piece is for (default: the room the user is in).
+    near_item_id: one of the user's pieces already in that room to put the new piece next to, e.g.
+    the desk when they asked for a desk chair.
+    """
+    from services.api.objects.providers import catalog
+
+    unknown = [c for c in catalog_ids if c not in catalog.BY_ID]
+    if unknown or not catalog_ids:
+        return f"Error: unknown catalog_ids {unknown}. Use catalog_ids from catalog_search."
+    pieces = [
+        {
+            "catalog_id": cid, "label": label, "item_class": cls, "dims_m": {"w": w, "d": d, "h": h},
+            "thumbnail_url": catalog.thumbnail_url(cid), "source": catalog.SOURCE,
+        }
+        for cid, cls, label, w, d, h in (catalog.BY_ID[c] for c in catalog_ids[:4])
+    ]
+    runtime.stream_writer({
+        "type": "catalog.suggest",
+        "payload": {"property_id": runtime.context.property_id, "room_id": room_id, "near_item_id": near_item_id, "pieces": pieces},
+    })
+    return (
+        f"The user now sees {len(pieces)} picture card(s) and can add one with a click. Say in one sentence why these, "
+        "and do not call catalog_add for them: the click adds and places the piece."
+    )
+
+
+@tool
+def catalog_add(catalog_id: str, runtime: Runtime) -> str:
+    """Add a catalog piece to the user's furniture so it can be placed in a room. Ask first unless
+    they told you to add it. Returns the new item_id. catalog_id comes from catalog_search."""
+    from services.api.agent import memory_files
+    from services.api.objects import pipeline
+    from services.api.objects.providers import catalog
+
+    if catalog_id not in catalog.BY_ID:
+        return f"Error: unknown catalog_id {catalog_id!r}. Use a catalog_id from catalog_search."
+    store, user_id = furniture_store(), runtime.context.user_id
+    try:
+        item = pipeline.add_from_catalog(catalog_id, user_id, store)
+    except Exception as e:
+        return f"Error: that piece could not be added ({e})."
+    if runtime.store is not None:
+        memory_files.sync_inventory(runtime.store, user_id, store.list_items(user_id))
+    return (
+        f"Added {item.label} ({item.item_class}), {item.dims_m.w:.2f} × {item.dims_m.d:.2f} × {item.dims_m.h:.2f} m, "
+        f"item_id {item.item_id}. It is a generic stand-in, not a specific product: say so."
+    )
+
+
+@tool
+def remove_from_room(item_id: str, room_id: str, runtime: Runtime) -> str:
+    """Take one of the user's pieces out of a room. The piece stays in their furniture and can be
+    placed again. Use it for "take the armchair out" or "remove the table from here"."""
+    store, ctx = furniture_store(), runtime.context
+    in_room = [l for l in store.layouts_with_item(ctx.user_id, item_id) if l.room_id == room_id and l.property_id == ctx.property_id]
+    if not in_room:
+        return "That piece is not placed in that room. Check the item_id with inventory_search and the room_id in the room directory."
+    for layout in in_room:  # every saved option for the room, so it doesn't come back with "next option"
+        store.remove_placement(ctx.user_id, str(layout.layout_id), item_id)
+    item = store.get_item(ctx.user_id, item_id)
+    return f"{item.label if item else 'The piece'} is out of the room. It is still in the user's furniture."
+
+
+@tool
+def delete_from_inventory(item_id: str, runtime: Runtime) -> str:
+    """Delete a piece from the user's furniture for good. It also leaves every room it was placed
+    in. This cannot be undone: only call it after the user has clearly said to delete that piece."""
+    from services.api.agent import memory_files
+
+    store, ctx = furniture_store(), runtime.context
+    item = store.get_item(ctx.user_id, item_id)
+    if item is None:
+        return f"Error: unknown item_id {item_id!r}. Use an item_id from inventory_search."
+    changed = store.delete_item_everywhere(ctx.user_id, item_id) or []
+    if runtime.store is not None:
+        memory_files.sync_inventory(runtime.store, ctx.user_id, store.list_items(ctx.user_id))
+    return f"Deleted {item.label} from the user's furniture" + (f" and took it out of {len(changed)} saved layout(s)." if changed else ".")
+
+
+@tool
 def propose_layouts(room_id: str, item_ids: list[str], wishes: list[Constraint], idea: str, runtime: Runtime, n: int = 3) -> str:
     """Arrange the user's furniture in a room. Returns up to n saved layouts, each with a layout_id.
 
@@ -134,9 +236,9 @@ def design_show_variants(layout_ids: list[str], runtime: Runtime) -> str:
     runtime.stream_writer({"type": "design.showVariants", "payload": {"layout_ids": layout_ids}})
     _place_in_view(runtime, layouts[0])
     return (
-        f"Option 1 is now placed in the room and the user is looking at it. {len(layout_ids)} option(s) are ready. "
-        "Tell them what option 1 is, and that they can ask for the next option or say what to change. "
-        "Use design_apply_layout to switch options."
+        f"Option 1 is now placed in the room and the user is looking at it. All {len(layout_ids)} option(s) are in the chat "
+        "as small plans they can click to try, with a Keep button to settle on one. Say briefly what option 1 does. "
+        "Nothing is decided until they press Keep: don't record a choice in memory before the layout_chosen event."
     )
 
 

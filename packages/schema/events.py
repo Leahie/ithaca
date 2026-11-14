@@ -13,6 +13,7 @@ from typing import Any, Literal
 from pydantic import model_validator
 
 from .common import Model
+from .inventory import CatalogPiece
 from .session import ClientKind, SoundPlaceSourcePayload, SoundSetScenarioPayload, ViewerMode, ViewerState
 from .twin import Vec3
 
@@ -124,6 +125,24 @@ class SoundClearSourcePayload(Model):
     """Additive to v0. Removes the placed sound."""
 
 
+class CatalogSuggestPayload(Model):
+    """Additive to v0. The agent shows catalog pieces as picture cards in the chat; the user adds
+    one by clicking it."""
+
+    property_id: str
+    room_id: str | None = None  # the room the piece is for; None = the room the user is in
+    near_item_id: str | None = None  # place it next to this piece, if it is in the room
+    pieces: list[CatalogPiece]
+
+
+class CatalogPickedPayload(Model):
+    """Additive to v0. The user clicked a suggested piece; the app added and placed it."""
+
+    catalog_id: str
+    item_id: str
+    room_id: str | None = None
+
+
 class CaptureUploadPayload(Model):
     upload_id: str
 
@@ -182,9 +201,14 @@ EVENTS: dict[str, tuple[type[Model], frozenset[str]]] = {
     "viewer.look": (ViewerLookPayload, frozenset({"phone"})),
     "design.showVariants": (DesignShowVariantsPayload, frozenset({"agent"})),
     "layout.select": (LayoutSelectPayload, frozenset({"agent", "phone", "desktop"})),
+    # Additive to v0. layout.select only previews an option in the room; layout.confirm is the user
+    # saying "keep this one", and is what the agent records.
+    "layout.confirm": (LayoutSelectPayload, frozenset({"phone", "desktop"})),
     "sound.setScenario": (SoundSetScenarioPayload, frozenset({"agent", "phone", "desktop"})),
     "sound.placeSource": (SoundPlaceSourcePayload, frozenset({"agent", "phone", "desktop"})),
     "sound.clearSource": (SoundClearSourcePayload, frozenset({"agent", "phone", "desktop"})),
+    "catalog.suggest": (CatalogSuggestPayload, frozenset({"agent"})),
+    "catalog.picked": (CatalogPickedPayload, frozenset({"phone", "desktop"})),
     "capture.upload": (CaptureUploadPayload, frozenset({"phone", "desktop"})),
     "chat.user": (ChatUserPayload, frozenset({"desktop", "phone"})),
     "voice.transcript": (VoiceTranscriptPayload, frozenset({"desktop", "phone"})),

@@ -17,3 +17,21 @@ export function visibleLayouts(all: LayoutVariant[], shownIds: string[], roomId:
   if (inRoom.length) return { variants: inRoom, scope: 'room' };
   return { variants: all, scope: 'all' };
 }
+
+
+/**
+ * The layouts whose furniture is drawn in the house: the selected one, plus the chosen layout of
+ * every other room. So furniture stays where the user put it when they walk on to the next room.
+ */
+export function shownLayouts(layouts: readonly LayoutVariant[] | undefined, selectedId: string | null): LayoutVariant[] {
+  const all = layouts ?? [];
+  const selected = all.find((l) => l.layout_id === selectedId);
+  const rest = all.filter((l) => l.status === 'chosen' && l.layout_id !== selectedId && l.room_id !== selected?.room_id);
+  return selected ? [selected, ...rest] : rest;
+}
+
+/** The layout to work on in a room: the chosen one, else the most recent. Lists come newest first. */
+export function layoutForRoom(layouts: readonly LayoutVariant[] | undefined, roomId: string | null): LayoutVariant | undefined {
+  const inRoom = (layouts ?? []).filter((l) => l.room_id === roomId);
+  return inRoom.find((l) => l.status === 'chosen') ?? inRoom[0];
+}

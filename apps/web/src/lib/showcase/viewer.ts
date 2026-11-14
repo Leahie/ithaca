@@ -69,19 +69,25 @@ async function mountBundle(host: HTMLElement, modelId: string): Promise<{ elemen
   return { element: node, connected: node.sdkPromise };
 }
 
-let teardownQuieted = false;
+let bundleNoiseQuieted = false;
 /**
- * The Matterport bundle rejects a promise inside its own code whenever the viewer is taken down
- * ("No Data was registered to the Module", from its autotours module's dispose). Nothing of ours
- * is awaiting it and the viewer is gone by then, so it is noise, but Next's dev overlay reports
- * every unhandled rejection as an error. Only that one message is swallowed.
+ * The Matterport bundle rejects promises inside its own code that nothing of ours awaits: when the
+ * viewer is taken down ("No Data was registered to the Module"), and when a furniture model is
+ * replaced while it is still loading ("Cannot read properties of null (reading 'add')", from its
+ * loader's update check). The viewer carries on, but Next's dev overlay reports every unhandled
+ * rejection as an error. Rejections that come from the bundle's own files are logged quietly instead.
  */
 function quietTeardownError(): void {
-  if (teardownQuieted || typeof window === 'undefined') return;
-  teardownQuieted = true;
+  if (bundleNoiseQuieted || typeof window === 'undefined') return;
+  bundleNoiseQuieted = true;
   window.addEventListener('unhandledrejection', (event) => {
-    const message = event.reason instanceof Error ? event.reason.message : String(event.reason ?? '');
-    if (message.includes('No Data was registered to the Module')) event.preventDefault();
+    const reason: unknown = event.reason;
+    const message = reason instanceof Error ? reason.message : String(reason ?? '');
+    const stack = reason instanceof Error ? (reason.stack ?? '') : '';
+    if (message.includes('No Data was registered to the Module') || stack.includes('/matterport-assets/')) {
+      event.preventDefault();
+      console.debug('[matterport] ignored an internal rejection:', message);
+    }
   });
 }
 

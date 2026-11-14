@@ -95,3 +95,31 @@ def test_sessions_survive_a_server_restart(tmp_path):
     assert restarted.authorize(session.session_id, "desktop", session.pair_token)  # the open tab reconnects
     assert restarted.authorize(session.session_id, "phone", phone_token)
     assert restarted.rooms[session.session_id].user_id == "demo"
+
+
+def test_trying_a_layout_tells_the_agent_nothing_and_keeping_it_does(monkeypatch):
+    """Human in the loop: only an explicit "keep" reaches the agent (and from there, memory)."""
+    from services.api.agent.scripted import demo_layout_ids
+    from services.api.furniture import store
+    from services.api.realtime.agent_bridge import AgentBridge
+
+    monkeypatch.setattr(store, "_default", store.FurnitureStore(":memory:"))
+    turns = []
+
+    def runner(text, context, thread_id):
+        turns.append(text)
+        return iter(())
+
+    async def scenario():
+        hub = Hub()
+        AgentBridge(hub, runner)
+        sid = hub.create_session("demo", PROPERTY).session_id
+        layout_id = demo_layout_ids(PROPERTY)[0]
+        hub.publish(make_event(sid, "desktop", "layout.select", {"layout_id": layout_id}))  # clicking through options
+        await asyncio.sleep(0.05)
+        assert turns == []
+        hub.publish(make_event(sid, "desktop", "layout.confirm", {"layout_id": layout_id}))  # "Keep this layout"
+        await asyncio.sleep(0.05)
+        assert len(turns) == 1 and '<event type="layout_chosen">' in turns[0] and layout_id in turns[0]
+
+    asyncio.run(scenario())
