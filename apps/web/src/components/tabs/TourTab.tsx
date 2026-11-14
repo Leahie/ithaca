@@ -1,5 +1,6 @@
 'use client';
 
+import { cubicBezier } from '@/lib/geometry/bezier';
 import { HousePlan } from '@/components/house/HousePlan';
 import { shownLayouts } from '@/lib/layouts';
 import type { InventoryItem, LayoutVariant, PropertyTwin } from '@ithaca/schema';
@@ -38,6 +39,11 @@ declare global {
 
 /** How far a hand gesture turns and zooms the tour. A drag across the whole view is `*PerView` degrees. */
 const HAND_TOUR = { yawDegPerView: 160, pitchDegPerView: 90, speedDegPerS: 900, zoomGain: 2 } as const;
+
+// Phone look and zoom are eased: quick off the mark, soft landing (an ease-out bezier).
+const LOOK_EASE = cubicBezier(0.22, 0.8, 0.3, 1);
+const LOOK_EASE_MS = 170;
+const ZOOM_EASE_MS = 280;
 
 const exposeForTests =(key: string, value: unknown) => {
   window.__ITHACA__ = { ...window.__ITHACA__, [key]: value };
@@ -329,25 +335,30 @@ export function TourTab({ twin, active }: { twin: PropertyTwin; active: boolean 
     });
   }, [sdk, runQueued, sweepPosition]);
 
-  // viewer.look and viewer.zoom (the phone's drag and pinch). The viewer takes one camera call at
-  // a time and drops the rest, so movement gathers while a call is out and goes in the next one,
-  // at a speed that finishes each batch before the next one arrives.
+  // viewer.look and viewer.zoom (the phone's drag and pinch), smoothed. Each message is not applied
+  // at once: it is played out over a short time along a bezier ease-out curve, so the uneven
+  // arrival of messages over the network becomes one even motion. Every frame, what the running
+  // eases have released is gathered; the viewer takes one camera call at a time, so it goes out
+  // when the last call is done.
   useEffect(() => {
     if (!sdk) return;
+    type Ease = { start: number; ms: number; yaw: number; pitch: number; zoom: number; done: number };
+    let eases: Ease[] = [];
     let yaw = 0;
     let pitch = 0;
     let zoom = 0;
     let busy = false;
     let live = true;
+    let frame: number | null = null;
     const flush = () => {
       if (busy || !live) return;
       const size = Math.hypot(yaw, pitch);
       let call: Promise<unknown> | null = null;
-      if (size >= 0.05) {
-        // Fast enough that a batch is done before the next one arrives (the phone sends every 20 ms).
-        call = sdk.Camera.rotate(yaw, pitch, { speed: Math.max(240, size / 0.03) });
+      if (size >= 0.02) {
+        // The ease gives the motion its shape; the call itself should take about a frame.
+        call = sdk.Camera.rotate(yaw, pitch, { speed: Math.max(240, size / 0.016) });
         yaw = pitch = 0;
-      } else if (Math.abs(zoom) >= 0.01) {
+      } else if (Math.abs(zoom) >= 0.004) {
         // Inside only: the viewer has no zoom in the outside (dollhouse) view.
         call = sdk.Camera.zoomBy(zoom);
         zoom = 0;
@@ -359,18 +370,31 @@ export function TourTab({ twin, active }: { twin: PropertyTwin; active: boolean 
         flush();
       });
     };
+    const tick = (now: number) => {
+      frame = null;
+      for (const e of eases) {
+        const at = LOOK_EASE((now - e.start) / e.ms);
+        const step = at - e.done;
+        e.done = at;
+        yaw += e.yaw * step;
+        pitch += e.pitch * step;
+        zoom += e.zoom * step;
+      }
+      eases = eases.filter((e) => e.done < 1);
+      flush();
+      if (eases.length && live) frame = requestAnimationFrame(tick);
+    };
     const off = onSessionEvent((event) => {
       if (useSession.getState().viewer.mode !== 'tour') return;
-      if (event.type === 'viewer.look') {
-        yaw += event.payload.yaw_delta_deg;
-        pitch += event.payload.pitch_delta_deg;
-      } else if (event.type === 'viewer.zoom') {
-        zoom += event.payload.delta;
-      } else return;
-      flush();
+      const start = performance.now();
+      if (event.type === 'viewer.look') eases.push({ start, ms: LOOK_EASE_MS, yaw: event.payload.yaw_delta_deg, pitch: event.payload.pitch_delta_deg, zoom: 0, done: 0 });
+      else if (event.type === 'viewer.zoom') eases.push({ start, ms: ZOOM_EASE_MS, yaw: 0, pitch: 0, zoom: event.payload.delta, done: 0 });
+      else return;
+      frame ??= requestAnimationFrame(tick);
     });
     return () => {
       live = false;
+      if (frame) cancelAnimationFrame(frame);
       off();
     };
   }, [sdk]);
