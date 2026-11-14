@@ -218,7 +218,7 @@ class AgentBridge:
 
     async def _run_observer(self, room: SessionRoom, deliver: bool) -> None:
         sid = room.session_id
-        context = AgentContext(user_id=room.user_id, property_id=room.property_id, session_id=sid)
+        context = self._context(room, None)  # the guide's own memory: the family's in a family session
         try:
             note = await asyncio.to_thread(self.observe, context)
         except Exception:
@@ -268,8 +268,7 @@ class AgentBridge:
 
     async def _run_turn(self, room: SessionRoom, text: str, lock: asyncio.Lock, member_id: str | None = None) -> None:
         sid = room.session_id
-        # A member's agent keeps its own conversation with its own person.
-        thread_id = f"{sid}:{member_id}" if member_id else sid
+        turn_key = f"{sid}:{member_id}" if member_id else sid
 
         def emit(type: str, payload: dict) -> None:
             try:
@@ -277,11 +276,14 @@ class AgentBridge:
             except (KeyError, ValueError) as e:  # an event the schema doesn't know or accept
                 log.warning("agent event %s dropped: %s", type, e)
 
-        key = thread_id
+        key = turn_key
         async with lock:
             s = room.state
             where = f'<viewer mode="{s.mode}" room_id="{s.room_id or ""}" datetime="{s.datetime or ""}"/>\n'
             context = self._context(room, member_id)
+            # The conversation belongs to the person (or the family's guide) and the house, not to
+            # this browser session: a new visit goes on from the last one.
+            thread_id = context.thread_id
             loop, queue = asyncio.get_running_loop(), asyncio.Queue()
             stop = threading.Event()
             self._running[key] = stop

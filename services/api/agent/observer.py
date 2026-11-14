@@ -88,7 +88,7 @@ def get_tour_log(runtime: ToolRuntime[AgentContext]) -> str:
 def build_observer(property_id: str, *, store: BaseStore, model: BaseChatModel | None = None):
     backend = CompositeBackend(
         default=StateBackend(),
-        routes={MEMORY_ROOT: StoreBackend(namespace=lambda rt: memory_namespace(rt.context.user_id))},
+        routes={MEMORY_ROOT: StoreBackend(namespace=lambda rt: memory_namespace(rt.context.memory_user))},
     )
     return create_deep_agent(
         model=model or get_model("observer"),

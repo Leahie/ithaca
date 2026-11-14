@@ -66,12 +66,29 @@ class SessionRoom:
     household_id: str | None = None
     member_tokens: dict[str, str] = field(default_factory=dict)  # client_token -> member_id
 
+    @property
+    def visitor(self) -> str:
+        """Who is looking at the house on this screen: the family, or the user alone."""
+        return self.household_id or self.user_id
 
-def _apply(state: ViewerState, event: EventEnvelope) -> None:
+
+def _room_of_sweep(property_id: str, sweep_id: str) -> str | None:
+    from services.api.twin.service import get_twin
+
+    try:
+        return next((s.room_id for s in get_twin(property_id).sweeps if s.sweep_id == sweep_id), None)
+    except Exception:  # an unknown property: the room simply stays what it was
+        return None
+
+
+def _apply(state: ViewerState, event: EventEnvelope, property_id: str = "") -> None:
     """Fold an event into the viewer state."""
     p = event.payload
     if event.type == "viewer.goto" and p.get("room_id"):
         state.room_id = p["room_id"]
+    elif event.type == "viewer.goto" and p.get("sweep_id"):
+        # walking by hand sends the scan point; between rooms (stairs) the last room is kept
+        state.room_id = _room_of_sweep(property_id, p["sweep_id"]) or state.room_id
     elif event.type == "viewer.walk":
         state.room_id = p["to_room_id"]
     elif event.type == "viewer.setTime":
@@ -98,11 +115,14 @@ class Hub:
         self.rooms: dict[str, SessionRoom] = {}
         self._listeners: list[Callable[[SessionRoom, EventEnvelope], None]] = []
         self._db = None
+        self._places: dict[tuple[str, str], str] = {}  # (visitor, property_id) -> the room they were in last
         if persist is not None:
             persist.parent.mkdir(parents=True, exist_ok=True)
             self._db = sqlite3.connect(persist, check_same_thread=False, isolation_level=None)
             self._db.execute("CREATE TABLE IF NOT EXISTS sessions (session_id TEXT PRIMARY KEY, created REAL, body TEXT)")
             self._db.execute("DELETE FROM sessions WHERE created < julianday('now') - 2")  # two days is plenty
+            self._db.execute("CREATE TABLE IF NOT EXISTS places (visitor TEXT, property_id TEXT, room_id TEXT, PRIMARY KEY (visitor, property_id))")
+            self._places = {(v, p): r for v, p, r in self._db.execute("SELECT visitor, property_id, room_id FROM places")}
             for (body,) in self._db.execute("SELECT body FROM sessions"):
                 saved = json.loads(body)
                 room = SessionRoom(
@@ -110,11 +130,21 @@ class Hub:
                     state=ViewerState(mode="tour", datetime=saved["datetime"]),
                     household_id=saved.get("household_id"),
                 )
+                room.state.room_id = self._places.get((room.visitor, room.property_id))
                 room.client_tokens = saved["client_tokens"]
                 room.member_tokens = saved.get("member_tokens", {})
                 room.issued_pair_tokens = set(saved["issued"])
                 room.joined_pair_tokens = set(saved["joined"])
                 self.rooms[room.session_id] = room
+
+    def _remember_place(self, room: SessionRoom) -> None:
+        """So the next visit (a new tab, a restart) opens in the room this one was left in."""
+        key = (room.visitor, room.property_id)
+        if not room.state.room_id or self._places.get(key) == room.state.room_id:
+            return
+        self._places[key] = room.state.room_id
+        if self._db is not None:
+            self._db.execute("INSERT OR REPLACE INTO places VALUES (?, ?, ?)", (*key, room.state.room_id))
 
     def _save(self, room: SessionRoom) -> None:
         if self._db is None:
@@ -140,6 +170,7 @@ class Hub:
             state=ViewerState(mode="tour", datetime=now),
             household_id=household_id,
         )
+        room.state.room_id = self._places.get((room.visitor, property_id))  # where they were last, if anywhere
         self.rooms[room.session_id] = room
         client_token = secrets.token_urlsafe(24)
         room.client_tokens[client_token] = "desktop"
@@ -236,7 +267,8 @@ class Hub:
         if room is None:
             log.warning("event for unknown session %s dropped", event.session_id)
             return
-        _apply(room.state, event)
+        _apply(room.state, event, room.property_id)
+        self._remember_place(room)
         for conn in room.connections:
             conn.queue.put_nowait(event)
         for listener in self._listeners:

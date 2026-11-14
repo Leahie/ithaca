@@ -181,16 +181,22 @@ def test_a_family_shares_one_pool_and_each_piece_keeps_its_owner(client):
     assert client.get(HOUSE, headers=host).json() == []
 
 
-def test_a_host_has_one_family_even_when_the_screen_makes_it_again(client):
-    """A screen that lost its saved household (another browser) gets the same family back, so a
-    phone that joined then and a phone that joins now share one pool."""
+def test_a_host_gets_a_family_back_by_its_name_and_another_name_is_a_new_family(client):
+    """A screen that lost its saved household (another browser) gets the family back by its name, so
+    a phone that joined then and a phone that joins now share one pool. A new name starts from
+    nothing: no members, and none of the first family's furniture."""
     host = {"X-User-Id": "screen"}
     first = client.post("/api/households", headers=host, json={"name": "Us"}).json()
     maya = client.post("/api/households/join", json={"invite_token": first["invite_token"], "name": "Maya"}).json()["member"]["member_id"]
-    again = client.post("/api/households", headers=host, json={"name": "Zhang"}).json()
-    assert again["household_id"] == first["household_id"] and again["name"] == "Zhang"
+    again = client.post("/api/households", headers=host, json={"name": "us"}).json()
+    assert again["household_id"] == first["household_id"]
     leo = client.post("/api/households/join", json={"invite_token": again["invite_token"], "name": "Leo"}).json()["member"]["member_id"]
     assert {maya, leo} <= hh.households().family_of(maya)
+
+    new = client.post("/api/households", headers=host, json={"name": "Zhang"}).json()
+    assert new["household_id"] != first["household_id"] and new.get("members", []) == []
+    assert hh.households().family_of("screen") == {"screen"}  # the screen's pool is the family it has on now
+    assert {maya, leo, "screen"} <= hh.households().family_of(maya)  # the first family is still whole for its own members
     assert client.post("/api/households", headers={"X-User-Id": "bob"}, json={"name": "Bob's"}).json()["household_id"] != first["household_id"]
 
 

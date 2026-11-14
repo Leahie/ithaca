@@ -24,6 +24,21 @@ class AgentContext:
     asked: bool = False
 
     @property
+    def memory_user(self) -> str:
+        """Whose memory files and conversation this agent has. A member's agent: the member's own.
+        The shared guide of a family: the family's, so a new family starts with nothing and one
+        family never reads another's notes, although every big screen is the same user."""
+        if self.household_id and self.member_name is None and self.house_user_id is None and not self.asked:
+            return self.household_id
+        return self.user_id
+
+    @property
+    def thread_id(self) -> str:
+        """The conversation: one per person (or family guide) and house. It outlives the browser
+        session, so a new visit continues the last one."""
+        return f"{self.memory_user}:{self.property_id}"
+
+    @property
     def furniture_user(self) -> str:
         """The house user: whose house and proposals the furniture tools read and write. New
         pieces belong to user_id (docs/specs/furniture.md)."""

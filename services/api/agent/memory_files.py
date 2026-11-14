@@ -61,6 +61,11 @@ def render_inventory(items: list[InventoryItem]) -> str:
 
 
 def sync_inventory(store: BaseStore, user_id: str, items: list[InventoryItem]) -> None:
+    """Also written for the family the user has on their big screen, if any: that family's shared
+    guide keeps its files under the family (AgentContext.memory_user)."""
+    from services.api.realtime.households import households
+
     text = render_inventory(items)
-    if read_file(store, user_id, INVENTORY) != text:
-        write_file(store, user_id, INVENTORY, text)
+    for owner in {user_id, households().current_for(user_id) or user_id}:
+        if read_file(store, owner, INVENTORY) != text:
+            write_file(store, owner, INVENTORY, text)

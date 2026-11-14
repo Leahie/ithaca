@@ -127,25 +127,33 @@ def placement_options(body: PlacementOptions, x_user_id: str = Header("demo")) -
 # --- memory (the /me page) ----------------------------------------------------------------------
 
 
+def _memory_owner(user_id: str) -> str:
+    """Whose files the /me page shows: a person's own, or, for a big screen with a family, that
+    family's shared guide's (the same rule as AgentContext.memory_user)."""
+    from services.api.realtime.households import households
+
+    return households().current_for(user_id) or user_id
+
+
 @router.get("/memory")
 def list_memory(request: Request, x_user_id: str = Header("demo")) -> list[str]:
-    return memory_files.list_files(request.app.state.memory_store, x_user_id)
+    return memory_files.list_files(request.app.state.memory_store, _memory_owner(x_user_id))
 
 
 @router.get("/memory/{path:path}", response_class=PlainTextResponse)
 def get_memory(path: str, request: Request, x_user_id: str = Header("demo")) -> str:
-    return _found(memory_files.read_file(request.app.state.memory_store, x_user_id, path), "memory file")
+    return _found(memory_files.read_file(request.app.state.memory_store, _memory_owner(x_user_id), path), "memory file")
 
 
 @router.put("/memory/{path:path}", status_code=204)
 def put_memory(path: str, request: Request, text: str = Body(media_type="text/plain"), x_user_id: str = Header("demo")) -> Response:
     if path == memory_files.INVENTORY:
         raise HTTPException(409, "inventory.md is generated from the inventory database (B3)")
-    memory_files.write_file(request.app.state.memory_store, x_user_id, path, text)
+    memory_files.write_file(request.app.state.memory_store, _memory_owner(x_user_id), path, text)
     return Response(status_code=204)
 
 
 @router.delete("/memory/{path:path}", status_code=204)
 def delete_memory(path: str, request: Request, x_user_id: str = Header("demo")) -> Response:
-    _found(memory_files.delete_file(request.app.state.memory_store, x_user_id, path), "memory file")
+    _found(memory_files.delete_file(request.app.state.memory_store, _memory_owner(x_user_id), path), "memory file")
     return Response(status_code=204)

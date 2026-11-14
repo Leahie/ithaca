@@ -175,3 +175,41 @@ def test_a_new_message_cuts_off_the_turn_in_flight_and_the_designer_reports_back
         assert any("layouts_ready" in t and "a, b, c" in t for t in said)  # and got its report as an event turn
 
     asyncio.run(scenario())
+
+
+def test_a_new_visit_continues_the_conversation_and_the_room_while_families_and_members_stay_apart():
+    """The conversation and the last room belong to who is looking (a person, or a family), not to
+    the browser session. Another family, or another member of the same one, shares neither."""
+    from services.api.realtime.agent_bridge import AgentBridge
+
+    seen = []  # (thread, whose memory) per turn
+
+    def runner(text, context, thread_id):
+        seen.append((thread_id, context.memory_user))
+        return iter(())
+
+    async def scenario():
+        hub = Hub()
+        AgentBridge(hub, runner)
+
+        def visit(household=None, member=None, room=None):
+            s = hub.create_session("demo", PROPERTY, household_id=household)
+            start = hub.rooms[s.session_id].state.room_id
+            hub.publish(make_event(s.session_id, "phone" if member else "desktop", "chat.user", {"text": "hi"}, member_id=member))
+            if room:
+                hub.publish(make_event(s.session_id, "desktop", "viewer.goto", {"room_id": room}))
+            return start
+
+        assert visit("h-zhang", room="kitchen") is None  # a first visit starts at the door
+        assert visit("h-zhang") == "kitchen"  # a new session opens where the family left off
+        assert visit("h-lee") is None  # another family on the same screen does not
+        visit("h-zhang", member="m-maya")
+        visit("h-zhang", member="m-leo")
+        await asyncio.sleep(0.05)
+
+    asyncio.run(scenario())
+    # one conversation and one memory per family guide and per member, however many sessions
+    assert set(seen) == {
+        (f"h-zhang:{PROPERTY}", "h-zhang"), (f"h-lee:{PROPERTY}", "h-lee"),
+        (f"m-maya:{PROPERTY}", "m-maya"), (f"m-leo:{PROPERTY}", "m-leo"),
+    }

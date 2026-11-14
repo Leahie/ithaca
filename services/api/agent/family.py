@@ -24,6 +24,7 @@ from langchain.agents.middleware import AgentMiddleware
 from langchain.tools import ToolRuntime, tool
 
 from services.api.agent.context import AgentContext
+from services.api.integrations.config import env
 from services.api.realtime.households import households
 
 log = logging.getLogger(__name__)
@@ -34,6 +35,12 @@ _runner: Callable[[str, AgentContext, str], Iterator[tuple[Any, ...]]] | None = 
 # A fresh thread for the asked agent: it must not inherit the asking turn's LangGraph context.
 _pool = ThreadPoolExecutor(max_workers=4, thread_name_prefix="family-ask")
 ASK_TIMEOUT_S = 90.0
+
+
+def agents_talk() -> bool:
+    """Whether members' agents may reach each other (the family board, asking another member's
+    agent). Off unless FAMILY_AGENTS_TALK=1: each agent then knows only its own person."""
+    return env("FAMILY_AGENTS_TALK", "0") == "1"
 
 
 def set_runner(runner: Callable[[str, AgentContext, str], Iterator[tuple[Any, ...]]]) -> None:
@@ -85,6 +92,8 @@ def ask_member(context: AgentContext, name: str, question: str) -> tuple[dict | 
     store = households()
     if not context.household_id:
         return None, "Error: this session has no family."
+    if not agents_talk():
+        return None, "Error: members' agents are kept apart in this setup."
     if context.asked:
         return None, "Error: you were asked a question yourself; answer it instead of asking others."
     other = store.member_by_name(context.household_id, name)
@@ -171,7 +180,12 @@ def family_ask_member(name: str, question: str, runtime: Runtime) -> str:
     return answer
 
 
-FAMILY_TOOLS = [family_list_members, family_post_note, family_read_board, family_ask_member]
+TALK_TOOLS = [family_post_note, family_read_board, family_ask_member]
+
+
+def family_tools() -> list:
+    """The tools an agent gets: who is in the family, and, only when agents may talk, the rest."""
+    return [family_list_members, *(TALK_TOOLS if agents_talk() else [])]
 
 
 class FamilyContextMiddleware(AgentMiddleware):
@@ -188,6 +202,26 @@ class FamilyContextMiddleware(AgentMiddleware):
         if h is None:
             return request
         others = ", ".join(m.name for m in h.members if m.member_id != ctx.user_id) or "nobody else yet"
+        if not agents_talk():
+            # Kept apart: each agent knows its own person and nothing of what the others were told.
+            if ctx.member_name is None:
+                text = (
+                    "## The family\n"
+                    f"The {h.name} family is looking at this house together on the big screen: {others}. You are the shared "
+                    "guide. Each member also has their own agent on their phone. You cannot reach those agents or what "
+                    "they know: when a question is about one member's needs, ask the person."
+                )
+            else:
+                text = (
+                    "## Your family\n"
+                    f"You are {ctx.member_name}'s own agent. The {h.name} family is looking at this house together, and "
+                    f"each member has their own agent. The others: {others}. Your memory and this conversation are "
+                    f"{ctx.member_name}'s alone: you know nothing of what the others told their agents, and they know "
+                    "nothing of yours.\n"
+                    "- Speak for your person, not for the whole family.\n"
+                    "- Everything you say shows on the shared screen, labelled with your person's name."
+                )
+            return request.override(system_message=append_to_system_message(request.system_message, text))
         if ctx.member_name is None:
             # The session's own agent, on the big screen: a guide for the whole family.
             text = (
