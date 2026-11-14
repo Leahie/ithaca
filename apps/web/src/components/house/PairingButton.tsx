@@ -32,7 +32,7 @@ export function PairingButton({ propertyId, avatar = false }: { propertyId: stri
       {avatar ? (
         <button type="button" onClick={() => setOpen(!open)} aria-expanded={open} aria-label="Connect a phone" data-testid="guide-avatar"
           className="flex items-center gap-2 rounded-full border border-white/30 bg-black/35 py-1 pr-3.5 pl-1 text-sm text-white shadow-lg backdrop-blur-md">
-          <span className="flex h-8 w-8 items-center justify-center rounded-full bg-sun font-display text-sm font-semibold text-main">G</span>
+          <span className="flex h-8 w-8 items-center justify-center rounded-full bg-leaf font-display text-sm font-semibold text-main">G</span>
           {phoneOn ? 'Phone connected' : 'Connect a phone'}
         </button>
       ) : (

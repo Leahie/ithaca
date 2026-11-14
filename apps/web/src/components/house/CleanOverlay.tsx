@@ -3,6 +3,7 @@
 import { useEffect, useState, type ReactNode } from 'react';
 import type { PropertyTwin } from '@ithaca/schema';
 import { roomName } from '@/lib/rooms';
+import { canSpeak, useSpeakGuide } from '@/lib/speech/useSpeakGuide';
 import { useSession } from '@/lib/store/session';
 import { formatClock, minutesOfDay } from '@/lib/time';
 
@@ -27,20 +28,28 @@ export function CleanOverlay({ twin, pairing, onShowControls }: { twin: Property
   });
   const text = last?.text ?? '';
   const [visible, setVisible] = useState(false);
+  // The guide talks; the caption is a small subtitle, not a chat.
+  const [voice, setVoice] = useState(true);
+  useSpeakGuide(voice);
 
   // A caption stays while it is being written and for a few seconds after.
   useEffect(() => {
     if (!text) return setVisible(false);
     setVisible(true);
-    const t = setTimeout(() => setVisible(false), 9000);
+    const t = setTimeout(() => setVisible(false), 7000);
     return () => clearTimeout(t);
   }, [text]);
 
-  const caption = interim ? `“${interim.text || 'Listening…'}”` : visible ? (text.length > 260 ? `…${text.slice(-260)}` : text) : '';
+  const caption = interim ? `“${interim.text || 'Listening…'}”` : visible ? text : '';
   return (
     <div className="pointer-events-none absolute inset-0 z-20" data-testid="clean-overlay">
       {/* The guide's face: click it for the code a phone scans. */}
       <div className="pointer-events-auto absolute top-3 right-3 flex items-start gap-2">
+        {canSpeak() && (
+          <button type="button" aria-pressed={voice} onClick={() => setVoice(!voice)} className={`px-3.5 py-2 text-sm ${GLASS}`}>
+            {voice ? 'Voice on' : 'Voice off'}
+          </button>
+        )}
         <button type="button" onClick={onShowControls} className={`px-3.5 py-2 text-sm ${GLASS}`}>
           Controls
         </button>
@@ -48,8 +57,8 @@ export function CleanOverlay({ twin, pairing, onShowControls }: { twin: Property
       </div>
       <div className={`absolute bottom-3 left-3 px-3.5 py-1.5 text-sm tabular-nums ${GLASS}`}><span className="font-display font-semibold">{roomName(twin, roomId)}</span> · {formatClock(minutesOfDay(datetime, twin.timezone))}</div>
       {caption && (
-        <div aria-live="polite" className="absolute inset-x-0 bottom-14 flex justify-center px-6">
-          <p className="max-w-[640px] rounded-2xl border border-white/30 bg-black/45 px-4 py-2.5 text-center text-base leading-6 text-white shadow-lg backdrop-blur-md">{caption}</p>
+        <div aria-live="polite" className="absolute inset-x-0 bottom-3 flex justify-center px-40">
+          <p className="line-clamp-2 max-w-[560px] rounded-xl border border-white/20 bg-black/40 px-3.5 py-1.5 text-center text-[13px] leading-5 text-white/95 backdrop-blur-md">{caption}</p>
         </div>
       )}
     </div>

@@ -8,8 +8,8 @@ import { handEngine, onHandTick, useHands } from '@/lib/hands/store';
 
 /** The user's left hand is sky blue and the right coral, as in HoloTouch. */
 const COLOR = { L: '#4aa8ff', R: '#ff6b5c' } as const;
-const CREAM = '#fbf3e4';
-const INK = '#1e1b2e';
+const CREAM = '#f6f9f7';
+const INK = '#06261f';
 
 /** Bones of the 21-point MediaPipe hand. */
 const BONES: [number, number][] = [
@@ -122,7 +122,7 @@ function drawCursors(canvas: HTMLCanvasElement, hands: HandView[], zooming: bool
 /** Canvas fonts cannot read CSS variables: resolve the Fredoka family next/font named. */
 let family: string | null = null;
 function displayFamily(): string {
-  family ??= `${getComputedStyle(document.documentElement).getPropertyValue('--font-fredoka').trim() || 'Fredoka'}, ui-rounded, system-ui, sans-serif`;
+  family ??= `${getComputedStyle(document.documentElement).getPropertyValue('--font-figtree').trim() || 'Figtree'}, system-ui, sans-serif`;
   return family;
 }
 

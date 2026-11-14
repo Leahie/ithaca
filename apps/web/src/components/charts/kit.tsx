@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 
 /**
- * Shared chart chrome, on the design language's cream surface (#fbf3e4). Categorical slot 1 is a
+ * Shared chart chrome, on the design language's ground (#f6f9f7). Categorical slot 1 is a
  * deep blue and slot 2 a burnt orange (they differ in lightness, not hue alone); amber is sun
  * hours. Gridlines are the hairline `line`, text is ink and its soft twin.
  */
@@ -14,10 +14,10 @@ export const CHART = {
   sun: '#b07800',
   grid: '#e6d8bd',
   axis: '#9a8f78',
-  ink: '#1e1b2e',
+  ink: '#06261f',
   ink2: '#3a3552',
   muted: '#5a5470',
-  surface: '#fbf3e4',
+  surface: '#f6f9f7',
 } as const;
 
 /** Sun-hours heat ramp: one hue, dark to bright, so "no sun" recedes into the dark surface. */

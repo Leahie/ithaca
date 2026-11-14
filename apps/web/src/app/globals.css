@@ -1,42 +1,54 @@
 @import 'tailwindcss';
 
-/* Ithaca design language (HoloTouch's cream and ink). The colour names are the app's long-standing
-   roles; their values follow the design system:
-   surface = cream ground, raised = paper, ink = sunk wells and tracks, main = the one solid control.
-   Accents each have one job: sky the left hand, coral the right, sun (butter) the sun and anything
-   filling up, leaf (mint) running or done, lilac somewhere further to go. A `-deep` twin is the
-   accent as text on cream. Text on an accent fill is `main`, never white. */
+/* Ithaca design language: evergreen ink on a cool white ground, one spring-green accent, a serif
+   for headings and a plain sans for everything you operate. The colour names are the app's
+   long-standing roles:
+   surface = ground, raised = paper, ink = sunk wells and tracks, main = the one solid control.
+   Accents each have one job: sky the left hand, coral the right, sun the sun and anything filling
+   up, leaf running or done (and the guide), lilac somewhere further to go. A `-deep` twin is the
+   accent as text on the ground. Text on an accent fill is `main`, never white. */
 @theme {
-  --color-surface: #fbf3e4;
-  --color-raised: #fffcf5;
-  --color-ink: #f2e6cf;
-  --color-line: #e6d8bd;
-  --color-line-strong: #9a8f78;
-  --color-text: #1e1b2e;
-  --color-muted: #5a5470;
-  --color-faint: #6b6582;
-  --color-main: #1e1b2e;
-  --color-on-main: #fbf3e4;
-  --color-ledge: #0e0c18;
-  --color-cream: #fbf3e4;
-  --color-sun: #ffd35a;
-  --color-sun-deep: #7a5600;
+  --color-surface: #f6f9f7;
+  --color-raised: #ffffff;
+  --color-ink: #e7eeea;
+  --color-line: #d3ddd8;
+  --color-line-strong: #7b8c86;
+  --color-text: #06261f;
+  --color-muted: #475b54;
+  --color-faint: #5f726b;
+  --color-main: #06261f;
+  --color-on-main: #f6f9f7;
+  --color-ledge: #021511;
+  --color-cream: #f6f9f7;
+  --color-sun: #f1c84b;
+  --color-sun-deep: #6c5000;
   --color-sky: #4aa8ff;
   --color-sky-deep: #1a5fbf;
   --color-coral: #ff6b5c;
-  --color-leaf: #3dd6a3;
-  --color-leaf-deep: #0b7353;
+  --color-leaf: #2bdc86;
+  --color-leaf-deep: #0a6b47;
   --color-lilac: #b69cff;
   --color-lilac-deep: #6341c9;
   --color-danger: #b93425;
   --font-sans: var(--font-figtree), 'Figtree Fallback', system-ui, sans-serif;
-  --font-display: var(--font-fredoka), 'Fredoka Fallback', ui-rounded, system-ui, sans-serif;
+  --font-display: var(--font-figtree), 'Figtree Fallback', system-ui, sans-serif;
+  --font-serif: var(--font-serif-face), 'Iowan Old Style', Georgia, serif;
   --font-mono: var(--font-dm-mono), ui-monospace, monospace;
-  --radius-card: 22px;
-  --radius-frame: 16px;
-  --shadow-float: 0 8px 18px #1e1b2e47;
-  --shadow-ledge: 0 4px 0 #0e0c18;
-  --shadow-keyline: 0 0 0 2px #fbf3e4, 0 0 0 3.5px #1e1b2ecc;
+  --radius-card: 14px;
+  --radius-frame: 10px;
+  --shadow-float: 0 10px 28px #06261f29;
+  --shadow-ledge: 0 1px 0 #02151140;
+  --shadow-keyline: 0 0 0 2px #f6f9f7, 0 0 0 3.5px #06261fcc;
+}
+
+h1,
+h2.font-display,
+.font-display.text-lg,
+.font-display.text-xl,
+.font-display.text-2xl {
+  font-family: var(--font-serif);
+  font-weight: 600;
+  letter-spacing: -0.01em;
 }
 
 html,

@@ -364,7 +364,7 @@ function Remote({ propertyId }: { propertyId: string }) {
       <footer className="shrink-0 border-t border-line bg-ink/95">
         {/* Talk is on every screen; the guide's last words show here unless its own screen is open. */}
         <div className="flex items-end gap-3 px-4 pt-3">
-          <div className="min-w-0 flex-1">{view !== 'guide' && <AgentFeed memberId={me?.member_id ?? null} count={1} />}</div>
+          <div className="line-clamp-2 min-w-0 flex-1 text-[13px] [&_p]:text-[13px] [&_p]:leading-5">{view !== 'guide' && <AgentFeed memberId={me?.member_id ?? null} count={1} />}</div>
           <Button
             variant={ptt.listening ? 'primary' : 'subtle'}
             size="lg"

@@ -66,7 +66,7 @@ export function FamilyButton({ propertyId, avatar = false }: { propertyId: strin
       {avatar ? (
         <button type="button" onClick={() => setOpen(!open)} aria-expanded={open} aria-label="Connect a phone" data-testid="guide-avatar"
           className="flex items-center gap-2 rounded-full border border-white/30 bg-black/35 py-1 pr-3.5 pl-1 text-sm text-white shadow-lg backdrop-blur-md">
-          <span className="flex h-8 w-8 items-center justify-center rounded-full bg-sun font-display text-sm font-semibold text-main">G</span>
+          <span className="flex h-8 w-8 items-center justify-center rounded-full bg-leaf font-display text-sm font-semibold text-main">G</span>
           {here > 0 ? `${here} phone${here === 1 ? '' : 's'} connected` : 'Connect a phone'}
         </button>
       ) : (
