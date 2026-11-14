@@ -57,5 +57,5 @@ class RecordReplayCache:
         response = fetch()
         path.parent.mkdir(parents=True, exist_ok=True)
         record = {"service": service, "name": name, "request": request, "response": response}
-        path.write_text(json.dumps(record, indent=1, ensure_ascii=False) + "\n", encoding="utf-8")
+        path.write_text(json.dumps(record, indent=1, ensure_ascii=False) + "\n", encoding="utf-8", newline="\n")
         return response

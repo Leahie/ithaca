@@ -32,9 +32,11 @@ from packages.schema.twin import (
 )
 from services.api.integrations import costar
 from services.api.integrations.cache import RecordReplayCache
+from services.api.integrations.config import fixtures_dir
 from services.api.integrations.matterport import MatterportClient
 from services.api.twin import frames
 from services.api.twin import rooms as plan
+from services.api.twin.mesh import interior_glb_path
 from services.api.twin.service import twin_path
 
 log = logging.getLogger(__name__)
@@ -114,7 +116,7 @@ def build_twin(
         rooms=rooms,
         openings=_openings(raw_floors, edges, vertices, kept, elevations, heading),
         sweeps=_sweeps(panos, kept, raw_floors, elevations),
-        assets=TwinAssets(),
+        assets=_assets(property_id),
         quality=TwinQuality(
             alignment=alignment,
             openings="detected" if any(e["openings"] for e in edges.values()) else "none",
@@ -131,8 +133,14 @@ def write_twin(twin: PropertyTwin, path: Path) -> PropertyTwin:
         same = old.model_dump(exclude={"version"}) == twin.model_dump(exclude={"version"})
         twin = twin.model_copy(update={"version": old.version if same else old.version + 1})
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(twin.model_dump_json(indent=2) + "\n", encoding="utf-8")
+    path.write_text(twin.model_dump_json(indent=2) + "\n", encoding="utf-8", newline="\n")
     return twin
+
+
+def _assets(property_id: str) -> TwinAssets:
+    """Asset keys relative to the fixtures dir; the API turns them into URLs."""
+    glb = interior_glb_path(property_id)
+    return TwinAssets(interior_glb=glb.relative_to(fixtures_dir()).as_posix() if glb.exists() else None)
 
 
 # --- georeference --------------------------------------------------------------------------

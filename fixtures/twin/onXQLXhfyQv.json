@@ -1,6 +1,6 @@
 {
   "property_id": "onXQLXhfyQv",
-  "version": 1,
+  "version": 2,
   "sources": {
     "matterport_model_id": "onXQLXhfyQv",
     "vexcel_parcel_id": null,
@@ -3889,7 +3889,7 @@
     }
   ],
   "assets": {
-    "interior_glb": null,
+    "interior_glb": "blobs/onXQLXhfyQv/interior.glb",
     "context_glb": null,
     "ortho": null,
     "obliques": []

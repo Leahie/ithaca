@@ -58,6 +58,15 @@ query TwinInputs($id: ID!) { model(id: $id) {
 """
 
 
+# `assets.resources(format: "matterpak")` can report the zip unavailable while the bundle's own
+# assets list it, so ask the bundle.
+MATTERPAK_QUERY = """
+query MatterPak($id: ID!) { model(id: $id) {
+  bundle(id: "mp:matterpak") { availability processing { status } assets { filename status url } }
+} }
+"""
+
+
 class MatterportClient:
     def __init__(
         self,
@@ -83,6 +92,18 @@ class MatterportClient:
         if not model:
             raise MatterportError(f"model {model_id} not found or not visible to this key")
         return model
+
+    def matterpak_url(self, model_id: str) -> str:
+        """A fresh signed link to the MatterPak zip. Never cached: the link expires."""
+        body = self._post({"query": " ".join(MATTERPAK_QUERY.split()), "variables": {"id": model_id}})
+        bundle = ((body["data"] or {}).get("model") or {}).get("bundle") or {}
+        for asset in bundle.get("assets") or []:
+            if asset.get("status") == "available" and asset.get("url"):
+                return asset["url"]
+        raise MatterportError(
+            f"no MatterPak for {model_id} (availability: {bundle.get('availability')}, "
+            f"processing: {(bundle.get('processing') or {}).get('status')})"
+        )
 
     def _post(self, request: dict) -> dict:
         if not (self.api_key and self.api_token):

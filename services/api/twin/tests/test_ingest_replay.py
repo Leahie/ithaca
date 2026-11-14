@@ -22,7 +22,7 @@ def twin() -> PropertyTwin:
 
 
 def test_rebuild_is_byte_identical_to_committed_twin(twin):
-    committed = twin_path(PROPERTY_ID).read_text(encoding="utf-8")
+    committed = twin_path(PROPERTY_ID).read_bytes().decode("utf-8")
     stored = get_twin(PROPERTY_ID)
     rebuilt = twin.model_copy(update={"version": stored.version}).model_dump_json(indent=2) + "\n"
     assert rebuilt == committed
