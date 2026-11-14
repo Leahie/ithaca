@@ -65,6 +65,28 @@ def list_members(f: HttpRangeFile) -> list[zipfile.ZipInfo]:
     return zipfile.ZipFile(io.BufferedReader(f, buffer_size=1 << 20)).infolist()
 
 
+def iter_member(f: HttpRangeFile, info: zipfile.ZipInfo, chunk_bytes: int = 8 << 20):
+    """A large member's decompressed bytes, streamed in one request (for members too big to hold)."""
+    name_len, extra_len = struct.unpack("<HH", f.read_range(info.header_offset, _LOCAL_HEADER_SIZE)[26:30])
+    start = info.header_offset + _LOCAL_HEADER_SIZE + name_len + extra_len
+    end = start + info.compress_size - 1
+    r = f.session.get(f.url, headers={"Range": f"bytes={start}-{end}"}, stream=True, timeout=f.timeout_s)
+    r.raise_for_status()
+    inflate = zlib.decompressobj(-zlib.MAX_WBITS) if info.compress_type == zipfile.ZIP_DEFLATED else None
+    crc = 0
+    for raw in r.iter_content(chunk_bytes):
+        f.bytes_read += len(raw)
+        data = inflate.decompress(raw) if inflate else raw
+        crc = zlib.crc32(data, crc)
+        yield data
+    if inflate:
+        tail = inflate.flush()
+        crc = zlib.crc32(tail, crc)
+        yield tail
+    if crc != info.CRC:
+        raise OSError(f"CRC mismatch for {info.filename}")
+
+
 def read_member(f: HttpRangeFile, info: zipfile.ZipInfo) -> bytes:
     """One member's bytes in a single range request, CRC-checked."""
     name_len = len(info.orig_filename.encode("utf-8" if info.flag_bits & 0x800 else "cp437"))

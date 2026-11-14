@@ -38,6 +38,14 @@ def test_ids_reference_each_other(twin):
                for o in twin.openings)
 
 
+def test_sweep_links_are_symmetric_and_reach_every_sweep(twin):
+    from services.api.twin.nav import components
+
+    graph = {s.sweep_id: s.neighbors for s in twin.sweeps}
+    assert all(s in graph[n] and n != s for s, ns in graph.items() for n in ns)
+    assert len(components(graph)) == 1
+
+
 def test_room_polygons_are_ccw_from_above(twin):
     for room in twin.rooms:
         assert len(room.polygon) >= 3

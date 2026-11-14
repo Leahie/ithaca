@@ -393,6 +393,13 @@
           "default": null,
           "title": "Label"
         },
+        "neighbors": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Neighbors",
+          "type": "array"
+        },
         "position": {
           "$ref": "#/$defs/Vec3"
         },

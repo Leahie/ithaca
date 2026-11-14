@@ -86,6 +86,8 @@ class Sweep(BaseModel):
     room_id: str | None
     position: Vec3  # interior frame
     label: str | None = None
+    # sweeps reachable along a clear straight line (symmetric); a viewer moves only along these
+    neighbors: list[str] = Field(default_factory=list)
 
 
 class TwinAssets(BaseModel):
