@@ -51,6 +51,8 @@ export interface ApiClient {
   createHousehold(name: string): Promise<Household>;
   getHousehold(householdId: string): Promise<Household>;
   /** A new family QR code; the old one stops working. */
+  /** The screen leaves its family: the next one starts with an empty house. */
+  leaveHousehold(): Promise<void>;
   rotateInvite(householdId: string): Promise<Household>;
   /** A phone joins the family. memberId: the member it joined as before, to come back as them. */
   joinHousehold(inviteToken: string, name: string, memberId?: string): Promise<JoinHouseholdResult>;

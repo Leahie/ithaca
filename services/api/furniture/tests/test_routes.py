@@ -196,6 +196,19 @@ def test_a_host_gets_a_family_back_by_its_name_and_another_name_is_a_new_family(
     new = client.post("/api/households", headers=host, json={"name": "Zhang"}).json()
     assert new["household_id"] != first["household_id"] and new.get("members", []) == []
     assert hh.households().family_of("screen") == {"screen"}  # the screen's pool is the family it has on now
+    # each family furnishes its own house: what the first placed is not in the new family's
+    from packages.schema.layout import HousePiece
+    from packages.schema.twin import Vec3
+
+    fs, sofa = store.furniture_store(), store.furniture_store().list_items("screen")[0]
+    fs.put_piece("screen", HousePiece(item_id=sofa.item_id, property_id=PROPERTY, room_id="r", position=Vec3(x=0, y=0, z=0), yaw_deg=0, placed_by="screen", updated_at=store.now()))
+    assert len(fs.house_pieces("screen", PROPERTY)) == 1
+    client.post("/api/households", headers=host, json={"name": "Us"})  # back to the first family
+    assert fs.house_pieces("screen", PROPERTY) == []
+    assert client.post("/api/households/leave", headers=host).status_code == 204  # no family: the screen's own house
+    assert fs.house_pieces("screen", PROPERTY) == []
+    client.post("/api/households", headers=host, json={"name": "Zhang"})
+    assert len(fs.house_pieces("screen", PROPERTY)) == 1
     assert {maya, leo, "screen"} <= hh.households().family_of(maya)  # the first family is still whole for its own members
     assert client.post("/api/households", headers={"X-User-Id": "bob"}, json={"name": "Bob's"}).json()["household_id"] != first["household_id"]
 

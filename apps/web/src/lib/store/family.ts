@@ -88,6 +88,7 @@ export const useFamily = create<FamilyStore>((set, get) => ({
   },
 
   leave() {
+    void api().leaveHousehold().catch(() => {});
     write(HOUSEHOLD_KEY, null);
     set({ household: null });
   },

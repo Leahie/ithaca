@@ -52,6 +52,7 @@ def create_session(
         # The family's phones join whatever house the desktop has open now.
         households().set_active_session(household_id, session.session_id)
         households().set_host(household_id, x_user_id)
+        households().open(household_id, x_user_id)  # its house and memory are the ones on screen
     return session
 
 
@@ -92,6 +93,7 @@ async def session_socket(ws: WebSocket, session_id: str, client: ClientKind, tok
             # reuses its saved session without POST /sessions, and that may not be the one the
             # household was last pointed at (two were made at once on a first load).
             households().set_active_session(room.household_id, session_id)
+            households().open(room.household_id, room.user_id)
     member = households().member(room.household_id, member_id) if member_id and room.household_id else None
     conn = hub.connect(session_id, client, member_id=member_id, name=member.name if member else None)
 

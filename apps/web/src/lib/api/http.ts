@@ -69,6 +69,7 @@ export function createHttpApi(): ApiClient {
       }),
     createHousehold: (name) => request('/households', { method: 'POST', body: JSON.stringify({ name }) }),
     getHousehold: (hid) => request(`/households/${enc(hid)}`),
+    leaveHousehold: () => request('/households/leave', { method: 'POST' }, 'none'),
     rotateInvite: (hid) => request(`/households/${enc(hid)}/invite`, { method: 'POST' }),
     joinHousehold: (invite_token, name, member_id) =>
       request('/households/join', { method: 'POST', body: JSON.stringify({ invite_token, name, member_id: member_id ?? null }) }),

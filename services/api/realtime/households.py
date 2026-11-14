@@ -73,6 +73,8 @@ class HouseholdStore:
         columns = {r["name"] for r in self._db.execute("PRAGMA table_info(households)")}
         if "host_user_id" not in columns:
             self._db.execute("ALTER TABLE households ADD COLUMN host_user_id TEXT")
+        # hosts whose screen has left its family and not named another yet (see leave)
+        self._db.execute("CREATE TABLE IF NOT EXISTS away_hosts (host_user_id TEXT PRIMARY KEY)")
         if "merged_into" not in columns:
             self._db.execute("ALTER TABLE households ADD COLUMN merged_into TEXT")
         self._lock = threading.Lock()
@@ -89,6 +91,8 @@ class HouseholdStore:
         agents that remember nothing of the families before it."""
         name = name.strip() or "Our family"
         with self._lock:
+            if host_user_id:
+                self._db.execute("DELETE FROM away_hosts WHERE host_user_id = ?", (host_user_id,))
             row = self._db.execute(
                 "SELECT household_id, invite_expires_at FROM households WHERE host_user_id = ? AND lower(name) = lower(?) AND merged_into IS NULL "
                 "ORDER BY created_at DESC LIMIT 1",
@@ -162,7 +166,22 @@ class HouseholdStore:
         with self._lock:
             return self._current(host_user_id)
 
+    def open(self, household_id: str, host_user_id: str) -> None:
+        """The screen has this family on now (a session was made or reopened for it)."""
+        with self._lock:
+            hid = self._live(household_id)
+            self._db.execute("DELETE FROM away_hosts WHERE host_user_id = ?", (host_user_id,))
+            if self._current(host_user_id) != hid:
+                self._db.execute("UPDATE households SET created_at = ? WHERE household_id = ? AND host_user_id = ?", (_now().isoformat(), hid, host_user_id))
+
+    def leave(self, host_user_id: str) -> None:
+        """The screen pressed "Start a new family": until it names one, it has none."""
+        with self._lock:
+            self._db.execute("INSERT OR IGNORE INTO away_hosts VALUES (?)", (host_user_id,))
+
     def _current(self, host_user_id: str) -> str | None:
+        if self._db.execute("SELECT 1 FROM away_hosts WHERE host_user_id = ?", (host_user_id,)).fetchone():
+            return None
         row = self._db.execute(
             "SELECT household_id FROM households WHERE host_user_id = ? AND merged_into IS NULL ORDER BY created_at DESC LIMIT 1", (host_user_id,)
         ).fetchone()
