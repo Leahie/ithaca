@@ -15,6 +15,7 @@ import { togglePlaying, toggleListening } from '@/lib/store/usePlayback';
 import { RoomIcon } from '@/components/ui/RoomIcon';
 import { FurnitureRoom } from './FurnitureRoom';
 import { LightPanel, OFF, ON } from './LightPanel';
+import { CatalogSuggestion } from '@/components/house/CatalogSuggestion';
 import { MovePad } from './MovePad';
 import { SoundPicker } from './SoundPicker';
 
@@ -60,7 +61,10 @@ function Messages({ memberId }: { memberId: string | null }) {
         ) : c.kind === 'layouts' ? (
           <p key={c.id} className={aside}>{c.layout_ids.length} layout option{c.layout_ids.length === 1 ? '' : 's'} on the big screen</p>
         ) : c.kind === 'catalog' ? (
-          <p key={c.id} className={aside}>On the big screen: {c.pieces.map((x) => x.label).join(', ')}</p>
+          // The pieces the guide suggests, with pictures: tap one to add it to the room.
+          <div key={c.id} className="w-full self-stretch" data-testid="remote-catalog">
+            <CatalogSuggestion propertyId={c.property_id} roomId={c.room_id} nearItemId={c.near_item_id} pieces={c.pieces} />
+          </div>
         ) : (
           <p key={c.id} className="self-center text-xs text-danger">{c.message}</p>
         ),

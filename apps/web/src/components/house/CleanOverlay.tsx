@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import type { PropertyTwin } from '@ithaca/schema';
+import type { CatalogPiece, PropertyTwin } from '@ithaca/schema';
 import { PlanPreview } from '@/components/design/PlanPreview';
 import { useInventory, useLayouts } from '@/lib/data/hooks';
 import { placeName, roomName } from '@/lib/rooms';
@@ -119,6 +119,26 @@ export function CleanOverlay({ twin, pairing, onShowControls }: { twin: Property
     return () => clearTimeout(t);
   }, [text]);
 
+  // Pieces the guide suggests are shown here as pictures (the choice is made on the phone) until
+  // one is picked, the user moves on, or a minute has passed.
+  const [suggested, setSuggested] = useState<CatalogPiece[]>([]);
+  useEffect(() => {
+    let t = 0;
+    const off = onSessionEvent((event) => {
+      if (event.type === 'catalog.suggest') {
+        setSuggested(event.payload.pieces.slice(0, 4));
+        window.clearTimeout(t);
+        t = window.setTimeout(() => setSuggested([]), 60000);
+      } else if (event.type === 'catalog.picked' || event.type === 'chat.user' || (event.type === 'voice.transcript' && event.payload.final && event.payload.text.trim() !== '')) {
+        setSuggested([]);
+      }
+    });
+    return () => {
+      off();
+      window.clearTimeout(t);
+    };
+  }, []);
+
   // Placement options waiting for a choice (made on the phone) are drawn over the house.
   const shown = useSession((s) => s.viewer.shown_layout_ids);
   const selectedLayout = useSession((s) => s.viewer.selected_layout_id);
@@ -143,6 +163,25 @@ export function CleanOverlay({ twin, pairing, onShowControls }: { twin: Property
         {pairing}
       </div>
       <div className={`absolute bottom-3 left-3 px-3.5 py-1.5 text-sm tabular-nums ${GLASS}`}><span className="font-display font-semibold">{placeName(twin, roomId, sweepId)}</span> · {formatClock(minutesOfDay(datetime, twin.timezone))}</div>
+      {suggested.length > 0 && options.length <= 1 && (
+        <div className="absolute inset-x-0 top-20 flex justify-center px-6" data-testid="clean-catalog">
+          <div className="rounded-3xl border border-white/30 bg-black/45 p-4 text-white shadow-lg backdrop-blur-md">
+            <div className="mb-3 text-center text-sm">The guide suggests · choose on your phone</div>
+            <div className="flex gap-3">
+              {suggested.map((p) => (
+                <figure key={p.catalog_id} className="w-[min(170px,18vw)]">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={p.thumbnail_url} alt="" className="aspect-square w-full rounded-xl bg-white/90 object-contain" />
+                  <figcaption className="mt-1.5 text-center text-xs text-white/90">
+                    {p.label}
+                    <span className="block text-white/60 tabular-nums">{p.dims_m.w.toFixed(1)} × {p.dims_m.d.toFixed(1)} m</span>
+                  </figcaption>
+                </figure>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
       {options.length > 1 && (
         <div className="absolute inset-x-0 top-20 flex justify-center px-6" data-testid="clean-options">
           <div className="rounded-3xl border border-white/30 bg-black/45 p-4 text-white shadow-lg backdrop-blur-md">

@@ -86,7 +86,7 @@ export function CatalogSuggestion({ propertyId, roomId, nearItemId, pieces }: Pr
                 <span className="text-xs tabular-nums text-muted">
                   {p.dims_m.w.toFixed(2)} × {p.dims_m.d.toFixed(2)} × {p.dims_m.h.toFixed(2)} m
                 </span>
-                <span className="mt-1 text-xs font-semibold text-muted group-hover:text-text">{done ? 'Added ✓' : busy === p.catalog_id ? 'Adding…' : 'Click to add'}</span>
+                <span className="mt-1 text-xs font-semibold text-muted group-hover:text-text">{done ? 'Added ✓' : busy === p.catalog_id ? 'Adding…' : 'Add to the room'}</span>
               </button>
             </li>
           );
