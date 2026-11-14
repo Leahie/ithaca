@@ -27,7 +27,7 @@ from pydantic import BaseModel
 from shapely.geometry import LineString, Point, Polygon
 from shapely.ops import unary_union
 
-from packages.schema.twin import Opening, Room, Wall
+from packages.schema.twin import Opening, Room, Sweep, Wall
 
 PATH_M = 0.9  # width a person needs to walk
 DOOR_CLEAR_M = 0.9  # clear floor in front of a door
@@ -39,7 +39,10 @@ STEPS_PER_ITEM = 260
 HARD = 1000.0  # energy per unit of hard violation: always dominates the soft terms
 PASSAGE_MIN_M = 0.8  # a gap this wide in a room's walls is a way through, like a door with no door in it
 WALKWAY_M = 1.0  # width kept free along the straight line between two ways in
-WALKWAY_COST = 3.0  # soft cost per m² of furniture standing in a walkway
+WALKWAY_COST = 8.0  # soft cost per m² of furniture standing in a walkway
+GLASS_TO_FLOOR_M = 0.3  # a "window" whose sill is lower than this is a glass door: people walk through it
+FLOAT_COST = 2.0  # soft cost for a piece (or group) standing in the open, away from every wall
+GROUP_GAP_M = 0.8  # pieces this close belong to one group
 # Pieces that look wrong away from a wall. They get a mild against_wall wish if the designer gave none.
 WALL_PIECES = {"sofa", "loveseat", "sectional", "bed", "crib", "bookshelf", "cabinet", "dresser", "wardrobe", "tv_stand", "console_table", "nightstand", "desk"}
 
@@ -153,6 +156,8 @@ class _Scene:
     linked_doors: list[tuple[int, int]] = field(default_factory=list)  # door pairs walkable when the room is empty
     walkways: list[Polygon] = field(default_factory=list)  # straight lines people walk between the ways in
     lanes: Polygon | None = None  # all walkways merged, computed once
+    routes: object | None = None  # centerlines of the walking routes the scan itself followed, if known
+    strict: bool = False  # True: no piece may stand on a route centerline
 
 
 def _passages(room: Room, outline: Polygon, walls: list[Wall]) -> list[tuple[tuple[float, float], tuple[float, float]]]:
@@ -172,7 +177,7 @@ def _passages(room: Room, outline: Polygon, walls: list[Wall]) -> list[tuple[tup
     return out
 
 
-def _scene(room: Room, openings: list[Opening], twin_walls: list[Wall] | None = None) -> _Scene:
+def _scene(room: Room, openings: list[Opening], twin_walls: list[Wall] | None = None, sweeps: list[Sweep] | None = None) -> _Scene:
     poly = Polygon(room.polygon)
     if not poly.is_valid:
         poly = poly.buffer(0)
@@ -196,12 +201,14 @@ def _scene(room: Room, openings: list[Opening], twin_walls: list[Wall] | None = 
         a, b = (o.polygon[0].x, o.polygon[0].z), (o.polygon[1].x, o.polygon[1].z)
         seg, mid = LineString([a, b]), Point((a[0] + b[0]) / 2, (a[1] + b[1]) / 2)
         wall = min(walls, key=lambda w: LineString([w.a, w.b]).distance(mid), default=None)
+        sill = o.polygon[0].y - room.floor_y
         if o.kind == "window":
-            scene.window_zones.append((seg.buffer(WINDOW_CLEAR_M, cap_style="flat").intersection(poly), o.polygon[0].y - room.floor_y))
-            scene.window_points.append(mid)
+            scene.window_points.append(mid)  # something to face, whatever its height
             if wall:
                 wall.has_window = True
-        else:  # door or slider: both need clear floor
+        if o.kind == "window" and sill >= GLASS_TO_FLOOR_M:
+            scene.window_zones.append((seg.buffer(WINDOW_CLEAR_M, cap_style="flat").intersection(poly), sill))
+        else:  # a door, a slider, or glass down to the floor: all need clear floor in front
             scene.door_zones.append(seg.buffer(DOOR_CLEAR_M, cap_style="flat").intersection(poly))
             scene.door_points.append(mid)
             n = wall.normal if wall else (0.0, 0.0)
@@ -215,13 +222,106 @@ def _scene(room: Room, openings: list[Opening], twin_walls: list[Wall] | None = 
         scene.door_zones.append(seg.buffer(DOOR_CLEAR_M, cap_style="flat").intersection(poly))
         scene.door_points.append(mid)
         scene.door_entries.append(Point(mid.x + n[0] * (PATH_M / 2 + 0.1), mid.y + n[1] * (PATH_M / 2 + 0.1)))
+    routes = _scan_routes(room, poly, sweeps or [], scene)
     scene.linked_doors = _walkable_pairs(scene, [])
-    for i, j in scene.linked_doors:
-        line = LineString([scene.door_entries[i], scene.door_entries[j]])
-        if line.length > 0.5:
-            scene.walkways.append(line.buffer(WALKWAY_M / 2, cap_style="flat").intersection(poly))
+    if routes:
+        scene.routes = unary_union(routes).intersection(poly.buffer(-0.05))
+        scene.walkways = [line.buffer(WALKWAY_M / 2, cap_style="flat").intersection(poly) for line in routes]
+    else:  # no scan data: assume people walk straight between the ways in
+        for i, j in scene.linked_doors:
+            line = LineString([scene.door_entries[i], scene.door_entries[j]])
+            if line.length > 0.5:
+                scene.walkways.append(line.buffer(WALKWAY_M / 2, cap_style="flat").intersection(poly))
     scene.lanes = unary_union(scene.walkways).simplify(0.05) if scene.walkways else None
     return scene
+
+
+def _scan_routes(room: Room, poly: Polygon, sweeps: list[Sweep], scene: _Scene) -> list[LineString]:
+    """Where people actually walk in this room, from the scan.
+
+    Sweeps are the spots the scanner stood on; `neighbors` joins two sweeps with a clear straight
+    line between them. A neighbor line that leaves the room marks a way in: a door, or an open-plan
+    passage the door data doesn't have (those are added to the scene as ways in). The routes are
+    the shortest paths along the in-room sweeps that connect every way in, as a tree, so the room
+    keeps one skeleton of walkways instead of a web. Empty when the room has no usable scan data.
+    """
+    by_id = {s.sweep_id: s for s in sweeps}
+    inside = [s for s in sweeps if s.room_id == room.room_id]
+    if not inside:
+        return []
+    at = lambda s: (s.position.x, s.position.z)  # noqa: E731
+    graph: dict[str, list[tuple[str, float]]] = {s.sweep_id: [] for s in inside}
+    crossings: list[tuple[Point, str]] = []  # (where a neighbor line leaves the room, the sweep inside)
+    for s in inside:
+        for other_id in s.neighbors:
+            o = by_id.get(other_id)
+            if o is None or o.floor_id != s.floor_id:
+                continue
+            line = LineString([at(s), at(o)])
+            if o.room_id == room.room_id:
+                graph[s.sweep_id].append((other_id, line.length))
+                continue
+            hit = line.intersection(poly.exterior)
+            if not hit.is_empty:
+                crossings.append((min(getattr(hit, "geoms", [hit]), key=lambda g: g.distance(Point(at(s)))).representative_point(), s.sweep_id))
+
+    # ways in the door data already has: attach each to the sweep whose line passes through it, else the nearest
+    terminals: list[tuple[Point, str]] = []
+    for door in scene.door_points:
+        near = [c for c in crossings if c[0].distance(door) < 0.9]
+        sweep_id = near[0][1] if near else min(inside, key=lambda s: door.distance(Point(at(s)))).sweep_id
+        terminals.append((door, sweep_id))
+    # ways in it doesn't have: open passages, one per cluster of crossings
+    for point, sweep_id in crossings:
+        if any(point.distance(t[0]) < 1.0 for t in terminals):
+            continue
+        inward = Point(at(by_id[sweep_id]))
+        reach = max(point.distance(inward), 1e-6)
+        step = min(PATH_M / 2 + 0.1, reach)
+        scene.door_zones.append(point.buffer(DOOR_CLEAR_M * 0.75).intersection(poly))
+        scene.door_points.append(point)
+        scene.door_entries.append(Point(point.x + (inward.x - point.x) * step / reach, point.y + (inward.y - point.y) * step / reach))
+        terminals.append((point, sweep_id))
+    if len(terminals) < 2:
+        return []
+
+    def paths_from(start: str) -> tuple[dict[str, float], dict[str, str]]:
+        dist, prev, todo = {start: 0.0}, {}, [start]
+        while todo:
+            node = min(todo, key=dist.get)
+            todo.remove(node)
+            for nxt, length in graph[node]:
+                if dist[node] + length < dist.get(nxt, math.inf):
+                    dist[nxt], prev[nxt] = dist[node] + length, node
+                    if nxt not in todo:
+                        todo.append(nxt)
+        return dist, prev
+
+    def route(i: int, j: int) -> tuple[float, LineString] | None:
+        (pi, si), (pj, sj) = terminals[i], terminals[j]
+        direct = LineString([(pi.x, pi.y), (pj.x, pj.y)])
+        dist, prev = paths_from(si)
+        if sj not in dist:
+            return (direct.length, direct) if poly.buffer(0.05).contains(direct) else None
+        chain = [sj]
+        while chain[-1] != si:
+            chain.append(prev[chain[-1]])
+        via = LineString([(pi.x, pi.y), *(at(by_id[k]) for k in reversed(chain)), (pj.x, pj.y)])
+        if poly.buffer(0.05).contains(direct) and direct.length < via.length:
+            return direct.length, direct  # a clear straight line beats the detour past a scan point
+        return via.length, via
+
+    # a tree over the ways in (Prim): the shortest set of routes that still reaches all of them
+    reached, lines = {0}, []
+    while len(reached) < len(terminals):
+        options = [(r[0], r[1], j) for i in reached for j in range(len(terminals)) if j not in reached and (r := route(i, j))]
+        if not options:
+            break
+        _length, line, j = min(options, key=lambda o: o[0])
+        reached.add(j)
+        if line.length > 0.5:
+            lines.append(line)
+    return lines
 
 
 def _walkable_pairs(scene: _Scene, solids: list[Polygon]) -> list[tuple[int, int]]:
@@ -236,10 +336,18 @@ def _walkable_pairs(scene: _Scene, solids: list[Polygon]) -> list[tuple[int, int
 
 
 def violations(
-    room: Room, openings: list[Opening], items: list[Item], poses: dict[str, Pose], walls: list[Wall] | None = None
+    room: Room,
+    openings: list[Opening],
+    items: list[Item],
+    poses: dict[str, Pose],
+    walls: list[Wall] | None = None,
+    sweeps: list[Sweep] | None = None,
 ) -> list[str]:
-    """Hard rules a layout breaks. Empty means valid. This is the definition of B2."""
-    return _violations(_scene(room, openings, walls), items, poses)
+    """Hard rules a layout breaks. Empty means valid. This is the definition of B2.
+
+    Standing on a walking route is not one of them: the solver avoids it when it can, but a user
+    who drags a piece there is allowed to."""
+    return _violations(_scene(room, openings, walls, sweeps), items, poses)
 
 
 def _violations(scene: _Scene, items: list[Item], poses: dict[str, Pose]) -> list[str]:
@@ -255,6 +363,8 @@ def _violations(scene: _Scene, items: list[Item], poses: dict[str, Pose]) -> lis
             out.append(f"{i.label} blocks a door or a way through")
         if any(i.h > sill + 0.05 and fp.intersects(z) and fp.intersection(z).area > 1e-4 for z, sill in scene.window_zones):
             out.append(f"{i.label} stands in front of a window")
+        if scene.strict and scene.routes is not None and fp.intersects(scene.routes):
+            out.append(f"{i.label} stands on a walking route")
     solid = [i for i in items if not i.is_rug]
     for k, a in enumerate(solid):
         for b in solid[k + 1 :]:
@@ -275,6 +385,8 @@ def _hard_energy(scene: _Scene, items: list[Item], shapes: dict[str, Polygon]) -
             continue
         e += sum(fp.intersection(z).area for z in scene.door_zones if fp.intersects(z)) * 2
         e += sum(fp.intersection(z).area for z, sill in scene.window_zones if i.h > sill + 0.05 and fp.intersects(z)) * 2
+        if scene.strict and scene.routes is not None and fp.intersects(scene.routes):
+            e += 0.05 + fp.intersection(scene.routes).length
     solid = [i for i in items if not i.is_rug]
     for k, a in enumerate(solid):
         for b in solid[k + 1 :]:
@@ -348,6 +460,35 @@ def _in_walkways(scene: _Scene, items: list[Item], shapes: dict[str, Polygon]) -
     return sum(shapes[i.item_id].intersection(scene.lanes).area for i in items if not i.is_rug and shapes[i.item_id].intersects(scene.lanes))
 
 
+def _floating(scene: _Scene, items: list[Item], shapes: dict[str, Polygon]) -> dict[str, float]:
+    """item_id -> how much a piece stands in the open (0 = anchored, 1 = adrift).
+
+    A piece is anchored when it touches a wall, or belongs to a group (pieces within GROUP_GAP_M of
+    each other) in which some piece does. An unanchored group is charged by how far it is from the
+    nearest wall, so the search pulls the whole group toward one."""
+    solid = [i for i in items if not i.is_rug]
+    if not solid or not scene.walls:
+        return {}
+    wall_lines = [LineString([w.a, w.b]) for w in scene.walls]
+    wall_gap = {i.item_id: min(line.distance(shapes[i.item_id]) for line in wall_lines) for i in solid}
+    group = {i.item_id: i.item_id for i in solid}  # union-find by proximity
+
+    def root(k: str) -> str:
+        while group[k] != k:
+            k = group[k]
+        return k
+
+    for n, a in enumerate(solid):
+        for b in solid[n + 1 :]:
+            if shapes[a.item_id].distance(shapes[b.item_id]) <= GROUP_GAP_M:
+                group[root(a.item_id)] = root(b.item_id)
+    nearest: dict[str, float] = {}
+    for i in solid:
+        r = root(i.item_id)
+        nearest[r] = min(nearest.get(r, math.inf), wall_gap[i.item_id])
+    return {i.item_id: 0.0 if nearest[root(i.item_id)] <= 0.15 else min(1.0, nearest[root(i.item_id)] / 1.2) for i in solid}
+
+
 def _soft(scene: _Scene, constraints: list[Constraint], by_id: dict[str, Item], poses: dict[str, Pose]) -> float:
     return sum(c.weight * _cost(scene, c, by_id, poses) for c in constraints)
 
@@ -395,7 +536,12 @@ def _anneal(
 
     def energy(p: dict[str, Pose]) -> float:
         shapes = {i.item_id: footprint(i, p[i.item_id]) for i in items}
-        return HARD * _hard_energy(scene, items, shapes) + _soft(scene, constraints, by_id, p) + WALKWAY_COST * _in_walkways(scene, items, shapes)
+        return (
+            HARD * _hard_energy(scene, items, shapes)
+            + _soft(scene, constraints, by_id, p)
+            + WALKWAY_COST * _in_walkways(scene, items, shapes)
+            + FLOAT_COST * sum(_floating(scene, items, shapes).values())
+        )
 
     current = best = energy(poses)
     best_poses = dict(poses)
@@ -439,6 +585,7 @@ def solve(
     n: int = 3,
     seed: int = 0,
     walls: list[Wall] | None = None,
+    sweeps: list[Sweep] | None = None,
 ) -> SolveResult:
     """Up to n valid, visibly different layouts, best first. `walls` (the twin's wall list) lets
     the solver see open-plan edges and keep them and the walkways between them clear."""
@@ -449,36 +596,48 @@ def solve(
     walled = {c.item for c in constraints if c.kind == "against_wall"}
     followers = {c.item for c in constraints if c.kind in ("in_front_of", "beside")}
     constraints = constraints + [
-        Constraint(kind="against_wall", item=i.item_id, target="any", weight=0.6)
+        Constraint(kind="against_wall", item=i.item_id, target="any", weight=1.0)
         for i in items
         if i.item_class in WALL_PIECES and i.item_id not in walled and i.item_id not in followers
     ]
-    scene = _scene(room, openings, walls)
+    scene = _scene(room, openings, walls, sweeps)
+    scene.strict = scene.routes is not None
     labels = {i.item_id: i.label for i in items}
     total_weight = sum(c.weight for c in constraints) or 1.0
 
-    found: list[Variant] = []
     anchor_item = max(items, key=lambda i: i.w * i.d)
     wish = next((c.target for c in constraints if c.kind == "against_wall" and c.item == anchor_item.item_id), None)
     anchor_walls = sorted((w for w in _walls_for(scene, wish) if w.length >= anchor_item.w), key=lambda w: -w.length) if wish else []
-    for k in range(RESTARTS):
-        # each run sends the biggest piece to a different wall in turn, so the options really differ
-        pin = (anchor_item.item_id, anchor_walls[k % len(anchor_walls)]) if anchor_walls else None
-        poses = _anneal(scene, items, constraints, random.Random(seed * 1000 + k), pin)
-        if _violations(scene, items, poses):
-            continue
-        costs = [(c, _cost(scene, c, by_id, poses)) for c in constraints]
-        blocked = _in_walkways(scene, items, {i.item_id: footprint(i, poses[i.item_id]) for i in items})
-        found.append(
-            Variant(
-                poses=poses,
-                score=round(max(0.0, 100 * (1 - sum(c.weight * cost for c, cost in costs) / total_weight) - 25 * blocked), 1),
-                met=[c.describe(labels) for c, cost in costs if cost <= 0.15],
-                unmet=[c.describe(labels) for c, cost in costs if cost > 0.15]
-                + (["part of a piece stands in a walkway"] if blocked > 0.05 else []),
-            )
-        )
 
+    def search() -> list[Variant]:
+        found: list[Variant] = []
+        for k in range(RESTARTS):
+            # each run sends the biggest piece to a different wall in turn, so the options really differ
+            pin = (anchor_item.item_id, anchor_walls[k % len(anchor_walls)]) if anchor_walls else None
+            poses = _anneal(scene, items, constraints, random.Random(seed * 1000 + k), pin)
+            if _violations(scene, items, poses):
+                continue
+            costs = [(c, _cost(scene, c, by_id, poses)) for c in constraints]
+            shapes = {i.item_id: footprint(i, poses[i.item_id]) for i in items}
+            blocked = _in_walkways(scene, items, shapes)
+            adrift = {k: v for k, v in _floating(scene, items, shapes).items() if v > 0.1}
+            found.append(
+                Variant(
+                    poses=poses,
+                    score=round(max(0.0, 100 * (1 - sum(c.weight * cost for c, cost in costs) / total_weight) - 25 * blocked - 15 * sum(adrift.values())), 1),
+                    met=[c.describe(labels) for c, cost in costs if cost <= 0.15],
+                    unmet=[c.describe(labels) for c, cost in costs if cost > 0.15]
+                    + (["part of a piece stands in a walkway"] if blocked > 0.05 else [])
+                    + [f"{labels[k]} stands in the open, away from the walls" for k in adrift],
+                )
+            )
+        return found
+
+    found = search()
+    relaxed = False
+    if not found and scene.strict:  # nothing fits beside the walking routes: allow standing on one, and say so
+        scene.strict, relaxed = False, True
+        found = search()
     found.sort(key=lambda v: -v.score)
     found = [v for v in found if v.score >= found[0].score - 25] if found else []  # weak options are not worth showing
     if wish:  # the biggest piece was asked onto a wall: keep only options where it really is, if any are
@@ -502,6 +661,9 @@ def solve(
         area = sum(i.w * i.d for i in items if not i.is_rug)
         return SolveResult([], f"no arrangement fits: the pieces cover {area:.1f} m² of a {scene.room.area:.1f} m² room once doors, windows and a walking path are kept clear")
     reason = None if len(chosen) == n else f"only {len(chosen)} clearly different arrangement{'s' if len(chosen) != 1 else ''} fit this room"
+    if relaxed:
+        note = "the room is too tight to keep its walking routes fully clear, so a piece stands on one"
+        reason = f"{reason}; {note}" if reason else note
     return SolveResult(chosen, reason)
 
 
@@ -515,11 +677,12 @@ def nearest_valid_pose(
     z: float,
     walls: list[Wall] | None = None,
     reach_m: float = 2.0,
+    sweeps: list[Sweep] | None = None,
 ) -> Pose | None:
     """Where a piece dropped at (x, z) can actually stand: the closest spot within reach_m that
     breaks no hard rule, trying each wall direction. Near a wall it backs up against it.
     `poses` holds the other pieces already in the room. None if nothing nearby works."""
-    scene = _scene(room, openings, walls)
+    scene = _scene(room, openings, walls, sweeps)
     item = next(i for i in items if i.item_id == item_id)
     yaws = sorted({round(w.yaw) % 360 for w in scene.walls}) or [0.0]
     here = Point(x, z)

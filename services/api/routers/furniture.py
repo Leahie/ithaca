@@ -80,6 +80,7 @@ def _room_state(user_id: str, layout: LayoutVariant):
     """The room, and the solver's view of the pieces a layout already holds."""
     twin = get_twin(layout.property_id)
     room = next(r for r in twin.rooms if r.room_id == layout.room_id)
+    room = room.model_copy(update={"floor_y": views.floor_height(twin, room.room_id)})  # sills from the real floor
     owned = {str(i.item_id): i for i in furniture_store().list_items(user_id)}
     items, poses = [], {}
     for p in layout.placements:
@@ -94,7 +95,7 @@ def _room_state(user_id: str, layout: LayoutVariant):
 def _placed(twin, room, item_id: str, pose: layout_solver.Pose) -> Placement:
     return Placement(
         item_id=item_id,
-        position=Vec3(x=round(pose.x, 3), y=views.floor_height(twin, room.room_id), z=round(pose.z, 3)),
+        position=Vec3(x=round(pose.x, 3), y=room.floor_y, z=round(pose.z, 3)),
         yaw_deg=round(pose.yaw % 360, 1),
     )
 
@@ -110,7 +111,7 @@ def move_placement(layout_id: str, item_id: str, body: PlacementMove, x_user_id:
         raise HTTPException(404, "that item is not in this layout")
     twin, room, _owned, items, poses = _room_state(x_user_id, layout)
     pose = layout_solver.Pose(body.x, body.z, body.yaw_deg % 360)
-    problems = layout_solver.violations(room, twin.openings, items, {**poses, item_id: pose}, walls=twin.walls)
+    problems = layout_solver.violations(room, twin.openings, items, {**poses, item_id: pose}, walls=twin.walls, sweeps=twin.sweeps)
     if problems:
         raise HTTPException(409, {"error": "invalid_placement", "violations": problems})
     placements = [_placed(twin, room, item_id, pose) if str(p.item_id) == item_id else p for p in layout.placements]
@@ -146,7 +147,7 @@ def drop_item(body: PlacementDrop, x_user_id: str = Header("demo")) -> LayoutVar
     poses.pop(body.item_id, None)
     items = [i for i in items if i.item_id != body.item_id]
     items.append(layout_solver.Item(body.item_id, owned.label, owned.item_class, owned.dims_m.w, owned.dims_m.d, owned.dims_m.h))
-    pose = layout_solver.nearest_valid_pose(room, twin.openings, items, poses, body.item_id, body.x, body.z, walls=twin.walls)
+    pose = layout_solver.nearest_valid_pose(room, twin.openings, items, poses, body.item_id, body.x, body.z, walls=twin.walls, sweeps=twin.sweeps)
     if pose is None:
         raise HTTPException(409, {"error": "no_room", "violations": [f"{owned.label} doesn't fit anywhere within 2 m of that spot"]})
     placements = [p for p in layout.placements if str(p.item_id) != body.item_id] + [_placed(twin, room, body.item_id, pose)]

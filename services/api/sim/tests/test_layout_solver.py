@@ -65,3 +65,29 @@ def test_walkways_between_doors_stay_clear_and_a_drop_lands_on_a_valid_spot():
     pose = ls.nearest_valid_pose(living, TWIN.openings, sofa, {}, SOFA, door.x, door.y, walls=TWIN.walls)
     assert pose is not None and ls.violations(living, TWIN.openings, sofa, {SOFA: pose}, walls=TWIN.walls) == []
     assert 0.3 < ((pose.x - door.x) ** 2 + (pose.z - door.y) ** 2) ** 0.5 <= 2.0  # moved off the door, but stayed close
+
+
+def test_glass_to_the_floor_scan_routes_and_floating_pieces():
+    """The three things a person notices first: furniture in front of a glass door, on the path
+    people walk, or adrift in the middle of the room."""
+    from services.api.agent import views
+
+    living = room("tt6gm2a0463x9wmnx7rn6gugc")
+    living = living.model_copy(update={"floor_y": views.floor_height(TWIN, living.room_id)})
+    scene = ls._scene(living, TWIN.openings, TWIN.walls, TWIN.sweeps)
+    glass = next(o for o in TWIN.openings if o.room_id == living.room_id and o.kind == "window")
+    assert glass.polygon[0].y - living.floor_y < ls.GLASS_TO_FLOOR_M  # the scan calls this floor-to-ceiling glass a window
+    assert scene.window_zones == [] and len(scene.door_zones) == 4  # so it is kept clear like a door
+    assert scene.routes is not None and scene.routes.length > 3  # walking routes came from the scan
+
+    result = ls.solve(living, TWIN.openings, ITEMS, WISHES, n=3, walls=TWIN.walls, sweeps=TWIN.sweeps)
+    assert result.variants
+    for v in result.variants:
+        shapes = {i.item_id: ls.footprint(i, v.poses[i.item_id]) for i in ITEMS}
+        assert not any(s.intersects(scene.routes) for s in shapes.values())  # nothing on a route
+        assert not any(s.intersection(z).area > 1e-4 for s in shapes.values() for z in scene.door_zones)  # glass door clear
+        assert max(ls._floating(scene, ITEMS, shapes).values()) == 0  # every piece on a wall or in a group that is
+
+    # a big open-plan room: the scan shows ways through that the door list doesn't have
+    big = room("cdz3fkt38kae7tapstpt0eaeb")
+    assert len(ls._scene(big, TWIN.openings, TWIN.walls, TWIN.sweeps).door_points) > len(ls._scene(big, TWIN.openings, TWIN.walls).door_points)
