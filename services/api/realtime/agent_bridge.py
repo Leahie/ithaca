@@ -26,6 +26,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import threading
 import time
 import uuid
 from collections.abc import Callable
@@ -33,6 +34,7 @@ from collections.abc import Callable
 from packages.schema.events import EventEnvelope, make_event
 from services.api.agent import family
 from services.api.agent.context import AgentContext
+from services.api.agent.design_tools import BACKGROUND_DESIGN
 from services.api.agent.provider import TurnRunner
 from services.api.agent.runner import event_message
 from services.api.agent.tour import TOUR_LOGS, TourLog
@@ -48,6 +50,8 @@ OBSERVE_MIN_INTERVAL_S = 120.0
 
 # Runs the observer once for a session; returns a note for the guide or None. Blocking.
 Observe = Callable[[AgentContext], "str | None"]
+# Runs the interior designer once for a room; returns its report (layout ids and notes). Blocking.
+Design = Callable[[AgentContext, str, str], str]
 
 
 def action_summary(tool: str, args: dict) -> str:
@@ -58,6 +62,10 @@ def action_summary(tool: str, args: dict) -> str:
     return {
         "viewer_goto": "Moving the view",
         "viewer_walk": "Walking you there",
+        "viewer_step": "Moving a little",
+        "viewer_turn": "Turning the view",
+        "viewer_zoom": "Zooming",
+        "design_in_background": "Starting on the room layout",
         "task": f"Asking the {args.get('subagent_type', 'helper')}",
         "inventory_search": "Looking at your furniture",
         "propose_layouts": "Arranging the room",
@@ -106,10 +114,13 @@ def spoken_cue(tool: str, args: dict, property_id: str) -> str | None:
 
 
 class AgentBridge:
-    def __init__(self, hub: Hub, runner: TurnRunner, observe: Observe | None = None) -> None:
+    def __init__(self, hub: Hub, runner: TurnRunner, observe: Observe | None = None, design: Design | None = None) -> None:
         self.hub = hub
         self.runner = runner
         self.observe = observe
+        self.design = design
+        self._running: dict[str, threading.Event] = {}  # turn key -> "stop, the user has spoken"
+        self._designing: set[tuple[str, str]] = set()  # (turn key, room_id) the designer is busy with
         self._signals: dict[str, int] = {}  # user actions since the observer last ran
         self._last_observed: dict[str, float] = {}
         self._observing: set[str] = set()
@@ -132,7 +143,7 @@ class AgentBridge:
         if event.type == "chat.user" or (event.type == "voice.transcript" and p.get("final")):
             log_.heard(p["text"])
             self._signal(room)
-            self._start(room, p["text"], proactive=False, member_id=event.member_id)
+            self._start(room, p["text"], proactive=False, member_id=event.member_id, interrupts=True)
         elif event.type == "session.joined" and p.get("member_id") and room.household_id:
             key = (sid, p["member_id"])
             if key not in self._greeted_members:
@@ -235,11 +246,14 @@ class AgentBridge:
             )
         return AgentContext(user_id=room.user_id, property_id=room.property_id, session_id=room.session_id, household_id=room.household_id)
 
-    def _start(self, room: SessionRoom, text: str, proactive: bool, member_id: str | None = None) -> None:
+    def _start(self, room: SessionRoom, text: str, proactive: bool, member_id: str | None = None, interrupts: bool = False) -> None:
         sid = room.session_id
         if not room.household_id:
             member_id = None  # outside a household a phone speaks for the session's user, as before
-        lock = self._locks.setdefault(f"{sid}:{member_id}" if member_id else sid, asyncio.Lock())
+        key = f"{sid}:{member_id}" if member_id else sid
+        lock = self._locks.setdefault(key, asyncio.Lock())
+        if interrupts and (running := self._running.get(key)) is not None:
+            running.set()  # the user has spoken: the turn in flight stops talking and steps aside
         if proactive:
             if lock.locked() or time.monotonic() - self._last_proactive.get(sid, -1e9) < PROACTIVE_COOLDOWN_S:
                 return
@@ -257,20 +271,29 @@ class AgentBridge:
             except (KeyError, ValueError) as e:  # an event the schema doesn't know or accept
                 log.warning("agent event %s dropped: %s", type, e)
 
+        key = thread_id
         async with lock:
             s = room.state
             where = f'<viewer mode="{s.mode}" room_id="{s.room_id or ""}" datetime="{s.datetime or ""}"/>\n'
             context = self._context(room, member_id)
             loop, queue = asyncio.get_running_loop(), asyncio.Queue()
+            stop = threading.Event()
+            self._running[key] = stop
 
             def work() -> None:  # the runner is blocking, so it gets its own thread
+                turn = self.runner(where + text, context, thread_id)
                 try:
-                    for item in self.runner(where + text, context, thread_id):
+                    for item in turn:
+                        if stop.is_set():
+                            break  # nobody is listening any more: stop at this step
                         loop.call_soon_threadsafe(queue.put_nowait, item)
                 except Exception as e:
                     log.exception("agent turn failed")
                     loop.call_soon_threadsafe(queue.put_nowait, ("error", str(e)))
                 finally:
+                    close = getattr(turn, "close", None)
+                    if close:
+                        close()
                     loop.call_soon_threadsafe(queue.put_nowait, None)
 
             emit("agent.turn", {"status": "started"})
@@ -278,7 +301,20 @@ class AgentBridge:
             message_id = uuid.uuid4().hex
             quiet = True  # the guide has said nothing since the turn began or since its last tool call
             cued: set[str] = set()
-            while (item := await queue.get()) is not None:
+            interrupted = False
+            while True:
+                try:
+                    item = await asyncio.wait_for(queue.get(), timeout=0.2)
+                except asyncio.TimeoutError:
+                    if stop.is_set():
+                        interrupted = True
+                        break
+                    continue
+                if item is None:
+                    break
+                if stop.is_set():
+                    interrupted = True
+                    break
                 kind, *rest = item
                 if kind == "token":
                     quiet = False
@@ -293,10 +329,45 @@ class AgentBridge:
                     quiet = True
                     emit("agent.action", {"tool": rest[0], "summary": action_summary(rest[0], rest[1])})
                 elif kind == "ui":
-                    emit(rest[0]["type"], rest[0]["payload"])
+                    if rest[0]["type"] == BACKGROUND_DESIGN:
+                        self._design_in_background(room, member_id, key, **rest[0]["payload"])
+                    else:
+                        emit(rest[0]["type"], rest[0]["payload"])
                 elif kind == "message":
                     emit("agent.message", {"message_id": message_id, "text": rest[0]})
                 elif kind == "error":
                     emit("agent.error", {"message": rest[0]})
-            await worker
+            if self._running.get(key) is stop:
+                del self._running[key]
+            if interrupted:
+                # The thread finishes the step it is in (a model call or a tool) and then stops;
+                # the next turn does not wait for it.
+                self._keep(worker)
+            else:
+                await worker
             emit("agent.turn", {"status": "ended"})
+
+    def _design_in_background(self, room: SessionRoom, member_id: str | None, key: str, room_id: str, brief: str) -> None:
+        """Run the designer off to the side; when it is done the guide gets an event turn with
+        its report, queued like any other turn. One run per room at a time."""
+        if self.design is None:
+            self._start(room, event_message("layouts_failed", "The designer is not available in this setup."), proactive=False, member_id=member_id)
+            return
+        job = (key, room_id)
+        if job in self._designing:
+            return
+        self._designing.add(job)
+        context = self._context(room, member_id)
+
+        async def run() -> None:
+            try:
+                report = await asyncio.to_thread(self.design, context, room_id, brief)
+                message = event_message("layouts_ready", f"room_id: {room_id}\n{report}")
+            except Exception as e:
+                log.exception("background designer failed")
+                message = event_message("layouts_failed", f"room_id: {room_id}\n{e}")
+            finally:
+                self._designing.discard(job)
+            self._start(room, message, proactive=False, member_id=member_id)
+
+        self._keep(asyncio.create_task(run()))

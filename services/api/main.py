@@ -14,7 +14,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from services.api.agent.provider import get_observer, get_turn_runner, memory_store, provider_name
+from services.api.agent.provider import get_designer, get_observer, get_turn_runner, memory_store, provider_name
 from services.api.realtime.agent_bridge import AgentBridge
 from services.api.realtime.hub import Hub
 from services.api.integrations.config import REPO_ROOT, env
@@ -29,7 +29,7 @@ logging.basicConfig(level=logging.INFO)
 async def lifespan(app: FastAPI):
     app.state.hub = Hub(persist=None if env("AGENT_STORAGE") == "memory" else REPO_ROOT / "data" / "agent" / "sessions.sqlite")
     app.state.memory_store = memory_store()  # the agent's per-user memory files; also read by /api/memory
-    app.state.bridge = AgentBridge(app.state.hub, get_turn_runner(), observe=get_observer())
+    app.state.bridge = AgentBridge(app.state.hub, get_turn_runner(), observe=get_observer(), design=get_designer())
     app.state.jobs = JobRunner(app.state.hub, asyncio.get_running_loop())
     app.state.object_providers = None  # tests put fakes here; None = pipeline.default_providers()
     yield

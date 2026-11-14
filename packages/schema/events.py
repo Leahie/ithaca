@@ -10,7 +10,7 @@ import uuid
 from datetime import datetime, timezone
 from typing import Any, Literal
 
-from pydantic import model_validator
+from pydantic import Field, model_validator
 
 from .common import Model
 from .inventory import CatalogPiece
@@ -121,6 +121,7 @@ class ViewerStepPayload(Model):
 
     direction: Literal["forward", "back"] = "forward"
     angle_deg: float | None = None
+    steps: int = Field(default=1, ge=1, le=4)  # hops in a row, the same way
 
 
 class ViewerZoomPayload(Model):
@@ -253,9 +254,9 @@ EVENTS: dict[str, tuple[type[Model], frozenset[str]]] = {
     "viewer.walk": (ViewerWalkPayload, frozenset({"agent"})),
     "viewer.setTime": (ViewerSetTimePayload, frozenset({"agent", "phone", "desktop"})),
     "viewer.setMode": (ViewerSetModePayload, frozenset({"agent", "phone", "desktop"})),
-    "viewer.look": (ViewerLookPayload, frozenset({"phone"})),
-    "viewer.step": (ViewerStepPayload, frozenset({"phone"})),
-    "viewer.zoom": (ViewerZoomPayload, frozenset({"phone"})),
+    "viewer.look": (ViewerLookPayload, frozenset({"phone", "agent"})),
+    "viewer.step": (ViewerStepPayload, frozenset({"phone", "agent"})),
+    "viewer.zoom": (ViewerZoomPayload, frozenset({"phone", "agent"})),
     "viewer.playback": (ViewerPlaybackPayload, frozenset({"phone", "desktop", "server"})),
     "layout.changed": (LayoutChangedPayload, frozenset({"agent", "phone", "desktop", "server"})),
     "furniture.select": (FurnitureSelectPayload, frozenset({"phone", "desktop"})),

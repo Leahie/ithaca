@@ -1,4 +1,4 @@
-"""The furniture chain: guide -> designer subagent -> solver -> saved layouts -> cards on screen."""
+"""The furniture chain: guide -> designer in the background -> solver -> saved layouts -> cards on screen."""
 
 from __future__ import annotations
 
@@ -7,6 +7,10 @@ from langchain_core.messages import AIMessage
 from langgraph.store.memory import InMemoryStore
 
 from services.api.agent import views
+from services.api.agent.context import AgentContext
+from services.api.agent.design_tools import BACKGROUND_DESIGN
+from services.api.agent.graph import build_designer, run_designer
+from services.api.agent.runner import event_message
 from services.api.agent.tests.test_graph import PROPERTY, ScriptedModel, call, run
 from services.api.furniture import store
 from services.api.sim import layout_solver
@@ -22,34 +26,47 @@ def furniture(monkeypatch):
     return fresh
 
 
-def test_guide_delegates_to_the_designer_and_shows_valid_layouts(furniture):
+def test_guide_starts_the_designer_in_the_background_then_shows_valid_layouts(furniture):
     sofa, table, _chair = [str(i.item_id) for i in furniture.list_items("alice")]
     saved = lambda: [str(l.layout_id) for l in furniture.list_proposals("alice")]  # noqa: E731
-    model = ScriptedModel(
-        script=[
-            # the guide hands the job over
-            call("task", subagent_type="designer", description=f"Lay out room {LIVING_ROOM} with the sofa and coffee table."),
-            # the designer: look at the furniture, then ask the solver
-            call("inventory_search"),
-            call(
-                "propose_layouts",
-                room_id=LIVING_ROOM,
-                item_ids=[sofa, table],
-                idea="Sofa wall",
-                wishes=[
-                    {"kind": "against_wall", "item": sofa, "target": "solid"},
-                    {"kind": "in_front_of", "item": table, "target": sofa},
-                ],
-            ),
-            AIMessage(content="Three layouts saved."),
-            # back in the guide: show what the designer made
-            lambda _messages: call("design_show_variants", layout_ids=saved()),
-            AIMessage(content="Here are three ways to set up the living room."),
-        ]
-    )
-    out = run(model, InMemoryStore(), user="alice", thread="t1", text="lay out the living room")
+    memory = InMemoryStore()
+    alice = AgentContext(user_id="alice", property_id=PROPERTY)
 
-    assert sofa in model.tool_results[0]  # the subagent's tool saw alice's furniture (context reached it)
+    # 1. the guide hands the job over and does not wait for it
+    guide = ScriptedModel(script=[
+        call("design_in_background", room_id=LIVING_ROOM, brief="Use the sofa and coffee table."),
+        AIMessage(content="I'm working on it. Keep looking around."),
+    ])
+    started = run(guide, memory, user="alice", thread="t1", text="lay out the living room")
+    job = next(e[1] for e in started if e[0] == "ui")
+    assert job["type"] == BACKGROUND_DESIGN and job["payload"]["room_id"] == LIVING_ROOM and furniture.list_proposals("alice") == []
+
+    # 2. the designer, off to the side: look at the furniture, then ask the solver
+    model = ScriptedModel(script=[
+        call("inventory_search"),
+        call(
+            "propose_layouts",
+            room_id=LIVING_ROOM,
+            item_ids=[sofa, table],
+            idea="Sofa wall",
+            wishes=[
+                {"kind": "against_wall", "item": sofa, "target": "solid"},
+                {"kind": "in_front_of", "item": table, "target": sofa},
+            ],
+        ),
+        AIMessage(content="Three layouts saved."),
+    ])
+    report = run_designer(build_designer(PROPERTY, store=memory, model=model), alice, **job["payload"])
+    assert report == "Three layouts saved."
+
+    # 3. back in the guide, on the layouts_ready event: show what the designer made
+    guide = ScriptedModel(script=[
+        lambda _messages: call("design_show_variants", layout_ids=saved()),
+        AIMessage(content="Here are three ways to set up the living room."),
+    ])
+    out = run(guide, memory, user="alice", thread="t1", text=event_message("layouts_ready", report))
+
+    assert sofa in model.tool_results[0]  # the designer's tool saw alice's furniture (context reached it)
     layouts = furniture.list_proposals("alice", PROPERTY, LIVING_ROOM)
     assert len(layouts) == 3 and furniture.list_proposals("bob") == []
     assert furniture.house_pieces("alice", PROPERTY) == []  # proposals are not furniture in the house (F8)

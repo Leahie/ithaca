@@ -396,4 +396,35 @@ PROPERTY_TOOLS = [list_rooms, get_room_geometry]
 SUN_TOOLS = [sun_by_room, sun_report, daylight_at]
 AREA_TOOLS = [area_profile, area_search]
 SOUND_TOOLS = [sound_heard_from]
-UI_TOOLS = [viewer_goto, viewer_walk, viewer_set_mode, viewer_set_time, sound_place_source]
+@tool
+def viewer_step(direction: Literal["forward", "back", "left", "right"], runtime: Runtime, steps: int = 1) -> str:
+    """Move the user a little from where they stand: "closer", "back up", "scoot left". The
+    direction is relative to what they are looking at now. The house is walked in hops of about a
+    metre between scan positions; `steps` is how many hops (1 to 4). Stays in the same room unless
+    a hop goes through a doorway."""
+    steps = max(1, min(4, steps))
+    angle = {"forward": 0, "right": 90, "back": 180, "left": -90}[direction]
+    _emit(runtime, "viewer.step", {"direction": "forward", "angle_deg": angle, "steps": steps})
+    return f"Moved {steps} hop{'s' if steps > 1 else ''} {direction} (if there was somewhere to stand that way)."
+
+
+@tool
+def viewer_turn(direction: Literal["left", "right", "up", "down", "around"], runtime: Runtime, degrees: float = 45) -> str:
+    """Turn the user's view where they stand: "look left", "look up at the ceiling", "turn around".
+    `degrees` is how far (around is always half a turn)."""
+    degrees = 180.0 if direction == "around" else max(5.0, min(180.0, degrees))
+    yaw = {"left": -degrees, "right": degrees, "around": degrees}.get(direction, 0.0)
+    pitch = {"up": min(degrees, 60.0), "down": -min(degrees, 60.0)}.get(direction, 0.0)
+    _emit(runtime, "viewer.look", {"yaw_delta_deg": yaw, "pitch_delta_deg": pitch})
+    return f"Turned the view {direction}."
+
+
+@tool
+def viewer_zoom(direction: Literal["in", "out"], runtime: Runtime) -> str:
+    """Zoom the user's view in on what they are looking at, or back out. For a detail across the
+    room; to actually get nearer, use viewer_step."""
+    _emit(runtime, "viewer.zoom", {"delta": 0.7 if direction == "in" else -0.7})
+    return f"Zoomed {direction}."
+
+
+UI_TOOLS = [viewer_goto, viewer_walk, viewer_step, viewer_turn, viewer_zoom, viewer_set_mode, viewer_set_time, sound_place_source]

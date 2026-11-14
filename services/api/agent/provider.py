@@ -85,6 +85,22 @@ def get_observer():
     return lambda context: run_observer(_observer(context.property_id), context)
 
 
+@lru_cache(maxsize=16)
+def _designer(property_id: str):
+    from services.api.agent.graph import build_designer
+
+    return build_designer(property_id, store=_storage()[0])
+
+
+def get_designer():
+    """Runs the interior designer once: (context, room_id, brief) -> its report. None without the real agent."""
+    if provider_name() != "deep":
+        return None
+    from services.api.agent.graph import run_designer
+
+    return lambda context, room_id, brief: run_designer(_designer(context.property_id), context, room_id, brief)
+
+
 def get_turn_runner() -> TurnRunner:
     if provider_name() == "scripted":
         from services.api.agent.scripted import stream_turn_scripted

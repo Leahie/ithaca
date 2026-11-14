@@ -421,19 +421,19 @@ export function TourTab({ twin, active }: { twin: PropertyTwin; active: boolean 
     const sweepSub = sdk.Sweep.current.subscribe((current) => {
       if (current.id) here = current.id;
     });
-    const off = onSessionEvent((event) => {
-      if (event.type !== 'viewer.step' || useSession.getState().viewer.mode !== 'tour' || !here || moving.current) return;
+    /** One hop the given way (clockwise from straight ahead); then the rest, if more were asked for. */
+    const hop = (angleDeg: number, left: number) => {
+      if (!here || moving.current) return;
       const from = sweepPosition(here);
       const neighbors = twin.sweeps.find((s) => s.sweep_id === here)?.neighbors ?? [];
       if (!from || !neighbors.length) return;
       // Showcase yaw: 0 looks along -Z, positive turns left.
       const yaw = (rotation.y * Math.PI) / 180;
-      // The way to go, clockwise from straight ahead (the joystick), or just ahead / behind.
-      const angle = ((event.payload.angle_deg ?? (event.payload.direction === 'back' ? 180 : 0)) * Math.PI) / 180;
+      const angle = (angleDeg * Math.PI) / 180;
       const fx = -Math.sin(yaw) * Math.cos(angle) + Math.cos(yaw) * Math.sin(angle);
       const fz = -Math.cos(yaw) * Math.cos(angle) - Math.sin(yaw) * Math.sin(angle);
       let best: string | null = null;
-      let bestScore = 0.35; // within about 70 degrees of straight ahead
+      let bestScore = 0.35; // within about 70 degrees of that way
       for (const id of neighbors) {
         const to = sweepPosition(id);
         if (!to || (sdkSweeps.current.size && !sdkSweeps.current.has(id))) continue;
@@ -441,7 +441,7 @@ export function TourTab({ twin, active }: { twin: PropertyTwin; active: boolean 
         const dz = to.z - from.z;
         const dist = Math.hypot(dx, dz);
         if (dist < 0.2) continue;
-        // Straight ahead first, then the nearer one.
+        // Straight that way first, then the nearer one.
         const score = (dx * fx + dz * fz) / dist - dist * 0.03;
         if (score > bestScore) {
           bestScore = score;
@@ -449,14 +449,21 @@ export function TourTab({ twin, active }: { twin: PropertyTwin; active: boolean 
         }
       }
       if (!best) return;
+      const target = best;
       ++walkToken.current;
       moving.current = true;
-      void sdk.Sweep.moveTo(best, { transition: sdk.Sweep.Transition.FLY, transitionTime: 650, rotation: { x: rotation.x, y: rotation.y } })
+      void sdk.Sweep.moveTo(target, { transition: sdk.Sweep.Transition.FLY, transitionTime: 650, rotation: { x: rotation.x, y: rotation.y } })
         .catch((err: unknown) => console.warn('[tour] step failed', err))
         .finally(() => {
           moving.current = false;
-          runQueued();
+          here = target;
+          if (left > 1) hop(angleDeg, left - 1);
+          else runQueued();
         });
+    };
+    const off = onSessionEvent((event) => {
+      if (event.type !== 'viewer.step' || useSession.getState().viewer.mode !== 'tour') return;
+      hop(event.payload.angle_deg ?? (event.payload.direction === 'back' ? 180 : 0), event.payload.steps ?? 1);
     });
     return () => {
       poseSub.cancel();

@@ -858,6 +858,7 @@ export interface ViewerState {
 export interface ViewerStepPayload {
   direction?: "forward" | "back";
   angle_deg?: number | null;
+  steps?: number;
 }
 
 /**

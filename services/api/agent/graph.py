@@ -32,6 +32,7 @@ from services.api.agent.design_tools import (
     catalog_suggest,
     delete_from_inventory,
     design_apply_layout,
+    design_in_background,
     design_show_variants,
     inventory_search,
     propose_layouts,
@@ -89,22 +90,10 @@ def build_agent(
         default=StateBackend(),
         routes={MEMORY_ROOT: StoreBackend(namespace=lambda rt: memory_namespace(rt.context.user_id))},
     )
-    designer = {
-        "name": "designer",
-        "description": (
-            "Interior designer. Arranges the user's own furniture in one room and returns saved layout_ids. "
-            "Give it the room_id, the pieces to use, what the user wants from the room, and their preferences."
-        ),
-        "system_prompt": prompts.DESIGNER_PROMPT,
-        "tools": [inventory_search, *PROPERTY_TOOLS, sun_by_room, propose_layouts],
-        "middleware": [PropertyContextMiddleware()],
-        **({"model": get_model("designer")} if model is None else {}),
-    }
     return create_deep_agent(
         model=model or get_model("main"),
-        tools=[*PROPERTY_TOOLS, *SUN_TOOLS, *AREA_TOOLS, *SOUND_TOOLS, inventory_search, *UI_TOOLS, design_show_variants, design_apply_layout, catalog_search, catalog_suggest, catalog_add, remove_from_room, delete_from_inventory, *FAMILY_TOOLS],
-        system_prompt=prompts.main_persona(subagents=("designer",)),  # analyst and scout don't exist yet
-        subagents=[designer],
+        tools=[*PROPERTY_TOOLS, *SUN_TOOLS, *AREA_TOOLS, *SOUND_TOOLS, inventory_search, *UI_TOOLS, design_in_background, design_show_variants, design_apply_layout, catalog_search, catalog_suggest, catalog_add, remove_from_room, delete_from_inventory, *FAMILY_TOOLS],
+        system_prompt=prompts.main_persona(subagents=()),  # no helpers through `task`: the designer runs in the background
         middleware=[PropertyContextMiddleware(), FamilyContextMiddleware()],
         memory=memory_files(property_id),
         permissions=[FilesystemPermission(operations=["write"], paths=[INVENTORY_FILE], mode="deny")],
@@ -114,3 +103,24 @@ def build_agent(
         checkpointer=checkpointer,
         name="ithaca",
     )
+
+
+def build_designer(property_id: str, *, store: BaseStore, model: BaseChatModel | None = None):
+    """The interior designer as its own agent. The session bridge runs it in the background when
+    the guide calls `design_in_background`, so the guide stays free to talk and move meanwhile.
+    It has no memory of its own: the guide's brief carries what matters."""
+    return create_deep_agent(
+        model=model or get_model("designer"),
+        tools=[inventory_search, *PROPERTY_TOOLS, sun_by_room, propose_layouts],
+        system_prompt=prompts.DESIGNER_PROMPT,
+        middleware=[PropertyContextMiddleware()],
+        context_schema=AgentContext,
+        store=store,
+        name="designer",
+    )
+
+
+def run_designer(designer, context: AgentContext, room_id: str, brief: str) -> str:
+    """One background run. Returns the designer's last words (the layout_ids and what it managed)."""
+    result = designer.invoke({"messages": [{"role": "user", "content": f"room_id: {room_id}\n{brief}"}]}, context=context)
+    return result["messages"][-1].text.strip()

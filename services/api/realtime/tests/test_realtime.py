@@ -139,3 +139,39 @@ def test_spoken_cue_names_the_room_and_stays_quiet_for_quick_tools():
     assert spoken_cue("viewer_walk", {"from_room_id": "x", "to_room_id": kitchen.room_id}, twin.property_id).startswith("Walking you to the Kitchen")
     assert spoken_cue("task", {"subagent_type": "designer"}, twin.property_id)
     assert spoken_cue("list_rooms", {}, twin.property_id) is None
+
+
+def test_a_new_message_cuts_off_the_turn_in_flight_and_the_designer_reports_back():
+    import time
+
+    from services.api.agent.design_tools import BACKGROUND_DESIGN
+    from services.api.realtime.agent_bridge import AgentBridge
+
+    def runner(text, context, thread_id):
+        if "long story" in text:
+            yield ("token", "Once upon a time ")
+            time.sleep(0.5)  # still writing when the user speaks again
+            yield ("message", "Once upon a time there was a very long answer.")
+        elif "lay out" in text:
+            yield ("ui", {"type": BACKGROUND_DESIGN, "payload": {"room_id": "r1", "brief": "whatever fits"}})
+            yield ("message", "Working on it.")
+        else:
+            yield ("message", f"answer to: {text}")
+
+    async def scenario():
+        hub = Hub()
+        AgentBridge(hub, runner, design=lambda context, room_id, brief: f"layout_ids for {room_id}: a, b, c")
+        sid = hub.create_session("demo", PROPERTY).session_id
+        said = []
+        hub.subscribe(lambda _room, e: said.append(e.payload["text"]) if e.type == "agent.message" else None)
+        hub.publish(make_event(sid, "phone", "chat.user", {"text": "tell me a long story"}))
+        await asyncio.sleep(0.15)
+        hub.publish(make_event(sid, "phone", "chat.user", {"text": "stop, take me to the kitchen"}))
+        await asyncio.sleep(1.0)
+        assert not any("very long answer" in t for t in said) and any("kitchen" in t for t in said)  # cut off, and the new one answered
+        hub.publish(make_event(sid, "phone", "chat.user", {"text": "lay out the bedroom"}))
+        await asyncio.sleep(0.6)
+        assert "Working on it." in said  # the guide did not wait for the designer
+        assert any("layouts_ready" in t and "a, b, c" in t for t in said)  # and got its report as an event turn
+
+    asyncio.run(scenario())

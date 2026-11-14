@@ -32,6 +32,9 @@ def _changed(runtime: Runtime) -> None:
     runtime.stream_writer({"type": "layout.changed", "payload": {}})
 
 
+# Not a UI event: the session bridge takes this off the stream and runs the designer itself.
+BACKGROUND_DESIGN = "background.design"
+
 @tool
 def inventory_search(runtime: Runtime, query: str = "") -> str:
     """The family's furniture: item_id, what it is, whose it is, size, style, and the room it
@@ -159,6 +162,21 @@ def delete_from_inventory(item_id: str, runtime: Runtime) -> str:
         memory_files.sync_inventory(runtime.store, ctx.user_id, furniture_store().list_items(ctx.user_id))
     _changed(runtime)
     return f"Deleted {item.label} from the furniture; it is out of every room too."
+
+
+@tool
+def design_in_background(room_id: str, brief: str, runtime: Runtime) -> str:
+    """Ask the interior designer to arrange a room. It works in the background and takes up to a
+    minute; you get a `layouts_ready` event with the layout_ids when it is done.
+
+    brief: which pieces to use (or "whatever fits"), what the user wants from the room, and every
+    relevant preference from memory word for word, marking the hard ones."""
+    twin = get_twin(runtime.context.property_id)
+    if not any(r.room_id == room_id for r in twin.rooms):
+        return f"Error: no room with id {room_id}. Use an id from the room directory."
+    runtime.stream_writer({"type": BACKGROUND_DESIGN, "payload": {"room_id": room_id, "brief": brief}})
+    return ("The designer has started. Tell the user in one sentence that you are working on it and that they can keep "
+            "looking around or ask you anything meanwhile. Do not wait, and do not describe any layout yet.")
 
 
 @tool
