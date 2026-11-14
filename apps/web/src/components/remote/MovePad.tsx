@@ -85,7 +85,8 @@ export function MovePad({ hint }: { hint: string }) {
       onPointerMove={(e) => {
         if (!last.current) return;
         acc.current.yaw += (e.clientX - last.current.x) * DRAG_SENSITIVITY;
-        acc.current.pitch -= (e.clientY - last.current.y) * DRAG_SENSITIVITY;
+        // Swiping down looks up: the view follows the finger, like dragging the scene.
+        acc.current.pitch += (e.clientY - last.current.y) * DRAG_SENSITIVITY;
         last.current = { x: e.clientX, y: e.clientY };
       }}
       onPointerUp={() => (last.current = null)}

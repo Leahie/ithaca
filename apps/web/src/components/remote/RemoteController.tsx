@@ -347,8 +347,8 @@ function Remote({ propertyId }: { propertyId: string }) {
         )}
       </main>
 
-      {/* Talk floats over every screen, bottom left. */}
-      <div className="pointer-events-none absolute bottom-[calc(68px+env(safe-area-inset-bottom))] left-4 z-30 flex items-end gap-2">
+      {/* Talk floats over every screen, bottom right. */}
+      <div className="pointer-events-none absolute right-4 bottom-[calc(68px+env(safe-area-inset-bottom))] z-30 flex flex-row-reverse items-end gap-2">
         <button
           type="button"
           disabled={!ptt.supported}
