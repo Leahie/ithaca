@@ -181,6 +181,41 @@ def test_a_family_shares_one_pool_and_each_piece_keeps_its_owner(client):
     assert client.get(HOUSE, headers=host).json() == []
 
 
+def test_a_host_has_one_family_even_when_the_screen_makes_it_again(client):
+    """A screen that lost its saved household (another browser) gets the same family back, so a
+    phone that joined then and a phone that joins now share one pool."""
+    host = {"X-User-Id": "screen"}
+    first = client.post("/api/households", headers=host, json={"name": "Us"}).json()
+    maya = client.post("/api/households/join", json={"invite_token": first["invite_token"], "name": "Maya"}).json()["member"]["member_id"]
+    again = client.post("/api/households", headers=host, json={"name": "Zhang"}).json()
+    assert again["household_id"] == first["household_id"] and again["name"] == "Zhang"
+    leo = client.post("/api/households/join", json={"invite_token": again["invite_token"], "name": "Leo"}).json()["member"]["member_id"]
+    assert {maya, leo} <= hh.households().family_of(maya)
+    assert client.post("/api/households", headers={"X-User-Id": "bob"}, json={"name": "Bob's"}).json()["household_id"] != first["household_id"]
+
+
+def test_a_hosts_old_duplicate_families_are_merged_into_the_newest(tmp_path):
+    path = tmp_path / "households.sqlite"
+    old = hh.HouseholdStore(path)
+    a = old.create("Zhang", host_user_id="screen")
+    old._db.execute("UPDATE households SET host_user_id = NULL WHERE household_id = ?", (a.household_id,))  # as before one family per host
+    b = old.create("Zhang", host_user_id="screen")
+    old._db.execute("UPDATE households SET host_user_id = 'screen', created_at = '2000-01-01' WHERE household_id = ?", (a.household_id,))
+    _, maya = old.join(a.invite_token, "Maya")
+    _, leo = old.join(b.invite_token, "Leo")
+    old.add_note(a.household_id, maya.member_id, "Too small")
+    assert maya.member_id not in old.family_of(leo.member_id)
+
+    store_ = hh.HouseholdStore(path)  # the API restarts
+    merged = store_.get(a.household_id)
+    assert merged is not None and merged.household_id == b.household_id  # the old id forwards
+    assert {m.name for m in merged.members} == {"Maya", "Leo"}
+    assert {maya.member_id, leo.member_id} <= store_.family_of(leo.member_id)
+    assert [n["text"] for n in store_.notes(b.household_id)] == ["Too small"]
+    household, again = store_.join(a.invite_token, "maya")  # the old QR code still works
+    assert household.household_id == b.household_id and again.member_id == maya.member_id
+
+
 def test_a_family_without_a_host_gets_one_when_the_screen_connects(client):
     """Households made before hosts existed, with a desktop that reuses its saved session: the
     member's pieces still have to go into the screen's house."""

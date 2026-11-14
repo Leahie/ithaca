@@ -70,27 +70,84 @@ class HouseholdStore:
         self._db = sqlite3.connect(str(path), check_same_thread=False, isolation_level=None)
         self._db.row_factory = sqlite3.Row
         self._db.executescript(_SCHEMA)
-        if "host_user_id" not in {r["name"] for r in self._db.execute("PRAGMA table_info(households)")}:
+        columns = {r["name"] for r in self._db.execute("PRAGMA table_info(households)")}
+        if "host_user_id" not in columns:
             self._db.execute("ALTER TABLE households ADD COLUMN host_user_id TEXT")
+        if "merged_into" not in columns:
+            self._db.execute("ALTER TABLE households ADD COLUMN merged_into TEXT")
         self._lock = threading.Lock()
+        with self._lock:
+            self._merge_duplicates()
 
     # --- households -----------------------------------------------------------------------------
 
     def create(self, name: str, host_user_id: str | None = None) -> Household:
-        """host_user_id: the big screen's user, whose house the family's phones arrange."""
-        hid = f"h-{uuid.uuid4().hex[:12]}"
+        """host_user_id: the big screen's user, whose house the family's phones arrange. A host has
+        one family: a screen that lost its saved household (another browser, cleared storage) gets
+        the same one back under the new name, so the members and their furniture stay one pool."""
+        name = name.strip() or "Our family"
         with self._lock:
-            self._db.execute(
-                "INSERT INTO households (household_id, name, invite_token, invite_expires_at, active_session_id, created_at, host_user_id) "
-                "VALUES (?, ?, ?, ?, NULL, ?, ?)",
-                (hid, name.strip() or "Our family", secrets.token_urlsafe(12), (_now() + INVITE_TTL).isoformat(), _now().isoformat(), host_user_id),
-            )
+            row = self._db.execute(
+                "SELECT household_id, invite_expires_at FROM households WHERE host_user_id = ? AND merged_into IS NULL ORDER BY created_at DESC LIMIT 1",
+                (host_user_id,),
+            ).fetchone() if host_user_id else None
+            if row is None:
+                hid = f"h-{uuid.uuid4().hex[:12]}"
+                self._db.execute(
+                    "INSERT INTO households (household_id, name, invite_token, invite_expires_at, active_session_id, created_at, host_user_id) "
+                    "VALUES (?, ?, ?, ?, NULL, ?, ?)",
+                    (hid, name, secrets.token_urlsafe(12), (_now() + INVITE_TTL).isoformat(), _now().isoformat(), host_user_id),
+                )
+            else:
+                hid = row["household_id"]
+                self._db.execute("UPDATE households SET name = ? WHERE household_id = ?", (name, hid))
+                if datetime.fromisoformat(row["invite_expires_at"]) <= _now():
+                    self._db.execute(
+                        "UPDATE households SET invite_token = ?, invite_expires_at = ? WHERE household_id = ?",
+                        (secrets.token_urlsafe(12), (_now() + INVITE_TTL).isoformat(), hid),
+                    )
         return self.get(hid)  # type: ignore[return-value]
 
     def set_host(self, household_id: str, host_user_id: str) -> None:
         """Record the host if the household has none yet (households made before hosts existed)."""
         with self._lock:
-            self._db.execute("UPDATE households SET host_user_id = ? WHERE household_id = ? AND host_user_id IS NULL", (host_user_id, household_id))
+            hid = self._live(household_id)
+            self._db.execute("UPDATE households SET host_user_id = ? WHERE household_id = ? AND host_user_id IS NULL", (host_user_id, hid))
+            self._merge_duplicates()
+
+    def _live(self, household_id: str) -> str:
+        """The household this id stands for now: a merged one forwards to the one it went into, so
+        saved ids, sessions and old QR codes keep working. Call with the lock held."""
+        seen: set[str] = set()
+        while household_id not in seen:
+            seen.add(household_id)
+            row = self._db.execute("SELECT merged_into FROM households WHERE household_id = ?", (household_id,)).fetchone()
+            if row is None or not row["merged_into"]:
+                break
+            household_id = row["merged_into"]
+        return household_id
+
+    def _merge_duplicates(self) -> None:
+        """Fold every host's extra households (made before a host had one family) into their newest:
+        members and board notes move, the old rows forward to it. Call with the lock held."""
+        hosts = self._db.execute(
+            "SELECT host_user_id FROM households WHERE host_user_id IS NOT NULL AND merged_into IS NULL GROUP BY host_user_id HAVING count(*) > 1"
+        ).fetchall()
+        for (host,) in hosts:
+            ids = [r[0] for r in self._db.execute(
+                "SELECT household_id FROM households WHERE host_user_id = ? AND merged_into IS NULL ORDER BY created_at DESC", (host,)
+            )]
+            keep, rest = ids[0], ids[1:]
+            marks = ",".join("?" * len(rest))
+            self._db.execute("BEGIN")
+            try:
+                self._db.execute(f"UPDATE members SET household_id = ? WHERE household_id IN ({marks})", (keep, *rest))
+                self._db.execute(f"UPDATE board_notes SET household_id = ? WHERE household_id IN ({marks})", (keep, *rest))
+                self._db.execute(f"UPDATE households SET merged_into = ? WHERE household_id IN ({marks})", (keep, *rest))
+                self._db.execute("COMMIT")
+            except Exception:
+                self._db.execute("ROLLBACK")
+                raise
 
     # --- families (docs/specs/furniture.md) -----------------------------------------------------
 
@@ -125,6 +182,7 @@ class HouseholdStore:
 
     def get(self, household_id: str) -> Household | None:
         with self._lock:
+            household_id = self._live(household_id)
             row = self._db.execute("SELECT * FROM households WHERE household_id = ?", (household_id,)).fetchone()
             if row is None:
                 return None
@@ -143,6 +201,7 @@ class HouseholdStore:
     def rotate_invite(self, household_id: str) -> Household | None:
         """A new family QR code; the old one stops working."""
         with self._lock:
+            household_id = self._live(household_id)
             self._db.execute(
                 "UPDATE households SET invite_token = ?, invite_expires_at = ? WHERE household_id = ?",
                 (secrets.token_urlsafe(12), (_now() + INVITE_TTL).isoformat(), household_id),
@@ -151,7 +210,7 @@ class HouseholdStore:
 
     def set_active_session(self, household_id: str, session_id: str) -> None:
         with self._lock:
-            self._db.execute("UPDATE households SET active_session_id = ? WHERE household_id = ?", (session_id, household_id))
+            self._db.execute("UPDATE households SET active_session_id = ? WHERE household_id = ?", (session_id, self._live(household_id)))
 
     # --- members --------------------------------------------------------------------------------
 
@@ -166,7 +225,7 @@ class HouseholdStore:
             row = self._db.execute("SELECT household_id, invite_expires_at FROM households WHERE invite_token = ?", (invite_token,)).fetchone()
             if row is None or datetime.fromisoformat(row["invite_expires_at"]) <= _now():
                 raise InviteInvalid("This family code is unknown or has expired. Ask for a new one on the big screen.")
-            hid = row["household_id"]
+            hid = self._live(row["household_id"])
             found = None
             if member_id:
                 found = self._db.execute("SELECT member_id FROM members WHERE member_id = ? AND household_id = ?", (member_id, hid)).fetchone()
@@ -188,7 +247,7 @@ class HouseholdStore:
 
     def member(self, household_id: str, member_id: str) -> Member | None:
         with self._lock:
-            row = self._db.execute("SELECT member_id, name FROM members WHERE member_id = ? AND household_id = ?", (member_id, household_id)).fetchone()
+            row = self._db.execute("SELECT member_id, name FROM members WHERE member_id = ? AND household_id = ?", (member_id, self._live(household_id))).fetchone()
         return Member(member_id=row["member_id"], name=row["name"]) if row else None
 
     def member_by_name(self, household_id: str, name: str) -> Member | None:
@@ -215,7 +274,7 @@ class HouseholdStore:
         with self._lock:
             self._db.execute(
                 "INSERT INTO board_notes VALUES (?, ?, ?, ?, ?, ?, ?)",
-                (note["note_id"], household_id, member_id, property_id, room_id, note["text"], _now().isoformat()),
+                (note["note_id"], self._live(household_id), member_id, property_id, room_id, note["text"], _now().isoformat()),
             )
         return note
 
@@ -229,6 +288,7 @@ class HouseholdStore:
         sql += " ORDER BY n.created_at DESC LIMIT ?"
         args.append(max(1, min(limit, 100)))
         with self._lock:
+            args[0] = self._live(household_id)
             rows = self._db.execute(sql, args).fetchall()
         return [dict(r) for r in reversed(rows)]
 

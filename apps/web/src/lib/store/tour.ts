@@ -9,8 +9,11 @@ interface TourStore {
   place: TourPlace;
   /** Counts requests for the outside view from the room list; a repeat counts again. */
   outsideSeq: number;
+  /** The scan with the seller's furniture painted out (Matterport's defurnished view), in the tour and the Sun Lab. */
+  defurnished: boolean;
   setPlace(place: TourPlace): void;
   goOutside(): void;
+  setDefurnished(on: boolean): void;
 }
 
 /**
@@ -20,6 +23,8 @@ interface TourStore {
 export const useTour = create<TourStore>((set, get) => ({
   place: null,
   outsideSeq: 0,
+  defurnished: true,
   setPlace: (place) => set({ place }),
   goOutside: () => set({ outsideSeq: get().outsideSeq + 1 }),
+  setDefurnished: (defurnished) => set({ defurnished }),
 }));

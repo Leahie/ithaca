@@ -53,8 +53,8 @@ interface Props {
   interiorToWorld?: Mat4;
   /** A piece on its way, before it is saved (a few times a second); null once it is let go. */
   onDrag?(itemId: string, pose: { x: number; z: number; yaw_deg: number } | null): void;
-  /** Two fingers on the plan: how far their middle moved (pixels) and how much they spread (log2). A piece in hand is put back. */
-  onTwoFinger?(gesture: { dx: number; dy: number; zoom: number }): void;
+  /** A tap on the floor, not on a piece (interior frame, meters). It also lets go of the selected piece. */
+  onTapFloor?(at: { x: number; z: number }): void;
 }
 
 /** A drag goes out to the other screens at most this often. */
@@ -97,7 +97,7 @@ function wallSides(polygon: readonly (readonly [number, number])[], interiorToWo
   return [...longest.values()];
 }
 
-type Drag = ({ kind: 'move'; dx: number; dz: number } | { kind: 'turn' }) & { id: string; from: Pose };
+type Drag = { kind: 'move'; id: string; dx: number; dz: number } | { kind: 'turn'; id: string };
 
 const norm = (deg: number) => ((deg % 360) + 360) % 360;
 
@@ -110,7 +110,7 @@ const norm = (deg: number) => ((deg % 360) + 360) % 360;
  * blocked door), which are shown but never block. Seen from above: +X is right and +Z is down the
  * page, as in PlanPreview.
  */
-export function PlanEditor({ propertyId, room, openings, pieces, items, className, onLookAt, onSelect, onChanged, fill = false, readOnly = false, selected: pick, controls, interiorToWorld, onDrag, onTwoFinger }: Props) {
+export function PlanEditor({ propertyId, room, openings, pieces, items, className, onLookAt, onSelect, onChanged, fill = false, readOnly = false, selected: pick, controls, interiorToWorld, onDrag, onTapFloor }: Props) {
   const svg = useRef<SVGSVGElement>(null);
   const [poses, setPoses] = useState<Record<string, Pose>>({});
   // With a `selected` prop the caller owns the selection; without one, the plan does.
@@ -197,20 +197,9 @@ export function PlanEditor({ propertyId, room, openings, pieces, items, classNam
     [propertyId, room.floor_id, room.room_id, reload],
   );
 
-  // Fingers on the plan. One moves or turns a piece; a second one makes it a two-finger gesture,
-  // which belongs to the caller (the phone turns the big screen with it).
-  const fingers = useRef(new Map<number, { x: number; y: number }>());
-  const spreadAt = useRef<number | null>(null);
+  // A press on the floor is a tap once it lifts without moving.
   const tap = useRef<{ id: number; x: number; y: number } | null>(null);
   const lastSent = useRef(0);
-  const middle = () => {
-    const all = [...fingers.current.values()];
-    return { x: all.reduce((s, p) => s + p.x, 0) / all.length, y: all.reduce((s, p) => s + p.y, 0) / all.length };
-  };
-  const spread = () => {
-    const [a, b] = [...fingers.current.values()];
-    return a && b ? Math.hypot(a.x - b.x, a.y - b.y) : 0;
-  };
   const sendDrag = (id: string, pose: Pose | null, force = false) => {
     if (!onDrag) return;
     const now = performance.now();
@@ -219,33 +208,8 @@ export function PlanEditor({ propertyId, room, openings, pieces, items, classNam
     onDrag(id, pose && { x: pose.x, z: pose.z, yaw_deg: norm(pose.yaw) });
   };
 
-  const onPointerDownCapture = (e: React.PointerEvent<SVGSVGElement>) => {
-    if (e.isPrimary) fingers.current.clear(); // a finger lifted outside the plan is not still down
-    fingers.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
-    if (fingers.current.size < 2 || !onTwoFinger) return;
-    e.stopPropagation(); // not a press on a piece or the floor
-    e.currentTarget.setPointerCapture(e.pointerId);
-    tap.current = null;
-    spreadAt.current = spread();
-    if (drag) {
-      setPoses((all) => ({ ...all, [drag.id]: drag.from }));
-      sendDrag(drag.id, drag.from, true);
-      sendDrag(drag.id, null);
-      setDrag(null);
-    }
-  };
-
   const onPointerMove = (e: React.PointerEvent) => {
-    const before = fingers.current.has(e.pointerId) ? middle() : null;
-    if (before) fingers.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
     if (tap.current?.id === e.pointerId && Math.hypot(e.clientX - tap.current.x, e.clientY - tap.current.y) > TAP_PX) tap.current = null;
-    if (spreadAt.current !== null && before && fingers.current.size >= 2) {
-      const after = middle();
-      const now = spread();
-      onTwoFinger?.({ dx: after.x - before.x, dy: after.y - before.y, zoom: spreadAt.current > 0 && now > 0 ? Math.log2(now / spreadAt.current) : 0 });
-      spreadAt.current = now;
-      return;
-    }
     if (!drag) return;
     const at = toRoom(e);
     const pose = poses[drag.id];
@@ -264,13 +228,11 @@ export function PlanEditor({ propertyId, room, openings, pieces, items, classNam
   };
 
   const onPointerUp = (e: React.PointerEvent) => {
-    fingers.current.delete(e.pointerId);
-    if (spreadAt.current !== null) {
-      // The fingers left one by one: the one still down does nothing until it is lifted too.
-      if (fingers.current.size === 0) spreadAt.current = null;
-      return;
+    if (tap.current?.id === e.pointerId && e.type === 'pointerup') {
+      setSelected(null);
+      const at = toRoom(e);
+      if (at) onTapFloor?.({ x: at[0], z: at[1] });
     }
-    if (tap.current?.id === e.pointerId && e.type === 'pointerup') setSelected(null);
     tap.current = null;
     endDrag();
   };
@@ -355,12 +317,11 @@ export function PlanEditor({ propertyId, room, openings, pieces, items, classNam
         aria-label={readOnly ? `Plan of ${room.label} with a suggested layout` : `Plan of ${room.label}. Drag a piece to move it; drag its round handle to turn it.`}
         tabIndex={0}
         onKeyDown={readOnly ? undefined : onKeyDown}
-        onPointerDownCapture={onPointerDownCapture}
         onPointerMove={onPointerMove}
         onPointerUp={onPointerUp}
         onPointerCancel={onPointerUp}
         onPointerDown={(e) => {
-          // Letting go of the piece waits for the finger to lift: it may be the first of two.
+          // Letting go of the piece waits for the finger to lift: a press that moves is not a tap.
           if (e.target === e.currentTarget) tap.current = { id: e.pointerId, x: e.clientX, y: e.clientY };
         }}
       >
@@ -401,7 +362,7 @@ export function PlanEditor({ propertyId, room, openings, pieces, items, classNam
                   e.currentTarget.ownerSVGElement?.setPointerCapture(e.pointerId);
                   setSelected(p.item_id);
                   setNote(null);
-                  setDrag({ kind: 'move', id: p.item_id, from: pose, dx: at[0] - pose.x, dz: at[1] - pose.z });
+                  setDrag({ kind: 'move', id: p.item_id, dx: at[0] - pose.x, dz: at[1] - pose.z });
                 }}
               />
               {/* A tick on the front edge shows which way the piece faces. */}
@@ -423,7 +384,7 @@ export function PlanEditor({ propertyId, room, openings, pieces, items, classNam
                     onPointerDown={(e) => {
                       e.currentTarget.ownerSVGElement?.setPointerCapture(e.pointerId);
                       setNote(null);
-                      setDrag({ kind: 'turn', id: p.item_id, from: pose });
+                      setDrag({ kind: 'turn', id: p.item_id });
                     }}
                   />
                 </>

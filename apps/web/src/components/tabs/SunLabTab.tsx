@@ -17,6 +17,7 @@ import { defaultRoom, roomName } from '@/lib/rooms';
 import type { V3 } from '@/lib/geometry/frames';
 import { compassToInterior } from '@/lib/geometry/frames';
 import { useSession } from '@/lib/store/session';
+import { useTour } from '@/lib/store/tour';
 import { openingFromCorners } from '@/lib/sunlab/annotate';
 import { panosAvailable } from '@/lib/sunlab/pano';
 import { sunPosition } from '@/lib/sun/position';
@@ -51,8 +52,9 @@ export function SunLabTab({ twin, active }: { twin: PropertyTwin; active: boolea
   const [showOpenings, setShowOpenings] = useState(false);
   // Inside a room: walk mode (scan photos projected from scan points) or the mesh's own textures.
   const [walkMode, setWalkMode] = useState(true);
-  // Walk mode: Matterport's furniture-free scan photos instead of the furnished ones.
-  const [defurnished, setDefurnished] = useState(false);
+  // Walk mode: Matterport's furniture-free scan photos instead of the furnished ones (the default, shared with the tour).
+  const defurnished = useTour((s) => s.defurnished);
+  const setDefurnished = useTour((s) => s.setDefurnished);
   const [photoLoading, setPhotoLoading] = useState(false);
   const walkable = !!twin.assets.interior_glb && panosAvailable(twin);
 

@@ -1,7 +1,7 @@
 'use client';
 
 import type { InventoryItem, LayoutVariant, PropertyTwin } from '@ithaca/schema';
-import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import { CARD, CARD_NAME, CARD_SUB, CardImage, CatalogBrowser, SearchBox, matches } from '@/components/design/CatalogBrowser';
 import { PlanEditor, type PlanControls } from '@/components/design/PlanEditor';
@@ -20,9 +20,9 @@ import { previewLayout, visibleLayouts } from '@/lib/layouts';
 import { roomName } from '@/lib/rooms';
 import { floorSweeps } from '@/lib/showcase/rooms';
 import { useFamily } from '@/lib/store/family';
-import { dispatch as sessionDispatch, useSession } from '@/lib/store/session';
+import { useSession } from '@/lib/store/session';
 import { OFF, ON } from './LightPanel';
-import { DRAG_SENSITIVITY, PINCH_GAIN, SEND_MS } from './MovePad';
+import { LookStick } from './LookStick';
 
 const NUDGE_M = 0.1;
 const LETTERS = 'ABCDEFGH';
@@ -34,30 +34,8 @@ const reason = (err: unknown) => {
   return /"violations":\s*\["([^"]+)"/.exec(text)?.[1] ?? /"detail":\s*"([^"]+)"/.exec(text)?.[1] ?? text;
 };
 
-/** Two fingers on the plan turn the big screen's camera, the way a drag on the Move screen does. */
-function useLookAround() {
-  const acc = useRef({ yaw: 0, pitch: 0, zoom: 0 });
-  useEffect(() => {
-    const beat = setInterval(() => {
-      const { yaw, pitch, zoom } = acc.current;
-      if (Math.abs(yaw) >= 0.05 || Math.abs(pitch) >= 0.05) {
-        acc.current.yaw = acc.current.pitch = 0;
-        sessionDispatch('viewer.look', { yaw_delta_deg: Number(yaw.toFixed(2)), pitch_delta_deg: Number(pitch.toFixed(2)) });
-      }
-      if (Math.abs(zoom) >= 0.01) {
-        acc.current.zoom = 0;
-        sessionDispatch('viewer.zoom', { delta: Number(zoom.toFixed(3)) });
-      }
-    }, SEND_MS);
-    return () => clearInterval(beat);
-  }, []);
-  return useCallback(({ dx, dy, zoom }: { dx: number; dy: number; zoom: number }) => {
-    // The view follows the fingers, like dragging the scene.
-    acc.current.yaw -= dx * DRAG_SENSITIVITY;
-    acc.current.pitch += dy * DRAG_SENSITIVITY;
-    acc.current.zoom += zoom * PINCH_GAIN;
-  }, []);
-}
+/** Facing a spot on the plan, the big screen stands at least this far from it (on top of it, it would look at its feet). */
+const VIEW_MIN_M = 1.0;
 
 function RoundButton({ label, onClick, children, on = false, disabled = false, className }: { label: string; onClick(): void; children: ReactNode; on?: boolean; disabled?: boolean; className?: string }) {
   return (
@@ -155,7 +133,6 @@ export function FurnitureRoom({ twin }: { twin: PropertyTwin }) {
   const [asked, setAsked] = useState<{ after: string | null } | null>(null);
   const [above, setAbove] = useState(false);
   const controls = useRef<PlanControls | null>(null);
-  const look = useLookAround();
   const me = apiUserId();
 
   // A new room starts with nothing selected and no sheet open.
@@ -203,11 +180,12 @@ export function FurnitureRoom({ twin }: { twin: PropertyTwin }) {
     if (!room) return;
     const b = bounds(room.polygon);
     try {
-      await api().placePiece(twin.property_id, item.item_id, { x: (b.minX + b.maxX) / 2, z: (b.minZ + b.maxZ) / 2, room_id: room.room_id, floor_id: room.floor_id, snap: true });
+      const placed = await api().placePiece(twin.property_id, item.item_id, { x: (b.minX + b.maxX) / 2, z: (b.minZ + b.maxZ) / 2, room_id: room.room_id, floor_id: room.floor_id, snap: true });
       if (trying) dispatch('layout.select', { layout_id: null });
       furnitureChanged(twin.property_id);
       setSheet(null);
       setSelected(item.item_id);
+      viewSpot(placed.position.x, placed.position.z);
       setNote({ tone: 'ok', text: `${item.label} is in. Drag it where you want it.` });
     } catch (err) {
       setNote({ tone: 'error', text: reason(err) });
@@ -222,6 +200,24 @@ export function FurnitureRoom({ twin }: { twin: PropertyTwin }) {
     } catch (err) {
       setNote({ tone: 'error', text: reason(err) });
     }
+  };
+
+  /**
+   * Inside (not from above), the big screen follows taps on the plan: it goes to the scan point
+   * nearest the spot, at least a step away, and faces it.
+   */
+  const viewSpot = (x: number, z: number) => {
+    if (!room || above) return;
+    const near = floorSweeps(twin, room.room_id)
+      .map((s) => ({ s, d: Math.hypot(s.position.x - x, s.position.z - z) }))
+      .sort((a, b) => a.d - b.d);
+    const sweep = (near.find((n) => n.d >= VIEW_MIN_M) ?? near[0])?.s;
+    if (sweep) dispatch('viewer.goto', { room_id: room.room_id, at_sweep_id: sweep.sweep_id, look_at: { x, y: room.floor_y + 0.4, z } });
+  };
+  const select = (id: string | null) => {
+    const piece = id && id !== selected ? pieces.find((p) => p.item_id === id) : undefined;
+    setSelected(id);
+    if (piece) viewSpot(piece.position.x, piece.position.z);
   };
 
   /** Turn the big screen to a piece: stand a few steps away and face it. */
@@ -270,9 +266,10 @@ export function FurnitureRoom({ twin }: { twin: PropertyTwin }) {
 
   return (
     <div className="relative min-h-0 flex-1 overflow-hidden bg-ink" data-testid="furniture-room">
-      <div className="absolute inset-x-0 top-0 bottom-28 px-2 pt-2">
+      {/* The plan sits between the island at the top and the compass and stick at the bottom; a taller island (a piece's tools) floats over its top edge. */}
+      <div className="absolute inset-x-0 top-[6.5rem] bottom-[7.75rem] px-2">
         {trying ? (
-          <PlanEditor fill readOnly propertyId={twin.property_id} room={room} openings={openings} pieces={trying.placements} items={items} interiorToWorld={twin.interior_to_world} onTwoFinger={look} />
+          <PlanEditor fill readOnly propertyId={twin.property_id} room={room} openings={openings} pieces={trying.placements} items={items} interiorToWorld={twin.interior_to_world} onTapFloor={({ x, z }) => viewSpot(x, z)} />
         ) : (
           <PlanEditor
             fill
@@ -285,39 +282,26 @@ export function FurnitureRoom({ twin }: { twin: PropertyTwin }) {
             controls={controls}
             interiorToWorld={twin.interior_to_world}
             onSelect={(id) => {
-              setSelected(id);
+              select(id);
               if (id) setSheet(null);
             }}
             onDrag={(id, pose) => dispatch('furniture.drag', pose ? { item_id: id, ...pose } : { item_id: null })}
-            onTwoFinger={look}
+            onTapFloor={({ x, z }) => viewSpot(x, z)}
           />
         )}
       </div>
 
-      <p className="pointer-events-none absolute top-3 left-3 max-w-[55%] text-[11px] leading-4 text-faint">Two fingers turn the big screen</p>
-      <div className="absolute top-3 right-3 flex flex-col items-end gap-2">
-        <Compass angle={north} />
-        <RoundButton label={above ? 'Back inside on the big screen' : 'See the room from above on the big screen'} on={above} onClick={() => setAbove((a) => !a)}>
-          <IconCube width={18} height={18} />
-        </RoundButton>
+      <div className="absolute inset-x-3 bottom-1.5 flex items-end justify-between gap-3">
+        <div className="flex items-center gap-2">
+          <Compass angle={north} />
+          <RoundButton label={above ? 'Back inside on the big screen' : 'See the room from above on the big screen'} on={above} onClick={() => setAbove((a) => !a)}>
+            <IconCube width={18} height={18} />
+          </RoundButton>
+        </div>
+        <LookStick />
       </div>
-      <div className="absolute inset-x-3 bottom-3 flex flex-col gap-2">
-        {!pieces.length && !trying && house.data && !sheet && !note && !asked && (
-          <p className="pointer-events-none text-center text-sm text-muted">Nothing in the {name.toLowerCase()} yet. Tap Add to bring in a piece.</p>
-        )}
-        {(note || asked) && !sheet && (
-          <div role="status" className={cn(ISLAND, 'flex items-start gap-2 px-3 py-2 text-sm')}>
-            <p className={cn('min-w-0 flex-1 leading-5', note?.tone === 'error' ? 'text-danger' : 'text-text')}>
-              {note ? note.text : reply ? reply.text : (
-                <span className="inline-flex items-center gap-2 text-muted"><Spinner /> The guide is working on layouts…</span>
-              )}
-            </p>
-            <button type="button" aria-label="Dismiss" onClick={() => { setNote(null); setAsked(null); }} className="shrink-0 text-muted">
-              <IconClose width={14} height={14} />
-            </button>
-          </div>
-        )}
 
+      <div className="absolute inset-x-3 top-3 flex flex-col gap-2">
         {sheet === 'add' && (
           <AddModal name={name} stored={stored} me={me} host={me === config.userId} onClose={() => setSheet(null)} onPlace={place} onDelete={deleteForGood}
             photo={
@@ -341,37 +325,7 @@ export function FurnitureRoom({ twin }: { twin: PropertyTwin }) {
             }
           />
         )}
-        {sheet === 'room' ? (
-          <Sheet title={`In the ${name.toLowerCase()} · ${pieces.length}`} onClose={() => setSheet(null)}>
-            {pieces.length ? (
-              <ul className="space-y-1.5">
-                {pieces.map((p) => {
-                  const item = items.get(p.item_id);
-                  return (
-                    <li key={p.item_id} className="flex items-center gap-2 rounded-xl border border-line bg-raised py-1 pr-1 pl-3">
-                      <button type="button" className="min-w-0 flex-1 py-1 text-left" onClick={() => { setSelected(p.item_id); setSheet(null); }}>
-                        <span className="block truncate text-sm font-semibold">{item?.label ?? 'A piece'}</span>
-                        {item && <span className="block truncate text-xs text-muted">{item.owner_name ? `${item.owner_name}'s · ` : ''}{item.dims_m.w.toFixed(1)}×{item.dims_m.d.toFixed(1)} m</span>}
-                      </button>
-                      <RoundButton label={`Take ${item?.label ?? 'it'} out of the room`} onClick={() => void takeOut(p.item_id)} className="h-8 w-8">
-                        <IconTrash width={15} height={15} />
-                      </RoundButton>
-                    </li>
-                  );
-                })}
-              </ul>
-            ) : (
-              <p className="text-sm text-muted">Nothing here yet.</p>
-            )}
-          </Sheet>
-        ) : sheet === 'suggest' ? (
-          <SuggestSheet
-            name={name}
-            empty={!pieces.length}
-            onClose={() => setSheet(null)}
-            onAsk={(text) => { ask(text); setSheet(null); }}
-          />
-        ) : choosing && current ? (
+        {choosing && current ? (
           <OptionsIsland
             options={options}
             current={current}
@@ -429,6 +383,51 @@ export function FurnitureRoom({ twin }: { twin: PropertyTwin }) {
             <IslandButton label={`In room · ${pieces.length}`} onClick={() => setSheet('room')}><IconList width={20} height={20} /></IslandButton>
             <IslandButton label="Suggest" onClick={() => setSheet('suggest')} disabled={!!asked && !reply}><IconSparkle width={20} height={20} /></IslandButton>
           </nav>
+        )}
+
+        {sheet === 'room' ? (
+          <Sheet title={`In the ${name.toLowerCase()} · ${pieces.length}`} onClose={() => setSheet(null)}>
+            {pieces.length ? (
+              <ul className="space-y-1.5">
+                {pieces.map((p) => {
+                  const item = items.get(p.item_id);
+                  return (
+                    <li key={p.item_id} className="flex items-center gap-2 rounded-xl border border-line bg-raised py-1 pr-1 pl-3">
+                      <button type="button" className="min-w-0 flex-1 py-1 text-left" onClick={() => { select(p.item_id); setSheet(null); }}>
+                        <span className="block truncate text-sm font-semibold">{item?.label ?? 'A piece'}</span>
+                        {item && <span className="block truncate text-xs text-muted">{item.owner_name ? `${item.owner_name}'s · ` : ''}{item.dims_m.w.toFixed(1)}×{item.dims_m.d.toFixed(1)} m</span>}
+                      </button>
+                      <RoundButton label={`Take ${item?.label ?? 'it'} out of the room`} onClick={() => void takeOut(p.item_id)} className="h-8 w-8">
+                        <IconTrash width={15} height={15} />
+                      </RoundButton>
+                    </li>
+                  );
+                })}
+              </ul>
+            ) : (
+              <p className="text-sm text-muted">Nothing here yet.</p>
+            )}
+          </Sheet>
+        ) : sheet === 'suggest' ? (
+          <SuggestSheet
+            name={name}
+            empty={!pieces.length}
+            onClose={() => setSheet(null)}
+            onAsk={(text) => { ask(text); setSheet(null); }}
+          />
+        ) : null}
+
+        {(note || asked) && !sheet && (
+          <div role="status" className={cn(ISLAND, 'flex items-start gap-2 px-3 py-2 text-sm')}>
+            <p className={cn('min-w-0 flex-1 leading-5', note?.tone === 'error' ? 'text-danger' : 'text-text')}>
+              {note ? note.text : reply ? reply.text : (
+                <span className="inline-flex items-center gap-2 text-muted"><Spinner /> The guide is working on layouts…</span>
+              )}
+            </p>
+            <button type="button" aria-label="Dismiss" onClick={() => { setNote(null); setAsked(null); }} className="shrink-0 text-muted">
+              <IconClose width={14} height={14} />
+            </button>
+          </div>
         )}
       </div>
     </div>

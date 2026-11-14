@@ -166,6 +166,8 @@ function Remote({ propertyId }: { propertyId: string }) {
   const answering = useAnswerMic({ enabled: handsFree, memberId: me?.member_id ?? null, listening: ptt.listening, start: ptt.start });
   const [text, setText] = useState('');
   const [view, setView] = useState<RemoteView>('move');
+  /** The screen the room name was tapped from; picking a room goes back there instead of to Move. */
+  const [backTo, setBackTo] = useState<RemoteView | null>(null);
   // Handedness: the walking stick sits under the dominant thumb, the talk button on the other side.
   const [hand, setHand] = useState<'left' | 'right'>('right');
   const [settings, setSettings] = useState(false);
@@ -270,10 +272,15 @@ function Remote({ propertyId }: { propertyId: string }) {
               )}
             </span>
           ) : twin.data && room ? (
-            <>
-              <span className="font-display text-[15px] font-semibold">{roomName(twin.data, room.room_id)}</span>
-              <span className="font-mono text-xs text-muted"> · {roomArea(room).toFixed(0)} m²</span>
-            </>
+            <button type="button" data-testid="remote-room-pick" aria-label={`In the ${roomName(twin.data, room.room_id)}. Open the map to go somewhere else`}
+              onClick={() => { if (view !== 'rooms') setBackTo(view); setView('rooms'); }}
+              className={cn('inline-flex max-w-full items-center gap-1.5 truncate rounded-full py-1 active:opacity-70', hand === 'left' && 'flex-row-reverse')}>
+              <IconMap width={15} height={15} className="shrink-0 text-muted" />
+              <span className="truncate">
+                <span className="font-display text-[15px] font-semibold">{roomName(twin.data, room.room_id)}</span>
+                <span className="font-mono text-xs text-muted"> · {roomArea(room).toFixed(0)} m²</span>
+              </span>
+            </button>
           ) : (
             <span className="text-sm text-muted">{twin.data ? 'Not in a room yet' : ''}</span>
           )}
@@ -347,7 +354,7 @@ function Remote({ propertyId }: { propertyId: string }) {
         )}
         {!twin.data && !twin.error && <Spinner label="Loading the home…" />}
         {twin.data && view === 'rooms' && (
-          <RoomBlocks twin={twin.data} floorId={floorId} onFloor={setPickedFloor} onPicked={() => { setPickedFloor(null); setView('move'); }} />
+          <RoomBlocks twin={twin.data} floorId={floorId} onFloor={setPickedFloor} onPicked={() => { setPickedFloor(null); setView(backTo ?? 'move'); setBackTo(null); }} />
         )}
         {twin.data && view === 'light' && (
           <>
@@ -360,7 +367,7 @@ function Remote({ propertyId }: { propertyId: string }) {
       <footer className="shrink-0 border-t border-line bg-ink/95">
         <nav aria-label="Remote screens" className="grid grid-cols-5 pb-[max(2px,env(safe-area-inset-bottom))]">
           {VIEWS.map(({ view: v, label, icon: Icon }) => (
-            <button key={v} type="button" data-tab={v} aria-pressed={v === view} aria-label={label} title={label} onClick={() => setView(v)}
+            <button key={v} type="button" data-tab={v} aria-pressed={v === view} aria-label={label} title={label} onClick={() => { setView(v); setBackTo(null); }}
               className={cn('flex items-center justify-center py-2', v === view ? 'text-sun-deep' : 'text-muted')}>
               <Icon width={22} height={22} strokeWidth={v === view ? 2.2 : 1.8} />
             </button>
