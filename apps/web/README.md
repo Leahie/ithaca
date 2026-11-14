@@ -14,7 +14,7 @@ Next.js app for [PLAN.md](../../PLAN.md) sections 7 and 8, built to the contract
 
 ```sh
 pnpm install                       # also copies the Matterport bundle to public/matterport-assets
-git lfs pull                       # fixture GLBs are in Git LFS
+git lfs pull                       # fixtures/blobs is in Git LFS (the house mesh is 18 MB)
 cp .env.example apps/web/.env.local   # then set NEXT_PUBLIC_MATTERPORT_SDK_KEY
 pnpm dev                           # http://localhost:3000
 ```
@@ -96,23 +96,51 @@ These came up while building against schema v0. Each is the choice this app make
 10. `Vec3` is `{x, y, z}`.
 11. `GET /noise` also gets `include_furniture` (the scenario has it; the route table does not).
 
-**For Stream C**
+**For Stream C** (reply to `docs/stream-a-handoff.md`, branch `stream-c/twin-v0`, merged here)
 
-1. Frames. Model API coordinates are Z up; the interior frame is `(x, z, -y)`. The Tour tab
-   compares twin sweeps with the SDK's at runtime ("Frame check"). For the fixture twin: 90 of 96
-   sweeps are in the Showcase and all 90 match within 1 mm, so I-G9 holds for this model. The
-   other 6 are not navigable in the Showcase.
-2. `context_glb` is taken to be in the interior frame, like `interior_glb`.
-3. The ortho image has no georeference in the schema, so the Neighborhood tab shows it as a
-   picture and draws places on a separate distance map. An optional `ortho_bounds` would let
-   them share one map.
-4. `PUT /openings` sends the full list. New openings have ids `ann-<uuid>` and a provisional
+What C asked A for (handoff section 6):
+
+1. **Frame check (C6): passes.** The Tour tab compares `mpSdk.Sweep.data` with `twin.sweeps` at
+   runtime and shows the result as a badge. For twin v2 of this model: the Showcase `sid` equals
+   `sweep_id`, 90 of the 96 twin sweeps are in the Showcase, and all 90 positions agree within
+   1 mm. I-G9 holds; furniture poses can be used as they are.
+   The other 6 twin sweeps (labels 27, 56, 57, 63, 81, 87) are not in the Showcase sweep list,
+   and 5 of them have a `room_id`. `Sweep.moveTo` cannot go to them. If one is the best sweep
+   for a room, the Tour falls back to the nearest Showcase sweep.
+2. **The meshopt GLB loads** with drei's `useGLTF` and no extra setup (about 15 s under software
+   WebGL in CI). `fixtures.test.ts` checks that it lies in the interior frame around the rooms.
+   The materials have `baseColorFactor` 0.4, which darkens the photo textures; the Sun Lab
+   ignores the factor on textured materials.
+3. **Annotation UI** starts from the detected openings, lets the user add and delete, and saves
+   the full `Opening[]` with `PUT /openings`. New openings have ids `ann-<uuid>` and a provisional
    `facade_azimuth_deg` (outward normal through `interior_to_world`).
-5. The Sun Lab asks for a whole calendar year per room and reads `heatmap.hours[row][col]`
-   with rows along +z and columns along +x from `origin_xz`.
-6. Light enters through windows, sliders and glazed doors: the shadow pass skips the mesh
-   inside each such opening (`src/lib/sunlab/portals.ts`). A plain door blocks light.
-7. A Draco-compressed GLB needs a decoder, which drei loads from a CDN. meshopt needs nothing.
+
+How the web app uses the twin:
+
+- **Asset keys.** In fixture mode a path such as `blobs/<pid>/interior.glb` becomes
+  `/fixtures/blobs/<pid>/interior.glb`. A value that is already a URL is used as it is.
+- **Repeated room labels.** `src/lib/rooms.ts` names rooms for display: a label used once stays
+  ("Office"); a repeated one is numbered from the ground floor up and from the largest room down
+  ("Bedroom 1" .. "Bedroom 6"). The room list also shows the area. Everything keys on `room_id`.
+- **No interior mesh** (`interior_glb: null`): the Sun Lab draws rooms from their outlines.
+  **No context mesh:** it draws a plain ground and shows a "No surroundings" badge.
+- **Sun direction** uses suncalc 2.x, whose azimuth is already in degrees clockwise from north.
+  The recipe in the handoff is for suncalc 1.x (radians, from south). `position.test.ts` holds
+  the result within 0.5 degrees of `fixtures/sun/reference.json` (today: 0.05). That file is
+  written by `scripts/fixtures/sun_reference.py` until C ships its own.
+- **Light through openings.** Windows, sliders and glazed doors let sun in: the shadow pass skips
+  the mesh inside each such opening (`src/lib/sunlab/portals.ts`). A plain door blocks light.
+- **Sun report shape.** The Sun Lab asks for a whole calendar year per room and reads
+  `heatmap.hours[row][col]` with rows along +z and columns along +x from `origin_xz`.
+
+Still open for C:
+
+1. `context_glb` is taken to be in the interior frame, like `interior_glb`.
+2. The ortho image has no georeference in the schema, so the Neighborhood tab would show it as a
+   picture beside a separate distance map. An optional `ortho_bounds` would let them share a map.
+3. `services/api/twin/requirements.txt` does not list `trimesh`, which `mesh.py` imports; the
+   tests pass once it is installed.
+4. A Draco-compressed GLB would need a decoder that drei loads from a CDN. meshopt needs nothing.
 
 ## Not verified yet
 

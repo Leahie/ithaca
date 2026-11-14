@@ -8,6 +8,7 @@ import { Markdown } from '@/components/Markdown';
 import { Badge, Notice, Spinner } from '@/components/ui';
 import { config } from '@/lib/config';
 import { useInventory, useLayouts, useMemoryFile, useMemoryList, useTwin } from '@/lib/data/hooks';
+import { roomName } from '@/lib/rooms';
 
 const STATUS: Record<LayoutVariant['status'], { label: string; tone: 'leaf' | 'danger' | 'neutral' }> = {
   chosen: { label: 'Chosen', tone: 'leaf' },
@@ -61,7 +62,7 @@ function PropertyHistory({ propertyId, hasNotes }: { propertyId: string; hasNote
                   )}
                   <div className="min-w-0 text-sm">
                     <div className="flex items-center gap-2">
-                      <span className="truncate font-medium">{room?.label ?? l.room_id}</span>
+                      <span className="truncate font-medium">{twin.data ? roomName(twin.data, l.room_id) : l.room_id}</span>
                       <Badge tone={STATUS[l.status].tone}>{STATUS[l.status].label}</Badge>
                     </div>
                     <p className="mt-1 line-clamp-2 text-xs leading-4 text-muted">{l.rationale}</p>

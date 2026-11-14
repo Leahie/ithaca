@@ -10,6 +10,9 @@ export type OpeningKind = (typeof OPENING_KINDS)[number];
 export const GLAZINGS = ["none", "single", "double", "triple"] as const;
 export type Glazing = (typeof GLAZINGS)[number];
 
+export const TWIN_ALIGNMENTS = ["icp", "georef", "gps_only"] as const;
+export type TwinAlignment = (typeof TWIN_ALIGNMENTS)[number];
+
 export const EVENT_SOURCES = ["desktop", "phone", "agent", "server"] as const;
 export type EventSource = (typeof EVENT_SOURCES)[number];
 
@@ -91,6 +94,7 @@ export interface Floor {
   floor_id: string;
   index: number;
   elevation_m: number;
+  label?: string | null;
 }
 
 export interface InventoryItem {
@@ -200,6 +204,7 @@ export interface Opening {
   facade_azimuth_deg: number;
   glazing: "none" | "single" | "double" | "triple";
   stc?: number | null;
+  other_room_id?: string | null;
 }
 
 export interface Placement {
@@ -233,6 +238,7 @@ export interface Room {
   floor_y: number;
   height_m: number;
   floor_material: string;
+  area_m2?: number | null;
 }
 
 export interface Session {
@@ -272,22 +278,20 @@ export interface SunReport {
 export interface Sweep {
   sweep_id: string;
   floor_id: string;
-  room_id?: string | null;
+  room_id: string | null;
   position: Vec3;
+  label?: string | null;
 }
 
-/**
- * URLs, resolved by the API.
- */
 export interface TwinAssets {
-  interior_glb: string;
+  interior_glb?: string | null;
   context_glb?: string | null;
   ortho?: string | null;
   obliques?: string[];
 }
 
 export interface TwinQuality {
-  alignment: "icp" | "gps_only";
+  alignment: "icp" | "georef" | "gps_only";
   openings: "annotated" | "detected" | "none";
   context: "dsm" | "none";
   traffic: "aadt" | "class_default" | "none";
@@ -304,9 +308,6 @@ export interface UploadResult {
   url: string;
 }
 
-/**
- * A point or vector in meters. The frame is stated by the field that uses it.
- */
 export interface Vec3 {
   x: number;
   y: number;

@@ -1,21 +1,21 @@
 # Fixtures
 
-Stand-ins written by Stream A so the web app can run offline (WORKSTREAMS.md section 3).
-Streams B and C own these paths and replace the files when their mocks land. The web app
-reads whatever is here; it needs no change.
+What the web app runs on in fixture mode (A6), and what the backend replays in tests (I-G20).
 
-Rebuild: `pnpm --filter @ithaca/web fixtures:build` (add `--fetch` with `MATTERPORT_TOKEN_ID`
-and `MATTERPORT_TOKEN_SECRET` set to pull the model again). The output is deterministic.
+| Path | Owner | Real or stand-in |
+|---|---|---|
+| `twin/onXQLXhfyQv.json` | C | Real. Built by `services/api/twin/ingest.py` from Matterport data. See `docs/stream-a-handoff.md`. |
+| `blobs/onXQLXhfyQv/interior.glb` | C | Real textured Matterport mesh, meshopt-compressed, interior frame. |
+| `integrations/**` | C | Recorded API responses for replay. |
+| `sun/reference.json` | C | pvlib sun positions. Written by `apps/web/scripts/fixtures/sun_reference.py` until C ships its own. |
+| `blobs/inventory/*`, `inventory/demo.json` | B | Stand-in. Three hand-built furniture items that meet I-G15. |
+| `layouts/onXQLXhfyQv.json` | B | Stand-in. Three valid variants for one living room. |
+| `memory/demo/**` | B | Stand-in. Sample memory files. |
+| `reports/onXQLXhfyQv/sun/*`, `noise/*`, `area.json` | C | **Placeholder numbers** with the right schema shape. Not the sun or noise engines, not CoStar. |
 
-| Path | Real or stand-in |
-|---|---|
-| `twin/onXQLXhfyQv.json` | Rooms, room outlines, openings, sweeps, address and GPS are real Matterport Model API data. `interior_to_world` assumes heading 0 (`quality.alignment: gps_only`). Glazing is a guess (`double`). |
-| `blobs/onXQLXhfyQv/interior.glb` | Real Matterport 50k mesh, untextured, in the interior frame. |
-| `blobs/onXQLXhfyQv/context.glb`, `ortho.svg` | **Synthetic.** Ground, box neighbors and trees, so the Sun Lab has something to cast shadows. Not DSM, not Vexcel. |
-| `blobs/inventory/*`, `inventory/demo.json` | Three hand-built furniture items that meet I-G15. |
-| `layouts/onXQLXhfyQv.json` | Three valid variants for one living room, placed by a small search in the builder. |
-| `reports/onXQLXhfyQv/sun/*`, `noise/*`, `area.json` | **Placeholder numbers** with the right schema shape. Not the sun or noise engines, not CoStar. |
-| `sun/reference.json` | pvlib sun positions (`apps/web/scripts/fixtures/sun_reference.py`). |
-| `memory/demo/**` | Sample memory files. |
+The stand-ins are written by Stream A from the twin:
+`pnpm --filter @ithaca/web fixtures:build`. Run it again when the twin changes. The output is
+deterministic. The owners replace these files when their mocks land; the web app reads whatever
+is here and needs no change.
 
-`blobs/**/*.glb` is in Git LFS (I-G20): run `git lfs pull`.
+`blobs/**` is in Git LFS: run `git lfs pull`.

@@ -8,6 +8,7 @@ import { Button, Notice, Segmented, Spinner, Toggle, ViewState } from '@/compone
 import { IconPause, IconPlay } from '@/components/ui/icons';
 import { AURALIZATION, Auralizer, auralizationParams } from '@/lib/audio/auralizer';
 import { useNoiseReport } from '@/lib/data/hooks';
+import { roomName } from '@/lib/rooms';
 import { useSession } from '@/lib/store/session';
 import { formatClock, fromZonedParts, toZonedIso, zonedParts } from '@/lib/time';
 
@@ -121,6 +122,7 @@ export function SoundTab({ twin }: { twin: PropertyTwin }) {
   }
 
   const data = report.data;
+  const name = roomName(twin, room.room_id);
   const current = data?.hourly.find((h) => h.hour === hour);
   const base = baseline.data;
   const baseCurrent = base?.hourly.find((h) => h.hour === hour);
@@ -141,9 +143,11 @@ export function SoundTab({ twin }: { twin: PropertyTwin }) {
               onChange={(e) => dispatch('sound.setScenario', { room_id: e.target.value, scenario })}
               className="mt-1 h-9 w-full rounded-md border border-line bg-ink px-2 text-sm"
             >
-              {twin.rooms.map((r) => (
+              {[...twin.rooms]
+                .sort((a, b) => roomName(twin, a.room_id).localeCompare(roomName(twin, b.room_id), 'en', { numeric: true }))
+                .map((r) => (
                 <option key={r.room_id} value={r.room_id}>
-                  {r.label}
+                  {roomName(twin, r.room_id)}
                 </option>
               ))}
             </select>
@@ -208,7 +212,7 @@ export function SoundTab({ twin }: { twin: PropertyTwin }) {
                 <div className="flex flex-wrap items-end justify-between gap-4">
                   <div>
                     <div className="text-xs text-muted">
-                      {room.label} at {hourLabel(hour)}
+                      {name} at {hourLabel(hour)}
                     </div>
                     <div className="mt-1 flex items-baseline gap-2">
                       <span className="text-5xl font-semibold" data-testid="laeq">
@@ -251,7 +255,7 @@ export function SoundTab({ twin }: { twin: PropertyTwin }) {
                     }
                   />
                   <ColumnChart
-                    ariaLabel={`Indoor noise level per hour in ${room.label}`}
+                    ariaLabel={`Indoor noise level per hour in ${name}`}
                     columns={data.hourly.map((h) => ({
                       tick: h.hour % 3 === 0 ? hourLabel(h.hour) : '',
                       label: formatClock(h.hour * 60),
@@ -269,7 +273,7 @@ export function SoundTab({ twin }: { twin: PropertyTwin }) {
                     }}
                   />
                   <TableView
-                    caption={`Indoor noise level per hour in ${room.label}`}
+                    caption={`Indoor noise level per hour in ${name}`}
                     columns={isBaseline ? ['Hour', 'Level (dBA)'] : ['Hour', 'This scenario (dBA)', 'As built (dBA)']}
                     rows={data.hourly.map((h) => [formatClock(h.hour * 60), h.laeq_dba.toFixed(1), ...(isBaseline ? [] : [base?.hourly.find((b) => b.hour === h.hour)?.laeq_dba.toFixed(1) ?? '–'])])}
                   />

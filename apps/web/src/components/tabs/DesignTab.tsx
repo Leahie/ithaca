@@ -9,6 +9,7 @@ import { api } from '@/lib/api';
 import { useInventory, useLayouts } from '@/lib/data/hooks';
 import { invalidate } from '@/lib/data/resource';
 import { visibleLayouts } from '@/lib/layouts';
+import { roomName } from '@/lib/rooms';
 import { useSession } from '@/lib/store/session';
 
 function VariantCard({ layout, index, twin, items, selected }: { layout: LayoutVariant; index: number; twin: PropertyTwin; items: Map<string, InventoryItem>; selected: boolean }) {
@@ -29,7 +30,7 @@ function VariantCard({ layout, index, twin, items, selected }: { layout: LayoutV
       await api().layoutFeedback(layout.layout_id, text);
       invalidate('layouts:');
       // The same words go to the agent, so it can propose again (and remember the preference).
-      dispatch('chat.user', { text: `About layout ${index + 1} for ${room?.label ?? 'this room'}: ${text}` });
+      dispatch('chat.user', { text: `About layout ${index + 1} for ${roomName(twin, room?.room_id)}: ${text}` });
       setFeedback('');
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
@@ -43,6 +44,7 @@ function VariantCard({ layout, index, twin, items, selected }: { layout: LayoutV
       data-testid="variant-card"
       data-layout-id={layout.layout_id}
       data-selected={selected}
+      data-status={layout.status}
       className={cn('flex flex-col overflow-hidden rounded-xl border bg-surface', selected ? 'border-sun shadow-[0_0_0_1px_var(--color-sun)]' : 'border-line')}
     >
       <div className="relative aspect-[4/3] bg-ink">
@@ -69,7 +71,7 @@ function VariantCard({ layout, index, twin, items, selected }: { layout: LayoutV
       </div>
       <div className="flex flex-1 flex-col gap-3 p-4">
         <div className="flex items-baseline justify-between gap-3">
-          <span className="text-sm font-medium">{room?.label ?? layout.room_id}</span>
+          <span className="text-sm font-medium">{roomName(twin, layout.room_id)}</span>
           <span className="text-xs text-muted" title="Solver score">
             fit {(layout.score * 100).toFixed(0)}%
           </span>
@@ -157,7 +159,7 @@ export function DesignTab({ twin }: { twin: PropertyTwin }) {
   }
 
   const askAgent = (
-    <Button variant="primary" size="sm" onClick={() => dispatch('chat.user', { text: room ? `Lay out ${room.label} with my furniture` : 'Show layouts' })}>
+    <Button variant="primary" size="sm" onClick={() => dispatch('chat.user', { text: room ? `Lay out ${roomName(twin, room.room_id)} with my furniture` : 'Show layouts' })}>
       Ask the agent for layouts
     </Button>
   );
@@ -167,7 +169,7 @@ export function DesignTab({ twin }: { twin: PropertyTwin }) {
       <div className="mx-auto max-w-5xl">
         <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
           <div>
-            <h1 className="text-lg font-semibold">{scope === 'room' && room ? `Layouts for ${room.label}` : 'Layouts'}</h1>
+            <h1 className="text-lg font-semibold">{scope === 'room' && room ? `Layouts for ${roomName(twin, room.room_id)}` : 'Layouts'}</h1>
             <p className="text-sm text-muted">Your own furniture, arranged by the designer. Place one to see it in the tour and under the sun.</p>
           </div>
           {scope === 'agent' && (
@@ -179,7 +181,7 @@ export function DesignTab({ twin }: { twin: PropertyTwin }) {
 
         {scope === 'all' && room && variants.length > 0 && (
           <div className="mb-4">
-            <Notice title={`No layouts for ${room.label} yet`} action={askAgent}>
+            <Notice title={`No layouts for ${roomName(twin, room.room_id)} yet`} action={askAgent}>
               Showing the layouts for other rooms.
             </Notice>
           </div>

@@ -28,8 +28,10 @@ OUT = HERE / "ts" / "index.ts"
 
 # Literal aliases that get a named TS type.
 ALIASES: dict[str, Any] = {
-    "OpeningKind": twin.OpeningKind,
-    "Glazing": twin.Glazing,
+    # Read from the field annotations, so twin.py (Stream C) stays the only place they are written.
+    "OpeningKind": twin.Opening.model_fields["kind"].annotation,
+    "Glazing": twin.Opening.model_fields["glazing"].annotation,
+    "TwinAlignment": twin.TwinQuality.model_fields["alignment"].annotation,
     "EventSource": events.EventSource,
     "ClientKind": events.ClientKind,
     "ViewerMode": events.ViewerMode,

@@ -26,6 +26,7 @@ import type { V3 } from '@/lib/geometry/frames';
 import { bounds, centroid, pointInPolygon } from '@/lib/geometry/polygon';
 import { onSessionEvent, useSession } from '@/lib/store/session';
 import { createPortalDepthMaterial, createPortalUniforms, passesLight, setPortals, type PortalUniforms } from '@/lib/sunlab/portals';
+import { floorGeometry, wallGeometry } from '@/lib/three/roomShell';
 
 const DEG = Math.PI / 180;
 const smoothstep = (a: number, b: number, x: number) => {
@@ -158,20 +159,35 @@ function useLitScene(source: Object3D, csm: CSM, opts: { portalUniforms?: Portal
   return useMemo(() => {
     const root = source.clone(true);
     const depth = opts.portalUniforms ? createPortalDepthMaterial(opts.portalUniforms) : undefined;
+    // One lit material per source material: a textured scan has one material per texture atlas,
+    // shared by many meshes.
+    const lit = new Map<string, MeshStandardMaterial>();
     root.traverse((node) => {
       const mesh = node as Mesh;
       if (!mesh.isMesh) return;
-      const src = (Array.isArray(mesh.material) ? mesh.material[0] : mesh.material) as MeshStandardMaterial;
-      const material = new MeshStandardMaterial({
-        color: src?.color ?? new Color('#d8d4cc'),
-        map: src?.map ?? null,
-        roughness: opts.roughness ?? src?.roughness ?? 0.9,
-        metalness: 0,
-        side: src?.side ?? FrontSide,
-        // A scanned shell is one-sided; it must still block the sun from both sides.
-        shadowSide: DoubleSide,
-      });
-      csm.setupMaterial(material);
+      const src = (Array.isArray(mesh.material) ? mesh.material[0] : mesh.material) as MeshStandardMaterial | undefined;
+      let material = src && lit.get(src.uuid);
+      if (!material) {
+        const map = src?.map ?? null;
+        material = new MeshStandardMaterial({
+          // A photo texture is the surface color: any base color factor on the scan would only
+          // darken it. Untextured meshes keep their own color.
+          color: map ? new Color('#ffffff') : (src?.color ?? new Color('#d8d4cc')),
+          map,
+          // Scan textures carry the light of the day of the scan. A little of it is kept as glow,
+          // so rooms that the simulated sun does not reach stay readable.
+          emissive: new Color(map ? '#ffffff' : '#000000'),
+          emissiveMap: map,
+          emissiveIntensity: map ? 0.22 : 0,
+          roughness: opts.roughness ?? src?.roughness ?? 0.9,
+          metalness: 0,
+          side: src?.side ?? FrontSide,
+          // A scanned shell is one-sided; it must still block the sun from both sides.
+          shadowSide: DoubleSide,
+        });
+        csm.setupMaterial(material);
+        if (src) lit.set(src.uuid, material);
+      }
       mesh.material = material;
       mesh.castShadow = true;
       mesh.receiveShadow = true;
@@ -194,6 +210,69 @@ function Interior({ url, portalUniforms, onWallClick, onReady }: { url: string; 
     onWallClick([e.point.x, e.point.y, e.point.z], [n.x, n.y, n.z]);
   };
   return <primitive object={scene} onClick={onWallClick ? click : undefined} />;
+}
+
+/**
+ * Stand-in for a twin that has no interior mesh yet (C3: a degraded twin is still valid):
+ * each room as a floor and inward-facing walls, built from the room outlines.
+ */
+function RoomShells({ twin, portalUniforms, onWallClick, onReady }: { twin: PropertyTwin; portalUniforms: PortalUniforms; onWallClick: SceneProps['onWallClick']; onReady(): void }) {
+  const csm = useContext(CsmContext)!;
+  const { floors, walls, floorMaterial, wallMaterial, depth } = useMemo(() => {
+    const make = (color: string) => {
+      const m = new MeshStandardMaterial({ color, roughness: 0.95, metalness: 0, side: FrontSide, shadowSide: DoubleSide });
+      csm.setupMaterial(m);
+      return m;
+    };
+    return {
+      floors: twin.rooms.map((r) => ({ id: r.room_id, geometry: floorGeometry(r) })),
+      walls: twin.rooms.map((r) => ({ id: r.room_id, geometry: wallGeometry(r) })),
+      floorMaterial: Object.assign(make('#cdbfa9'), { side: DoubleSide }),
+      wallMaterial: make('#e9e4da'),
+      depth: createPortalDepthMaterial(portalUniforms),
+    };
+  }, [twin, csm, portalUniforms]);
+  useEffect(() => onReady(), [onReady]);
+  useEffect(
+    () => () => {
+      floors.forEach((f) => f.geometry.dispose());
+      walls.forEach((w) => w.geometry.dispose());
+    },
+    [floors, walls],
+  );
+  const click = (e: ThreeEvent<MouseEvent>) => {
+    if (!onWallClick || e.delta > 4 || !e.face) return;
+    e.stopPropagation();
+    onWallClick([e.point.x, e.point.y, e.point.z], [e.face.normal.x, e.face.normal.y, e.face.normal.z]);
+  };
+  return (
+    <>
+      {floors.map((f) => (
+        <mesh key={f.id} geometry={f.geometry} material={floorMaterial} receiveShadow />
+      ))}
+      {walls.map((w) => (
+        <mesh key={w.id} geometry={w.geometry} material={wallMaterial} castShadow receiveShadow customDepthMaterial={depth} onClick={onWallClick ? click : undefined} />
+      ))}
+    </>
+  );
+}
+
+/** Plain ground for a twin with no surroundings mesh, so the house does not float and shadows land somewhere. */
+function Ground({ twin }: { twin: PropertyTwin }) {
+  const csm = useContext(CsmContext)!;
+  const material = useMemo(() => {
+    const m = new MeshStandardMaterial({ color: '#7d8572', roughness: 1, metalness: 0 });
+    csm.setupMaterial(m);
+    return m;
+  }, [csm]);
+  const house = useMemo(() => houseBounds(twin), [twin]);
+  // Below the lowest floor, and below scanned yard geometry that sits near grade.
+  const y = Math.min(0, ...twin.rooms.map((r) => r.floor_y)) - 0.45;
+  return (
+    <mesh position={[house.center.x, y, house.center.z]} rotation={[-Math.PI / 2, 0, 0]} material={material} receiveShadow>
+      <circleGeometry args={[160, 64]} />
+    </mesh>
+  );
 }
 
 function Context({ url }: { url: string }) {
@@ -254,7 +333,7 @@ function Heatmap({ room, data }: { room: Room; data: SunHeatmap }) {
         pixels[i + 1] = cg;
         pixels[i + 2] = cb;
         // Cells that never see the sun stay clear, so the floor shows through.
-        pixels[i + 3] = inside && t > 0 ? Math.round(110 + 135 * t) : 0;
+        pixels[i + 3] = inside && t > 0 ? Math.round(45 + 200 * t) : 0;
       }
     }
     const tex = new DataTexture(pixels, Math.max(1, cols), Math.max(1, rows), RGBAFormat);
@@ -395,11 +474,16 @@ export function Scene({ twin, openings, sun, placements, heatmap, showOpenings, 
   return (
     <SunRig sun={sun}>
       <CameraRig twin={twin} openings={openings} view={view} />
-      <AssetBoundary label="The interior mesh" onError={onAssetError}>
-        <Suspense fallback={null}>
-          <Interior url={twin.assets.interior_glb} portalUniforms={portalUniforms} onWallClick={onWallClick} onReady={onReady} />
-        </Suspense>
-      </AssetBoundary>
+      {twin.assets.interior_glb ? (
+        <AssetBoundary label="The interior mesh" onError={onAssetError}>
+          <Suspense fallback={null}>
+            <Interior url={twin.assets.interior_glb} portalUniforms={portalUniforms} onWallClick={onWallClick} onReady={onReady} />
+          </Suspense>
+        </AssetBoundary>
+      ) : (
+        <RoomShells twin={twin} portalUniforms={portalUniforms} onWallClick={onWallClick} onReady={onReady} />
+      )}
+      {!twin.assets.context_glb && <Ground twin={twin} />}
       {twin.assets.context_glb && (
         <AssetBoundary label="The surroundings mesh" onError={onAssetError}>
           <Suspense fallback={null}>

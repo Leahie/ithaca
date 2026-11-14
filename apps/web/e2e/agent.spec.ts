@@ -8,7 +8,7 @@ test.describe('agent dock', () => {
   test('"take me to the kitchen" moves the viewer and shows a chip (M1, A8)', async ({ page }) => {
     await ask(page, 'Take me to the kitchen');
     await expect(page.getByTestId('agent-action').first()).toContainText(/kitchen/i);
-    await expect(page.locator('nav[aria-label=Rooms] button[aria-current=true]')).toContainText(/kitchen/i);
+    await expect(page.locator('nav[aria-label=Rooms] button[aria-current=true]')).toHaveAttribute('aria-label', /kitchen/i);
     expect(await agentReply(page)).toMatch(/kitchen/i);
   });
 
@@ -21,7 +21,7 @@ test.describe('agent dock', () => {
   });
 
   test('a sun question about a room reports the number the Sun Lab shows (A3)', async ({ page }) => {
-    await ask(page, 'How sunny is the living room 3 in December?');
+    await ask(page, 'How sunny is living room 2 in December?');
     const reply = await agentReply(page);
     const hours = /about ([\d.]+) hours/.exec(reply)?.[1];
     expect(hours).toBeTruthy();
@@ -29,7 +29,7 @@ test.describe('agent dock', () => {
   });
 
   test('a noise question gives the same number as the chart (M5)', async ({ page }) => {
-    await ask(page, 'How loud is bedroom 4 with single-pane windows?');
+    await ask(page, 'How loud is bedroom 3 with single-pane windows?');
     const reply = await agentReply(page);
     await expect(page.getByTestId('house')).toHaveAttribute('data-mode', 'sound');
     const peak = /peaks at ([\d.]+) dBA around (\d+):00/.exec(reply)!;

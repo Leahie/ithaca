@@ -4,7 +4,8 @@ from __future__ import annotations
 from typing import Literal
 from uuid import UUID
 
-from .common import Model, Vec3
+from .common import Model
+from .twin import Vec3  # Vec3 lives in twin.py for now (Stream C)
 
 
 class Placement(Model):

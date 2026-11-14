@@ -3,6 +3,7 @@
 import { GLAZINGS, OPENING_KINDS, type Glazing, type Opening, type OpeningKind, type PropertyTwin } from '@ithaca/schema';
 import { Button, Notice, Segmented, cn } from '@/components/ui';
 import { IconTrash } from '@/components/ui/icons';
+import { roomNames } from '@/lib/rooms';
 import { openingSize } from '@/lib/sunlab/annotate';
 
 export interface AnnotationTool {
@@ -28,7 +29,7 @@ interface Props {
 
 /** Openings annotation, v1: mark windows and doors by clicking two corners on the mesh. */
 export function AnnotationPanel({ twin, openings, dirty, saving, error, hint, tool, onTool, onDelete, onSave, onDiscard, roomId }: Props) {
-  const rooms = new Map(twin.rooms.map((r) => [r.room_id, r.label]));
+  const rooms = roomNames(twin);
   const listed = roomId ? openings.filter((o) => o.room_id === roomId) : openings;
 
   return (

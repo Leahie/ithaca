@@ -1,5 +1,6 @@
 import type { EventPayloads, EventType, NoiseScenario, PropertyTwin, Room, ViewerState } from '@ithaca/schema';
 import type { ApiClient } from '@/lib/api';
+import { roomName, roomNames } from '@/lib/rooms';
 import { fromZonedParts, localDate, toZonedIso, zonedParts } from '@/lib/time';
 
 /**
@@ -29,18 +30,22 @@ const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 function findRoom(twin: PropertyTwin, text: string): Room | undefined {
   const t = text.toLowerCase();
-  // Longest label first, so "living room 2" wins over "living room".
-  const rooms = [...twin.rooms].sort((a, b) => b.label.length - a.label.length);
-  const exact = rooms.find((r) => t.includes(r.label.toLowerCase()));
+  const names = roomNames(twin);
+  // Longest name first, so "living room 2" wins over "living room".
+  const rooms = [...twin.rooms].sort((a, b) => names.get(b.room_id)!.length - names.get(a.room_id)!.length);
+  const exact = rooms.find((r) => t.includes(names.get(r.room_id)!.toLowerCase()));
   if (exact) return exact;
-  // "the kitchen" matches "Kitchen 1": compare without the trailing number.
-  return [...twin.rooms].find((r) => t.includes(r.label.replace(/\s+\d+$/, '').toLowerCase()));
+  // "the kitchen" matches "Kitchen 1": the first room with that label, in list order.
+  return [...twin.rooms]
+    .sort((a, b) => names.get(a.room_id)!.localeCompare(names.get(b.room_id)!, 'en', { numeric: true }))
+    .find((r) => t.includes(r.label.toLowerCase()));
 }
 
 export async function scriptedAgentTurn(text: string, emit: Emit, ctx: ScriptedAgentContext): Promise<void> {
   const twin = await ctx.api.getTwin(ctx.propertyId);
   const t = text.toLowerCase();
   const room = findRoom(twin, text);
+  const nameOf = (r: Room) => roomName(twin, r.room_id);
   const messageId = crypto.randomUUID();
 
   const say = async (reply: string) => {
@@ -51,7 +56,7 @@ export async function scriptedAgentTurn(text: string, emit: Emit, ctx: ScriptedA
     emit('agent.message', { message_id: messageId, text: reply });
   };
   const goto = (r: Room) => {
-    emit('agent.action', { tool: 'viewer_goto', summary: `Moved you to ${r.label}` });
+    emit('agent.action', { tool: 'viewer_goto', summary: `Moved you to ${nameOf(r)}` });
     emit('viewer.goto', { room_id: r.room_id });
   };
   const setMode = (mode: ViewerState['mode'], label: string) => {
@@ -66,13 +71,13 @@ export async function scriptedAgentTurn(text: string, emit: Emit, ctx: ScriptedA
 
   if (/lay ?out|layout|arrange|furnish|where .* (sofa|couch)/.test(t)) {
     const layouts = await ctx.api.listLayouts(ctx.propertyId, room?.room_id);
-    if (!layouts.length) return say(`I have no saved layouts${room ? ` for ${room.label}` : ''} yet. Upload a piece of furniture on the Me page and ask again.`);
+    if (!layouts.length) return say(`I have no saved layouts${room ? ` for ${nameOf(room)}` : ''} yet. Upload a piece of furniture on the Me page and ask again.`);
     const target = twin.rooms.find((r) => r.room_id === layouts[0]!.room_id);
     setMode('design', 'the Design tab');
     if (target) goto(target);
     emit('agent.action', { tool: 'design_show_variants', summary: `Showing ${layouts.length} layouts` });
     emit('design.showVariants', { layout_ids: layouts.map((l) => l.layout_id) });
-    return say(`Here are ${layouts.length} ways to arrange ${target?.label ?? 'the room'}. My pick is the first one: ${layouts[0]!.rationale} Choose one, or tell me what to change.`);
+    return say(`Here are ${layouts.length} ways to arrange ${target ? nameOf(target) : 'the room'}. My pick is the first one: ${layouts[0]!.rationale} Choose one, or tell me what to change.`);
   }
 
   if (/noise|loud|quiet|sound|traffic|hear/.test(t)) {
@@ -87,10 +92,10 @@ export async function scriptedAgentTurn(text: string, emit: Emit, ctx: ScriptedA
     const peak = report.hourly.reduce((a, b) => (b.laeq_dba > a.laeq_dba ? b : a));
     const calm = report.hourly.reduce((a, b) => (b.laeq_dba < a.laeq_dba ? b : a));
     setMode('sound', 'the Sound tab');
-    emit('agent.action', { tool: 'sound_set_scenario', summary: `Set the sound scenario for ${target.label}` });
+    emit('agent.action', { tool: 'sound_set_scenario', summary: `Set the sound scenario for ${nameOf(target)}` });
     emit('sound.setScenario', { room_id: target.room_id, scenario });
     return say(
-      `${target.label} peaks at ${peak.laeq_dba} dBA around ${peak.hour}:00 and drops to ${calm.laeq_dba} dBA around ${calm.hour}:00. Its reverberation time is ${report.rt60_s} s. Press play on the Sound tab to hear it.`,
+      `${nameOf(target)} peaks at ${peak.laeq_dba} dBA around ${peak.hour}:00 and drops to ${calm.laeq_dba} dBA around ${calm.hour}:00. Its reverberation time is ${report.rt60_s} s. Press play on the Sound tab to hear it.`,
     );
   }
 
@@ -110,7 +115,7 @@ export async function scriptedAgentTurn(text: string, emit: Emit, ctx: ScriptedA
       const report = await ctx.api.getSun(ctx.propertyId, room.room_id, date, date);
       const hours = report.daily[0]?.direct_sun_hours;
       const caveat = twin.quality.alignment === 'gps_only' ? ' The compass alignment of this twin is GPS only, so treat the direction as approximate.' : '';
-      return say(hours === undefined ? `Here is ${room.label} at that time.` : `${room.label} gets about ${hours} hours of direct sun on ${date}.${caveat}`);
+      return say(hours === undefined ? `Here is ${nameOf(room)} at that time.` : `${nameOf(room)} gets about ${hours} hours of direct sun on ${date}.${caveat}`);
     }
     return say('Here is the house at that time. Scrub the slider to watch the light move through the day.');
   }
@@ -125,7 +130,7 @@ export async function scriptedAgentTurn(text: string, emit: Emit, ctx: ScriptedA
   if (room) {
     setMode(ctx.viewer().mode === 'sun' ? 'sun' : 'tour', 'the Tour');
     goto(room);
-    return say(`This is ${room.label}.`);
+    return say(`This is ${nameOf(room)}.`);
   }
 
   return say(

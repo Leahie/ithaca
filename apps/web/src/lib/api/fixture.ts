@@ -82,10 +82,24 @@ async function blobToDataUrl(blob: Blob): Promise<string> {
   });
 }
 
+/**
+ * In a twin fixture, asset paths are keys relative to `fixtures/` (e.g. "blobs/<pid>/interior.glb").
+ * The API will return full URLs; here the key becomes a URL on the fixtures route.
+ */
+export const fixtureAssetUrl = (key: string | null | undefined): string | null => (!key ? null : /^(https?:)?\/\//.test(key) || key.startsWith('/') ? key : `/fixtures/${key}`);
+
+function resolveAssets(twin: PropertyTwin): PropertyTwin {
+  const a = twin.assets;
+  return {
+    ...twin,
+    assets: { interior_glb: fixtureAssetUrl(a.interior_glb), context_glb: fixtureAssetUrl(a.context_glb), ortho: fixtureAssetUrl(a.ortho), obliques: (a.obliques ?? []).flatMap((o) => fixtureAssetUrl(o) ?? []) },
+  };
+}
+
 export function createFixtureApi(): ApiClient {
   const twins = new Map<string, Promise<PropertyTwin>>();
   const baseTwin = (pid: string) => {
-    if (!twins.has(pid)) twins.set(pid, fixture<PropertyTwin>(`twin/${encodeURIComponent(pid)}.json`));
+    if (!twins.has(pid)) twins.set(pid, fixture<PropertyTwin>(`twin/${encodeURIComponent(pid)}.json`).then(resolveAssets));
     return twins.get(pid)!;
   };
   const baseLayouts = async (pid: string): Promise<LayoutVariant[]> => {

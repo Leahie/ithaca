@@ -30,7 +30,7 @@ test.describe('phone controller', () => {
     const phone = await pairPhone(page, context);
     await phone.getByLabel('Message the agent').fill('take me to the office');
     await phone.getByLabel('Message the agent').press('Enter');
-    await expect(page.locator('nav[aria-label=Rooms] button[aria-current=true]')).toHaveText('Office');
+    await expect(page.locator('nav[aria-label=Rooms] button[aria-current=true]')).toHaveAttribute('aria-label', 'Office');
     expect(await agentReply(page)).toMatch(/office/i);
     await expect(phone.getByTestId('remote-feed')).toContainText(/office/i);
   });
@@ -41,7 +41,7 @@ test.describe('phone controller', () => {
     const room = phone.getByTestId('remote-rooms').locator('button').first();
     const label = await room.textContent();
     await room.click();
-    await expect(page.locator('nav[aria-label=Rooms] button[aria-current=true]')).toHaveText(label!);
+    await expect(page.locator('nav[aria-label=Rooms] button[aria-current=true]')).toHaveAttribute('aria-label', label!);
   });
 
   test('swiping to a layout on the phone places it on the desktop', async ({ page, context }) => {

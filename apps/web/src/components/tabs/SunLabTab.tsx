@@ -11,6 +11,7 @@ import { Button, Notice, Spinner, Toggle, cn } from '@/components/ui';
 import { api } from '@/lib/api';
 import { useInventory, useLayouts } from '@/lib/data/hooks';
 import { invalidate } from '@/lib/data/resource';
+import { roomName } from '@/lib/rooms';
 import type { V3 } from '@/lib/geometry/frames';
 import { compassToInterior } from '@/lib/geometry/frames';
 import { useSession } from '@/lib/store/session';
@@ -154,6 +155,13 @@ export function SunLabTab({ twin, active }: { twin: PropertyTwin; active: boolea
           <Spinner label="Loading the house model…" />
         </div>
       )}
+      {!twin.assets.interior_glb && (
+        <div className="absolute top-12 left-3 w-[300px]">
+          <Notice tone="warn" title="No scanned mesh yet">
+            This twin has no interior model, so rooms are drawn from their outlines.
+          </Notice>
+        </div>
+      )}
       {assetError && (
         <div className="absolute top-3 left-1/2 w-[420px] max-w-[90%] -translate-x-1/2">
           <Notice tone="error" title="A 3D asset is missing">
@@ -166,8 +174,8 @@ export function SunLabTab({ twin, active }: { twin: PropertyTwin; active: boolea
         <Button size="sm" variant={view.kind === 'overview' ? 'primary' : 'subtle'} onClick={() => setView({ kind: 'overview', seq: Date.now() })}>
           Outside
         </Button>
-        <Button size="sm" variant={view.kind === 'room' ? 'primary' : 'subtle'} disabled={!room} title={room ? `Fly into ${room.label}` : 'Pick a room first'} onClick={() => room && setView({ kind: 'room', room, seq: Date.now() })}>
-          {room ? `Inside ${room.label}` : 'Inside'}
+        <Button size="sm" variant={view.kind === 'room' ? 'primary' : 'subtle'} disabled={!room} title={room ? `Fly into ${roomName(twin, room.room_id)}` : 'Pick a room first'} onClick={() => room && setView({ kind: 'room', room, seq: Date.now() })}>
+          {room ? `Inside ${roomName(twin, room.room_id)}` : 'Inside'}
         </Button>
       </div>
 

@@ -41,6 +41,7 @@ test.describe('design', () => {
     const id = await card.getAttribute('data-layout-id');
     await card.getByRole('button', { name: 'Place in the house' }).click();
     await expect(card).toHaveAttribute('data-selected', 'true');
+    await expect(card).toHaveAttribute('data-status', 'chosen'); // saved, not only shown
     await page.reload();
     await openTab(page, 'design');
     await expect(page.locator(`[data-testid=variant-card][data-layout-id="${id}"]`)).toHaveAttribute('data-selected', 'true');

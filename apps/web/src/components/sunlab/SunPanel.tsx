@@ -6,6 +6,7 @@ import { CHART, ChartTitle, SUN_RAMP, TableView } from '@/components/charts/kit'
 import { LineChart } from '@/components/charts/LineChart';
 import { Notice, Spinner, Toggle } from '@/components/ui';
 import { useSunReport } from '@/lib/data/hooks';
+import { roomName } from '@/lib/rooms';
 import { useSession } from '@/lib/store/session';
 import { localDate, withDate } from '@/lib/time';
 
@@ -36,6 +37,7 @@ export function SunPanel({ twin, room, heatmapOn, onHeatmap }: { twin: PropertyT
   const heat = report.data?.heatmap;
   const heatMax = heat ? Math.max(0, ...heat.hours.flat()) : 0;
 
+  const name = roomName(twin, room?.room_id);
   if (!room) return <p className="text-sm leading-5 text-muted">Pick a room to see how much direct sun it gets through the year.</p>;
   if (report.error) {
     return (
@@ -49,7 +51,7 @@ export function SunPanel({ twin, room, heatmapOn, onHeatmap }: { twin: PropertyT
   return (
     <div className="space-y-4" data-testid="sun-panel">
       <div>
-        <div className="text-xs text-muted">Direct sun in {room.label}</div>
+        <div className="text-xs text-muted">Direct sun in {name}</div>
         <div className="mt-0.5 flex items-baseline gap-2">
           <span className="text-4xl font-semibold" data-testid="sun-hours">
             {today ? today.direct_sun_hours.toFixed(1) : '–'}
@@ -62,7 +64,7 @@ export function SunPanel({ twin, room, heatmapOn, onHeatmap }: { twin: PropertyT
         <ChartTitle title="Through the year" subtitle="Hours of direct sun per day. Click a day to go there." />
         <LineChart
           points={points}
-          ariaLabel={`Direct sun hours per day in ${room.label}`}
+          ariaLabel={`Direct sun hours per day in ${name}`}
           color={CHART.sun}
           format={(v) => `${v.toFixed(1)} h`}
           seriesLabel="direct sun"
@@ -73,7 +75,7 @@ export function SunPanel({ twin, room, heatmapOn, onHeatmap }: { twin: PropertyT
             if (d) dispatch('viewer.setTime', { datetime: withDate(datetime, twin.timezone, `${date.slice(0, 4)}${d.date.slice(4)}`) });
           }}
         />
-        <TableView caption={`Direct sun hours per day in ${room.label}`} columns={['Date', 'Direct sun (h)']} rows={daily.map((d) => [d.date, d.direct_sun_hours.toFixed(2)])} />
+        <TableView caption={`Direct sun hours per day in ${name}`} columns={['Date', 'Direct sun (h)']} rows={daily.map((d) => [d.date, d.direct_sun_hours.toFixed(2)])} />
       </div>
 
       <div className="space-y-2 border-t border-line pt-3">

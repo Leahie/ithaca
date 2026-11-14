@@ -1,3651 +1,3903 @@
 {
- "property_id": "onXQLXhfyQv",
- "version": 1,
- "sources": {
-  "matterport_model_id": "onXQLXhfyQv",
-  "vexcel_parcel_id": null,
-  "costar_listing_id": null
- },
- "address": "9414 Endicott Lane, Houston, Texas, 77096, US",
- "lat": 29.678249880806373,
- "lon": -95.46197028272869,
- "timezone": "America/Chicago",
- "interior_to_world": [
-  1,
-  0,
-  0,
-  0,
-  0,
-  0,
-  1,
-  0,
-  0,
-  -1,
-  0,
-  0,
-  0,
-  0,
-  0,
-  1
- ],
- "floors": [
-  {
-   "floor_id": "tsmq1wak12rhgn0mawksxcwcd",
-   "index": 0,
-   "elevation_m": -0.129
+  "property_id": "onXQLXhfyQv",
+  "version": 2,
+  "sources": {
+    "matterport_model_id": "onXQLXhfyQv",
+    "vexcel_parcel_id": null,
+    "costar_listing_id": "237399188"
   },
-  {
-   "floor_id": "pd0i1c4yq9w0y2zsb07ed23sb",
-   "index": 1,
-   "elevation_m": 2.719
+  "address": "9414 Endicott Lane, Houston, Texas, 77096, US",
+  "lat": 29.6782499,
+  "lon": -95.4619703,
+  "timezone": "America/Chicago",
+  "interior_to_world": [
+    0.993452171,
+    0.114248781,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    1.0,
+    0.0,
+    0.114248781,
+    -0.993452171,
+    0.0,
+    0.0,
+    5.937741487,
+    -8.273191441,
+    0.0,
+    1.0
+  ],
+  "floors": [
+    {
+      "floor_id": "tsmq1wak12rhgn0mawksxcwcd",
+      "index": 0,
+      "elevation_m": -0.129,
+      "label": "Floor 1"
+    },
+    {
+      "floor_id": "pd0i1c4yq9w0y2zsb07ed23sb",
+      "index": 1,
+      "elevation_m": 2.719,
+      "label": "Floor 2"
+    }
+  ],
+  "rooms": [
+    {
+      "room_id": "19ab05tns5h6y4qm42esqqpea",
+      "floor_id": "tsmq1wak12rhgn0mawksxcwcd",
+      "label": "Hallway",
+      "polygon": [
+        [
+          -1.399,
+          -15.197
+        ],
+        [
+          1.11,
+          -15.197
+        ],
+        [
+          1.11,
+          -16.157
+        ],
+        [
+          0.467,
+          -16.157
+        ],
+        [
+          0.467,
+          -16.712
+        ],
+        [
+          -1.011,
+          -16.712
+        ],
+        [
+          -1.398,
+          -16.712
+        ]
+      ],
+      "floor_y": 0.008,
+      "height_m": 2.43,
+      "floor_material": "hardwood",
+      "area_m2": 3.44
+    },
+    {
+      "room_id": "2qdmc5i9byxi79ry1pxdkqzea",
+      "floor_id": "tsmq1wak12rhgn0mawksxcwcd",
+      "label": "Bedroom",
+      "polygon": [
+        [
+          -3.617,
+          -10.502
+        ],
+        [
+          -3.617,
+          -9.573
+        ],
+        [
+          -2.458,
+          -9.573
+        ],
+        [
+          -0.868,
+          -9.572
+        ],
+        [
+          -0.868,
+          -8.972
+        ],
+        [
+          1.017,
+          -8.971
+        ],
+        [
+          1.017,
+          -9.541
+        ],
+        [
+          1.135,
+          -9.541
+        ],
+        [
+          1.136,
+          -12.893
+        ],
+        [
+          -1.36,
+          -12.893
+        ],
+        [
+          -2.458,
+          -12.894
+        ],
+        [
+          -2.458,
+          -10.919
+        ],
+        [
+          -2.458,
+          -10.501
+        ],
+        [
+          -2.932,
+          -10.501
+        ]
+      ],
+      "floor_y": -0.423,
+      "height_m": 2.45,
+      "floor_material": "carpet",
+      "area_m2": 14.15
+    },
+    {
+      "room_id": "3m54yff1z7crxaywd8if9rb0d",
+      "floor_id": "tsmq1wak12rhgn0mawksxcwcd",
+      "label": "Office",
+      "polygon": [
+        [
+          -16.952,
+          -6.686
+        ],
+        [
+          -16.952,
+          -3.539
+        ],
+        [
+          -16.333,
+          -3.539
+        ],
+        [
+          -13.745,
+          -3.539
+        ],
+        [
+          -12.174,
+          -3.538
+        ],
+        [
+          -11.776,
+          -3.538
+        ],
+        [
+          -11.775,
+          -6.685
+        ],
+        [
+          -13.21,
+          -6.685
+        ]
+      ],
+      "floor_y": -0.379,
+      "height_m": 2.44,
+      "floor_material": "hardwood",
+      "area_m2": 16.29
+    },
+    {
+      "room_id": "a5f9age4zzxewres6iqux2emc",
+      "floor_id": "tsmq1wak12rhgn0mawksxcwcd",
+      "label": "Bedroom",
+      "polygon": [
+        [
+          -23.792,
+          -4.224
+        ],
+        [
+          -20.06,
+          -4.223
+        ],
+        [
+          -20.06,
+          -6.652
+        ],
+        [
+          -20.204,
+          -6.652
+        ],
+        [
+          -20.204,
+          -7.58
+        ],
+        [
+          -23.791,
+          -7.581
+        ]
+      ],
+      "floor_y": -0.146,
+      "height_m": 2.44,
+      "floor_material": "carpet",
+      "area_m2": 12.39
+    },
+    {
+      "room_id": "cdz3fkt38kae7tapstpt0eaeb",
+      "floor_id": "tsmq1wak12rhgn0mawksxcwcd",
+      "label": "Living Room",
+      "polygon": [
+        [
+          -13.21,
+          -6.685
+        ],
+        [
+          -11.775,
+          -6.685
+        ],
+        [
+          -11.776,
+          -3.538
+        ],
+        [
+          -9.015,
+          -5.356
+        ],
+        [
+          -7.818,
+          -3.537
+        ],
+        [
+          -4.964,
+          -3.537
+        ],
+        [
+          -3.043,
+          -3.537
+        ],
+        [
+          -3.044,
+          -1.107
+        ],
+        [
+          -3.044,
+          0.765
+        ],
+        [
+          1.054,
+          0.766
+        ],
+        [
+          1.055,
+          -4.343
+        ],
+        [
+          -0.432,
+          -4.343
+        ],
+        [
+          -0.431,
+          -8.604
+        ],
+        [
+          -2.458,
+          -8.605
+        ],
+        [
+          -2.458,
+          -9.573
+        ],
+        [
+          -3.617,
+          -9.573
+        ],
+        [
+          -3.617,
+          -10.502
+        ],
+        [
+          -2.932,
+          -10.501
+        ],
+        [
+          -2.458,
+          -10.919
+        ],
+        [
+          -2.458,
+          -12.894
+        ],
+        [
+          -4.309,
+          -12.894
+        ],
+        [
+          -4.31,
+          -11.603
+        ],
+        [
+          -4.874,
+          -11.604
+        ],
+        [
+          -4.874,
+          -10.502
+        ],
+        [
+          -5.532,
+          -10.502
+        ],
+        [
+          -5.531,
+          -10.912
+        ],
+        [
+          -6.178,
+          -10.912
+        ],
+        [
+          -6.178,
+          -12.358
+        ],
+        [
+          -4.874,
+          -12.358
+        ],
+        [
+          -4.874,
+          -12.894
+        ],
+        [
+          -5.8,
+          -12.895
+        ],
+        [
+          -7.591,
+          -12.895
+        ],
+        [
+          -13.209,
+          -12.896
+        ]
+      ],
+      "floor_y": -0.413,
+      "height_m": 2.43,
+      "floor_material": "hardwood",
+      "area_m2": 117.54
+    },
+    {
+      "room_id": "ediidma5zg15dufx3n0qyq21a",
+      "floor_id": "tsmq1wak12rhgn0mawksxcwcd",
+      "label": "Kitchen",
+      "polygon": [
+        [
+          -13.7,
+          2.502
+        ],
+        [
+          -10.412,
+          2.503
+        ],
+        [
+          -10.412,
+          0.196
+        ],
+        [
+          -13.699,
+          0.195
+        ]
+      ],
+      "floor_y": -0.017,
+      "height_m": 2.47,
+      "floor_material": "tile",
+      "area_m2": 7.58
+    },
+    {
+      "room_id": "h26t7ky77ew74yb0pg8qqf5rd",
+      "floor_id": "tsmq1wak12rhgn0mawksxcwcd",
+      "label": "Bathroom",
+      "polygon": [
+        [
+          -5.8,
+          -12.895
+        ],
+        [
+          -4.874,
+          -12.894
+        ],
+        [
+          -4.309,
+          -12.894
+        ],
+        [
+          -2.458,
+          -12.894
+        ],
+        [
+          -1.36,
+          -12.893
+        ],
+        [
+          -1.36,
+          -14.164
+        ],
+        [
+          0.426,
+          -14.164
+        ],
+        [
+          0.426,
+          -14.571
+        ],
+        [
+          1.11,
+          -14.571
+        ],
+        [
+          1.11,
+          -15.197
+        ],
+        [
+          -1.399,
+          -15.197
+        ],
+        [
+          -1.398,
+          -16.712
+        ],
+        [
+          -1.398,
+          -17.555
+        ],
+        [
+          -5.799,
+          -17.556
+        ],
+        [
+          -5.799,
+          -17.135
+        ]
+      ],
+      "floor_y": -0.41,
+      "height_m": 2.44,
+      "floor_material": "tile",
+      "area_m2": 22.88
+    },
+    {
+      "room_id": "kuc0fpmsgqxff63egrxrycfud",
+      "floor_id": "tsmq1wak12rhgn0mawksxcwcd",
+      "label": "Other",
+      "polygon": [
+        [
+          -1.011,
+          -17.304
+        ],
+        [
+          -1.011,
+          -16.712
+        ],
+        [
+          0.467,
+          -16.712
+        ],
+        [
+          0.467,
+          -17.304
+        ]
+      ],
+      "floor_y": 0.1,
+      "height_m": 2.02,
+      "floor_material": "hardwood",
+      "area_m2": 0.87
+    },
+    {
+      "room_id": "m8npxsuk79xy21dd09x9wtped",
+      "floor_id": "tsmq1wak12rhgn0mawksxcwcd",
+      "label": "Bathroom",
+      "polygon": [
+        [
+          -25.623,
+          -7.581
+        ],
+        [
+          -25.623,
+          -4.225
+        ],
+        [
+          -23.792,
+          -4.224
+        ],
+        [
+          -23.791,
+          -7.581
+        ]
+      ],
+      "floor_y": -0.103,
+      "height_m": 2.44,
+      "floor_material": "tile",
+      "area_m2": 6.15
+    },
+    {
+      "room_id": "n81qfe51azs8iexnbqwspye6c",
+      "floor_id": "tsmq1wak12rhgn0mawksxcwcd",
+      "label": "Laundry",
+      "polygon": [
+        [
+          -4.964,
+          -3.537
+        ],
+        [
+          -4.964,
+          -1.107
+        ],
+        [
+          -3.044,
+          -1.107
+        ],
+        [
+          -3.043,
+          -3.537
+        ]
+      ],
+      "floor_y": -0.012,
+      "height_m": 2.14,
+      "floor_material": "tile",
+      "area_m2": 4.67
+    },
+    {
+      "room_id": "tt6gm2a0463x9wmnx7rn6gugc",
+      "floor_id": "tsmq1wak12rhgn0mawksxcwcd",
+      "label": "Living Room",
+      "polygon": [
+        [
+          -13.209,
+          -12.896
+        ],
+        [
+          -7.591,
+          -12.895
+        ],
+        [
+          -5.8,
+          -12.895
+        ],
+        [
+          -5.799,
+          -17.135
+        ],
+        [
+          -6.05,
+          -17.136
+        ],
+        [
+          -6.05,
+          -17.556
+        ],
+        [
+          -13.208,
+          -17.557
+        ]
+      ],
+      "floor_y": -0.129,
+      "height_m": 2.44,
+      "floor_material": "hardwood",
+      "area_m2": 34.43
+    },
+    {
+      "room_id": "wbpb7dkfuwnikd1kq2a9hz70a",
+      "floor_id": "tsmq1wak12rhgn0mawksxcwcd",
+      "label": "Laundry",
+      "polygon": [
+        [
+          -16.334,
+          2.502
+        ],
+        [
+          -13.7,
+          2.502
+        ],
+        [
+          -13.699,
+          0.195
+        ],
+        [
+          -13.699,
+          0.033
+        ],
+        [
+          -16.333,
+          0.032
+        ]
+      ],
+      "floor_y": -0.021,
+      "height_m": 2.45,
+      "floor_material": "tile",
+      "area_m2": 6.51
+    },
+    {
+      "room_id": "xy2x8mpaaqknp7q2c3nnbw1ma",
+      "floor_id": "tsmq1wak12rhgn0mawksxcwcd",
+      "label": "Kitchen",
+      "polygon": [
+        [
+          -16.333,
+          -3.539
+        ],
+        [
+          -16.333,
+          0.032
+        ],
+        [
+          -13.699,
+          0.033
+        ],
+        [
+          -13.699,
+          0.195
+        ],
+        [
+          -10.412,
+          0.196
+        ],
+        [
+          -9.352,
+          0.196
+        ],
+        [
+          -9.352,
+          0.872
+        ],
+        [
+          -3.044,
+          0.873
+        ],
+        [
+          -3.044,
+          0.765
+        ],
+        [
+          -3.044,
+          -1.107
+        ],
+        [
+          -4.964,
+          -1.107
+        ],
+        [
+          -4.964,
+          -3.537
+        ],
+        [
+          -7.818,
+          -3.537
+        ],
+        [
+          -11.776,
+          -3.538
+        ],
+        [
+          -12.174,
+          -3.538
+        ],
+        [
+          -12.174,
+          -1.121
+        ],
+        [
+          -14.369,
+          -1.121
+        ],
+        [
+          -14.369,
+          -2.165
+        ],
+        [
+          -13.745,
+          -2.165
+        ],
+        [
+          -13.745,
+          -3.539
+        ]
+      ],
+      "floor_y": -0.333,
+      "height_m": 2.778,
+      "floor_material": "tile",
+      "area_m2": 44.34
+    },
+    {
+      "room_id": "3ygfq6yfyyw3hi9x7u5rm2iqa",
+      "floor_id": "pd0i1c4yq9w0y2zsb07ed23sb",
+      "label": "Living Room",
+      "polygon": [
+        [
+          -16.03,
+          -3.577
+        ],
+        [
+          -16.03,
+          -0.816
+        ],
+        [
+          -12.174,
+          -0.816
+        ],
+        [
+          -12.174,
+          -3.538
+        ],
+        [
+          -3.077,
+          -3.537
+        ],
+        [
+          -3.078,
+          0.873
+        ],
+        [
+          1.127,
+          0.874
+        ],
+        [
+          1.128,
+          -4.307
+        ],
+        [
+          1.452,
+          -4.307
+        ],
+        [
+          1.452,
+          -6.511
+        ],
+        [
+          -0.225,
+          -6.511
+        ],
+        [
+          -0.406,
+          -6.511
+        ],
+        [
+          -2.459,
+          -6.512
+        ],
+        [
+          -2.459,
+          -7.836
+        ],
+        [
+          -2.458,
+          -8.72
+        ],
+        [
+          -3.617,
+          -8.72
+        ],
+        [
+          -5.337,
+          -8.721
+        ],
+        [
+          -6.358,
+          -8.721
+        ],
+        [
+          -8.92,
+          -8.722
+        ],
+        [
+          -8.92,
+          -5.592
+        ],
+        [
+          -14.237,
+          -5.593
+        ],
+        [
+          -14.237,
+          -3.577
+        ]
+      ],
+      "floor_y": 2.719,
+      "height_m": 2.44,
+      "floor_material": "hardwood",
+      "area_m2": 84.91
+    },
+    {
+      "room_id": "4mpd3yxnm0wrnpak1ibnr29wc",
+      "floor_id": "pd0i1c4yq9w0y2zsb07ed23sb",
+      "label": "Bedroom",
+      "polygon": [
+        [
+          -4.799,
+          -17.556
+        ],
+        [
+          -4.799,
+          -14.043
+        ],
+        [
+          -2.457,
+          -14.042
+        ],
+        [
+          -1.36,
+          -14.042
+        ],
+        [
+          -1.118,
+          -14.042
+        ],
+        [
+          -1.117,
+          -15.795
+        ],
+        [
+          -1.117,
+          -17.555
+        ]
+      ],
+      "floor_y": 2.73,
+      "height_m": 2.44,
+      "floor_material": "carpet",
+      "area_m2": 12.93
+    },
+    {
+      "room_id": "b2kez6wsw32fm2x3ui593u3hc",
+      "floor_id": "pd0i1c4yq9w0y2zsb07ed23sb",
+      "label": "Hallway",
+      "polygon": [
+        [
+          -7.415,
+          -12.895
+        ],
+        [
+          -6.357,
+          -12.895
+        ],
+        [
+          -6.357,
+          -9.995
+        ],
+        [
+          -5.337,
+          -9.995
+        ],
+        [
+          -4.875,
+          -9.995
+        ],
+        [
+          -4.874,
+          -10.912
+        ],
+        [
+          -3.616,
+          -10.912
+        ],
+        [
+          -3.617,
+          -8.72
+        ],
+        [
+          -2.458,
+          -8.72
+        ],
+        [
+          -2.458,
+          -12.894
+        ],
+        [
+          -2.457,
+          -14.042
+        ],
+        [
+          -4.799,
+          -14.043
+        ],
+        [
+          -7.084,
+          -14.043
+        ],
+        [
+          -7.414,
+          -14.043
+        ]
+      ],
+      "floor_y": 2.719,
+      "height_m": 2.43,
+      "floor_material": "hardwood",
+      "area_m2": 17.32
+    },
+    {
+      "room_id": "bmpu8rc0bpgc1bruwia8kktzd",
+      "floor_id": "pd0i1c4yq9w0y2zsb07ed23sb",
+      "label": "Closet",
+      "polygon": [
+        [
+          -1.117,
+          -17.555
+        ],
+        [
+          -1.117,
+          -15.795
+        ],
+        [
+          1.111,
+          -15.795
+        ],
+        [
+          1.111,
+          -17.182
+        ],
+        [
+          0.665,
+          -17.182
+        ],
+        [
+          0.665,
+          -17.555
+        ]
+      ],
+      "floor_y": 2.841,
+      "height_m": 2.44,
+      "floor_material": "carpet",
+      "area_m2": 3.75
+    },
+    {
+      "room_id": "f97s719x9ctqkce19r6s01b5a",
+      "floor_id": "pd0i1c4yq9w0y2zsb07ed23sb",
+      "label": "Bathroom",
+      "polygon": [
+        [
+          -5.337,
+          -9.995
+        ],
+        [
+          -5.337,
+          -8.721
+        ],
+        [
+          -3.617,
+          -8.72
+        ],
+        [
+          -3.616,
+          -10.912
+        ],
+        [
+          -4.874,
+          -10.912
+        ],
+        [
+          -4.875,
+          -9.995
+        ]
+      ],
+      "floor_y": 2.735,
+      "height_m": 2.42,
+      "floor_material": "tile",
+      "area_m2": 3.35
+    },
+    {
+      "room_id": "g1gkrkdygg4zs5xge8bxfuc1d",
+      "floor_id": "pd0i1c4yq9w0y2zsb07ed23sb",
+      "label": "Closet",
+      "polygon": [
+        [
+          -2.459,
+          -7.836
+        ],
+        [
+          -2.459,
+          -6.512
+        ],
+        [
+          -0.406,
+          -6.511
+        ],
+        [
+          -0.406,
+          -6.895
+        ],
+        [
+          -0.225,
+          -6.895
+        ],
+        [
+          -0.225,
+          -7.836
+        ]
+      ],
+      "floor_y": 2.699,
+      "height_m": 2.46,
+      "floor_material": "carpet",
+      "area_m2": 2.89
+    },
+    {
+      "room_id": "n2yqr30509t7i8whfdf2htwic",
+      "floor_id": "pd0i1c4yq9w0y2zsb07ed23sb",
+      "label": "Bedroom",
+      "polygon": [
+        [
+          -10.707,
+          -8.722
+        ],
+        [
+          -8.92,
+          -8.722
+        ],
+        [
+          -6.358,
+          -8.721
+        ],
+        [
+          -6.357,
+          -9.995
+        ],
+        [
+          -6.357,
+          -12.895
+        ],
+        [
+          -7.415,
+          -12.895
+        ],
+        [
+          -7.415,
+          -12.263
+        ],
+        [
+          -10.706,
+          -12.264
+        ]
+      ],
+      "floor_y": 2.682,
+      "height_m": 2.42,
+      "floor_material": "carpet",
+      "area_m2": 16.07
+    },
+    {
+      "room_id": "pcez6b4tqeep953kmm04hme9c",
+      "floor_id": "pd0i1c4yq9w0y2zsb07ed23sb",
+      "label": "Bathroom",
+      "polygon": [
+        [
+          -7.084,
+          -14.043
+        ],
+        [
+          -4.799,
+          -14.043
+        ],
+        [
+          -4.799,
+          -17.556
+        ],
+        [
+          -7.083,
+          -17.556
+        ]
+      ],
+      "floor_y": 2.728,
+      "height_m": 2.43,
+      "floor_material": "tile",
+      "area_m2": 8.03
+    },
+    {
+      "room_id": "peina19mpqedsku6a3huu38md",
+      "floor_id": "pd0i1c4yq9w0y2zsb07ed23sb",
+      "label": "Bedroom",
+      "polygon": [
+        [
+          -2.459,
+          -7.836
+        ],
+        [
+          -0.225,
+          -7.836
+        ],
+        [
+          -0.225,
+          -6.895
+        ],
+        [
+          -0.225,
+          -6.511
+        ],
+        [
+          1.452,
+          -6.511
+        ],
+        [
+          1.453,
+          -8.712
+        ],
+        [
+          1.109,
+          -8.712
+        ],
+        [
+          1.11,
+          -12.893
+        ],
+        [
+          -1.36,
+          -12.893
+        ],
+        [
+          -2.458,
+          -12.894
+        ],
+        [
+          -2.458,
+          -8.72
+        ]
+      ],
+      "floor_y": 2.619,
+      "height_m": 2.43,
+      "floor_material": "carpet",
+      "area_m2": 20.57
+    },
+    {
+      "room_id": "q5n62dpd3mrc1exy2hr84132b",
+      "floor_id": "pd0i1c4yq9w0y2zsb07ed23sb",
+      "label": "Bedroom",
+      "polygon": [
+        [
+          -10.706,
+          -12.896
+        ],
+        [
+          -7.415,
+          -12.895
+        ],
+        [
+          -7.414,
+          -14.043
+        ],
+        [
+          -7.084,
+          -14.043
+        ],
+        [
+          -7.083,
+          -17.556
+        ],
+        [
+          -10.705,
+          -17.557
+        ]
+      ],
+      "floor_y": 2.719,
+      "height_m": 2.45,
+      "floor_material": "carpet",
+      "area_m2": 16.5
+    },
+    {
+      "room_id": "tyz3uyd99x00wa88mxhmugrxa",
+      "floor_id": "pd0i1c4yq9w0y2zsb07ed23sb",
+      "label": "Bathroom",
+      "polygon": [
+        [
+          -1.36,
+          -14.042
+        ],
+        [
+          -1.36,
+          -12.893
+        ],
+        [
+          1.11,
+          -12.893
+        ],
+        [
+          1.111,
+          -15.795
+        ],
+        [
+          -1.117,
+          -15.795
+        ],
+        [
+          -1.118,
+          -14.042
+        ]
+      ],
+      "floor_y": 2.76,
+      "height_m": 2.46,
+      "floor_material": "tile",
+      "area_m2": 6.74
+    }
+  ],
+  "openings": [
+    {
+      "opening_id": "082w4191t9d50cq0ktx90qi7c",
+      "room_id": "4mpd3yxnm0wrnpak1ibnr29wc",
+      "kind": "door",
+      "polygon": [
+        {
+          "x": -4.572,
+          "y": 2.787,
+          "z": -14.043
+        },
+        {
+          "x": -3.778,
+          "y": 2.787,
+          "z": -14.043
+        },
+        {
+          "x": -3.778,
+          "y": 4.875,
+          "z": -14.043
+        },
+        {
+          "x": -4.572,
+          "y": 4.875,
+          "z": -14.043
+        }
+      ],
+      "facade_azimuth_deg": 173.45,
+      "glazing": "none",
+      "stc": null,
+      "other_room_id": "b2kez6wsw32fm2x3ui593u3hc"
+    },
+    {
+      "opening_id": "12nmz756ixbszas0mesd8n1hb",
+      "room_id": "n2yqr30509t7i8whfdf2htwic",
+      "kind": "window",
+      "polygon": [
+        {
+          "x": -10.707,
+          "y": 3.932,
+          "z": -9.475
+        },
+        {
+          "x": -10.706,
+          "y": 3.932,
+          "z": -10.949
+        },
+        {
+          "x": -10.706,
+          "y": 4.842,
+          "z": -10.949
+        },
+        {
+          "x": -10.707,
+          "y": 4.842,
+          "z": -9.475
+        }
+      ],
+      "facade_azimuth_deg": 263.45,
+      "glazing": "double",
+      "stc": null,
+      "other_room_id": null
+    },
+    {
+      "opening_id": "1eh7kq4yh1yue85eh5ixygqua",
+      "room_id": "xy2x8mpaaqknp7q2c3nnbw1ma",
+      "kind": "door",
+      "polygon": [
+        {
+          "x": -16.333,
+          "y": 0.008,
+          "z": -0.889
+        },
+        {
+          "x": -16.333,
+          "y": 0.008,
+          "z": -1.695
+        },
+        {
+          "x": -16.333,
+          "y": 2.012,
+          "z": -1.695
+        },
+        {
+          "x": -16.333,
+          "y": 2.012,
+          "z": -0.889
+        }
+      ],
+      "facade_azimuth_deg": 263.45,
+      "glazing": "none",
+      "stc": null,
+      "other_room_id": null
+    },
+    {
+      "opening_id": "1uu51kzyg8s9p5mt5u05dxy1c",
+      "room_id": "4mpd3yxnm0wrnpak1ibnr29wc",
+      "kind": "door",
+      "polygon": [
+        {
+          "x": -1.118,
+          "y": 2.775,
+          "z": -14.745
+        },
+        {
+          "x": -1.118,
+          "y": 2.775,
+          "z": -14.2
+        },
+        {
+          "x": -1.118,
+          "y": 4.968,
+          "z": -14.2
+        },
+        {
+          "x": -1.118,
+          "y": 4.968,
+          "z": -14.745
+        }
+      ],
+      "facade_azimuth_deg": 83.45,
+      "glazing": "none",
+      "stc": null,
+      "other_room_id": "tyz3uyd99x00wa88mxhmugrxa"
+    },
+    {
+      "opening_id": "1zbngrrwc7rpze5yw24a102ic",
+      "room_id": "cdz3fkt38kae7tapstpt0eaeb",
+      "kind": "door",
+      "polygon": [
+        {
+          "x": -7.786,
+          "y": -0.086,
+          "z": -3.537
+        },
+        {
+          "x": -5.782,
+          "y": -0.086,
+          "z": -3.537
+        },
+        {
+          "x": -5.782,
+          "y": 2.448,
+          "z": -3.537
+        },
+        {
+          "x": -7.786,
+          "y": 2.448,
+          "z": -3.537
+        }
+      ],
+      "facade_azimuth_deg": 173.45,
+      "glazing": "none",
+      "stc": null,
+      "other_room_id": "xy2x8mpaaqknp7q2c3nnbw1ma"
+    },
+    {
+      "opening_id": "3mnd1uy5g5iuump78utxnkxic",
+      "room_id": "b2kez6wsw32fm2x3ui593u3hc",
+      "kind": "door",
+      "polygon": [
+        {
+          "x": -2.458,
+          "y": -0.02,
+          "z": -9.673
+        },
+        {
+          "x": -2.458,
+          "y": -0.02,
+          "z": -10.438
+        },
+        {
+          "x": -2.458,
+          "y": 2.11,
+          "z": -10.438
+        },
+        {
+          "x": -2.458,
+          "y": 2.11,
+          "z": -9.673
+        }
+      ],
+      "facade_azimuth_deg": 83.45,
+      "glazing": "none",
+      "stc": null,
+      "other_room_id": "peina19mpqedsku6a3huu38md"
+    },
+    {
+      "opening_id": "45wqba0gnskquwd0xp9b9t8nc",
+      "room_id": "tt6gm2a0463x9wmnx7rn6gugc",
+      "kind": "window",
+      "polygon": [
+        {
+          "x": -13.208,
+          "y": 0.002,
+          "z": -17.079
+        },
+        {
+          "x": -13.208,
+          "y": 0.002,
+          "z": -15.648
+        },
+        {
+          "x": -13.208,
+          "y": 2.403,
+          "z": -15.648
+        },
+        {
+          "x": -13.208,
+          "y": 2.403,
+          "z": -17.079
+        }
+      ],
+      "facade_azimuth_deg": 263.45,
+      "glazing": "double",
+      "stc": null,
+      "other_room_id": null
+    },
+    {
+      "opening_id": "49r3gmycef8ta6km3zrs12fca",
+      "room_id": "cdz3fkt38kae7tapstpt0eaeb",
+      "kind": "door",
+      "polygon": [
+        {
+          "x": -0.431,
+          "y": -0.021,
+          "z": -7.425
+        },
+        {
+          "x": -0.432,
+          "y": -0.021,
+          "z": -5.557
+        },
+        {
+          "x": -0.432,
+          "y": 2.078,
+          "z": -5.557
+        },
+        {
+          "x": -0.431,
+          "y": 2.078,
+          "z": -7.425
+        }
+      ],
+      "facade_azimuth_deg": 83.45,
+      "glazing": "none",
+      "stc": null,
+      "other_room_id": null
+    },
+    {
+      "opening_id": "4uc3t9shcq2he5gdqpmqkdwmd",
+      "room_id": "cdz3fkt38kae7tapstpt0eaeb",
+      "kind": "door",
+      "polygon": [
+        {
+          "x": -13.21,
+          "y": -0.066,
+          "z": -7.388
+        },
+        {
+          "x": -13.209,
+          "y": -0.066,
+          "z": -8.548
+        },
+        {
+          "x": -13.209,
+          "y": 2.402,
+          "z": -8.548
+        },
+        {
+          "x": -13.21,
+          "y": 2.402,
+          "z": -7.388
+        }
+      ],
+      "facade_azimuth_deg": 263.45,
+      "glazing": "none",
+      "stc": null,
+      "other_room_id": null
+    },
+    {
+      "opening_id": "575wxf6df7uw0dges6st7i5sb",
+      "room_id": "h26t7ky77ew74yb0pg8qqf5rd",
+      "kind": "window",
+      "polygon": [
+        {
+          "x": -4.538,
+          "y": 0.399,
+          "z": -17.556
+        },
+        {
+          "x": -3.586,
+          "y": 0.399,
+          "z": -17.556
+        },
+        {
+          "x": -3.586,
+          "y": 1.877,
+          "z": -17.556
+        },
+        {
+          "x": -4.538,
+          "y": 1.877,
+          "z": -17.556
+        }
+      ],
+      "facade_azimuth_deg": 353.45,
+      "glazing": "double",
+      "stc": null,
+      "other_room_id": null
+    },
+    {
+      "opening_id": "5a5rd9hs92k5i0iym2ared47c",
+      "room_id": "a5f9age4zzxewres6iqux2emc",
+      "kind": "door",
+      "polygon": [
+        {
+          "x": -21.432,
+          "y": -0.22,
+          "z": -7.58
+        },
+        {
+          "x": -22.076,
+          "y": -0.22,
+          "z": -7.581
+        },
+        {
+          "x": -22.076,
+          "y": 2.417,
+          "z": -7.581
+        },
+        {
+          "x": -21.432,
+          "y": 2.417,
+          "z": -7.58
+        }
+      ],
+      "facade_azimuth_deg": 353.45,
+      "glazing": "none",
+      "stc": null,
+      "other_room_id": null
+    },
+    {
+      "opening_id": "6006cyucc641eeg44dqcwy94c",
+      "room_id": "3m54yff1z7crxaywd8if9rb0d",
+      "kind": "door",
+      "polygon": [
+        {
+          "x": -12.325,
+          "y": 0.031,
+          "z": -3.538
+        },
+        {
+          "x": -13.094,
+          "y": 0.031,
+          "z": -3.538
+        },
+        {
+          "x": -13.094,
+          "y": 1.884,
+          "z": -3.538
+        },
+        {
+          "x": -12.325,
+          "y": 1.884,
+          "z": -3.538
+        }
+      ],
+      "facade_azimuth_deg": 173.45,
+      "glazing": "none",
+      "stc": null,
+      "other_room_id": null
+    },
+    {
+      "opening_id": "62gx151h88566p0adrsgq6qsb",
+      "room_id": "4mpd3yxnm0wrnpak1ibnr29wc",
+      "kind": "door",
+      "polygon": [
+        {
+          "x": -1.117,
+          "y": 2.789,
+          "z": -17.4
+        },
+        {
+          "x": -1.117,
+          "y": 2.789,
+          "z": -16.784
+        },
+        {
+          "x": -1.117,
+          "y": 4.892,
+          "z": -16.784
+        },
+        {
+          "x": -1.117,
+          "y": 4.892,
+          "z": -17.4
+        }
+      ],
+      "facade_azimuth_deg": 83.45,
+      "glazing": "none",
+      "stc": null,
+      "other_room_id": "bmpu8rc0bpgc1bruwia8kktzd"
+    },
+    {
+      "opening_id": "62xyq3ixpp59rtw3292hrpdca",
+      "room_id": "3m54yff1z7crxaywd8if9rb0d",
+      "kind": "door",
+      "polygon": [
+        {
+          "x": -11.775,
+          "y": -0.056,
+          "z": -5.653
+        },
+        {
+          "x": -11.776,
+          "y": -0.056,
+          "z": -4.526
+        },
+        {
+          "x": -11.776,
+          "y": 1.957,
+          "z": -4.526
+        },
+        {
+          "x": -11.775,
+          "y": 1.957,
+          "z": -5.653
+        }
+      ],
+      "facade_azimuth_deg": 83.45,
+      "glazing": "none",
+      "stc": null,
+      "other_room_id": "cdz3fkt38kae7tapstpt0eaeb"
+    },
+    {
+      "opening_id": "6t342k06kr4hsye67bggr4d6c",
+      "room_id": "cdz3fkt38kae7tapstpt0eaeb",
+      "kind": "window",
+      "polygon": [
+        {
+          "x": -1.294,
+          "y": 0.471,
+          "z": 0.766
+        },
+        {
+          "x": -1.972,
+          "y": 0.471,
+          "z": 0.766
+        },
+        {
+          "x": -1.972,
+          "y": 2.001,
+          "z": 0.766
+        },
+        {
+          "x": -1.294,
+          "y": 2.001,
+          "z": 0.766
+        }
+      ],
+      "facade_azimuth_deg": 173.45,
+      "glazing": "double",
+      "stc": null,
+      "other_room_id": null
+    },
+    {
+      "opening_id": "7mts6154c6kmpmrhyt3zxb0wb",
+      "room_id": "19ab05tns5h6y4qm42esqqpea",
+      "kind": "door",
+      "polygon": [
+        {
+          "x": -0.928,
+          "y": 0.071,
+          "z": -16.712
+        },
+        {
+          "x": 0.404,
+          "y": 0.071,
+          "z": -16.712
+        },
+        {
+          "x": 0.404,
+          "y": 2.063,
+          "z": -16.712
+        },
+        {
+          "x": -0.928,
+          "y": 2.063,
+          "z": -16.712
+        }
+      ],
+      "facade_azimuth_deg": 353.45,
+      "glazing": "none",
+      "stc": null,
+      "other_room_id": "kuc0fpmsgqxff63egrxrycfud"
+    },
+    {
+      "opening_id": "7wwxe3ndwai8c9cp5gt0xnewb",
+      "room_id": "3ygfq6yfyyw3hi9x7u5rm2iqa",
+      "kind": "window",
+      "polygon": [
+        {
+          "x": 1.128,
+          "y": 3.233,
+          "z": -2.908
+        },
+        {
+          "x": 1.127,
+          "y": 3.233,
+          "z": -0.632
+        },
+        {
+          "x": 1.127,
+          "y": 4.8,
+          "z": -0.632
+        },
+        {
+          "x": 1.128,
+          "y": 4.8,
+          "z": -2.908
+        }
+      ],
+      "facade_azimuth_deg": 83.45,
+      "glazing": "double",
+      "stc": null,
+      "other_room_id": null
+    },
+    {
+      "opening_id": "burbhi8mf5nqwr3yg5816b61a",
+      "room_id": "a5f9age4zzxewres6iqux2emc",
+      "kind": "door",
+      "polygon": [
+        {
+          "x": -23.791,
+          "y": -0.05,
+          "z": -5.771
+        },
+        {
+          "x": -23.791,
+          "y": -0.05,
+          "z": -5.142
+        },
+        {
+          "x": -23.791,
+          "y": 1.921,
+          "z": -5.142
+        },
+        {
+          "x": -23.791,
+          "y": 1.921,
+          "z": -5.771
+        }
+      ],
+      "facade_azimuth_deg": 263.45,
+      "glazing": "none",
+      "stc": null,
+      "other_room_id": "m8npxsuk79xy21dd09x9wtped"
+    },
+    {
+      "opening_id": "ccr5pzz6tu4ptkb79k24azacc",
+      "room_id": "3ygfq6yfyyw3hi9x7u5rm2iqa",
+      "kind": "window",
+      "polygon": [
+        {
+          "x": 1.452,
+          "y": 3.379,
+          "z": -4.779
+        },
+        {
+          "x": 1.452,
+          "y": 3.379,
+          "z": -5.841
+        },
+        {
+          "x": 1.452,
+          "y": 4.743,
+          "z": -5.841
+        },
+        {
+          "x": 1.452,
+          "y": 4.743,
+          "z": -4.779
+        }
+      ],
+      "facade_azimuth_deg": 83.45,
+      "glazing": "double",
+      "stc": null,
+      "other_room_id": null
+    },
+    {
+      "opening_id": "cyqqad5ndmiw6nxadaaf0hkbc",
+      "room_id": "cdz3fkt38kae7tapstpt0eaeb",
+      "kind": "door",
+      "polygon": [
+        {
+          "x": -6.415,
+          "y": -0.048,
+          "z": -12.895
+        },
+        {
+          "x": -7.398,
+          "y": -0.048,
+          "z": -12.895
+        },
+        {
+          "x": -7.398,
+          "y": 1.836,
+          "z": -12.895
+        },
+        {
+          "x": -6.415,
+          "y": 1.836,
+          "z": -12.895
+        }
+      ],
+      "facade_azimuth_deg": 353.45,
+      "glazing": "none",
+      "stc": null,
+      "other_room_id": "tt6gm2a0463x9wmnx7rn6gugc"
+    },
+    {
+      "opening_id": "dx79dipidg2fawu7ee5x0gmma",
+      "room_id": "tt6gm2a0463x9wmnx7rn6gugc",
+      "kind": "door",
+      "polygon": [
+        {
+          "x": -13.208,
+          "y": -0.032,
+          "z": -13.949
+        },
+        {
+          "x": -13.208,
+          "y": -0.032,
+          "z": -13.368
+        },
+        {
+          "x": -13.208,
+          "y": 2.416,
+          "z": -13.368
+        },
+        {
+          "x": -13.208,
+          "y": 2.416,
+          "z": -13.949
+        }
+      ],
+      "facade_azimuth_deg": 263.45,
+      "glazing": "none",
+      "stc": null,
+      "other_room_id": null
+    },
+    {
+      "opening_id": "ehdd1d306yc8maq8h8tiy7tpa",
+      "room_id": "ediidma5zg15dufx3n0qyq21a",
+      "kind": "window",
+      "polygon": [
+        {
+          "x": -12.497,
+          "y": 1.143,
+          "z": 2.502
+        },
+        {
+          "x": -11.697,
+          "y": 1.143,
+          "z": 2.503
+        },
+        {
+          "x": -11.697,
+          "y": 2.068,
+          "z": 2.503
+        },
+        {
+          "x": -12.497,
+          "y": 2.068,
+          "z": 2.502
+        }
+      ],
+      "facade_azimuth_deg": 173.45,
+      "glazing": "double",
+      "stc": null,
+      "other_room_id": null
+    },
+    {
+      "opening_id": "f70run2x3rcsnqmamg5k0d0cb",
+      "room_id": "wbpb7dkfuwnikd1kq2a9hz70a",
+      "kind": "window",
+      "polygon": [
+        {
+          "x": -15.246,
+          "y": 1.076,
+          "z": 2.502
+        },
+        {
+          "x": -14.348,
+          "y": 1.076,
+          "z": 2.502
+        },
+        {
+          "x": -14.348,
+          "y": 2.039,
+          "z": 2.502
+        },
+        {
+          "x": -15.246,
+          "y": 2.039,
+          "z": 2.502
+        }
+      ],
+      "facade_azimuth_deg": 173.45,
+      "glazing": "double",
+      "stc": null,
+      "other_room_id": null
+    },
+    {
+      "opening_id": "fcrdu50r13r8ds27wxsc7cnpc",
+      "room_id": "n81qfe51azs8iexnbqwspye6c",
+      "kind": "door",
+      "polygon": [
+        {
+          "x": -3.237,
+          "y": -0.016,
+          "z": -1.107
+        },
+        {
+          "x": -3.822,
+          "y": -0.016,
+          "z": -1.107
+        },
+        {
+          "x": -3.822,
+          "y": 2.079,
+          "z": -1.107
+        },
+        {
+          "x": -3.237,
+          "y": 2.079,
+          "z": -1.107
+        }
+      ],
+      "facade_azimuth_deg": 173.45,
+      "glazing": "none",
+      "stc": null,
+      "other_room_id": "xy2x8mpaaqknp7q2c3nnbw1ma"
+    },
+    {
+      "opening_id": "g0re3ptkimfqp2fgm8zt2yhid",
+      "room_id": "peina19mpqedsku6a3huu38md",
+      "kind": "window",
+      "polygon": [
+        {
+          "x": 1.453,
+          "y": 3.422,
+          "z": -8.19
+        },
+        {
+          "x": 1.452,
+          "y": 3.422,
+          "z": -7.486
+        },
+        {
+          "x": 1.452,
+          "y": 4.752,
+          "z": -7.486
+        },
+        {
+          "x": 1.453,
+          "y": 4.752,
+          "z": -8.19
+        }
+      ],
+      "facade_azimuth_deg": 83.45,
+      "glazing": "double",
+      "stc": null,
+      "other_room_id": null
+    },
+    {
+      "opening_id": "gca8iwq0s91tznn03tb0eu9sa",
+      "room_id": "cdz3fkt38kae7tapstpt0eaeb",
+      "kind": "door",
+      "polygon": [
+        {
+          "x": -3.044,
+          "y": -0.034,
+          "z": -0.979
+        },
+        {
+          "x": -3.044,
+          "y": -0.034,
+          "z": 0.056
+        },
+        {
+          "x": -3.044,
+          "y": 2.398,
+          "z": 0.056
+        },
+        {
+          "x": -3.044,
+          "y": 2.398,
+          "z": -0.979
+        }
+      ],
+      "facade_azimuth_deg": 263.45,
+      "glazing": "none",
+      "stc": null,
+      "other_room_id": "xy2x8mpaaqknp7q2c3nnbw1ma"
+    },
+    {
+      "opening_id": "hh1hid6r1bbup16kkb9qde12a",
+      "room_id": "ediidma5zg15dufx3n0qyq21a",
+      "kind": "door",
+      "polygon": [
+        {
+          "x": -11.411,
+          "y": -0.012,
+          "z": 0.195
+        },
+        {
+          "x": -12.688,
+          "y": -0.012,
+          "z": 0.195
+        },
+        {
+          "x": -12.688,
+          "y": 1.861,
+          "z": 0.195
+        },
+        {
+          "x": -11.411,
+          "y": 1.861,
+          "z": 0.195
+        }
+      ],
+      "facade_azimuth_deg": 353.45,
+      "glazing": "none",
+      "stc": null,
+      "other_room_id": "xy2x8mpaaqknp7q2c3nnbw1ma"
+    },
+    {
+      "opening_id": "ma701g812wh3h4pa9hh8fu82d",
+      "room_id": "xy2x8mpaaqknp7q2c3nnbw1ma",
+      "kind": "window",
+      "polygon": [
+        {
+          "x": -6.614,
+          "y": 1.235,
+          "z": 0.872
+        },
+        {
+          "x": -9.038,
+          "y": 1.235,
+          "z": 0.872
+        },
+        {
+          "x": -9.038,
+          "y": 2.376,
+          "z": 0.872
+        },
+        {
+          "x": -6.614,
+          "y": 2.376,
+          "z": 0.872
+        }
+      ],
+      "facade_azimuth_deg": 173.45,
+      "glazing": "double",
+      "stc": null,
+      "other_room_id": null
+    },
+    {
+      "opening_id": "mie6ezyc7pfuzhia4435ahska",
+      "room_id": "g1gkrkdygg4zs5xge8bxfuc1d",
+      "kind": "door",
+      "polygon": [
+        {
+          "x": -1.636,
+          "y": 2.709,
+          "z": -7.836
+        },
+        {
+          "x": -1.055,
+          "y": 2.709,
+          "z": -7.836
+        },
+        {
+          "x": -1.055,
+          "y": 4.811,
+          "z": -7.836
+        },
+        {
+          "x": -1.636,
+          "y": 4.811,
+          "z": -7.836
+        }
+      ],
+      "facade_azimuth_deg": 353.45,
+      "glazing": "none",
+      "stc": null,
+      "other_room_id": "peina19mpqedsku6a3huu38md"
+    },
+    {
+      "opening_id": "mky1z5shmhbbsgn7264xedkrc",
+      "room_id": "4mpd3yxnm0wrnpak1ibnr29wc",
+      "kind": "window",
+      "polygon": [
+        {
+          "x": -3.637,
+          "y": 3.18,
+          "z": -17.556
+        },
+        {
+          "x": -4.544,
+          "y": 3.18,
+          "z": -17.556
+        },
+        {
+          "x": -4.544,
+          "y": 4.901,
+          "z": -17.556
+        },
+        {
+          "x": -3.637,
+          "y": 4.901,
+          "z": -17.556
+        }
+      ],
+      "facade_azimuth_deg": 353.45,
+      "glazing": "double",
+      "stc": null,
+      "other_room_id": null
+    },
+    {
+      "opening_id": "nef6ty1092fkirp0z1584kq4d",
+      "room_id": "m8npxsuk79xy21dd09x9wtped",
+      "kind": "door",
+      "polygon": [
+        {
+          "x": -25.45,
+          "y": -0.088,
+          "z": -7.581
+        },
+        {
+          "x": -24.63,
+          "y": -0.088,
+          "z": -7.581
+        },
+        {
+          "x": -24.63,
+          "y": 2.083,
+          "z": -7.581
+        },
+        {
+          "x": -25.45,
+          "y": 2.083,
+          "z": -7.581
+        }
+      ],
+      "facade_azimuth_deg": 353.45,
+      "glazing": "none",
+      "stc": null,
+      "other_room_id": null
+    },
+    {
+      "opening_id": "picauxzqz5h3wpad3ztq8dumd",
+      "room_id": "3ygfq6yfyyw3hi9x7u5rm2iqa",
+      "kind": "window",
+      "polygon": [
+        {
+          "x": -2.16,
+          "y": 3.183,
+          "z": 0.873
+        },
+        {
+          "x": 0.209,
+          "y": 3.183,
+          "z": 0.874
+        },
+        {
+          "x": 0.209,
+          "y": 4.751,
+          "z": 0.874
+        },
+        {
+          "x": -2.16,
+          "y": 4.751,
+          "z": 0.873
+        }
+      ],
+      "facade_azimuth_deg": 173.45,
+      "glazing": "double",
+      "stc": null,
+      "other_room_id": null
+    },
+    {
+      "opening_id": "qk5r0k75pzhxz5pfchh389yda",
+      "room_id": "3ygfq6yfyyw3hi9x7u5rm2iqa",
+      "kind": "door",
+      "polygon": [
+        {
+          "x": -3.459,
+          "y": 2.74,
+          "z": -8.72
+        },
+        {
+          "x": -2.599,
+          "y": 2.74,
+          "z": -8.72
+        },
+        {
+          "x": -2.599,
+          "y": 4.838,
+          "z": -8.72
+        },
+        {
+          "x": -3.459,
+          "y": 4.838,
+          "z": -8.72
+        }
+      ],
+      "facade_azimuth_deg": 353.45,
+      "glazing": "none",
+      "stc": null,
+      "other_room_id": "b2kez6wsw32fm2x3ui593u3hc"
+    },
+    {
+      "opening_id": "qm3aip33nt8b04ta2c5syt84c",
+      "room_id": "2qdmc5i9byxi79ry1pxdkqzea",
+      "kind": "window",
+      "polygon": [
+        {
+          "x": 1.135,
+          "y": 0.889,
+          "z": -10.5
+        },
+        {
+          "x": 1.136,
+          "y": 0.889,
+          "z": -11.989
+        },
+        {
+          "x": 1.136,
+          "y": 2.002,
+          "z": -11.989
+        },
+        {
+          "x": 1.135,
+          "y": 2.002,
+          "z": -10.5
+        }
+      ],
+      "facade_azimuth_deg": 83.45,
+      "glazing": "double",
+      "stc": null,
+      "other_room_id": null
+    },
+    {
+      "opening_id": "rggu1tb6mapme6mb3z9ku13ga",
+      "room_id": "b2kez6wsw32fm2x3ui593u3hc",
+      "kind": "door",
+      "polygon": [
+        {
+          "x": -6.288,
+          "y": 2.79,
+          "z": -14.043
+        },
+        {
+          "x": -6.918,
+          "y": 2.79,
+          "z": -14.043
+        },
+        {
+          "x": -6.918,
+          "y": 4.809,
+          "z": -14.043
+        },
+        {
+          "x": -6.288,
+          "y": 4.809,
+          "z": -14.043
+        }
+      ],
+      "facade_azimuth_deg": 353.45,
+      "glazing": "none",
+      "stc": null,
+      "other_room_id": "pcez6b4tqeep953kmm04hme9c"
+    },
+    {
+      "opening_id": "rwkrh5zg5u9h98p2sr44ndgmb",
+      "room_id": "b2kez6wsw32fm2x3ui593u3hc",
+      "kind": "door",
+      "polygon": [
+        {
+          "x": -7.293,
+          "y": 2.784,
+          "z": -12.895
+        },
+        {
+          "x": -6.454,
+          "y": 2.784,
+          "z": -12.895
+        },
+        {
+          "x": -6.454,
+          "y": 4.888,
+          "z": -12.895
+        },
+        {
+          "x": -7.293,
+          "y": 4.888,
+          "z": -12.895
+        }
+      ],
+      "facade_azimuth_deg": 173.45,
+      "glazing": "none",
+      "stc": null,
+      "other_room_id": "n2yqr30509t7i8whfdf2htwic"
+    },
+    {
+      "opening_id": "rxmrgit212eht4473pcuaq9ya",
+      "room_id": "peina19mpqedsku6a3huu38md",
+      "kind": "door",
+      "polygon": [
+        {
+          "x": -0.489,
+          "y": 2.777,
+          "z": -12.893
+        },
+        {
+          "x": 0.048,
+          "y": 2.777,
+          "z": -12.893
+        },
+        {
+          "x": 0.048,
+          "y": 4.932,
+          "z": -12.893
+        },
+        {
+          "x": -0.489,
+          "y": 4.932,
+          "z": -12.893
+        }
+      ],
+      "facade_azimuth_deg": 353.45,
+      "glazing": "none",
+      "stc": null,
+      "other_room_id": "tyz3uyd99x00wa88mxhmugrxa"
+    },
+    {
+      "opening_id": "s1pazfh2rrz71b284yfhs64mc",
+      "room_id": "cdz3fkt38kae7tapstpt0eaeb",
+      "kind": "window",
+      "polygon": [
+        {
+          "x": 0.058,
+          "y": 0.453,
+          "z": 0.766
+        },
+        {
+          "x": -0.639,
+          "y": 0.453,
+          "z": 0.766
+        },
+        {
+          "x": -0.639,
+          "y": 2.015,
+          "z": 0.766
+        },
+        {
+          "x": 0.058,
+          "y": 2.015,
+          "z": 0.766
+        }
+      ],
+      "facade_azimuth_deg": 173.45,
+      "glazing": "double",
+      "stc": null,
+      "other_room_id": null
+    },
+    {
+      "opening_id": "sp0fuaf9i7f0uys91h9nkxkdc",
+      "room_id": "cdz3fkt38kae7tapstpt0eaeb",
+      "kind": "door",
+      "polygon": [
+        {
+          "x": -1.269,
+          "y": -0.123,
+          "z": -8.605
+        },
+        {
+          "x": -0.493,
+          "y": -0.123,
+          "z": -8.604
+        },
+        {
+          "x": -0.493,
+          "y": 2.321,
+          "z": -8.604
+        },
+        {
+          "x": -1.269,
+          "y": 2.321,
+          "z": -8.605
+        }
+      ],
+      "facade_azimuth_deg": 353.45,
+      "glazing": "none",
+      "stc": null,
+      "other_room_id": null
+    },
+    {
+      "opening_id": "tgy5qz48u2fmpmc8qsck871ic",
+      "room_id": "h26t7ky77ew74yb0pg8qqf5rd",
+      "kind": "door",
+      "polygon": [
+        {
+          "x": -5.799,
+          "y": 0.001,
+          "z": -15.387
+        },
+        {
+          "x": -5.799,
+          "y": 0.001,
+          "z": -14.195
+        },
+        {
+          "x": -5.799,
+          "y": 2.074,
+          "z": -14.195
+        },
+        {
+          "x": -5.799,
+          "y": 2.074,
+          "z": -15.387
+        }
+      ],
+      "facade_azimuth_deg": 263.45,
+      "glazing": "none",
+      "stc": null,
+      "other_room_id": "tt6gm2a0463x9wmnx7rn6gugc"
+    },
+    {
+      "opening_id": "u65khnku36ekzn2amk8yyt92b",
+      "room_id": "3ygfq6yfyyw3hi9x7u5rm2iqa",
+      "kind": "door",
+      "polygon": [
+        {
+          "x": -14.237,
+          "y": 2.751,
+          "z": -3.639
+        },
+        {
+          "x": -14.237,
+          "y": 2.751,
+          "z": -4.201
+        },
+        {
+          "x": -14.237,
+          "y": 4.771,
+          "z": -4.201
+        },
+        {
+          "x": -14.237,
+          "y": 4.771,
+          "z": -3.639
+        }
+      ],
+      "facade_azimuth_deg": 263.45,
+      "glazing": "none",
+      "stc": null,
+      "other_room_id": null
+    },
+    {
+      "opening_id": "w5sk29zwr1a3tzqwhqc41hdsc",
+      "room_id": "peina19mpqedsku6a3huu38md",
+      "kind": "window",
+      "polygon": [
+        {
+          "x": 1.11,
+          "y": 3.666,
+          "z": -10.629
+        },
+        {
+          "x": 1.11,
+          "y": 3.666,
+          "z": -11.992
+        },
+        {
+          "x": 1.11,
+          "y": 4.853,
+          "z": -11.992
+        },
+        {
+          "x": 1.11,
+          "y": 4.853,
+          "z": -10.629
+        }
+      ],
+      "facade_azimuth_deg": 83.45,
+      "glazing": "double",
+      "stc": null,
+      "other_room_id": null
+    },
+    {
+      "opening_id": "wsacsf5w68qfwduyymeh1e9ab",
+      "room_id": "cdz3fkt38kae7tapstpt0eaeb",
+      "kind": "door",
+      "polygon": [
+        {
+          "x": -3.242,
+          "y": 0.006,
+          "z": -12.894
+        },
+        {
+          "x": -2.519,
+          "y": 0.006,
+          "z": -12.894
+        },
+        {
+          "x": -2.519,
+          "y": 2.133,
+          "z": -12.894
+        },
+        {
+          "x": -3.242,
+          "y": 2.133,
+          "z": -12.894
+        }
+      ],
+      "facade_azimuth_deg": 353.46,
+      "glazing": "none",
+      "stc": null,
+      "other_room_id": "h26t7ky77ew74yb0pg8qqf5rd"
+    },
+    {
+      "opening_id": "x039pk286m5yduy2kf8mh1y3c",
+      "room_id": "cdz3fkt38kae7tapstpt0eaeb",
+      "kind": "window",
+      "polygon": [
+        {
+          "x": 1.054,
+          "y": 0.49,
+          "z": -2.004
+        },
+        {
+          "x": 1.054,
+          "y": 0.49,
+          "z": -1.322
+        },
+        {
+          "x": 1.054,
+          "y": 2.038,
+          "z": -1.322
+        },
+        {
+          "x": 1.054,
+          "y": 2.038,
+          "z": -2.004
+        }
+      ],
+      "facade_azimuth_deg": 83.45,
+      "glazing": "double",
+      "stc": null,
+      "other_room_id": null
+    },
+    {
+      "opening_id": "x4ds1wx856mrifzpnae0fpc9d",
+      "room_id": "wbpb7dkfuwnikd1kq2a9hz70a",
+      "kind": "door",
+      "polygon": [
+        {
+          "x": -15.461,
+          "y": -0.018,
+          "z": 0.032
+        },
+        {
+          "x": -14.593,
+          "y": -0.018,
+          "z": 0.033
+        },
+        {
+          "x": -14.593,
+          "y": 2.075,
+          "z": 0.033
+        },
+        {
+          "x": -15.461,
+          "y": 2.075,
+          "z": 0.032
+        }
+      ],
+      "facade_azimuth_deg": 353.45,
+      "glazing": "none",
+      "stc": null,
+      "other_room_id": "xy2x8mpaaqknp7q2c3nnbw1ma"
+    },
+    {
+      "opening_id": "x4mwheuiysxsch7p4kx251rab",
+      "room_id": "q5n62dpd3mrc1exy2hr84132b",
+      "kind": "window",
+      "polygon": [
+        {
+          "x": -10.705,
+          "y": 3.926,
+          "z": -16.026
+        },
+        {
+          "x": -10.706,
+          "y": 3.926,
+          "z": -14.508
+        },
+        {
+          "x": -10.706,
+          "y": 4.826,
+          "z": -14.508
+        },
+        {
+          "x": -10.705,
+          "y": 4.826,
+          "z": -16.026
+        }
+      ],
+      "facade_azimuth_deg": 263.45,
+      "glazing": "double",
+      "stc": null,
+      "other_room_id": null
+    },
+    {
+      "opening_id": "x6ydnz3x2wn6wdbc0ua8y8ewa",
+      "room_id": "xy2x8mpaaqknp7q2c3nnbw1ma",
+      "kind": "door",
+      "polygon": [
+        {
+          "x": -11.431,
+          "y": -0.086,
+          "z": -3.538
+        },
+        {
+          "x": -7.929,
+          "y": -0.086,
+          "z": -3.538
+        },
+        {
+          "x": -7.929,
+          "y": 2.448,
+          "z": -3.538
+        },
+        {
+          "x": -11.431,
+          "y": 2.448,
+          "z": -3.538
+        }
+      ],
+      "facade_azimuth_deg": 353.45,
+      "glazing": "none",
+      "stc": null,
+      "other_room_id": null
+    },
+    {
+      "opening_id": "yb9kss2580pp2f1wkp11wkrhb",
+      "room_id": "pcez6b4tqeep953kmm04hme9c",
+      "kind": "door",
+      "polygon": [
+        {
+          "x": -7.084,
+          "y": 2.795,
+          "z": -15.045
+        },
+        {
+          "x": -7.084,
+          "y": 2.795,
+          "z": -15.617
+        },
+        {
+          "x": -7.084,
+          "y": 4.89,
+          "z": -15.617
+        },
+        {
+          "x": -7.084,
+          "y": 4.89,
+          "z": -15.045
+        }
+      ],
+      "facade_azimuth_deg": 263.45,
+      "glazing": "none",
+      "stc": null,
+      "other_room_id": "q5n62dpd3mrc1exy2hr84132b"
+    },
+    {
+      "opening_id": "yqadfepgs1udbwibbs51yytfc",
+      "room_id": "cdz3fkt38kae7tapstpt0eaeb",
+      "kind": "window",
+      "polygon": [
+        {
+          "x": 1.054,
+          "y": 0.418,
+          "z": -2.943
+        },
+        {
+          "x": 1.054,
+          "y": 0.418,
+          "z": -2.455
+        },
+        {
+          "x": 1.054,
+          "y": 2.108,
+          "z": -2.455
+        },
+        {
+          "x": 1.054,
+          "y": 2.108,
+          "z": -2.943
+        }
+      ],
+      "facade_azimuth_deg": 83.45,
+      "glazing": "double",
+      "stc": null,
+      "other_room_id": null
+    },
+    {
+      "opening_id": "zeq3r6z76b32sy6hd0rez4y6b",
+      "room_id": "b2kez6wsw32fm2x3ui593u3hc",
+      "kind": "door",
+      "polygon": [
+        {
+          "x": -7.414,
+          "y": 2.776,
+          "z": -13.081
+        },
+        {
+          "x": -7.414,
+          "y": 2.776,
+          "z": -13.882
+        },
+        {
+          "x": -7.414,
+          "y": 4.857,
+          "z": -13.882
+        },
+        {
+          "x": -7.414,
+          "y": 4.857,
+          "z": -13.081
+        }
+      ],
+      "facade_azimuth_deg": 263.45,
+      "glazing": "none",
+      "stc": null,
+      "other_room_id": "q5n62dpd3mrc1exy2hr84132b"
+    },
+    {
+      "opening_id": "zfpp2p0x944q8ym758q42r9ma",
+      "room_id": "b2kez6wsw32fm2x3ui593u3hc",
+      "kind": "door",
+      "polygon": [
+        {
+          "x": -2.458,
+          "y": 2.778,
+          "z": -11.949
+        },
+        {
+          "x": -2.458,
+          "y": 2.778,
+          "z": -12.705
+        },
+        {
+          "x": -2.458,
+          "y": 5.151,
+          "z": -12.705
+        },
+        {
+          "x": -2.458,
+          "y": 5.151,
+          "z": -11.949
+        }
+      ],
+      "facade_azimuth_deg": 83.45,
+      "glazing": "none",
+      "stc": null,
+      "other_room_id": "peina19mpqedsku6a3huu38md"
+    },
+    {
+      "opening_id": "zrh61zqy1g2xar5zit89ups8d",
+      "room_id": "3ygfq6yfyyw3hi9x7u5rm2iqa",
+      "kind": "door",
+      "polygon": [
+        {
+          "x": -4.482,
+          "y": 2.739,
+          "z": -8.72
+        },
+        {
+          "x": -5.169,
+          "y": 2.739,
+          "z": -8.721
+        },
+        {
+          "x": -5.169,
+          "y": 4.846,
+          "z": -8.721
+        },
+        {
+          "x": -4.482,
+          "y": 4.846,
+          "z": -8.72
+        }
+      ],
+      "facade_azimuth_deg": 353.45,
+      "glazing": "none",
+      "stc": null,
+      "other_room_id": "f97s719x9ctqkce19r6s01b5a"
+    }
+  ],
+  "sweeps": [
+    {
+      "sweep_id": "0t5k740rf7yw1gak07xk6ri2d",
+      "floor_id": "tsmq1wak12rhgn0mawksxcwcd",
+      "room_id": "h26t7ky77ew74yb0pg8qqf5rd",
+      "position": {
+        "x": -2.302,
+        "y": 1.446,
+        "z": -14.624
+      },
+      "label": "63"
+    },
+    {
+      "sweep_id": "0xawfme0cuyrae3zca0fm0e2a",
+      "floor_id": "pd0i1c4yq9w0y2zsb07ed23sb",
+      "room_id": "3ygfq6yfyyw3hi9x7u5rm2iqa",
+      "position": {
+        "x": -5.615,
+        "y": 4.156,
+        "z": -4.754
+      },
+      "label": "28"
+    },
+    {
+      "sweep_id": "160p1wfe7xpcekpxdph2bc11a",
+      "floor_id": "pd0i1c4yq9w0y2zsb07ed23sb",
+      "room_id": "4mpd3yxnm0wrnpak1ibnr29wc",
+      "position": {
+        "x": -1.448,
+        "y": 4.238,
+        "z": -17.062
+      },
+      "label": "16"
+    },
+    {
+      "sweep_id": "17niy0zg7n0xqt7nng9mkax4b",
+      "floor_id": "tsmq1wak12rhgn0mawksxcwcd",
+      "room_id": "a5f9age4zzxewres6iqux2emc",
+      "position": {
+        "x": -23.429,
+        "y": 1.341,
+        "z": -5.452
+      },
+      "label": "89"
+    },
+    {
+      "sweep_id": "1ge9wa0gxx5ye5f5nwn74h2bc",
+      "floor_id": "tsmq1wak12rhgn0mawksxcwcd",
+      "room_id": null,
+      "position": {
+        "x": -19.187,
+        "y": 1.252,
+        "z": -17.522
+      },
+      "label": "93"
+    },
+    {
+      "sweep_id": "1gmb5084z3prctkdqbzgs8mgb",
+      "floor_id": "pd0i1c4yq9w0y2zsb07ed23sb",
+      "room_id": "pcez6b4tqeep953kmm04hme9c",
+      "position": {
+        "x": -6.531,
+        "y": 4.182,
+        "z": -15.366
+      },
+      "label": "25"
+    },
+    {
+      "sweep_id": "1ya4z9c2g95z0spsbhffxbb1b",
+      "floor_id": "pd0i1c4yq9w0y2zsb07ed23sb",
+      "room_id": "q5n62dpd3mrc1exy2hr84132b",
+      "position": {
+        "x": -7.97,
+        "y": 4.184,
+        "z": -15.333
+      },
+      "label": "24"
+    },
+    {
+      "sweep_id": "25uewx997egicmt9q91zeki4d",
+      "floor_id": "tsmq1wak12rhgn0mawksxcwcd",
+      "room_id": "3m54yff1z7crxaywd8if9rb0d",
+      "position": {
+        "x": -13.672,
+        "y": 1.443,
+        "z": -5.179
+      },
+      "label": "45"
+    },
+    {
+      "sweep_id": "266mkch9k7wumqz91qec0eguc",
+      "floor_id": "pd0i1c4yq9w0y2zsb07ed23sb",
+      "room_id": "tyz3uyd99x00wa88mxhmugrxa",
+      "position": {
+        "x": -0.154,
+        "y": 4.197,
+        "z": -13.807
+      },
+      "label": "14"
+    },
+    {
+      "sweep_id": "26tbxdz4z0rwt1307mru3w91d",
+      "floor_id": "tsmq1wak12rhgn0mawksxcwcd",
+      "room_id": null,
+      "position": {
+        "x": -21.831,
+        "y": 1.321,
+        "z": -8.679
+      },
+      "label": "86"
+    },
+    {
+      "sweep_id": "2srq9mwf2yizrnb4ukezrnafd",
+      "floor_id": "tsmq1wak12rhgn0mawksxcwcd",
+      "room_id": "xy2x8mpaaqknp7q2c3nnbw1ma",
+      "position": {
+        "x": -10.514,
+        "y": 1.37,
+        "z": -2.519
+      },
+      "label": "43"
+    },
+    {
+      "sweep_id": "34uzgrkq9in9k3s8g39kwb1xd",
+      "floor_id": "tsmq1wak12rhgn0mawksxcwcd",
+      "room_id": null,
+      "position": {
+        "x": -21.759,
+        "y": 1.337,
+        "z": -7.914
+      },
+      "label": "87"
+    },
+    {
+      "sweep_id": "3ehcfawaxrt37zw15psxgdwdd",
+      "floor_id": "tsmq1wak12rhgn0mawksxcwcd",
+      "room_id": null,
+      "position": {
+        "x": -14.47,
+        "y": 1.349,
+        "z": -13.598
+      },
+      "label": "68"
+    },
+    {
+      "sweep_id": "3xird73r9tgm9iq83swn2ztpc",
+      "floor_id": "pd0i1c4yq9w0y2zsb07ed23sb",
+      "room_id": "3ygfq6yfyyw3hi9x7u5rm2iqa",
+      "position": {
+        "x": -4.691,
+        "y": 4.173,
+        "z": -8.187
+      },
+      "label": "5"
+    },
+    {
+      "sweep_id": "4bix0in1he1dpinxrf9c34n1d",
+      "floor_id": "tsmq1wak12rhgn0mawksxcwcd",
+      "room_id": "a5f9age4zzxewres6iqux2emc",
+      "position": {
+        "x": -21.779,
+        "y": 1.371,
+        "z": -7.155
+      },
+      "label": "88"
+    },
+    {
+      "sweep_id": "52wm8g5eddtefbgtsx7cyaw8c",
+      "floor_id": "pd0i1c4yq9w0y2zsb07ed23sb",
+      "room_id": "f97s719x9ctqkce19r6s01b5a",
+      "position": {
+        "x": -4.916,
+        "y": 4.188,
+        "z": -9.265
+      },
+      "label": "6"
+    },
+    {
+      "sweep_id": "56c77ur6sfm22ex6qz2205y2b",
+      "floor_id": "tsmq1wak12rhgn0mawksxcwcd",
+      "room_id": "cdz3fkt38kae7tapstpt0eaeb",
+      "position": {
+        "x": -0.814,
+        "y": 1.395,
+        "z": -6.997
+      },
+      "label": "81"
+    },
+    {
+      "sweep_id": "59wkaaacnepgshgd1e1qi1r2c",
+      "floor_id": "pd0i1c4yq9w0y2zsb07ed23sb",
+      "room_id": "3ygfq6yfyyw3hi9x7u5rm2iqa",
+      "position": {
+        "x": -0.957,
+        "y": 4.166,
+        "z": -3.813
+      },
+      "label": "1"
+    },
+    {
+      "sweep_id": "5id1khbzxwurwgmrcmbupufid",
+      "floor_id": "pd0i1c4yq9w0y2zsb07ed23sb",
+      "room_id": "3ygfq6yfyyw3hi9x7u5rm2iqa",
+      "position": {
+        "x": -10.826,
+        "y": 4.18,
+        "z": -4.592
+      },
+      "label": "30"
+    },
+    {
+      "sweep_id": "5rwn5g39idxk0w5px4y9k1cgb",
+      "floor_id": "pd0i1c4yq9w0y2zsb07ed23sb",
+      "room_id": "n2yqr30509t7i8whfdf2htwic",
+      "position": {
+        "x": -9.511,
+        "y": 4.164,
+        "z": -9.743
+      },
+      "label": "22"
+    },
+    {
+      "sweep_id": "61mmtu0wsbg3p1h5hhygtcsda",
+      "floor_id": "pd0i1c4yq9w0y2zsb07ed23sb",
+      "room_id": "3ygfq6yfyyw3hi9x7u5rm2iqa",
+      "position": {
+        "x": -12.686,
+        "y": 2.507,
+        "z": -1.831
+      },
+      "label": "35"
+    },
+    {
+      "sweep_id": "6nxd6xcnwexsq0eburh6d8p3b",
+      "floor_id": "tsmq1wak12rhgn0mawksxcwcd",
+      "room_id": null,
+      "position": {
+        "x": 1.62,
+        "y": 1.342,
+        "z": -6.526
+      },
+      "label": "95"
+    },
+    {
+      "sweep_id": "6si0nkm90bsgzcci6kekzs7kb",
+      "floor_id": "pd0i1c4yq9w0y2zsb07ed23sb",
+      "room_id": "3ygfq6yfyyw3hi9x7u5rm2iqa",
+      "position": {
+        "x": -0.884,
+        "y": 4.174,
+        "z": -5.173
+      },
+      "label": "2"
+    },
+    {
+      "sweep_id": "71mufd0pez0pswrw3566me0pd",
+      "floor_id": "pd0i1c4yq9w0y2zsb07ed23sb",
+      "room_id": "3ygfq6yfyyw3hi9x7u5rm2iqa",
+      "position": {
+        "x": -13.827,
+        "y": 1.767,
+        "z": -1.641
+      },
+      "label": "36"
+    },
+    {
+      "sweep_id": "7pi5kqrqgd8inay1tgattn8nc",
+      "floor_id": "tsmq1wak12rhgn0mawksxcwcd",
+      "room_id": null,
+      "position": {
+        "x": -25.09,
+        "y": 1.183,
+        "z": -17.456
+      },
+      "label": "94"
+    },
+    {
+      "sweep_id": "7xikruphbxxbnmkr11puc3g6a",
+      "floor_id": "tsmq1wak12rhgn0mawksxcwcd",
+      "room_id": "cdz3fkt38kae7tapstpt0eaeb",
+      "position": {
+        "x": -3.994,
+        "y": 1.456,
+        "z": -11.154
+      },
+      "label": "84"
+    },
+    {
+      "sweep_id": "89d8t359i44am6gfup2cn60pc",
+      "floor_id": "pd0i1c4yq9w0y2zsb07ed23sb",
+      "room_id": "pcez6b4tqeep953kmm04hme9c",
+      "position": {
+        "x": -6.221,
+        "y": 4.193,
+        "z": -15.383
+      },
+      "label": "27"
+    },
+    {
+      "sweep_id": "8zypyfw6zc15x95p0325n63zb",
+      "floor_id": "tsmq1wak12rhgn0mawksxcwcd",
+      "room_id": "tt6gm2a0463x9wmnx7rn6gugc",
+      "position": {
+        "x": -6.919,
+        "y": 1.431,
+        "z": -13.401
+      },
+      "label": "58"
+    },
+    {
+      "sweep_id": "9mkgidcdkm7rsdx359z0cwhcb",
+      "floor_id": "tsmq1wak12rhgn0mawksxcwcd",
+      "room_id": "h26t7ky77ew74yb0pg8qqf5rd",
+      "position": {
+        "x": -2.353,
+        "y": 1.44,
+        "z": -14.771
+      },
+      "label": "65"
+    },
+    {
+      "sweep_id": "9sbgyudw9xewmzc1pngh4yp3d",
+      "floor_id": "tsmq1wak12rhgn0mawksxcwcd",
+      "room_id": "cdz3fkt38kae7tapstpt0eaeb",
+      "position": {
+        "x": -6.846,
+        "y": 1.385,
+        "z": -6.626
+      },
+      "label": "83"
+    },
+    {
+      "sweep_id": "a19bb81higx1n0zaebsn8cq5d",
+      "floor_id": "pd0i1c4yq9w0y2zsb07ed23sb",
+      "room_id": "3ygfq6yfyyw3hi9x7u5rm2iqa",
+      "position": {
+        "x": -12.689,
+        "y": 4.166,
+        "z": -4.594
+      },
+      "label": "31"
+    },
+    {
+      "sweep_id": "a357b80f3gn0926hpd4c3k4wa",
+      "floor_id": "tsmq1wak12rhgn0mawksxcwcd",
+      "room_id": null,
+      "position": {
+        "x": -14.575,
+        "y": 1.333,
+        "z": -11.077
+      },
+      "label": "70"
+    },
+    {
+      "sweep_id": "aweierxismr2h2dwb4itpa9ua",
+      "floor_id": "tsmq1wak12rhgn0mawksxcwcd",
+      "room_id": "cdz3fkt38kae7tapstpt0eaeb",
+      "position": {
+        "x": -12.028,
+        "y": 1.382,
+        "z": -12.192
+      },
+      "label": "73"
+    },
+    {
+      "sweep_id": "b76b0pys5cymc1ecu17296uzc",
+      "floor_id": "tsmq1wak12rhgn0mawksxcwcd",
+      "room_id": "h26t7ky77ew74yb0pg8qqf5rd",
+      "position": {
+        "x": -4.06,
+        "y": 1.421,
+        "z": -17.069
+      },
+      "label": "61"
+    },
+    {
+      "sweep_id": "be22bgknpxer7d9m55easaepd",
+      "floor_id": "pd0i1c4yq9w0y2zsb07ed23sb",
+      "room_id": "g1gkrkdygg4zs5xge8bxfuc1d",
+      "position": {
+        "x": -1.335,
+        "y": 4.179,
+        "z": -7.243
+      },
+      "label": "11"
+    },
+    {
+      "sweep_id": "c0cux2z5ux9sbge0smc80mnzd",
+      "floor_id": "tsmq1wak12rhgn0mawksxcwcd",
+      "room_id": "cdz3fkt38kae7tapstpt0eaeb",
+      "position": {
+        "x": -2.317,
+        "y": 1.393,
+        "z": -6.579
+      },
+      "label": "80"
+    },
+    {
+      "sweep_id": "ccxyr3ibzm3q71hqtcr0b7hwd",
+      "floor_id": "pd0i1c4yq9w0y2zsb07ed23sb",
+      "room_id": "peina19mpqedsku6a3huu38md",
+      "position": {
+        "x": 0.521,
+        "y": 4.19,
+        "z": -8.382
+      },
+      "label": "12"
+    },
+    {
+      "sweep_id": "d0brrdp5im1224qp7nd8a7yxd",
+      "floor_id": "pd0i1c4yq9w0y2zsb07ed23sb",
+      "room_id": "4mpd3yxnm0wrnpak1ibnr29wc",
+      "position": {
+        "x": -4.24,
+        "y": 4.224,
+        "z": -14.489
+      },
+      "label": "18"
+    },
+    {
+      "sweep_id": "d1k464gc1i3qnawet4717qtpd",
+      "floor_id": "tsmq1wak12rhgn0mawksxcwcd",
+      "room_id": "cdz3fkt38kae7tapstpt0eaeb",
+      "position": {
+        "x": -4.146,
+        "y": 1.411,
+        "z": -9.876
+      },
+      "label": "76"
+    },
+    {
+      "sweep_id": "d5k04zaqqfnudt047msw73qzb",
+      "floor_id": "pd0i1c4yq9w0y2zsb07ed23sb",
+      "room_id": "b2kez6wsw32fm2x3ui593u3hc",
+      "position": {
+        "x": -3.048,
+        "y": 4.184,
+        "z": -10.787
+      },
+      "label": "7"
+    },
+    {
+      "sweep_id": "dthh21w42c39162pkg5qtsg0c",
+      "floor_id": "tsmq1wak12rhgn0mawksxcwcd",
+      "room_id": "m8npxsuk79xy21dd09x9wtped",
+      "position": {
+        "x": -25.038,
+        "y": 1.315,
+        "z": -7.104
+      },
+      "label": "91"
+    },
+    {
+      "sweep_id": "dug2uk7yg7zhsqrn12kg7t9aa",
+      "floor_id": "tsmq1wak12rhgn0mawksxcwcd",
+      "room_id": "cdz3fkt38kae7tapstpt0eaeb",
+      "position": {
+        "x": -2.332,
+        "y": 1.38,
+        "z": -0.429
+      },
+      "label": "52"
+    },
+    {
+      "sweep_id": "dy3g2ss28rmdb5bz2hp4er9xa",
+      "floor_id": "tsmq1wak12rhgn0mawksxcwcd",
+      "room_id": "cdz3fkt38kae7tapstpt0eaeb",
+      "position": {
+        "x": -6.851,
+        "y": 1.399,
+        "z": -9.157
+      },
+      "label": "74"
+    },
+    {
+      "sweep_id": "dzxqgrybsee0r5tyri4t7mx5a",
+      "floor_id": "tsmq1wak12rhgn0mawksxcwcd",
+      "room_id": "cdz3fkt38kae7tapstpt0eaeb",
+      "position": {
+        "x": 0.449,
+        "y": 1.39,
+        "z": -3.736
+      },
+      "label": "54"
+    },
+    {
+      "sweep_id": "e4aru4p2ygwmpz6ah5ymhr2sa",
+      "floor_id": "tsmq1wak12rhgn0mawksxcwcd",
+      "room_id": "19ab05tns5h6y4qm42esqqpea",
+      "position": {
+        "x": -0.286,
+        "y": 1.427,
+        "z": -14.608
+      },
+      "label": "64"
+    },
+    {
+      "sweep_id": "e66k3d1a807mfydy5zqhxt67b",
+      "floor_id": "tsmq1wak12rhgn0mawksxcwcd",
+      "room_id": "h26t7ky77ew74yb0pg8qqf5rd",
+      "position": {
+        "x": -3.778,
+        "y": 1.421,
+        "z": -13.545
+      },
+      "label": "62"
+    },
+    {
+      "sweep_id": "e6uqb75gp167ui9e14iww6fwa",
+      "floor_id": "tsmq1wak12rhgn0mawksxcwcd",
+      "room_id": "cdz3fkt38kae7tapstpt0eaeb",
+      "position": {
+        "x": -6.358,
+        "y": 1.38,
+        "z": -5.09
+      },
+      "label": "49"
+    },
+    {
+      "sweep_id": "ezghybbamfrugy9fs3m6q85xd",
+      "floor_id": "tsmq1wak12rhgn0mawksxcwcd",
+      "room_id": "tt6gm2a0463x9wmnx7rn6gugc",
+      "position": {
+        "x": -6.912,
+        "y": 1.411,
+        "z": -14.796
+      },
+      "label": "59"
+    },
+    {
+      "sweep_id": "g6em1x5pwnqkpszw4eyay2y6b",
+      "floor_id": "tsmq1wak12rhgn0mawksxcwcd",
+      "room_id": "2qdmc5i9byxi79ry1pxdkqzea",
+      "position": {
+        "x": 0.674,
+        "y": 1.425,
+        "z": -12.411
+      },
+      "label": "79"
+    },
+    {
+      "sweep_id": "g8a3xmd4i05c9pbdm4e1shfaa",
+      "floor_id": "tsmq1wak12rhgn0mawksxcwcd",
+      "room_id": "xy2x8mpaaqknp7q2c3nnbw1ma",
+      "position": {
+        "x": -6.292,
+        "y": 1.382,
+        "z": -2.335
+      },
+      "label": "48"
+    },
+    {
+      "sweep_id": "h22ebr3q3ue1mmhrh0hn5kc8c",
+      "floor_id": "pd0i1c4yq9w0y2zsb07ed23sb",
+      "room_id": "peina19mpqedsku6a3huu38md",
+      "position": {
+        "x": -0.181,
+        "y": 4.18,
+        "z": -12.343
+      },
+      "label": "13"
+    },
+    {
+      "sweep_id": "h9bhhah3akctqdspzh7pnz0ic",
+      "floor_id": "tsmq1wak12rhgn0mawksxcwcd",
+      "room_id": "cdz3fkt38kae7tapstpt0eaeb",
+      "position": {
+        "x": -6.921,
+        "y": 1.393,
+        "z": -9.688
+      },
+      "label": "56"
+    },
+    {
+      "sweep_id": "hd5buh12ef1xbwwmwkgkn5z1a",
+      "floor_id": "pd0i1c4yq9w0y2zsb07ed23sb",
+      "room_id": "3ygfq6yfyyw3hi9x7u5rm2iqa",
+      "position": {
+        "x": 0.105,
+        "y": 4.126,
+        "z": 0.023
+      },
+      "label": "0"
+    },
+    {
+      "sweep_id": "hyax0g27dk9u8ppwf94iibh0d",
+      "floor_id": "pd0i1c4yq9w0y2zsb07ed23sb",
+      "room_id": "q5n62dpd3mrc1exy2hr84132b",
+      "position": {
+        "x": -10.079,
+        "y": 4.183,
+        "z": -15.329
+      },
+      "label": "26"
+    },
+    {
+      "sweep_id": "i4qik1f3iacmw9ns7udupzd5d",
+      "floor_id": "pd0i1c4yq9w0y2zsb07ed23sb",
+      "room_id": "b2kez6wsw32fm2x3ui593u3hc",
+      "position": {
+        "x": -4.868,
+        "y": 3.011,
+        "z": -12.243
+      },
+      "label": "32"
+    },
+    {
+      "sweep_id": "iibm8aufb21h9mrxtzg2rnqdc",
+      "floor_id": "pd0i1c4yq9w0y2zsb07ed23sb",
+      "room_id": "q5n62dpd3mrc1exy2hr84132b",
+      "position": {
+        "x": -8.225,
+        "y": 4.192,
+        "z": -13.51
+      },
+      "label": "23"
+    },
+    {
+      "sweep_id": "iqx4435gt97iregf532sq7s8a",
+      "floor_id": "tsmq1wak12rhgn0mawksxcwcd",
+      "room_id": "cdz3fkt38kae7tapstpt0eaeb",
+      "position": {
+        "x": -5.52,
+        "y": 1.394,
+        "z": -9.169
+      },
+      "label": "75"
+    },
+    {
+      "sweep_id": "k7grkm3fn9rbr2iqhd5bbcm7a",
+      "floor_id": "tsmq1wak12rhgn0mawksxcwcd",
+      "room_id": "m8npxsuk79xy21dd09x9wtped",
+      "position": {
+        "x": -24.373,
+        "y": 1.315,
+        "z": -5.495
+      },
+      "label": "90"
+    },
+    {
+      "sweep_id": "k8mrsi3cbgx988kb41eeg484a",
+      "floor_id": "tsmq1wak12rhgn0mawksxcwcd",
+      "room_id": "h26t7ky77ew74yb0pg8qqf5rd",
+      "position": {
+        "x": -4.416,
+        "y": 1.424,
+        "z": -14.701
+      },
+      "label": "60"
+    },
+    {
+      "sweep_id": "k9autwydu54fpc2nnpk71ra6b",
+      "floor_id": "tsmq1wak12rhgn0mawksxcwcd",
+      "room_id": "wbpb7dkfuwnikd1kq2a9hz70a",
+      "position": {
+        "x": -15.012,
+        "y": 1.399,
+        "z": 1.181
+      },
+      "label": "39"
+    },
+    {
+      "sweep_id": "kc2bnyknhaqszz3ed0zggywmd",
+      "floor_id": "tsmq1wak12rhgn0mawksxcwcd",
+      "room_id": null,
+      "position": {
+        "x": -25.065,
+        "y": 1.276,
+        "z": -8.716
+      },
+      "label": "92"
+    },
+    {
+      "sweep_id": "kk1648pmtqcx4k8a0tee8t1gc",
+      "floor_id": "tsmq1wak12rhgn0mawksxcwcd",
+      "room_id": "xy2x8mpaaqknp7q2c3nnbw1ma",
+      "position": {
+        "x": -14.993,
+        "y": 1.381,
+        "z": -0.516
+      },
+      "label": "38"
+    },
+    {
+      "sweep_id": "knp6tx1fm1nuhy4i274u0us9d",
+      "floor_id": "tsmq1wak12rhgn0mawksxcwcd",
+      "room_id": "cdz3fkt38kae7tapstpt0eaeb",
+      "position": {
+        "x": -12.159,
+        "y": 1.414,
+        "z": -7.915
+      },
+      "label": "72"
+    },
+    {
+      "sweep_id": "krwn4eb1918ctyqs92pncm4fd",
+      "floor_id": "pd0i1c4yq9w0y2zsb07ed23sb",
+      "room_id": "peina19mpqedsku6a3huu38md",
+      "position": {
+        "x": -1.89,
+        "y": 4.195,
+        "z": -12.279
+      },
+      "label": "9"
+    },
+    {
+      "sweep_id": "mmz19bkb9q34usaddzb5hmadc",
+      "floor_id": "tsmq1wak12rhgn0mawksxcwcd",
+      "room_id": "xy2x8mpaaqknp7q2c3nnbw1ma",
+      "position": {
+        "x": -7.852,
+        "y": 1.365,
+        "z": -0.462
+      },
+      "label": "46"
+    },
+    {
+      "sweep_id": "mtmhnp7t2q8t8y4gdtzqbfddb",
+      "floor_id": "pd0i1c4yq9w0y2zsb07ed23sb",
+      "room_id": "3ygfq6yfyyw3hi9x7u5rm2iqa",
+      "position": {
+        "x": -8.029,
+        "y": 4.177,
+        "z": -4.588
+      },
+      "label": "29"
+    },
+    {
+      "sweep_id": "n1dtam15gbru9nazyp1yb49td",
+      "floor_id": "tsmq1wak12rhgn0mawksxcwcd",
+      "room_id": "xy2x8mpaaqknp7q2c3nnbw1ma",
+      "position": {
+        "x": -12.013,
+        "y": 1.414,
+        "z": -0.488
+      },
+      "label": "40"
+    },
+    {
+      "sweep_id": "n1xp2e64da8u7h7frsdarcw6c",
+      "floor_id": "pd0i1c4yq9w0y2zsb07ed23sb",
+      "room_id": "peina19mpqedsku6a3huu38md",
+      "position": {
+        "x": -1.33,
+        "y": 4.182,
+        "z": -8.396
+      },
+      "label": "10"
+    },
+    {
+      "sweep_id": "n74d1rftgy4ue1tz1dz90p49a",
+      "floor_id": "pd0i1c4yq9w0y2zsb07ed23sb",
+      "room_id": "b2kez6wsw32fm2x3ui593u3hc",
+      "position": {
+        "x": -6.802,
+        "y": 4.186,
+        "z": -13.501
+      },
+      "label": "20"
+    },
+    {
+      "sweep_id": "ntp6yctbfbgexhhecu856u2zd",
+      "floor_id": "tsmq1wak12rhgn0mawksxcwcd",
+      "room_id": "xy2x8mpaaqknp7q2c3nnbw1ma",
+      "position": {
+        "x": -15.044,
+        "y": 1.391,
+        "z": -1.648
+      },
+      "label": "37"
+    },
+    {
+      "sweep_id": "ntt95b7w37hdb7gwquenq77ga",
+      "floor_id": "pd0i1c4yq9w0y2zsb07ed23sb",
+      "room_id": "n2yqr30509t7i8whfdf2htwic",
+      "position": {
+        "x": -6.844,
+        "y": 4.165,
+        "z": -11.782
+      },
+      "label": "21"
+    },
+    {
+      "sweep_id": "p30hseae7z70as56u1euhmu7d",
+      "floor_id": "pd0i1c4yq9w0y2zsb07ed23sb",
+      "room_id": "3ygfq6yfyyw3hi9x7u5rm2iqa",
+      "position": {
+        "x": -3.004,
+        "y": 4.155,
+        "z": -8.173
+      },
+      "label": "4"
+    },
+    {
+      "sweep_id": "pa0c2iw3esae7c12ey2sp5gsd",
+      "floor_id": "pd0i1c4yq9w0y2zsb07ed23sb",
+      "room_id": "b2kez6wsw32fm2x3ui593u3hc",
+      "position": {
+        "x": -3.07,
+        "y": 4.189,
+        "z": -12.259
+      },
+      "label": "8"
+    },
+    {
+      "sweep_id": "pbw5q8hd1yrdzixqb3z1ah02d",
+      "floor_id": "tsmq1wak12rhgn0mawksxcwcd",
+      "room_id": "2qdmc5i9byxi79ry1pxdkqzea",
+      "position": {
+        "x": -1.314,
+        "y": 1.431,
+        "z": -10.1
+      },
+      "label": "78"
+    },
+    {
+      "sweep_id": "pisy9r4qe55h28ips2y3c29yb",
+      "floor_id": "tsmq1wak12rhgn0mawksxcwcd",
+      "room_id": "cdz3fkt38kae7tapstpt0eaeb",
+      "position": {
+        "x": -2.747,
+        "y": 1.407,
+        "z": -9.913
+      },
+      "label": "77"
+    },
+    {
+      "sweep_id": "qbbz4uici1qha0qn3i35hsdtc",
+      "floor_id": "tsmq1wak12rhgn0mawksxcwcd",
+      "room_id": "3m54yff1z7crxaywd8if9rb0d",
+      "position": {
+        "x": -16.598,
+        "y": 1.509,
+        "z": -4.062
+      },
+      "label": "55"
+    },
+    {
+      "sweep_id": "r0xr40z546zdbppp6gymeyqzc",
+      "floor_id": "pd0i1c4yq9w0y2zsb07ed23sb",
+      "room_id": "3ygfq6yfyyw3hi9x7u5rm2iqa",
+      "position": {
+        "x": -3.042,
+        "y": 4.168,
+        "z": -5.157
+      },
+      "label": "3"
+    },
+    {
+      "sweep_id": "rpqq8u8q4eu4z9y4gpy5i2qnb",
+      "floor_id": "tsmq1wak12rhgn0mawksxcwcd",
+      "room_id": "ediidma5zg15dufx3n0qyq21a",
+      "position": {
+        "x": -12.023,
+        "y": 1.405,
+        "z": 1.205
+      },
+      "label": "41"
+    },
+    {
+      "sweep_id": "rszqgzs41uefh50pkk7r6tfqa",
+      "floor_id": "tsmq1wak12rhgn0mawksxcwcd",
+      "room_id": "xy2x8mpaaqknp7q2c3nnbw1ma",
+      "position": {
+        "x": -3.396,
+        "y": 1.387,
+        "z": -0.446
+      },
+      "label": "50"
+    },
+    {
+      "sweep_id": "sx0nc8me3510kx5mwc35xi4tc",
+      "floor_id": "pd0i1c4yq9w0y2zsb07ed23sb",
+      "room_id": "b2kez6wsw32fm2x3ui593u3hc",
+      "position": {
+        "x": -3.985,
+        "y": 4.184,
+        "z": -13.542
+      },
+      "label": "19"
+    },
+    {
+      "sweep_id": "t84tw3x7dezpb045wz0nc53pb",
+      "floor_id": "tsmq1wak12rhgn0mawksxcwcd",
+      "room_id": "cdz3fkt38kae7tapstpt0eaeb",
+      "position": {
+        "x": -2.256,
+        "y": 1.394,
+        "z": -3.819
+      },
+      "label": "53"
+    },
+    {
+      "sweep_id": "t8bk4atzn2xw3dxksp8ssbefa",
+      "floor_id": "tsmq1wak12rhgn0mawksxcwcd",
+      "room_id": "tt6gm2a0463x9wmnx7rn6gugc",
+      "position": {
+        "x": -12.83,
+        "y": 1.401,
+        "z": -13.635
+      },
+      "label": "67"
+    },
+    {
+      "sweep_id": "ter0iuxd2bc2a9hinc63i83nb",
+      "floor_id": "pd0i1c4yq9w0y2zsb07ed23sb",
+      "room_id": "3ygfq6yfyyw3hi9x7u5rm2iqa",
+      "position": {
+        "x": -12.75,
+        "y": 3.407,
+        "z": -3.268
+      },
+      "label": "34"
+    },
+    {
+      "sweep_id": "tufzfy6rcn1ngh42tbaipsumc",
+      "floor_id": "tsmq1wak12rhgn0mawksxcwcd",
+      "room_id": null,
+      "position": {
+        "x": -14.448,
+        "y": 1.355,
+        "z": -17.263
+      },
+      "label": "69"
+    },
+    {
+      "sweep_id": "w4kd7aypcsbk9gwd0fwtw08fd",
+      "floor_id": "tsmq1wak12rhgn0mawksxcwcd",
+      "room_id": "xy2x8mpaaqknp7q2c3nnbw1ma",
+      "position": {
+        "x": -6.301,
+        "y": 1.367,
+        "z": -0.464
+      },
+      "label": "47"
+    },
+    {
+      "sweep_id": "w7feuasf94i2ebs49ihzaqcza",
+      "floor_id": "pd0i1c4yq9w0y2zsb07ed23sb",
+      "room_id": "bmpu8rc0bpgc1bruwia8kktzd",
+      "position": {
+        "x": -0.181,
+        "y": 4.273,
+        "z": -17.066
+      },
+      "label": "17"
+    },
+    {
+      "sweep_id": "waiznbft52umcd1iwb654zqrc",
+      "floor_id": "tsmq1wak12rhgn0mawksxcwcd",
+      "room_id": "cdz3fkt38kae7tapstpt0eaeb",
+      "position": {
+        "x": -10.697,
+        "y": 1.385,
+        "z": -5.135
+      },
+      "label": "44"
+    },
+    {
+      "sweep_id": "wpzhyz5tf0yd47qn5xp4ggusc",
+      "floor_id": "tsmq1wak12rhgn0mawksxcwcd",
+      "room_id": null,
+      "position": {
+        "x": -18.576,
+        "y": 1.313,
+        "z": -8.705
+      },
+      "label": "85"
+    },
+    {
+      "sweep_id": "wqyqrdgrqmpsw1hrtmsr5f26b",
+      "floor_id": "tsmq1wak12rhgn0mawksxcwcd",
+      "room_id": "tt6gm2a0463x9wmnx7rn6gugc",
+      "position": {
+        "x": -11.594,
+        "y": 1.386,
+        "z": -14.838
+      },
+      "label": "66"
+    },
+    {
+      "sweep_id": "xbu1t7n47s502wpeut54844rb",
+      "floor_id": "tsmq1wak12rhgn0mawksxcwcd",
+      "room_id": "n81qfe51azs8iexnbqwspye6c",
+      "position": {
+        "x": -3.715,
+        "y": 1.377,
+        "z": -1.999
+      },
+      "label": "51"
+    },
+    {
+      "sweep_id": "y29bhbzkz46wb19mnwh2e1swb",
+      "floor_id": "tsmq1wak12rhgn0mawksxcwcd",
+      "room_id": "xy2x8mpaaqknp7q2c3nnbw1ma",
+      "position": {
+        "x": -10.472,
+        "y": 1.38,
+        "z": -0.483
+      },
+      "label": "42"
+    },
+    {
+      "sweep_id": "yh4t1sc14ygf8xhtz529fxf1b",
+      "floor_id": "pd0i1c4yq9w0y2zsb07ed23sb",
+      "room_id": "4mpd3yxnm0wrnpak1ibnr29wc",
+      "position": {
+        "x": -1.354,
+        "y": 4.21,
+        "z": -14.607
+      },
+      "label": "15"
+    },
+    {
+      "sweep_id": "z4sqtgiynmcariic0xem2ayxb",
+      "floor_id": "tsmq1wak12rhgn0mawksxcwcd",
+      "room_id": null,
+      "position": {
+        "x": -14.435,
+        "y": 1.32,
+        "z": -7.911
+      },
+      "label": "71"
+    },
+    {
+      "sweep_id": "zae10qfy9wtygk5ayair69qsc",
+      "floor_id": "tsmq1wak12rhgn0mawksxcwcd",
+      "room_id": "cdz3fkt38kae7tapstpt0eaeb",
+      "position": {
+        "x": -6.907,
+        "y": 1.434,
+        "z": -12.003
+      },
+      "label": "57"
+    },
+    {
+      "sweep_id": "zcahczqdu5c181rf45fqzhi6b",
+      "floor_id": "tsmq1wak12rhgn0mawksxcwcd",
+      "room_id": null,
+      "position": {
+        "x": -0.013,
+        "y": 1.379,
+        "z": -7.16
+      },
+      "label": "82"
+    },
+    {
+      "sweep_id": "zp2t9tew9ueh30dhki9xq0ypc",
+      "floor_id": "pd0i1c4yq9w0y2zsb07ed23sb",
+      "room_id": "b2kez6wsw32fm2x3ui593u3hc",
+      "position": {
+        "x": -5.597,
+        "y": 2.427,
+        "z": -11.257
+      },
+      "label": "33"
+    }
+  ],
+  "assets": {
+    "interior_glb": "blobs/onXQLXhfyQv/interior.glb",
+    "context_glb": null,
+    "ortho": null,
+    "obliques": []
+  },
+  "quality": {
+    "alignment": "georef",
+    "openings": "detected",
+    "context": "none",
+    "traffic": "none"
   }
- ],
- "rooms": [
-  {
-   "room_id": "h26t7ky77ew74yb0pg8qqf5rd",
-   "floor_id": "tsmq1wak12rhgn0mawksxcwcd",
-   "label": "Bathroom 1",
-   "polygon": [
-    [
-     -2.458,
-     -12.894
-    ],
-    [
-     -1.36,
-     -12.893
-    ],
-    [
-     -1.36,
-     -14.164
-    ],
-    [
-     0.426,
-     -14.164
-    ],
-    [
-     0.426,
-     -14.571
-    ],
-    [
-     1.11,
-     -14.571
-    ],
-    [
-     1.11,
-     -15.197
-    ],
-    [
-     -1.399,
-     -15.197
-    ],
-    [
-     -1.398,
-     -16.712
-    ],
-    [
-     -1.398,
-     -17.555
-    ],
-    [
-     -5.799,
-     -17.556
-    ],
-    [
-     -5.799,
-     -17.135
-    ],
-    [
-     -5.8,
-     -12.895
-    ],
-    [
-     -4.874,
-     -12.894
-    ]
-   ],
-   "floor_y": -0.41,
-   "height_m": 2.44,
-   "floor_material": "tile"
-  },
-  {
-   "room_id": "m8npxsuk79xy21dd09x9wtped",
-   "floor_id": "tsmq1wak12rhgn0mawksxcwcd",
-   "label": "Bathroom 4",
-   "polygon": [
-    [
-     -25.623,
-     -4.225
-    ],
-    [
-     -23.792,
-     -4.224
-    ],
-    [
-     -23.791,
-     -7.581
-    ],
-    [
-     -25.623,
-     -7.581
-    ]
-   ],
-   "floor_y": -0.103,
-   "height_m": 2.44,
-   "floor_material": "tile"
-  },
-  {
-   "room_id": "2qdmc5i9byxi79ry1pxdkqzea",
-   "floor_id": "tsmq1wak12rhgn0mawksxcwcd",
-   "label": "Bedroom 4",
-   "polygon": [
-    [
-     1.017,
-     -9.541
-    ],
-    [
-     1.135,
-     -9.541
-    ],
-    [
-     1.136,
-     -12.893
-    ],
-    [
-     -1.36,
-     -12.893
-    ],
-    [
-     -2.458,
-     -12.894
-    ],
-    [
-     -2.458,
-     -10.919
-    ],
-    [
-     -2.458,
-     -10.501
-    ],
-    [
-     -3.617,
-     -10.502
-    ],
-    [
-     -3.617,
-     -9.573
-    ],
-    [
-     -2.458,
-     -9.573
-    ],
-    [
-     -0.868,
-     -9.572
-    ],
-    [
-     -0.868,
-     -8.972
-    ],
-    [
-     1.017,
-     -8.971
-    ]
-   ],
-   "floor_y": -0.423,
-   "height_m": 2.45,
-   "floor_material": "carpet"
-  },
-  {
-   "room_id": "a5f9age4zzxewres6iqux2emc",
-   "floor_id": "tsmq1wak12rhgn0mawksxcwcd",
-   "label": "Bedroom 6",
-   "polygon": [
-    [
-     -20.06,
-     -4.223
-    ],
-    [
-     -20.06,
-     -6.652
-    ],
-    [
-     -20.204,
-     -6.652
-    ],
-    [
-     -20.204,
-     -7.58
-    ],
-    [
-     -23.791,
-     -7.581
-    ],
-    [
-     -23.792,
-     -4.224
-    ]
-   ],
-   "floor_y": -0.146,
-   "height_m": 2.45,
-   "floor_material": "carpet"
-  },
-  {
-   "room_id": "19ab05tns5h6y4qm42esqqpea",
-   "floor_id": "tsmq1wak12rhgn0mawksxcwcd",
-   "label": "Hallway 2",
-   "polygon": [
-    [
-     -1.398,
-     -16.712
-    ],
-    [
-     -1.399,
-     -15.197
-    ],
-    [
-     1.11,
-     -15.197
-    ],
-    [
-     1.11,
-     -16.157
-    ],
-    [
-     0.467,
-     -16.157
-    ],
-    [
-     0.467,
-     -16.712
-    ]
-   ],
-   "floor_y": 0.008,
-   "height_m": 2.43,
-   "floor_material": "hardwood"
-  },
-  {
-   "room_id": "xy2x8mpaaqknp7q2c3nnbw1ma",
-   "floor_id": "tsmq1wak12rhgn0mawksxcwcd",
-   "label": "Kitchen 1",
-   "polygon": [
-    [
-     -3.044,
-     0.873
-    ],
-    [
-     -3.044,
-     -1.107
-    ],
-    [
-     -4.964,
-     -1.107
-    ],
-    [
-     -4.964,
-     -3.537
-    ],
-    [
-     -7.818,
-     -3.537
-    ],
-    [
-     -11.776,
-     -3.538
-    ],
-    [
-     -12.174,
-     -3.538
-    ],
-    [
-     -12.174,
-     -1.121
-    ],
-    [
-     -14.369,
-     -1.121
-    ],
-    [
-     -14.369,
-     -2.165
-    ],
-    [
-     -13.745,
-     -2.165
-    ],
-    [
-     -13.745,
-     -3.539
-    ],
-    [
-     -16.333,
-     -3.539
-    ],
-    [
-     -16.333,
-     0.032
-    ],
-    [
-     -13.699,
-     0.033
-    ],
-    [
-     -13.699,
-     0.195
-    ],
-    [
-     -10.412,
-     0.196
-    ],
-    [
-     -9.352,
-     0.196
-    ],
-    [
-     -9.352,
-     0.872
-    ]
-   ],
-   "floor_y": -0.333,
-   "height_m": 3.628,
-   "floor_material": "tile"
-  },
-  {
-   "room_id": "ediidma5zg15dufx3n0qyq21a",
-   "floor_id": "tsmq1wak12rhgn0mawksxcwcd",
-   "label": "Kitchen 2",
-   "polygon": [
-    [
-     -10.412,
-     0.196
-    ],
-    [
-     -13.699,
-     0.195
-    ],
-    [
-     -13.7,
-     2.502
-    ],
-    [
-     -10.412,
-     2.503
-    ]
-   ],
-   "floor_y": -0.017,
-   "height_m": 2.47,
-   "floor_material": "tile"
-  },
-  {
-   "room_id": "wbpb7dkfuwnikd1kq2a9hz70a",
-   "floor_id": "tsmq1wak12rhgn0mawksxcwcd",
-   "label": "Laundry 1",
-   "polygon": [
-    [
-     -16.334,
-     2.502
-    ],
-    [
-     -13.7,
-     2.502
-    ],
-    [
-     -13.699,
-     0.033
-    ],
-    [
-     -16.333,
-     0.032
-    ]
-   ],
-   "floor_y": -0.021,
-   "height_m": 2.45,
-   "floor_material": "tile"
-  },
-  {
-   "room_id": "n81qfe51azs8iexnbqwspye6c",
-   "floor_id": "tsmq1wak12rhgn0mawksxcwcd",
-   "label": "Laundry 2",
-   "polygon": [
-    [
-     -4.964,
-     -3.537
-    ],
-    [
-     -4.964,
-     -1.107
-    ],
-    [
-     -3.044,
-     -1.107
-    ],
-    [
-     -3.043,
-     -3.537
-    ]
-   ],
-   "floor_y": -0.012,
-   "height_m": 2.14,
-   "floor_material": "tile"
-  },
-  {
-   "room_id": "cdz3fkt38kae7tapstpt0eaeb",
-   "floor_id": "tsmq1wak12rhgn0mawksxcwcd",
-   "label": "Living Room 1",
-   "polygon": [
-    [
-     -3.617,
-     -9.573
-    ],
-    [
-     -3.617,
-     -10.502
-    ],
-    [
-     -2.932,
-     -10.501
-    ],
-    [
-     -2.458,
-     -10.919
-    ],
-    [
-     -2.458,
-     -12.894
-    ],
-    [
-     -4.309,
-     -12.894
-    ],
-    [
-     -4.31,
-     -11.603
-    ],
-    [
-     -4.874,
-     -11.604
-    ],
-    [
-     -4.874,
-     -10.502
-    ],
-    [
-     -5.532,
-     -10.502
-    ],
-    [
-     -5.531,
-     -10.912
-    ],
-    [
-     -6.178,
-     -10.912
-    ],
-    [
-     -6.178,
-     -12.358
-    ],
-    [
-     -4.874,
-     -12.358
-    ],
-    [
-     -4.874,
-     -12.894
-    ],
-    [
-     -5.8,
-     -12.895
-    ],
-    [
-     -7.591,
-     -12.895
-    ],
-    [
-     -13.209,
-     -12.896
-    ],
-    [
-     -13.21,
-     -6.685
-    ],
-    [
-     -11.775,
-     -6.685
-    ],
-    [
-     -11.776,
-     -3.538
-    ],
-    [
-     -9.015,
-     -5.356
-    ],
-    [
-     -7.818,
-     -3.537
-    ],
-    [
-     -4.964,
-     -3.537
-    ],
-    [
-     -3.043,
-     -3.537
-    ],
-    [
-     -3.044,
-     0.765
-    ],
-    [
-     1.054,
-     0.766
-    ],
-    [
-     1.055,
-     -4.343
-    ],
-    [
-     -0.432,
-     -4.343
-    ],
-    [
-     -0.431,
-     -8.604
-    ],
-    [
-     -2.458,
-     -8.605
-    ],
-    [
-     -2.458,
-     -9.573
-    ]
-   ],
-   "floor_y": -0.413,
-   "height_m": 2.43,
-   "floor_material": "hardwood"
-  },
-  {
-   "room_id": "tt6gm2a0463x9wmnx7rn6gugc",
-   "floor_id": "tsmq1wak12rhgn0mawksxcwcd",
-   "label": "Living Room 3",
-   "polygon": [
-    [
-     -6.05,
-     -17.556
-    ],
-    [
-     -13.208,
-     -17.557
-    ],
-    [
-     -13.209,
-     -12.896
-    ],
-    [
-     -7.591,
-     -12.895
-    ],
-    [
-     -5.8,
-     -12.895
-    ],
-    [
-     -5.799,
-     -17.135
-    ],
-    [
-     -6.05,
-     -17.136
-    ]
-   ],
-   "floor_y": -0.129,
-   "height_m": 2.44,
-   "floor_material": "hardwood"
-  },
-  {
-   "room_id": "3m54yff1z7crxaywd8if9rb0d",
-   "floor_id": "tsmq1wak12rhgn0mawksxcwcd",
-   "label": "Office",
-   "polygon": [
-    [
-     -11.776,
-     -3.538
-    ],
-    [
-     -11.775,
-     -6.685
-    ],
-    [
-     -13.21,
-     -6.685
-    ],
-    [
-     -16.952,
-     -6.686
-    ],
-    [
-     -16.952,
-     -3.539
-    ],
-    [
-     -13.745,
-     -3.539
-    ]
-   ],
-   "floor_y": -0.379,
-   "height_m": 2.44,
-   "floor_material": "hardwood"
-  },
-  {
-   "room_id": "pcez6b4tqeep953kmm04hme9c",
-   "floor_id": "pd0i1c4yq9w0y2zsb07ed23sb",
-   "label": "Bathroom 2",
-   "polygon": [
-    [
-     -4.799,
-     -14.043
-    ],
-    [
-     -4.799,
-     -17.556
-    ],
-    [
-     -7.083,
-     -17.556
-    ],
-    [
-     -7.084,
-     -14.043
-    ]
-   ],
-   "floor_y": 2.729,
-   "height_m": 2.4,
-   "floor_material": "tile"
-  },
-  {
-   "room_id": "tyz3uyd99x00wa88mxhmugrxa",
-   "floor_id": "pd0i1c4yq9w0y2zsb07ed23sb",
-   "label": "Bathroom 3",
-   "polygon": [
-    [
-     -1.117,
-     -15.795
-    ],
-    [
-     -1.118,
-     -14.042
-    ],
-    [
-     -1.36,
-     -14.042
-    ],
-    [
-     -1.36,
-     -12.893
-    ],
-    [
-     1.11,
-     -12.893
-    ],
-    [
-     1.111,
-     -15.795
-    ]
-   ],
-   "floor_y": 2.76,
-   "height_m": 2.46,
-   "floor_material": "tile"
-  },
-  {
-   "room_id": "f97s719x9ctqkce19r6s01b5a",
-   "floor_id": "pd0i1c4yq9w0y2zsb07ed23sb",
-   "label": "Bathroom 5",
-   "polygon": [
-    [
-     -3.616,
-     -10.912
-    ],
-    [
-     -4.874,
-     -10.912
-    ],
-    [
-     -4.875,
-     -9.995
-    ],
-    [
-     -5.337,
-     -9.995
-    ],
-    [
-     -5.337,
-     -8.721
-    ],
-    [
-     -3.617,
-     -8.72
-    ]
-   ],
-   "floor_y": 2.735,
-   "height_m": 2.42,
-   "floor_material": "tile"
-  },
-  {
-   "room_id": "peina19mpqedsku6a3huu38md",
-   "floor_id": "pd0i1c4yq9w0y2zsb07ed23sb",
-   "label": "Bedroom 1",
-   "polygon": [
-    [
-     1.109,
-     -8.712
-    ],
-    [
-     1.11,
-     -12.893
-    ],
-    [
-     -1.36,
-     -12.893
-    ],
-    [
-     -2.458,
-     -12.894
-    ],
-    [
-     -2.458,
-     -8.72
-    ],
-    [
-     -2.459,
-     -7.836
-    ],
-    [
-     -0.225,
-     -7.836
-    ],
-    [
-     -0.225,
-     -6.895
-    ],
-    [
-     -0.225,
-     -6.511
-    ],
-    [
-     1.452,
-     -6.511
-    ],
-    [
-     1.453,
-     -8.712
-    ]
-   ],
-   "floor_y": 2.619,
-   "height_m": 2.42,
-   "floor_material": "carpet"
-  },
-  {
-   "room_id": "q5n62dpd3mrc1exy2hr84132b",
-   "floor_id": "pd0i1c4yq9w0y2zsb07ed23sb",
-   "label": "Bedroom 2",
-   "polygon": [
-    [
-     -7.083,
-     -17.556
-    ],
-    [
-     -10.705,
-     -17.557
-    ],
-    [
-     -10.706,
-     -12.896
-    ],
-    [
-     -7.415,
-     -12.895
-    ],
-    [
-     -7.414,
-     -14.043
-    ],
-    [
-     -7.084,
-     -14.043
-    ]
-   ],
-   "floor_y": 2.719,
-   "height_m": 2.42,
-   "floor_material": "carpet"
-  },
-  {
-   "room_id": "n2yqr30509t7i8whfdf2htwic",
-   "floor_id": "pd0i1c4yq9w0y2zsb07ed23sb",
-   "label": "Bedroom 3",
-   "polygon": [
-    [
-     -6.357,
-     -9.995
-    ],
-    [
-     -6.357,
-     -12.895
-    ],
-    [
-     -7.415,
-     -12.895
-    ],
-    [
-     -7.415,
-     -12.263
-    ],
-    [
-     -10.706,
-     -12.264
-    ],
-    [
-     -10.707,
-     -8.722
-    ],
-    [
-     -8.92,
-     -8.722
-    ],
-    [
-     -6.358,
-     -8.721
-    ]
-   ],
-   "floor_y": 2.682,
-   "height_m": 2.42,
-   "floor_material": "carpet"
-  },
-  {
-   "room_id": "4mpd3yxnm0wrnpak1ibnr29wc",
-   "floor_id": "pd0i1c4yq9w0y2zsb07ed23sb",
-   "label": "Bedroom 5",
-   "polygon": [
-    [
-     -1.117,
-     -17.555
-    ],
-    [
-     -4.799,
-     -17.556
-    ],
-    [
-     -4.799,
-     -14.043
-    ],
-    [
-     -1.118,
-     -14.042
-    ],
-    [
-     -1.117,
-     -15.795
-    ]
-   ],
-   "floor_y": 2.73,
-   "height_m": 2.44,
-   "floor_material": "carpet"
-  },
-  {
-   "room_id": "bmpu8rc0bpgc1bruwia8kktzd",
-   "floor_id": "pd0i1c4yq9w0y2zsb07ed23sb",
-   "label": "Closet 1",
-   "polygon": [
-    [
-     -1.117,
-     -15.795
-    ],
-    [
-     1.111,
-     -15.795
-    ],
-    [
-     1.111,
-     -17.182
-    ],
-    [
-     0.665,
-     -17.182
-    ],
-    [
-     0.665,
-     -17.555
-    ],
-    [
-     -1.117,
-     -17.555
-    ]
-   ],
-   "floor_y": 2.841,
-   "height_m": 2.44,
-   "floor_material": "carpet"
-  },
-  {
-   "room_id": "g1gkrkdygg4zs5xge8bxfuc1d",
-   "floor_id": "pd0i1c4yq9w0y2zsb07ed23sb",
-   "label": "Closet 2",
-   "polygon": [
-    [
-     -0.225,
-     -7.836
-    ],
-    [
-     -2.459,
-     -7.836
-    ],
-    [
-     -2.459,
-     -6.512
-    ],
-    [
-     -0.406,
-     -6.511
-    ],
-    [
-     -0.406,
-     -6.895
-    ],
-    [
-     -0.225,
-     -6.895
-    ]
-   ],
-   "floor_y": 2.699,
-   "height_m": 2.46,
-   "floor_material": "carpet"
-  },
-  {
-   "room_id": "b2kez6wsw32fm2x3ui593u3hc",
-   "floor_id": "pd0i1c4yq9w0y2zsb07ed23sb",
-   "label": "Hallway 1",
-   "polygon": [
-    [
-     -4.875,
-     -9.995
-    ],
-    [
-     -4.874,
-     -10.912
-    ],
-    [
-     -3.616,
-     -10.912
-    ],
-    [
-     -3.617,
-     -8.72
-    ],
-    [
-     -2.458,
-     -8.72
-    ],
-    [
-     -2.458,
-     -12.894
-    ],
-    [
-     -2.457,
-     -14.042
-    ],
-    [
-     -4.799,
-     -14.043
-    ],
-    [
-     -7.414,
-     -14.043
-    ],
-    [
-     -7.415,
-     -12.895
-    ],
-    [
-     -6.357,
-     -12.895
-    ],
-    [
-     -6.357,
-     -9.995
-    ]
-   ],
-   "floor_y": 0.624,
-   "height_m": 2.43,
-   "floor_material": "hardwood"
-  },
-  {
-   "room_id": "3ygfq6yfyyw3hi9x7u5rm2iqa",
-   "floor_id": "pd0i1c4yq9w0y2zsb07ed23sb",
-   "label": "Living Room 2",
-   "polygon": [
-    [
-     -8.92,
-     -5.592
-    ],
-    [
-     -14.237,
-     -5.593
-    ],
-    [
-     -14.237,
-     -3.577
-    ],
-    [
-     -16.03,
-     -3.577
-    ],
-    [
-     -16.03,
-     -0.816
-    ],
-    [
-     -12.174,
-     -0.816
-    ],
-    [
-     -12.174,
-     -3.538
-    ],
-    [
-     -3.077,
-     -3.537
-    ],
-    [
-     -3.078,
-     0.873
-    ],
-    [
-     1.127,
-     0.874
-    ],
-    [
-     1.128,
-     -4.307
-    ],
-    [
-     1.452,
-     -4.307
-    ],
-    [
-     1.452,
-     -6.511
-    ],
-    [
-     -0.225,
-     -6.511
-    ],
-    [
-     -0.406,
-     -6.511
-    ],
-    [
-     -2.459,
-     -6.512
-    ],
-    [
-     -2.458,
-     -8.72
-    ],
-    [
-     -3.617,
-     -8.72
-    ],
-    [
-     -5.337,
-     -8.721
-    ],
-    [
-     -6.358,
-     -8.721
-    ],
-    [
-     -8.92,
-     -8.722
-    ]
-   ],
-   "floor_y": 1.223,
-   "height_m": 2.44,
-   "floor_material": "hardwood"
-  }
- ],
- "openings": [
-  {
-   "opening_id": "575wxf6df7uw0dges6st7i5sb",
-   "room_id": "h26t7ky77ew74yb0pg8qqf5rd",
-   "kind": "window",
-   "polygon": [
-    {
-     "x": -4.538,
-     "y": -0.011,
-     "z": -17.556
-    },
-    {
-     "x": -3.586,
-     "y": -0.011,
-     "z": -17.556
-    },
-    {
-     "x": -3.586,
-     "y": 1.467,
-     "z": -17.556
-    },
-    {
-     "x": -4.538,
-     "y": 1.467,
-     "z": -17.556
-    }
-   ],
-   "facade_azimuth_deg": 0,
-   "glazing": "double",
-   "stc": null
-  },
-  {
-   "opening_id": "wsacsf5w68qfwduyymeh1e9ab",
-   "room_id": "h26t7ky77ew74yb0pg8qqf5rd",
-   "kind": "door",
-   "polygon": [
-    {
-     "x": -3.242,
-     "y": -0.404,
-     "z": -12.894
-    },
-    {
-     "x": -2.519,
-     "y": -0.404,
-     "z": -12.894
-    },
-    {
-     "x": -2.519,
-     "y": 1.723,
-     "z": -12.894
-    },
-    {
-     "x": -3.242,
-     "y": 1.723,
-     "z": -12.894
-    }
-   ],
-   "facade_azimuth_deg": 180,
-   "glazing": "none",
-   "stc": null
-  },
-  {
-   "opening_id": "tgy5qz48u2fmpmc8qsck871ic",
-   "room_id": "h26t7ky77ew74yb0pg8qqf5rd",
-   "kind": "door",
-   "polygon": [
-    {
-     "x": -5.799,
-     "y": -0.409,
-     "z": -15.387
-    },
-    {
-     "x": -5.799,
-     "y": -0.409,
-     "z": -14.195
-    },
-    {
-     "x": -5.799,
-     "y": 1.664,
-     "z": -14.195
-    },
-    {
-     "x": -5.799,
-     "y": 1.664,
-     "z": -15.387
-    }
-   ],
-   "facade_azimuth_deg": 270,
-   "glazing": "none",
-   "stc": null
-  },
-  {
-   "opening_id": "nef6ty1092fkirp0z1584kq4d",
-   "room_id": "m8npxsuk79xy21dd09x9wtped",
-   "kind": "door",
-   "polygon": [
-    {
-     "x": -25.45,
-     "y": -0.191,
-     "z": -7.581
-    },
-    {
-     "x": -24.63,
-     "y": -0.191,
-     "z": -7.581
-    },
-    {
-     "x": -24.63,
-     "y": 1.98,
-     "z": -7.581
-    },
-    {
-     "x": -25.45,
-     "y": 1.98,
-     "z": -7.581
-    }
-   ],
-   "facade_azimuth_deg": 0,
-   "glazing": "none",
-   "stc": null
-  },
-  {
-   "opening_id": "burbhi8mf5nqwr3yg5816b61a",
-   "room_id": "m8npxsuk79xy21dd09x9wtped",
-   "kind": "door",
-   "polygon": [
-    {
-     "x": -23.791,
-     "y": -0.153,
-     "z": -5.771
-    },
-    {
-     "x": -23.791,
-     "y": -0.153,
-     "z": -5.142
-    },
-    {
-     "x": -23.791,
-     "y": 1.818,
-     "z": -5.142
-    },
-    {
-     "x": -23.791,
-     "y": 1.818,
-     "z": -5.771
-    }
-   ],
-   "facade_azimuth_deg": 90,
-   "glazing": "none",
-   "stc": null
-  },
-  {
-   "opening_id": "qm3aip33nt8b04ta2c5syt84c",
-   "room_id": "2qdmc5i9byxi79ry1pxdkqzea",
-   "kind": "window",
-   "polygon": [
-    {
-     "x": 1.135,
-     "y": 0.466,
-     "z": -10.5
-    },
-    {
-     "x": 1.136,
-     "y": 0.466,
-     "z": -11.989
-    },
-    {
-     "x": 1.136,
-     "y": 1.579,
-     "z": -11.989
-    },
-    {
-     "x": 1.135,
-     "y": 1.579,
-     "z": -10.5
-    }
-   ],
-   "facade_azimuth_deg": 90,
-   "glazing": "double",
-   "stc": null
-  },
-  {
-   "opening_id": "5a5rd9hs92k5i0iym2ared47c",
-   "room_id": "a5f9age4zzxewres6iqux2emc",
-   "kind": "door",
-   "polygon": [
-    {
-     "x": -21.432,
-     "y": -0.366,
-     "z": -7.58
-    },
-    {
-     "x": -22.076,
-     "y": -0.366,
-     "z": -7.581
-    },
-    {
-     "x": -22.076,
-     "y": 2.271,
-     "z": -7.581
-    },
-    {
-     "x": -21.432,
-     "y": 2.271,
-     "z": -7.58
-    }
-   ],
-   "facade_azimuth_deg": 0,
-   "glazing": "none",
-   "stc": null
-  },
-  {
-   "opening_id": "7mts6154c6kmpmrhyt3zxb0wb",
-   "room_id": "19ab05tns5h6y4qm42esqqpea",
-   "kind": "door",
-   "polygon": [
-    {
-     "x": -0.928,
-     "y": 0.079,
-     "z": -16.712
-    },
-    {
-     "x": 0.404,
-     "y": 0.079,
-     "z": -16.712
-    },
-    {
-     "x": 0.404,
-     "y": 2.071,
-     "z": -16.712
-    },
-    {
-     "x": -0.928,
-     "y": 2.071,
-     "z": -16.712
-    }
-   ],
-   "facade_azimuth_deg": 0,
-   "glazing": "none",
-   "stc": null
-  },
-  {
-   "opening_id": "ma701g812wh3h4pa9hh8fu82d",
-   "room_id": "xy2x8mpaaqknp7q2c3nnbw1ma",
-   "kind": "window",
-   "polygon": [
-    {
-     "x": -6.614,
-     "y": 0.902,
-     "z": 0.872
-    },
-    {
-     "x": -9.038,
-     "y": 0.902,
-     "z": 0.872
-    },
-    {
-     "x": -9.038,
-     "y": 2.043,
-     "z": 0.872
-    },
-    {
-     "x": -6.614,
-     "y": 2.043,
-     "z": 0.872
-    }
-   ],
-   "facade_azimuth_deg": 180,
-   "glazing": "double",
-   "stc": null
-  },
-  {
-   "opening_id": "x6ydnz3x2wn6wdbc0ua8y8ewa",
-   "room_id": "xy2x8mpaaqknp7q2c3nnbw1ma",
-   "kind": "door",
-   "polygon": [
-    {
-     "x": -11.431,
-     "y": -0.419,
-     "z": -3.538
-    },
-    {
-     "x": -7.929,
-     "y": -0.419,
-     "z": -3.538
-    },
-    {
-     "x": -7.929,
-     "y": 2.115,
-     "z": -3.538
-    },
-    {
-     "x": -11.431,
-     "y": 2.115,
-     "z": -3.538
-    }
-   ],
-   "facade_azimuth_deg": 0,
-   "glazing": "none",
-   "stc": null
-  },
-  {
-   "opening_id": "hh1hid6r1bbup16kkb9qde12a",
-   "room_id": "xy2x8mpaaqknp7q2c3nnbw1ma",
-   "kind": "door",
-   "polygon": [
-    {
-     "x": -11.411,
-     "y": -0.345,
-     "z": 0.195
-    },
-    {
-     "x": -12.688,
-     "y": -0.345,
-     "z": 0.195
-    },
-    {
-     "x": -12.688,
-     "y": 1.528,
-     "z": 0.195
-    },
-    {
-     "x": -11.411,
-     "y": 1.528,
-     "z": 0.195
-    }
-   ],
-   "facade_azimuth_deg": 180,
-   "glazing": "none",
-   "stc": null
-  },
-  {
-   "opening_id": "x4ds1wx856mrifzpnae0fpc9d",
-   "room_id": "xy2x8mpaaqknp7q2c3nnbw1ma",
-   "kind": "door",
-   "polygon": [
-    {
-     "x": -15.461,
-     "y": -0.351,
-     "z": 0.032
-    },
-    {
-     "x": -14.593,
-     "y": -0.351,
-     "z": 0.033
-    },
-    {
-     "x": -14.593,
-     "y": 1.742,
-     "z": 0.033
-    },
-    {
-     "x": -15.461,
-     "y": 1.742,
-     "z": 0.032
-    }
-   ],
-   "facade_azimuth_deg": 180,
-   "glazing": "none",
-   "stc": null
-  },
-  {
-   "opening_id": "fcrdu50r13r8ds27wxsc7cnpc",
-   "room_id": "xy2x8mpaaqknp7q2c3nnbw1ma",
-   "kind": "door",
-   "polygon": [
-    {
-     "x": -3.237,
-     "y": -0.349,
-     "z": -1.107
-    },
-    {
-     "x": -3.822,
-     "y": -0.349,
-     "z": -1.107
-    },
-    {
-     "x": -3.822,
-     "y": 1.746,
-     "z": -1.107
-    },
-    {
-     "x": -3.237,
-     "y": 1.746,
-     "z": -1.107
-    }
-   ],
-   "facade_azimuth_deg": 0,
-   "glazing": "none",
-   "stc": null
-  },
-  {
-   "opening_id": "gca8iwq0s91tznn03tb0eu9sa",
-   "room_id": "xy2x8mpaaqknp7q2c3nnbw1ma",
-   "kind": "door",
-   "polygon": [
-    {
-     "x": -3.044,
-     "y": -0.367,
-     "z": -0.979
-    },
-    {
-     "x": -3.044,
-     "y": -0.367,
-     "z": 0.056
-    },
-    {
-     "x": -3.044,
-     "y": 2.065,
-     "z": 0.056
-    },
-    {
-     "x": -3.044,
-     "y": 2.065,
-     "z": -0.979
-    }
-   ],
-   "facade_azimuth_deg": 90,
-   "glazing": "none",
-   "stc": null
-  },
-  {
-   "opening_id": "1eh7kq4yh1yue85eh5ixygqua",
-   "room_id": "xy2x8mpaaqknp7q2c3nnbw1ma",
-   "kind": "door",
-   "polygon": [
-    {
-     "x": -16.333,
-     "y": -0.325,
-     "z": -0.889
-    },
-    {
-     "x": -16.333,
-     "y": -0.325,
-     "z": -1.695
-    },
-    {
-     "x": -16.333,
-     "y": 1.679,
-     "z": -1.695
-    },
-    {
-     "x": -16.333,
-     "y": 1.679,
-     "z": -0.889
-    }
-   ],
-   "facade_azimuth_deg": 270,
-   "glazing": "none",
-   "stc": null
-  },
-  {
-   "opening_id": "1zbngrrwc7rpze5yw24a102ic",
-   "room_id": "xy2x8mpaaqknp7q2c3nnbw1ma",
-   "kind": "door",
-   "polygon": [
-    {
-     "x": -7.786,
-     "y": -0.419,
-     "z": -3.537
-    },
-    {
-     "x": -5.782,
-     "y": -0.419,
-     "z": -3.537
-    },
-    {
-     "x": -5.782,
-     "y": 2.115,
-     "z": -3.537
-    },
-    {
-     "x": -7.786,
-     "y": 2.115,
-     "z": -3.537
-    }
-   ],
-   "facade_azimuth_deg": 0,
-   "glazing": "none",
-   "stc": null
-  },
-  {
-   "opening_id": "ehdd1d306yc8maq8h8tiy7tpa",
-   "room_id": "ediidma5zg15dufx3n0qyq21a",
-   "kind": "window",
-   "polygon": [
-    {
-     "x": -12.497,
-     "y": 1.126,
-     "z": 2.502
-    },
-    {
-     "x": -11.697,
-     "y": 1.126,
-     "z": 2.503
-    },
-    {
-     "x": -11.697,
-     "y": 2.051,
-     "z": 2.503
-    },
-    {
-     "x": -12.497,
-     "y": 2.051,
-     "z": 2.502
-    }
-   ],
-   "facade_azimuth_deg": 180,
-   "glazing": "double",
-   "stc": null
-  },
-  {
-   "opening_id": "f70run2x3rcsnqmamg5k0d0cb",
-   "room_id": "wbpb7dkfuwnikd1kq2a9hz70a",
-   "kind": "window",
-   "polygon": [
-    {
-     "x": -15.246,
-     "y": 1.055,
-     "z": 2.502
-    },
-    {
-     "x": -14.348,
-     "y": 1.055,
-     "z": 2.502
-    },
-    {
-     "x": -14.348,
-     "y": 2.018,
-     "z": 2.502
-    },
-    {
-     "x": -15.246,
-     "y": 2.018,
-     "z": 2.502
-    }
-   ],
-   "facade_azimuth_deg": 180,
-   "glazing": "double",
-   "stc": null
-  },
-  {
-   "opening_id": "yqadfepgs1udbwibbs51yytfc",
-   "room_id": "cdz3fkt38kae7tapstpt0eaeb",
-   "kind": "window",
-   "polygon": [
-    {
-     "x": 1.054,
-     "y": 0.005,
-     "z": -2.943
-    },
-    {
-     "x": 1.054,
-     "y": 0.005,
-     "z": -2.455
-    },
-    {
-     "x": 1.054,
-     "y": 1.695,
-     "z": -2.455
-    },
-    {
-     "x": 1.054,
-     "y": 1.695,
-     "z": -2.943
-    }
-   ],
-   "facade_azimuth_deg": 90,
-   "glazing": "double",
-   "stc": null
-  },
-  {
-   "opening_id": "x039pk286m5yduy2kf8mh1y3c",
-   "room_id": "cdz3fkt38kae7tapstpt0eaeb",
-   "kind": "window",
-   "polygon": [
-    {
-     "x": 1.054,
-     "y": 0.077,
-     "z": -2.004
-    },
-    {
-     "x": 1.054,
-     "y": 0.077,
-     "z": -1.322
-    },
-    {
-     "x": 1.054,
-     "y": 1.625,
-     "z": -1.322
-    },
-    {
-     "x": 1.054,
-     "y": 1.625,
-     "z": -2.004
-    }
-   ],
-   "facade_azimuth_deg": 90,
-   "glazing": "double",
-   "stc": null
-  },
-  {
-   "opening_id": "cyqqad5ndmiw6nxadaaf0hkbc",
-   "room_id": "cdz3fkt38kae7tapstpt0eaeb",
-   "kind": "door",
-   "polygon": [
-    {
-     "x": -6.415,
-     "y": -0.461,
-     "z": -12.895
-    },
-    {
-     "x": -7.398,
-     "y": -0.461,
-     "z": -12.895
-    },
-    {
-     "x": -7.398,
-     "y": 1.423,
-     "z": -12.895
-    },
-    {
-     "x": -6.415,
-     "y": 1.423,
-     "z": -12.895
-    }
-   ],
-   "facade_azimuth_deg": 0,
-   "glazing": "none",
-   "stc": null
-  },
-  {
-   "opening_id": "sp0fuaf9i7f0uys91h9nkxkdc",
-   "room_id": "cdz3fkt38kae7tapstpt0eaeb",
-   "kind": "door",
-   "polygon": [
-    {
-     "x": -1.269,
-     "y": -0.536,
-     "z": -8.605
-    },
-    {
-     "x": -0.493,
-     "y": -0.536,
-     "z": -8.604
-    },
-    {
-     "x": -0.493,
-     "y": 1.908,
-     "z": -8.604
-    },
-    {
-     "x": -1.269,
-     "y": 1.908,
-     "z": -8.605
-    }
-   ],
-   "facade_azimuth_deg": 0,
-   "glazing": "none",
-   "stc": null
-  },
-  {
-   "opening_id": "49r3gmycef8ta6km3zrs12fca",
-   "room_id": "cdz3fkt38kae7tapstpt0eaeb",
-   "kind": "door",
-   "polygon": [
-    {
-     "x": -0.431,
-     "y": -0.434,
-     "z": -7.425
-    },
-    {
-     "x": -0.432,
-     "y": -0.434,
-     "z": -5.557
-    },
-    {
-     "x": -0.432,
-     "y": 1.665,
-     "z": -5.557
-    },
-    {
-     "x": -0.431,
-     "y": 1.665,
-     "z": -7.425
-    }
-   ],
-   "facade_azimuth_deg": 90,
-   "glazing": "none",
-   "stc": null
-  },
-  {
-   "opening_id": "62xyq3ixpp59rtw3292hrpdca",
-   "room_id": "cdz3fkt38kae7tapstpt0eaeb",
-   "kind": "door",
-   "polygon": [
-    {
-     "x": -11.775,
-     "y": -0.469,
-     "z": -5.653
-    },
-    {
-     "x": -11.776,
-     "y": -0.469,
-     "z": -4.526
-    },
-    {
-     "x": -11.776,
-     "y": 1.544,
-     "z": -4.526
-    },
-    {
-     "x": -11.775,
-     "y": 1.544,
-     "z": -5.653
-    }
-   ],
-   "facade_azimuth_deg": 270,
-   "glazing": "none",
-   "stc": null
-  },
-  {
-   "opening_id": "6t342k06kr4hsye67bggr4d6c",
-   "room_id": "cdz3fkt38kae7tapstpt0eaeb",
-   "kind": "window",
-   "polygon": [
-    {
-     "x": -1.294,
-     "y": 0.058,
-     "z": 0.766
-    },
-    {
-     "x": -1.972,
-     "y": 0.058,
-     "z": 0.766
-    },
-    {
-     "x": -1.972,
-     "y": 1.588,
-     "z": 0.766
-    },
-    {
-     "x": -1.294,
-     "y": 1.588,
-     "z": 0.766
-    }
-   ],
-   "facade_azimuth_deg": 180,
-   "glazing": "double",
-   "stc": null
-  },
-  {
-   "opening_id": "s1pazfh2rrz71b284yfhs64mc",
-   "room_id": "cdz3fkt38kae7tapstpt0eaeb",
-   "kind": "window",
-   "polygon": [
-    {
-     "x": 0.058,
-     "y": 0.04,
-     "z": 0.766
-    },
-    {
-     "x": -0.639,
-     "y": 0.04,
-     "z": 0.766
-    },
-    {
-     "x": -0.639,
-     "y": 1.602,
-     "z": 0.766
-    },
-    {
-     "x": 0.058,
-     "y": 1.602,
-     "z": 0.766
-    }
-   ],
-   "facade_azimuth_deg": 180,
-   "glazing": "double",
-   "stc": null
-  },
-  {
-   "opening_id": "4uc3t9shcq2he5gdqpmqkdwmd",
-   "room_id": "cdz3fkt38kae7tapstpt0eaeb",
-   "kind": "door",
-   "polygon": [
-    {
-     "x": -13.21,
-     "y": -0.479,
-     "z": -7.388
-    },
-    {
-     "x": -13.209,
-     "y": -0.479,
-     "z": -8.548
-    },
-    {
-     "x": -13.209,
-     "y": 1.989,
-     "z": -8.548
-    },
-    {
-     "x": -13.21,
-     "y": 1.989,
-     "z": -7.388
-    }
-   ],
-   "facade_azimuth_deg": 270,
-   "glazing": "none",
-   "stc": null
-  },
-  {
-   "opening_id": "dx79dipidg2fawu7ee5x0gmma",
-   "room_id": "tt6gm2a0463x9wmnx7rn6gugc",
-   "kind": "door",
-   "polygon": [
-    {
-     "x": -13.208,
-     "y": -0.161,
-     "z": -13.949
-    },
-    {
-     "x": -13.208,
-     "y": -0.161,
-     "z": -13.368
-    },
-    {
-     "x": -13.208,
-     "y": 2.287,
-     "z": -13.368
-    },
-    {
-     "x": -13.208,
-     "y": 2.287,
-     "z": -13.949
-    }
-   ],
-   "facade_azimuth_deg": 270,
-   "glazing": "none",
-   "stc": null
-  },
-  {
-   "opening_id": "45wqba0gnskquwd0xp9b9t8nc",
-   "room_id": "tt6gm2a0463x9wmnx7rn6gugc",
-   "kind": "window",
-   "polygon": [
-    {
-     "x": -13.208,
-     "y": -0.127,
-     "z": -17.079
-    },
-    {
-     "x": -13.208,
-     "y": -0.127,
-     "z": -15.648
-    },
-    {
-     "x": -13.208,
-     "y": 2.274,
-     "z": -15.648
-    },
-    {
-     "x": -13.208,
-     "y": 2.274,
-     "z": -17.079
-    }
-   ],
-   "facade_azimuth_deg": 270,
-   "glazing": "double",
-   "stc": null
-  },
-  {
-   "opening_id": "6006cyucc641eeg44dqcwy94c",
-   "room_id": "3m54yff1z7crxaywd8if9rb0d",
-   "kind": "door",
-   "polygon": [
-    {
-     "x": -12.325,
-     "y": -0.348,
-     "z": -3.538
-    },
-    {
-     "x": -13.094,
-     "y": -0.348,
-     "z": -3.538
-    },
-    {
-     "x": -13.094,
-     "y": 1.505,
-     "z": -3.538
-    },
-    {
-     "x": -12.325,
-     "y": 1.505,
-     "z": -3.538
-    }
-   ],
-   "facade_azimuth_deg": 180,
-   "glazing": "none",
-   "stc": null
-  },
-  {
-   "opening_id": "yb9kss2580pp2f1wkp11wkrhb",
-   "room_id": "pcez6b4tqeep953kmm04hme9c",
-   "kind": "door",
-   "polygon": [
-    {
-     "x": -7.084,
-     "y": 5.524,
-     "z": -15.045
-    },
-    {
-     "x": -7.084,
-     "y": 5.524,
-     "z": -15.617
-    },
-    {
-     "x": -7.084,
-     "y": 7.619,
-     "z": -15.617
-    },
-    {
-     "x": -7.084,
-     "y": 7.619,
-     "z": -15.045
-    }
-   ],
-   "facade_azimuth_deg": 270,
-   "glazing": "none",
-   "stc": null
-  },
-  {
-   "opening_id": "rggu1tb6mapme6mb3z9ku13ga",
-   "room_id": "pcez6b4tqeep953kmm04hme9c",
-   "kind": "door",
-   "polygon": [
-    {
-     "x": -6.288,
-     "y": 5.519,
-     "z": -14.043
-    },
-    {
-     "x": -6.918,
-     "y": 5.519,
-     "z": -14.043
-    },
-    {
-     "x": -6.918,
-     "y": 7.538,
-     "z": -14.043
-    },
-    {
-     "x": -6.288,
-     "y": 7.538,
-     "z": -14.043
-    }
-   ],
-   "facade_azimuth_deg": 180,
-   "glazing": "none",
-   "stc": null
-  },
-  {
-   "opening_id": "1uu51kzyg8s9p5mt5u05dxy1c",
-   "room_id": "tyz3uyd99x00wa88mxhmugrxa",
-   "kind": "door",
-   "polygon": [
-    {
-     "x": -1.118,
-     "y": 5.535,
-     "z": -14.745
-    },
-    {
-     "x": -1.118,
-     "y": 5.535,
-     "z": -14.2
-    },
-    {
-     "x": -1.118,
-     "y": 7.728,
-     "z": -14.2
-    },
-    {
-     "x": -1.118,
-     "y": 7.728,
-     "z": -14.745
-    }
-   ],
-   "facade_azimuth_deg": 270,
-   "glazing": "none",
-   "stc": null
-  },
-  {
-   "opening_id": "rxmrgit212eht4473pcuaq9ya",
-   "room_id": "tyz3uyd99x00wa88mxhmugrxa",
-   "kind": "door",
-   "polygon": [
-    {
-     "x": -0.489,
-     "y": 5.537,
-     "z": -12.893
-    },
-    {
-     "x": 0.048,
-     "y": 5.537,
-     "z": -12.893
-    },
-    {
-     "x": 0.048,
-     "y": 7.692,
-     "z": -12.893
-    },
-    {
-     "x": -0.489,
-     "y": 7.692,
-     "z": -12.893
-    }
-   ],
-   "facade_azimuth_deg": 180,
-   "glazing": "none",
-   "stc": null
-  },
-  {
-   "opening_id": "zrh61zqy1g2xar5zit89ups8d",
-   "room_id": "f97s719x9ctqkce19r6s01b5a",
-   "kind": "door",
-   "polygon": [
-    {
-     "x": -4.482,
-     "y": 5.474,
-     "z": -8.72
-    },
-    {
-     "x": -5.169,
-     "y": 5.474,
-     "z": -8.721
-    },
-    {
-     "x": -5.169,
-     "y": 7.581,
-     "z": -8.721
-    },
-    {
-     "x": -4.482,
-     "y": 7.581,
-     "z": -8.72
-    }
-   ],
-   "facade_azimuth_deg": 180,
-   "glazing": "none",
-   "stc": null
-  },
-  {
-   "opening_id": "3mnd1uy5g5iuump78utxnkxic",
-   "room_id": "peina19mpqedsku6a3huu38md",
-   "kind": "door",
-   "polygon": [
-    {
-     "x": -2.458,
-     "y": 2.599,
-     "z": -9.673
-    },
-    {
-     "x": -2.458,
-     "y": 2.599,
-     "z": -10.438
-    },
-    {
-     "x": -2.458,
-     "y": 4.729,
-     "z": -10.438
-    },
-    {
-     "x": -2.458,
-     "y": 4.729,
-     "z": -9.673
-    }
-   ],
-   "facade_azimuth_deg": 270,
-   "glazing": "none",
-   "stc": null
-  },
-  {
-   "opening_id": "zfpp2p0x944q8ym758q42r9ma",
-   "room_id": "peina19mpqedsku6a3huu38md",
-   "kind": "door",
-   "polygon": [
-    {
-     "x": -2.458,
-     "y": 5.397,
-     "z": -11.949
-    },
-    {
-     "x": -2.458,
-     "y": 5.397,
-     "z": -12.705
-    },
-    {
-     "x": -2.458,
-     "y": 7.77,
-     "z": -12.705
-    },
-    {
-     "x": -2.458,
-     "y": 7.77,
-     "z": -11.949
-    }
-   ],
-   "facade_azimuth_deg": 270,
-   "glazing": "none",
-   "stc": null
-  },
-  {
-   "opening_id": "mie6ezyc7pfuzhia4435ahska",
-   "room_id": "peina19mpqedsku6a3huu38md",
-   "kind": "door",
-   "polygon": [
-    {
-     "x": -1.636,
-     "y": 5.328,
-     "z": -7.836
-    },
-    {
-     "x": -1.055,
-     "y": 5.328,
-     "z": -7.836
-    },
-    {
-     "x": -1.055,
-     "y": 7.43,
-     "z": -7.836
-    },
-    {
-     "x": -1.636,
-     "y": 7.43,
-     "z": -7.836
-    }
-   ],
-   "facade_azimuth_deg": 180,
-   "glazing": "none",
-   "stc": null
-  },
-  {
-   "opening_id": "g0re3ptkimfqp2fgm8zt2yhid",
-   "room_id": "peina19mpqedsku6a3huu38md",
-   "kind": "window",
-   "polygon": [
-    {
-     "x": 1.453,
-     "y": 6.041,
-     "z": -8.19
-    },
-    {
-     "x": 1.452,
-     "y": 6.041,
-     "z": -7.486
-    },
-    {
-     "x": 1.452,
-     "y": 7.371,
-     "z": -7.486
-    },
-    {
-     "x": 1.453,
-     "y": 7.371,
-     "z": -8.19
-    }
-   ],
-   "facade_azimuth_deg": 90,
-   "glazing": "double",
-   "stc": null
-  },
-  {
-   "opening_id": "w5sk29zwr1a3tzqwhqc41hdsc",
-   "room_id": "peina19mpqedsku6a3huu38md",
-   "kind": "window",
-   "polygon": [
-    {
-     "x": 1.11,
-     "y": 6.285,
-     "z": -10.629
-    },
-    {
-     "x": 1.11,
-     "y": 6.285,
-     "z": -11.992
-    },
-    {
-     "x": 1.11,
-     "y": 7.472,
-     "z": -11.992
-    },
-    {
-     "x": 1.11,
-     "y": 7.472,
-     "z": -10.629
-    }
-   ],
-   "facade_azimuth_deg": 90,
-   "glazing": "double",
-   "stc": null
-  },
-  {
-   "opening_id": "zeq3r6z76b32sy6hd0rez4y6b",
-   "room_id": "q5n62dpd3mrc1exy2hr84132b",
-   "kind": "door",
-   "polygon": [
-    {
-     "x": -7.414,
-     "y": 5.495,
-     "z": -13.081
-    },
-    {
-     "x": -7.414,
-     "y": 5.495,
-     "z": -13.882
-    },
-    {
-     "x": -7.414,
-     "y": 7.576,
-     "z": -13.882
-    },
-    {
-     "x": -7.414,
-     "y": 7.576,
-     "z": -13.081
-    }
-   ],
-   "facade_azimuth_deg": 90,
-   "glazing": "none",
-   "stc": null
-  },
-  {
-   "opening_id": "x4mwheuiysxsch7p4kx251rab",
-   "room_id": "q5n62dpd3mrc1exy2hr84132b",
-   "kind": "window",
-   "polygon": [
-    {
-     "x": -10.705,
-     "y": 6.645,
-     "z": -16.026
-    },
-    {
-     "x": -10.706,
-     "y": 6.645,
-     "z": -14.508
-    },
-    {
-     "x": -10.706,
-     "y": 7.545,
-     "z": -14.508
-    },
-    {
-     "x": -10.705,
-     "y": 7.545,
-     "z": -16.026
-    }
-   ],
-   "facade_azimuth_deg": 270,
-   "glazing": "double",
-   "stc": null
-  },
-  {
-   "opening_id": "12nmz756ixbszas0mesd8n1hb",
-   "room_id": "n2yqr30509t7i8whfdf2htwic",
-   "kind": "window",
-   "polygon": [
-    {
-     "x": -10.707,
-     "y": 6.614,
-     "z": -9.475
-    },
-    {
-     "x": -10.706,
-     "y": 6.614,
-     "z": -10.949
-    },
-    {
-     "x": -10.706,
-     "y": 7.524,
-     "z": -10.949
-    },
-    {
-     "x": -10.707,
-     "y": 7.524,
-     "z": -9.475
-    }
-   ],
-   "facade_azimuth_deg": 270,
-   "glazing": "double",
-   "stc": null
-  },
-  {
-   "opening_id": "rwkrh5zg5u9h98p2sr44ndgmb",
-   "room_id": "n2yqr30509t7i8whfdf2htwic",
-   "kind": "door",
-   "polygon": [
-    {
-     "x": -7.293,
-     "y": 5.466,
-     "z": -12.895
-    },
-    {
-     "x": -6.454,
-     "y": 5.466,
-     "z": -12.895
-    },
-    {
-     "x": -6.454,
-     "y": 7.57,
-     "z": -12.895
-    },
-    {
-     "x": -7.293,
-     "y": 7.57,
-     "z": -12.895
-    }
-   ],
-   "facade_azimuth_deg": 0,
-   "glazing": "none",
-   "stc": null
-  },
-  {
-   "opening_id": "62gx151h88566p0adrsgq6qsb",
-   "room_id": "4mpd3yxnm0wrnpak1ibnr29wc",
-   "kind": "door",
-   "polygon": [
-    {
-     "x": -1.117,
-     "y": 5.519,
-     "z": -17.4
-    },
-    {
-     "x": -1.117,
-     "y": 5.519,
-     "z": -16.784
-    },
-    {
-     "x": -1.117,
-     "y": 7.622,
-     "z": -16.784
-    },
-    {
-     "x": -1.117,
-     "y": 7.622,
-     "z": -17.4
-    }
-   ],
-   "facade_azimuth_deg": 90,
-   "glazing": "none",
-   "stc": null
-  },
-  {
-   "opening_id": "082w4191t9d50cq0ktx90qi7c",
-   "room_id": "4mpd3yxnm0wrnpak1ibnr29wc",
-   "kind": "door",
-   "polygon": [
-    {
-     "x": -4.572,
-     "y": 5.517,
-     "z": -14.043
-    },
-    {
-     "x": -3.778,
-     "y": 5.517,
-     "z": -14.043
-    },
-    {
-     "x": -3.778,
-     "y": 7.605,
-     "z": -14.043
-    },
-    {
-     "x": -4.572,
-     "y": 7.605,
-     "z": -14.043
-    }
-   ],
-   "facade_azimuth_deg": 180,
-   "glazing": "none",
-   "stc": null
-  },
-  {
-   "opening_id": "mky1z5shmhbbsgn7264xedkrc",
-   "room_id": "4mpd3yxnm0wrnpak1ibnr29wc",
-   "kind": "window",
-   "polygon": [
-    {
-     "x": -3.637,
-     "y": 5.91,
-     "z": -17.556
-    },
-    {
-     "x": -4.544,
-     "y": 5.91,
-     "z": -17.556
-    },
-    {
-     "x": -4.544,
-     "y": 7.631,
-     "z": -17.556
-    },
-    {
-     "x": -3.637,
-     "y": 7.631,
-     "z": -17.556
-    }
-   ],
-   "facade_azimuth_deg": 0,
-   "glazing": "double",
-   "stc": null
-  },
-  {
-   "opening_id": "qk5r0k75pzhxz5pfchh389yda",
-   "room_id": "b2kez6wsw32fm2x3ui593u3hc",
-   "kind": "door",
-   "polygon": [
-    {
-     "x": -3.459,
-     "y": 3.364,
-     "z": -8.72
-    },
-    {
-     "x": -2.599,
-     "y": 3.364,
-     "z": -8.72
-    },
-    {
-     "x": -2.599,
-     "y": 5.462,
-     "z": -8.72
-    },
-    {
-     "x": -3.459,
-     "y": 5.462,
-     "z": -8.72
-    }
-   ],
-   "facade_azimuth_deg": 180,
-   "glazing": "none",
-   "stc": null
-  },
-  {
-   "opening_id": "ccr5pzz6tu4ptkb79k24azacc",
-   "room_id": "3ygfq6yfyyw3hi9x7u5rm2iqa",
-   "kind": "window",
-   "polygon": [
-    {
-     "x": 1.452,
-     "y": 4.602,
-     "z": -4.779
-    },
-    {
-     "x": 1.452,
-     "y": 4.602,
-     "z": -5.841
-    },
-    {
-     "x": 1.452,
-     "y": 5.966,
-     "z": -5.841
-    },
-    {
-     "x": 1.452,
-     "y": 5.966,
-     "z": -4.779
-    }
-   ],
-   "facade_azimuth_deg": 90,
-   "glazing": "double",
-   "stc": null
-  },
-  {
-   "opening_id": "7wwxe3ndwai8c9cp5gt0xnewb",
-   "room_id": "3ygfq6yfyyw3hi9x7u5rm2iqa",
-   "kind": "window",
-   "polygon": [
-    {
-     "x": 1.128,
-     "y": 4.456,
-     "z": -2.908
-    },
-    {
-     "x": 1.127,
-     "y": 4.456,
-     "z": -0.632
-    },
-    {
-     "x": 1.127,
-     "y": 6.023,
-     "z": -0.632
-    },
-    {
-     "x": 1.128,
-     "y": 6.023,
-     "z": -2.908
-    }
-   ],
-   "facade_azimuth_deg": 90,
-   "glazing": "double",
-   "stc": null
-  },
-  {
-   "opening_id": "u65khnku36ekzn2amk8yyt92b",
-   "room_id": "3ygfq6yfyyw3hi9x7u5rm2iqa",
-   "kind": "door",
-   "polygon": [
-    {
-     "x": -14.237,
-     "y": 3.974,
-     "z": -3.639
-    },
-    {
-     "x": -14.237,
-     "y": 3.974,
-     "z": -4.201
-    },
-    {
-     "x": -14.237,
-     "y": 5.994,
-     "z": -4.201
-    },
-    {
-     "x": -14.237,
-     "y": 5.994,
-     "z": -3.639
-    }
-   ],
-   "facade_azimuth_deg": 270,
-   "glazing": "none",
-   "stc": null
-  },
-  {
-   "opening_id": "picauxzqz5h3wpad3ztq8dumd",
-   "room_id": "3ygfq6yfyyw3hi9x7u5rm2iqa",
-   "kind": "window",
-   "polygon": [
-    {
-     "x": -2.16,
-     "y": 4.406,
-     "z": 0.873
-    },
-    {
-     "x": 0.209,
-     "y": 4.406,
-     "z": 0.874
-    },
-    {
-     "x": 0.209,
-     "y": 5.974,
-     "z": 0.874
-    },
-    {
-     "x": -2.16,
-     "y": 5.974,
-     "z": 0.873
-    }
-   ],
-   "facade_azimuth_deg": 180,
-   "glazing": "double",
-   "stc": null
-  }
- ],
- "sweeps": [
-  {
-   "sweep_id": "0t5k740rf7yw1gak07xk6ri2d",
-   "floor_id": "tsmq1wak12rhgn0mawksxcwcd",
-   "room_id": "h26t7ky77ew74yb0pg8qqf5rd",
-   "position": {
-    "x": -2.302,
-    "y": 1.446,
-    "z": -14.624
-   }
-  },
-  {
-   "sweep_id": "0xawfme0cuyrae3zca0fm0e2a",
-   "floor_id": "pd0i1c4yq9w0y2zsb07ed23sb",
-   "room_id": "3ygfq6yfyyw3hi9x7u5rm2iqa",
-   "position": {
-    "x": -5.615,
-    "y": 4.156,
-    "z": -4.754
-   }
-  },
-  {
-   "sweep_id": "160p1wfe7xpcekpxdph2bc11a",
-   "floor_id": "pd0i1c4yq9w0y2zsb07ed23sb",
-   "room_id": "4mpd3yxnm0wrnpak1ibnr29wc",
-   "position": {
-    "x": -1.448,
-    "y": 4.238,
-    "z": -17.062
-   }
-  },
-  {
-   "sweep_id": "17niy0zg7n0xqt7nng9mkax4b",
-   "floor_id": "tsmq1wak12rhgn0mawksxcwcd",
-   "room_id": "a5f9age4zzxewres6iqux2emc",
-   "position": {
-    "x": -23.429,
-    "y": 1.341,
-    "z": -5.452
-   }
-  },
-  {
-   "sweep_id": "1ge9wa0gxx5ye5f5nwn74h2bc",
-   "floor_id": "tsmq1wak12rhgn0mawksxcwcd",
-   "room_id": null,
-   "position": {
-    "x": -19.187,
-    "y": 1.252,
-    "z": -17.522
-   }
-  },
-  {
-   "sweep_id": "1gmb5084z3prctkdqbzgs8mgb",
-   "floor_id": "pd0i1c4yq9w0y2zsb07ed23sb",
-   "room_id": "pcez6b4tqeep953kmm04hme9c",
-   "position": {
-    "x": -6.531,
-    "y": 4.182,
-    "z": -15.366
-   }
-  },
-  {
-   "sweep_id": "1ya4z9c2g95z0spsbhffxbb1b",
-   "floor_id": "pd0i1c4yq9w0y2zsb07ed23sb",
-   "room_id": "q5n62dpd3mrc1exy2hr84132b",
-   "position": {
-    "x": -7.97,
-    "y": 4.184,
-    "z": -15.333
-   }
-  },
-  {
-   "sweep_id": "25uewx997egicmt9q91zeki4d",
-   "floor_id": "tsmq1wak12rhgn0mawksxcwcd",
-   "room_id": "3m54yff1z7crxaywd8if9rb0d",
-   "position": {
-    "x": -13.672,
-    "y": 1.443,
-    "z": -5.179
-   }
-  },
-  {
-   "sweep_id": "266mkch9k7wumqz91qec0eguc",
-   "floor_id": "pd0i1c4yq9w0y2zsb07ed23sb",
-   "room_id": "tyz3uyd99x00wa88mxhmugrxa",
-   "position": {
-    "x": -0.154,
-    "y": 4.197,
-    "z": -13.807
-   }
-  },
-  {
-   "sweep_id": "26tbxdz4z0rwt1307mru3w91d",
-   "floor_id": "tsmq1wak12rhgn0mawksxcwcd",
-   "room_id": null,
-   "position": {
-    "x": -21.831,
-    "y": 1.321,
-    "z": -8.679
-   }
-  },
-  {
-   "sweep_id": "2srq9mwf2yizrnb4ukezrnafd",
-   "floor_id": "tsmq1wak12rhgn0mawksxcwcd",
-   "room_id": "xy2x8mpaaqknp7q2c3nnbw1ma",
-   "position": {
-    "x": -10.514,
-    "y": 1.37,
-    "z": -2.519
-   }
-  },
-  {
-   "sweep_id": "34uzgrkq9in9k3s8g39kwb1xd",
-   "floor_id": "tsmq1wak12rhgn0mawksxcwcd",
-   "room_id": null,
-   "position": {
-    "x": -21.759,
-    "y": 1.337,
-    "z": -7.914
-   }
-  },
-  {
-   "sweep_id": "3ehcfawaxrt37zw15psxgdwdd",
-   "floor_id": "tsmq1wak12rhgn0mawksxcwcd",
-   "room_id": null,
-   "position": {
-    "x": -14.47,
-    "y": 1.349,
-    "z": -13.598
-   }
-  },
-  {
-   "sweep_id": "3xird73r9tgm9iq83swn2ztpc",
-   "floor_id": "pd0i1c4yq9w0y2zsb07ed23sb",
-   "room_id": "3ygfq6yfyyw3hi9x7u5rm2iqa",
-   "position": {
-    "x": -4.691,
-    "y": 4.173,
-    "z": -8.187
-   }
-  },
-  {
-   "sweep_id": "4bix0in1he1dpinxrf9c34n1d",
-   "floor_id": "tsmq1wak12rhgn0mawksxcwcd",
-   "room_id": "a5f9age4zzxewres6iqux2emc",
-   "position": {
-    "x": -21.779,
-    "y": 1.371,
-    "z": -7.155
-   }
-  },
-  {
-   "sweep_id": "52wm8g5eddtefbgtsx7cyaw8c",
-   "floor_id": "pd0i1c4yq9w0y2zsb07ed23sb",
-   "room_id": "f97s719x9ctqkce19r6s01b5a",
-   "position": {
-    "x": -4.916,
-    "y": 4.188,
-    "z": -9.265
-   }
-  },
-  {
-   "sweep_id": "56c77ur6sfm22ex6qz2205y2b",
-   "floor_id": "tsmq1wak12rhgn0mawksxcwcd",
-   "room_id": "cdz3fkt38kae7tapstpt0eaeb",
-   "position": {
-    "x": -0.814,
-    "y": 1.395,
-    "z": -6.997
-   }
-  },
-  {
-   "sweep_id": "59wkaaacnepgshgd1e1qi1r2c",
-   "floor_id": "pd0i1c4yq9w0y2zsb07ed23sb",
-   "room_id": "3ygfq6yfyyw3hi9x7u5rm2iqa",
-   "position": {
-    "x": -0.957,
-    "y": 4.166,
-    "z": -3.813
-   }
-  },
-  {
-   "sweep_id": "5id1khbzxwurwgmrcmbupufid",
-   "floor_id": "pd0i1c4yq9w0y2zsb07ed23sb",
-   "room_id": "3ygfq6yfyyw3hi9x7u5rm2iqa",
-   "position": {
-    "x": -10.826,
-    "y": 4.18,
-    "z": -4.592
-   }
-  },
-  {
-   "sweep_id": "5rwn5g39idxk0w5px4y9k1cgb",
-   "floor_id": "pd0i1c4yq9w0y2zsb07ed23sb",
-   "room_id": "n2yqr30509t7i8whfdf2htwic",
-   "position": {
-    "x": -9.511,
-    "y": 4.164,
-    "z": -9.743
-   }
-  },
-  {
-   "sweep_id": "61mmtu0wsbg3p1h5hhygtcsda",
-   "floor_id": "pd0i1c4yq9w0y2zsb07ed23sb",
-   "room_id": "3ygfq6yfyyw3hi9x7u5rm2iqa",
-   "position": {
-    "x": -12.686,
-    "y": 2.507,
-    "z": -1.831
-   }
-  },
-  {
-   "sweep_id": "6nxd6xcnwexsq0eburh6d8p3b",
-   "floor_id": "tsmq1wak12rhgn0mawksxcwcd",
-   "room_id": null,
-   "position": {
-    "x": 1.62,
-    "y": 1.342,
-    "z": -6.526
-   }
-  },
-  {
-   "sweep_id": "6si0nkm90bsgzcci6kekzs7kb",
-   "floor_id": "pd0i1c4yq9w0y2zsb07ed23sb",
-   "room_id": "3ygfq6yfyyw3hi9x7u5rm2iqa",
-   "position": {
-    "x": -0.884,
-    "y": 4.174,
-    "z": -5.173
-   }
-  },
-  {
-   "sweep_id": "71mufd0pez0pswrw3566me0pd",
-   "floor_id": "pd0i1c4yq9w0y2zsb07ed23sb",
-   "room_id": "3ygfq6yfyyw3hi9x7u5rm2iqa",
-   "position": {
-    "x": -13.827,
-    "y": 1.767,
-    "z": -1.641
-   }
-  },
-  {
-   "sweep_id": "7pi5kqrqgd8inay1tgattn8nc",
-   "floor_id": "tsmq1wak12rhgn0mawksxcwcd",
-   "room_id": null,
-   "position": {
-    "x": -25.09,
-    "y": 1.183,
-    "z": -17.456
-   }
-  },
-  {
-   "sweep_id": "7xikruphbxxbnmkr11puc3g6a",
-   "floor_id": "tsmq1wak12rhgn0mawksxcwcd",
-   "room_id": "cdz3fkt38kae7tapstpt0eaeb",
-   "position": {
-    "x": -3.994,
-    "y": 1.456,
-    "z": -11.154
-   }
-  },
-  {
-   "sweep_id": "89d8t359i44am6gfup2cn60pc",
-   "floor_id": "pd0i1c4yq9w0y2zsb07ed23sb",
-   "room_id": "pcez6b4tqeep953kmm04hme9c",
-   "position": {
-    "x": -6.221,
-    "y": 4.193,
-    "z": -15.383
-   }
-  },
-  {
-   "sweep_id": "8zypyfw6zc15x95p0325n63zb",
-   "floor_id": "tsmq1wak12rhgn0mawksxcwcd",
-   "room_id": "tt6gm2a0463x9wmnx7rn6gugc",
-   "position": {
-    "x": -6.919,
-    "y": 1.431,
-    "z": -13.401
-   }
-  },
-  {
-   "sweep_id": "9mkgidcdkm7rsdx359z0cwhcb",
-   "floor_id": "tsmq1wak12rhgn0mawksxcwcd",
-   "room_id": "h26t7ky77ew74yb0pg8qqf5rd",
-   "position": {
-    "x": -2.353,
-    "y": 1.44,
-    "z": -14.771
-   }
-  },
-  {
-   "sweep_id": "9sbgyudw9xewmzc1pngh4yp3d",
-   "floor_id": "tsmq1wak12rhgn0mawksxcwcd",
-   "room_id": "cdz3fkt38kae7tapstpt0eaeb",
-   "position": {
-    "x": -6.846,
-    "y": 1.385,
-    "z": -6.626
-   }
-  },
-  {
-   "sweep_id": "a19bb81higx1n0zaebsn8cq5d",
-   "floor_id": "pd0i1c4yq9w0y2zsb07ed23sb",
-   "room_id": "3ygfq6yfyyw3hi9x7u5rm2iqa",
-   "position": {
-    "x": -12.689,
-    "y": 4.166,
-    "z": -4.594
-   }
-  },
-  {
-   "sweep_id": "a357b80f3gn0926hpd4c3k4wa",
-   "floor_id": "tsmq1wak12rhgn0mawksxcwcd",
-   "room_id": null,
-   "position": {
-    "x": -14.575,
-    "y": 1.333,
-    "z": -11.077
-   }
-  },
-  {
-   "sweep_id": "aweierxismr2h2dwb4itpa9ua",
-   "floor_id": "tsmq1wak12rhgn0mawksxcwcd",
-   "room_id": "cdz3fkt38kae7tapstpt0eaeb",
-   "position": {
-    "x": -12.028,
-    "y": 1.382,
-    "z": -12.192
-   }
-  },
-  {
-   "sweep_id": "b76b0pys5cymc1ecu17296uzc",
-   "floor_id": "tsmq1wak12rhgn0mawksxcwcd",
-   "room_id": "h26t7ky77ew74yb0pg8qqf5rd",
-   "position": {
-    "x": -4.06,
-    "y": 1.421,
-    "z": -17.069
-   }
-  },
-  {
-   "sweep_id": "be22bgknpxer7d9m55easaepd",
-   "floor_id": "pd0i1c4yq9w0y2zsb07ed23sb",
-   "room_id": "g1gkrkdygg4zs5xge8bxfuc1d",
-   "position": {
-    "x": -1.335,
-    "y": 4.179,
-    "z": -7.243
-   }
-  },
-  {
-   "sweep_id": "c0cux2z5ux9sbge0smc80mnzd",
-   "floor_id": "tsmq1wak12rhgn0mawksxcwcd",
-   "room_id": "cdz3fkt38kae7tapstpt0eaeb",
-   "position": {
-    "x": -2.317,
-    "y": 1.393,
-    "z": -6.579
-   }
-  },
-  {
-   "sweep_id": "ccxyr3ibzm3q71hqtcr0b7hwd",
-   "floor_id": "pd0i1c4yq9w0y2zsb07ed23sb",
-   "room_id": "peina19mpqedsku6a3huu38md",
-   "position": {
-    "x": 0.521,
-    "y": 4.19,
-    "z": -8.382
-   }
-  },
-  {
-   "sweep_id": "d0brrdp5im1224qp7nd8a7yxd",
-   "floor_id": "pd0i1c4yq9w0y2zsb07ed23sb",
-   "room_id": "4mpd3yxnm0wrnpak1ibnr29wc",
-   "position": {
-    "x": -4.24,
-    "y": 4.224,
-    "z": -14.489
-   }
-  },
-  {
-   "sweep_id": "d1k464gc1i3qnawet4717qtpd",
-   "floor_id": "tsmq1wak12rhgn0mawksxcwcd",
-   "room_id": "cdz3fkt38kae7tapstpt0eaeb",
-   "position": {
-    "x": -4.146,
-    "y": 1.411,
-    "z": -9.876
-   }
-  },
-  {
-   "sweep_id": "d5k04zaqqfnudt047msw73qzb",
-   "floor_id": "pd0i1c4yq9w0y2zsb07ed23sb",
-   "room_id": "b2kez6wsw32fm2x3ui593u3hc",
-   "position": {
-    "x": -3.048,
-    "y": 4.184,
-    "z": -10.787
-   }
-  },
-  {
-   "sweep_id": "dthh21w42c39162pkg5qtsg0c",
-   "floor_id": "tsmq1wak12rhgn0mawksxcwcd",
-   "room_id": "m8npxsuk79xy21dd09x9wtped",
-   "position": {
-    "x": -25.038,
-    "y": 1.315,
-    "z": -7.104
-   }
-  },
-  {
-   "sweep_id": "dug2uk7yg7zhsqrn12kg7t9aa",
-   "floor_id": "tsmq1wak12rhgn0mawksxcwcd",
-   "room_id": "cdz3fkt38kae7tapstpt0eaeb",
-   "position": {
-    "x": -2.332,
-    "y": 1.38,
-    "z": -0.429
-   }
-  },
-  {
-   "sweep_id": "dy3g2ss28rmdb5bz2hp4er9xa",
-   "floor_id": "tsmq1wak12rhgn0mawksxcwcd",
-   "room_id": "cdz3fkt38kae7tapstpt0eaeb",
-   "position": {
-    "x": -6.851,
-    "y": 1.399,
-    "z": -9.157
-   }
-  },
-  {
-   "sweep_id": "dzxqgrybsee0r5tyri4t7mx5a",
-   "floor_id": "tsmq1wak12rhgn0mawksxcwcd",
-   "room_id": "cdz3fkt38kae7tapstpt0eaeb",
-   "position": {
-    "x": 0.449,
-    "y": 1.39,
-    "z": -3.736
-   }
-  },
-  {
-   "sweep_id": "e4aru4p2ygwmpz6ah5ymhr2sa",
-   "floor_id": "tsmq1wak12rhgn0mawksxcwcd",
-   "room_id": "19ab05tns5h6y4qm42esqqpea",
-   "position": {
-    "x": -0.286,
-    "y": 1.427,
-    "z": -14.608
-   }
-  },
-  {
-   "sweep_id": "e66k3d1a807mfydy5zqhxt67b",
-   "floor_id": "tsmq1wak12rhgn0mawksxcwcd",
-   "room_id": "h26t7ky77ew74yb0pg8qqf5rd",
-   "position": {
-    "x": -3.778,
-    "y": 1.421,
-    "z": -13.545
-   }
-  },
-  {
-   "sweep_id": "e6uqb75gp167ui9e14iww6fwa",
-   "floor_id": "tsmq1wak12rhgn0mawksxcwcd",
-   "room_id": "cdz3fkt38kae7tapstpt0eaeb",
-   "position": {
-    "x": -6.358,
-    "y": 1.38,
-    "z": -5.09
-   }
-  },
-  {
-   "sweep_id": "ezghybbamfrugy9fs3m6q85xd",
-   "floor_id": "tsmq1wak12rhgn0mawksxcwcd",
-   "room_id": "tt6gm2a0463x9wmnx7rn6gugc",
-   "position": {
-    "x": -6.912,
-    "y": 1.411,
-    "z": -14.796
-   }
-  },
-  {
-   "sweep_id": "g6em1x5pwnqkpszw4eyay2y6b",
-   "floor_id": "tsmq1wak12rhgn0mawksxcwcd",
-   "room_id": "2qdmc5i9byxi79ry1pxdkqzea",
-   "position": {
-    "x": 0.674,
-    "y": 1.425,
-    "z": -12.411
-   }
-  },
-  {
-   "sweep_id": "g8a3xmd4i05c9pbdm4e1shfaa",
-   "floor_id": "tsmq1wak12rhgn0mawksxcwcd",
-   "room_id": "xy2x8mpaaqknp7q2c3nnbw1ma",
-   "position": {
-    "x": -6.292,
-    "y": 1.382,
-    "z": -2.335
-   }
-  },
-  {
-   "sweep_id": "h22ebr3q3ue1mmhrh0hn5kc8c",
-   "floor_id": "pd0i1c4yq9w0y2zsb07ed23sb",
-   "room_id": "peina19mpqedsku6a3huu38md",
-   "position": {
-    "x": -0.181,
-    "y": 4.18,
-    "z": -12.343
-   }
-  },
-  {
-   "sweep_id": "h9bhhah3akctqdspzh7pnz0ic",
-   "floor_id": "tsmq1wak12rhgn0mawksxcwcd",
-   "room_id": "cdz3fkt38kae7tapstpt0eaeb",
-   "position": {
-    "x": -6.921,
-    "y": 1.393,
-    "z": -9.688
-   }
-  },
-  {
-   "sweep_id": "hd5buh12ef1xbwwmwkgkn5z1a",
-   "floor_id": "pd0i1c4yq9w0y2zsb07ed23sb",
-   "room_id": "3ygfq6yfyyw3hi9x7u5rm2iqa",
-   "position": {
-    "x": 0.105,
-    "y": 4.126,
-    "z": 0.023
-   }
-  },
-  {
-   "sweep_id": "hyax0g27dk9u8ppwf94iibh0d",
-   "floor_id": "pd0i1c4yq9w0y2zsb07ed23sb",
-   "room_id": "q5n62dpd3mrc1exy2hr84132b",
-   "position": {
-    "x": -10.079,
-    "y": 4.183,
-    "z": -15.329
-   }
-  },
-  {
-   "sweep_id": "i4qik1f3iacmw9ns7udupzd5d",
-   "floor_id": "pd0i1c4yq9w0y2zsb07ed23sb",
-   "room_id": "b2kez6wsw32fm2x3ui593u3hc",
-   "position": {
-    "x": -4.868,
-    "y": 3.011,
-    "z": -12.243
-   }
-  },
-  {
-   "sweep_id": "iibm8aufb21h9mrxtzg2rnqdc",
-   "floor_id": "pd0i1c4yq9w0y2zsb07ed23sb",
-   "room_id": "q5n62dpd3mrc1exy2hr84132b",
-   "position": {
-    "x": -8.225,
-    "y": 4.192,
-    "z": -13.51
-   }
-  },
-  {
-   "sweep_id": "iqx4435gt97iregf532sq7s8a",
-   "floor_id": "tsmq1wak12rhgn0mawksxcwcd",
-   "room_id": "cdz3fkt38kae7tapstpt0eaeb",
-   "position": {
-    "x": -5.52,
-    "y": 1.394,
-    "z": -9.169
-   }
-  },
-  {
-   "sweep_id": "k7grkm3fn9rbr2iqhd5bbcm7a",
-   "floor_id": "tsmq1wak12rhgn0mawksxcwcd",
-   "room_id": "m8npxsuk79xy21dd09x9wtped",
-   "position": {
-    "x": -24.373,
-    "y": 1.315,
-    "z": -5.495
-   }
-  },
-  {
-   "sweep_id": "k8mrsi3cbgx988kb41eeg484a",
-   "floor_id": "tsmq1wak12rhgn0mawksxcwcd",
-   "room_id": "h26t7ky77ew74yb0pg8qqf5rd",
-   "position": {
-    "x": -4.416,
-    "y": 1.424,
-    "z": -14.701
-   }
-  },
-  {
-   "sweep_id": "k9autwydu54fpc2nnpk71ra6b",
-   "floor_id": "tsmq1wak12rhgn0mawksxcwcd",
-   "room_id": "wbpb7dkfuwnikd1kq2a9hz70a",
-   "position": {
-    "x": -15.012,
-    "y": 1.399,
-    "z": 1.181
-   }
-  },
-  {
-   "sweep_id": "kc2bnyknhaqszz3ed0zggywmd",
-   "floor_id": "tsmq1wak12rhgn0mawksxcwcd",
-   "room_id": null,
-   "position": {
-    "x": -25.065,
-    "y": 1.276,
-    "z": -8.716
-   }
-  },
-  {
-   "sweep_id": "kk1648pmtqcx4k8a0tee8t1gc",
-   "floor_id": "tsmq1wak12rhgn0mawksxcwcd",
-   "room_id": "xy2x8mpaaqknp7q2c3nnbw1ma",
-   "position": {
-    "x": -14.993,
-    "y": 1.381,
-    "z": -0.516
-   }
-  },
-  {
-   "sweep_id": "knp6tx1fm1nuhy4i274u0us9d",
-   "floor_id": "tsmq1wak12rhgn0mawksxcwcd",
-   "room_id": "cdz3fkt38kae7tapstpt0eaeb",
-   "position": {
-    "x": -12.159,
-    "y": 1.414,
-    "z": -7.915
-   }
-  },
-  {
-   "sweep_id": "krwn4eb1918ctyqs92pncm4fd",
-   "floor_id": "pd0i1c4yq9w0y2zsb07ed23sb",
-   "room_id": "peina19mpqedsku6a3huu38md",
-   "position": {
-    "x": -1.89,
-    "y": 4.195,
-    "z": -12.279
-   }
-  },
-  {
-   "sweep_id": "mmz19bkb9q34usaddzb5hmadc",
-   "floor_id": "tsmq1wak12rhgn0mawksxcwcd",
-   "room_id": "xy2x8mpaaqknp7q2c3nnbw1ma",
-   "position": {
-    "x": -7.852,
-    "y": 1.365,
-    "z": -0.462
-   }
-  },
-  {
-   "sweep_id": "mtmhnp7t2q8t8y4gdtzqbfddb",
-   "floor_id": "pd0i1c4yq9w0y2zsb07ed23sb",
-   "room_id": "3ygfq6yfyyw3hi9x7u5rm2iqa",
-   "position": {
-    "x": -8.029,
-    "y": 4.177,
-    "z": -4.588
-   }
-  },
-  {
-   "sweep_id": "n1dtam15gbru9nazyp1yb49td",
-   "floor_id": "tsmq1wak12rhgn0mawksxcwcd",
-   "room_id": "xy2x8mpaaqknp7q2c3nnbw1ma",
-   "position": {
-    "x": -12.013,
-    "y": 1.414,
-    "z": -0.488
-   }
-  },
-  {
-   "sweep_id": "n1xp2e64da8u7h7frsdarcw6c",
-   "floor_id": "pd0i1c4yq9w0y2zsb07ed23sb",
-   "room_id": "peina19mpqedsku6a3huu38md",
-   "position": {
-    "x": -1.33,
-    "y": 4.182,
-    "z": -8.396
-   }
-  },
-  {
-   "sweep_id": "n74d1rftgy4ue1tz1dz90p49a",
-   "floor_id": "pd0i1c4yq9w0y2zsb07ed23sb",
-   "room_id": "b2kez6wsw32fm2x3ui593u3hc",
-   "position": {
-    "x": -6.802,
-    "y": 4.186,
-    "z": -13.501
-   }
-  },
-  {
-   "sweep_id": "ntp6yctbfbgexhhecu856u2zd",
-   "floor_id": "tsmq1wak12rhgn0mawksxcwcd",
-   "room_id": "xy2x8mpaaqknp7q2c3nnbw1ma",
-   "position": {
-    "x": -15.044,
-    "y": 1.391,
-    "z": -1.648
-   }
-  },
-  {
-   "sweep_id": "ntt95b7w37hdb7gwquenq77ga",
-   "floor_id": "pd0i1c4yq9w0y2zsb07ed23sb",
-   "room_id": "n2yqr30509t7i8whfdf2htwic",
-   "position": {
-    "x": -6.844,
-    "y": 4.165,
-    "z": -11.782
-   }
-  },
-  {
-   "sweep_id": "p30hseae7z70as56u1euhmu7d",
-   "floor_id": "pd0i1c4yq9w0y2zsb07ed23sb",
-   "room_id": "3ygfq6yfyyw3hi9x7u5rm2iqa",
-   "position": {
-    "x": -3.004,
-    "y": 4.155,
-    "z": -8.173
-   }
-  },
-  {
-   "sweep_id": "pa0c2iw3esae7c12ey2sp5gsd",
-   "floor_id": "pd0i1c4yq9w0y2zsb07ed23sb",
-   "room_id": "b2kez6wsw32fm2x3ui593u3hc",
-   "position": {
-    "x": -3.07,
-    "y": 4.189,
-    "z": -12.259
-   }
-  },
-  {
-   "sweep_id": "pbw5q8hd1yrdzixqb3z1ah02d",
-   "floor_id": "tsmq1wak12rhgn0mawksxcwcd",
-   "room_id": "2qdmc5i9byxi79ry1pxdkqzea",
-   "position": {
-    "x": -1.314,
-    "y": 1.431,
-    "z": -10.1
-   }
-  },
-  {
-   "sweep_id": "pisy9r4qe55h28ips2y3c29yb",
-   "floor_id": "tsmq1wak12rhgn0mawksxcwcd",
-   "room_id": "cdz3fkt38kae7tapstpt0eaeb",
-   "position": {
-    "x": -2.747,
-    "y": 1.407,
-    "z": -9.913
-   }
-  },
-  {
-   "sweep_id": "qbbz4uici1qha0qn3i35hsdtc",
-   "floor_id": "tsmq1wak12rhgn0mawksxcwcd",
-   "room_id": "3m54yff1z7crxaywd8if9rb0d",
-   "position": {
-    "x": -16.598,
-    "y": 1.509,
-    "z": -4.062
-   }
-  },
-  {
-   "sweep_id": "r0xr40z546zdbppp6gymeyqzc",
-   "floor_id": "pd0i1c4yq9w0y2zsb07ed23sb",
-   "room_id": "3ygfq6yfyyw3hi9x7u5rm2iqa",
-   "position": {
-    "x": -3.042,
-    "y": 4.168,
-    "z": -5.157
-   }
-  },
-  {
-   "sweep_id": "rpqq8u8q4eu4z9y4gpy5i2qnb",
-   "floor_id": "tsmq1wak12rhgn0mawksxcwcd",
-   "room_id": "ediidma5zg15dufx3n0qyq21a",
-   "position": {
-    "x": -12.023,
-    "y": 1.405,
-    "z": 1.205
-   }
-  },
-  {
-   "sweep_id": "rszqgzs41uefh50pkk7r6tfqa",
-   "floor_id": "tsmq1wak12rhgn0mawksxcwcd",
-   "room_id": "xy2x8mpaaqknp7q2c3nnbw1ma",
-   "position": {
-    "x": -3.396,
-    "y": 1.387,
-    "z": -0.446
-   }
-  },
-  {
-   "sweep_id": "sx0nc8me3510kx5mwc35xi4tc",
-   "floor_id": "pd0i1c4yq9w0y2zsb07ed23sb",
-   "room_id": "b2kez6wsw32fm2x3ui593u3hc",
-   "position": {
-    "x": -3.985,
-    "y": 4.184,
-    "z": -13.542
-   }
-  },
-  {
-   "sweep_id": "t84tw3x7dezpb045wz0nc53pb",
-   "floor_id": "tsmq1wak12rhgn0mawksxcwcd",
-   "room_id": "cdz3fkt38kae7tapstpt0eaeb",
-   "position": {
-    "x": -2.256,
-    "y": 1.394,
-    "z": -3.819
-   }
-  },
-  {
-   "sweep_id": "t8bk4atzn2xw3dxksp8ssbefa",
-   "floor_id": "tsmq1wak12rhgn0mawksxcwcd",
-   "room_id": "tt6gm2a0463x9wmnx7rn6gugc",
-   "position": {
-    "x": -12.83,
-    "y": 1.401,
-    "z": -13.635
-   }
-  },
-  {
-   "sweep_id": "ter0iuxd2bc2a9hinc63i83nb",
-   "floor_id": "pd0i1c4yq9w0y2zsb07ed23sb",
-   "room_id": "3ygfq6yfyyw3hi9x7u5rm2iqa",
-   "position": {
-    "x": -12.75,
-    "y": 3.407,
-    "z": -3.268
-   }
-  },
-  {
-   "sweep_id": "tufzfy6rcn1ngh42tbaipsumc",
-   "floor_id": "tsmq1wak12rhgn0mawksxcwcd",
-   "room_id": null,
-   "position": {
-    "x": -14.448,
-    "y": 1.355,
-    "z": -17.263
-   }
-  },
-  {
-   "sweep_id": "w4kd7aypcsbk9gwd0fwtw08fd",
-   "floor_id": "tsmq1wak12rhgn0mawksxcwcd",
-   "room_id": "xy2x8mpaaqknp7q2c3nnbw1ma",
-   "position": {
-    "x": -6.301,
-    "y": 1.367,
-    "z": -0.464
-   }
-  },
-  {
-   "sweep_id": "w7feuasf94i2ebs49ihzaqcza",
-   "floor_id": "pd0i1c4yq9w0y2zsb07ed23sb",
-   "room_id": "bmpu8rc0bpgc1bruwia8kktzd",
-   "position": {
-    "x": -0.181,
-    "y": 4.273,
-    "z": -17.066
-   }
-  },
-  {
-   "sweep_id": "waiznbft52umcd1iwb654zqrc",
-   "floor_id": "tsmq1wak12rhgn0mawksxcwcd",
-   "room_id": "cdz3fkt38kae7tapstpt0eaeb",
-   "position": {
-    "x": -10.697,
-    "y": 1.385,
-    "z": -5.135
-   }
-  },
-  {
-   "sweep_id": "wpzhyz5tf0yd47qn5xp4ggusc",
-   "floor_id": "tsmq1wak12rhgn0mawksxcwcd",
-   "room_id": null,
-   "position": {
-    "x": -18.576,
-    "y": 1.313,
-    "z": -8.705
-   }
-  },
-  {
-   "sweep_id": "wqyqrdgrqmpsw1hrtmsr5f26b",
-   "floor_id": "tsmq1wak12rhgn0mawksxcwcd",
-   "room_id": "tt6gm2a0463x9wmnx7rn6gugc",
-   "position": {
-    "x": -11.594,
-    "y": 1.386,
-    "z": -14.838
-   }
-  },
-  {
-   "sweep_id": "xbu1t7n47s502wpeut54844rb",
-   "floor_id": "tsmq1wak12rhgn0mawksxcwcd",
-   "room_id": "n81qfe51azs8iexnbqwspye6c",
-   "position": {
-    "x": -3.715,
-    "y": 1.377,
-    "z": -1.999
-   }
-  },
-  {
-   "sweep_id": "y29bhbzkz46wb19mnwh2e1swb",
-   "floor_id": "tsmq1wak12rhgn0mawksxcwcd",
-   "room_id": "xy2x8mpaaqknp7q2c3nnbw1ma",
-   "position": {
-    "x": -10.472,
-    "y": 1.38,
-    "z": -0.483
-   }
-  },
-  {
-   "sweep_id": "yh4t1sc14ygf8xhtz529fxf1b",
-   "floor_id": "pd0i1c4yq9w0y2zsb07ed23sb",
-   "room_id": "4mpd3yxnm0wrnpak1ibnr29wc",
-   "position": {
-    "x": -1.354,
-    "y": 4.21,
-    "z": -14.607
-   }
-  },
-  {
-   "sweep_id": "z4sqtgiynmcariic0xem2ayxb",
-   "floor_id": "tsmq1wak12rhgn0mawksxcwcd",
-   "room_id": null,
-   "position": {
-    "x": -14.435,
-    "y": 1.32,
-    "z": -7.911
-   }
-  },
-  {
-   "sweep_id": "zae10qfy9wtygk5ayair69qsc",
-   "floor_id": "tsmq1wak12rhgn0mawksxcwcd",
-   "room_id": "cdz3fkt38kae7tapstpt0eaeb",
-   "position": {
-    "x": -6.907,
-    "y": 1.434,
-    "z": -12.003
-   }
-  },
-  {
-   "sweep_id": "zcahczqdu5c181rf45fqzhi6b",
-   "floor_id": "tsmq1wak12rhgn0mawksxcwcd",
-   "room_id": null,
-   "position": {
-    "x": -0.013,
-    "y": 1.379,
-    "z": -7.16
-   }
-  },
-  {
-   "sweep_id": "zp2t9tew9ueh30dhki9xq0ypc",
-   "floor_id": "pd0i1c4yq9w0y2zsb07ed23sb",
-   "room_id": "b2kez6wsw32fm2x3ui593u3hc",
-   "position": {
-    "x": -5.597,
-    "y": 2.427,
-    "z": -11.257
-   }
-  }
- ],
- "assets": {
-  "interior_glb": "/fixtures/blobs/onXQLXhfyQv/interior.glb",
-  "context_glb": "/fixtures/blobs/onXQLXhfyQv/context.glb",
-  "ortho": "/fixtures/blobs/onXQLXhfyQv/ortho.svg",
-  "obliques": []
- },
- "quality": {
-  "alignment": "gps_only",
-  "openings": "detected",
-  "context": "dsm",
-  "traffic": "class_default"
- }
 }

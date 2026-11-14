@@ -10,6 +10,7 @@ import { Badge, Button, Notice, Segmented, Spinner, Toggle, cn } from '@/compone
 import { IconCamera, IconCheck, IconDesign, IconMap, IconMic, IconSend, IconSound, IconSun, IconTour } from '@/components/ui/icons';
 import { useInventory, useLayouts, useTwin } from '@/lib/data/hooks';
 import { visibleLayouts } from '@/lib/layouts';
+import { roomName, roomsOnFloor } from '@/lib/rooms';
 import { usePushToTalk } from '@/lib/speech/usePushToTalk';
 import { useSession } from '@/lib/store/session';
 import { LookPad } from './LookPad';
@@ -44,9 +45,7 @@ function Rooms({ twin }: { twin: PropertyTwin }) {
           <div key={floor.floor_id}>
             <div className="mb-1.5 text-xs text-muted">Floor {floor.index + 1}</div>
             <div className="flex flex-wrap gap-1.5">
-              {twin.rooms
-                .filter((r) => r.floor_id === floor.floor_id)
-                .map((r) => (
+              {roomsOnFloor(twin, floor.floor_id).map((r) => (
                   <button
                     key={r.room_id}
                     type="button"
@@ -55,9 +54,9 @@ function Rooms({ twin }: { twin: PropertyTwin }) {
                     onClick={() => dispatch('viewer.goto', { room_id: r.room_id })}
                     className={cn('min-h-10 rounded-lg border px-3 text-sm', r.room_id === roomId ? 'border-sun bg-sun/15 text-sun' : 'border-line text-muted active:bg-raised')}
                   >
-                    {r.label}
+                    {roomName(twin, r.room_id)}
                   </button>
-                ))}
+              ))}
             </div>
           </div>
         ))}
@@ -97,7 +96,7 @@ function Variants({ twin }: { twin: PropertyTwin }) {
             <div className="space-y-2 p-3">
               <div className="flex items-baseline justify-between text-sm">
                 <span className="font-medium">
-                  {room?.label ?? 'Room'} · {i + 1}/{variants.length}
+                  {room ? roomName(twin, room.room_id) : 'Room'} · {i + 1}/{variants.length}
                 </span>
                 <span className="text-xs text-muted">fit {(l.score * 100).toFixed(0)}%</span>
               </div>
@@ -158,7 +157,7 @@ function SoundControls({ twin }: { twin: PropertyTwin }) {
   type G = 'asbuilt' | 'single' | 'double' | 'triple';
   return (
     <div className="space-y-3">
-      <p className="text-xs text-muted">Scenario for {room?.label ?? 'the room'}. The sound plays on the desktop.</p>
+      <p className="text-xs text-muted">Scenario for {roomName(twin, room?.room_id)}. The sound plays on the desktop.</p>
       <Segmented<G>
         className="w-full [&>button]:flex-1 [&>button]:justify-center"
         label="Window glazing"

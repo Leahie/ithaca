@@ -2,10 +2,11 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { EVENT_TYPES, type InventoryItem, type LayoutVariant, type NoiseReport, type PropertyTwin, type SunReport } from '@ithaca/schema';
 import { describe, expect, it } from 'vitest';
-import { noiseKey } from '@/lib/api/fixture';
+import { fixtureAssetUrl, noiseKey } from '@/lib/api/fixture';
 import { convexOverlap, footprint, isCcwFromAbove, pointInPolygon, polygonInside } from '@/lib/geometry/polygon';
 import { applyEvent, initialCore } from '@/lib/store/reducer';
 import { visibleLayouts } from '@/lib/layouts';
+import { roomNames } from '@/lib/rooms';
 
 /**
  * The fixtures the web app runs on in fixture mode (A6) must have the schema's shape and
@@ -19,27 +20,69 @@ const twin = json<PropertyTwin>(`twin/${PID}.json`);
 const inventory = json<InventoryItem[]>('inventory/demo.json');
 const layouts = json<LayoutVariant[]>(`layouts/${PID}.json`);
 
-/** Bounding box of a GLB from its POSITION accessors (min / max are required by glTF). */
-function glbBounds(file: string): { min: number[]; max: number[] } {
+interface Gltf {
+  scenes: { nodes: number[] }[];
+  nodes: { mesh?: number; children?: number[]; translation?: number[]; scale?: number[]; rotation?: number[]; matrix?: number[] }[];
+  meshes: { primitives: { attributes: { POSITION: number } }[] }[];
+  accessors: { min?: number[]; max?: number[] }[];
+  extensionsRequired?: string[];
+}
+
+function readGlb(file: string): Gltf {
   const buf = fs.readFileSync(file);
   expect(buf.readUInt32LE(0)).toBe(0x46546c67); // "glTF"
   expect(buf.readUInt32LE(4)).toBe(2);
-  const jsonLength = buf.readUInt32LE(12);
-  const doc = JSON.parse(buf.subarray(20, 20 + jsonLength).toString('utf8')) as {
-    meshes: { primitives: { attributes: { POSITION: number } }[] }[];
-    accessors: { min?: number[]; max?: number[] }[];
-  };
+  return JSON.parse(buf.subarray(20, 20 + buf.readUInt32LE(12)).toString('utf8')) as Gltf;
+}
+
+/** Column-major 4x4 of a glTF node: its `matrix`, or translation * rotation * scale. */
+function nodeMatrix(node: Gltf['nodes'][number]): number[] {
+  if (node.matrix) return node.matrix;
+  const [x, y, z, w] = node.rotation ?? [0, 0, 0, 1];
+  const [sx, sy, sz] = node.scale ?? [1, 1, 1];
+  const [tx, ty, tz] = node.translation ?? [0, 0, 0];
+  return [
+    (1 - 2 * (y! * y! + z! * z!)) * sx!, 2 * (x! * y! + z! * w!) * sx!, 2 * (x! * z! - y! * w!) * sx!, 0,
+    2 * (x! * y! - z! * w!) * sy!, (1 - 2 * (x! * x! + z! * z!)) * sy!, 2 * (y! * z! + x! * w!) * sy!, 0,
+    2 * (x! * z! + y! * w!) * sz!, 2 * (y! * z! - x! * w!) * sz!, (1 - 2 * (x! * x! + y! * y!)) * sz!, 0,
+    tx!, ty!, tz!, 1,
+  ];
+}
+
+const multiply = (a: number[], b: number[]) =>
+  Array.from({ length: 16 }, (_, i) => {
+    const col = Math.floor(i / 4);
+    const row = i % 4;
+    return a[row]! * b[col * 4]! + a[4 + row]! * b[col * 4 + 1]! + a[8 + row]! * b[col * 4 + 2]! + a[12 + row]! * b[col * 4 + 3]!;
+  });
+
+/**
+ * Bounding box of a GLB in its scene frame, from the POSITION accessors' min / max carried
+ * through the node transforms (a quantized mesh stores integers and scales them on the node).
+ */
+function glbBounds(file: string): { min: number[]; max: number[] } {
+  const doc = readGlb(file);
   const min = [Infinity, Infinity, Infinity];
   const max = [-Infinity, -Infinity, -Infinity];
-  for (const mesh of doc.meshes) {
-    for (const prim of mesh.primitives) {
-      const acc = doc.accessors[prim.attributes.POSITION]!;
-      for (let k = 0; k < 3; k++) {
-        min[k] = Math.min(min[k]!, acc.min![k]!);
-        max[k] = Math.max(max[k]!, acc.max![k]!);
+  const visit = (index: number, parent: number[]) => {
+    const node = doc.nodes[index]!;
+    const world = multiply(parent, nodeMatrix(node));
+    if (node.mesh !== undefined) {
+      for (const prim of doc.meshes[node.mesh]!.primitives) {
+        const acc = doc.accessors[prim.attributes.POSITION]!;
+        for (let corner = 0; corner < 8; corner++) {
+          const p = [0, 1, 2].map((k) => ((corner >> k) & 1 ? acc.max![k]! : acc.min![k]!));
+          for (let k = 0; k < 3; k++) {
+            const v = world[k]! * p[0]! + world[4 + k]! * p[1]! + world[8 + k]! * p[2]! + world[12 + k]!;
+            min[k] = Math.min(min[k]!, v);
+            max[k] = Math.max(max[k]!, v);
+          }
+        }
       }
     }
-  }
+    for (const child of node.children ?? []) visit(child, world);
+  };
+  for (const root of doc.scenes[0]!.nodes) visit(root, [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1]);
   return { min, max };
 }
 
@@ -79,16 +122,33 @@ describe('twin fixture', () => {
     const placed = twin.sweeps.filter((s) => s.room_id);
     const inside = placed.filter((s) => pointInPolygon([s.position.x, s.position.z], rooms.get(s.room_id!)!.polygon));
     expect(placed.length).toBeGreaterThan(40);
+    expect(twin.sweeps.some((s) => s.room_id === null)).toBe(true); // yard scans belong to no room
     // Matterport assigns a few sweeps on thresholds to the neighbouring room.
     expect(inside.length / placed.length).toBeGreaterThan(0.9);
   });
 
-  it('the interior mesh exists, is in the interior frame (Y up), and fits the asset budget (C9)', () => {
-    const file = path.join(FIX, 'blobs', PID, 'interior.glb');
-    const { min, max } = glbBounds(file);
+  it('room names for display are unique, though labels repeat', () => {
+    const names = [...roomNames(twin).values()];
+    expect(new Set(twin.rooms.map((r) => r.label)).size).toBeLessThan(twin.rooms.length);
+    expect(new Set(names).size).toBe(twin.rooms.length);
+    expect(names).toContain('Office'); // a label used once stays as it is
+    expect(names).toContain('Bedroom 1');
+  });
+
+  it('the interior mesh exists, uses only compressions the loader decodes, and fits the asset budget (C9)', () => {
+    expect(twin.assets.interior_glb).toBeTruthy();
+    const file = path.join(FIX, twin.assets.interior_glb!.replace(/^\/?(fixtures\/)?/, ''));
     expect(fs.statSync(file).size).toBeLessThan(25e6);
-    expect(max[1]! - min[1]!).toBeLessThan(15); // two storeys tall, not 30 m: Y is up
+    // drei's useGLTF decodes meshopt and quantized meshes with no extra setup; Draco would need a decoder.
+    for (const ext of readGlb(file).extensionsRequired ?? []) expect(['EXT_meshopt_compression', 'KHR_mesh_quantization']).toContain(ext);
+  });
+
+  it('the interior mesh is in the interior frame: Y up, and the rooms lie inside it (I-G9)', () => {
+    const { min, max } = glbBounds(path.join(FIX, twin.assets.interior_glb!.replace(/^\/?(fixtures\/)?/, '')));
+    expect(max[1]! - min[1]!).toBeLessThan(20); // a two-storey house with yard trees, not a 30 m tall one
     for (const room of twin.rooms) {
+      expect(room.floor_y).toBeGreaterThan(min[1]! - 0.5);
+      expect(room.floor_y + room.height_m).toBeLessThan(max[1]! + 0.5);
       for (const [x, z] of room.polygon) {
         expect(x).toBeGreaterThan(min[0]! - 1);
         expect(x).toBeLessThan(max[0]! + 1);
@@ -96,6 +156,13 @@ describe('twin fixture', () => {
         expect(z).toBeLessThan(max[2]! + 1);
       }
     }
+  });
+
+  it('fixture asset paths are keys under fixtures/, turned into URLs by the fixture API', () => {
+    expect(fixtureAssetUrl('blobs/x/interior.glb')).toBe('/fixtures/blobs/x/interior.glb');
+    expect(fixtureAssetUrl('/fixtures/blobs/x/interior.glb')).toBe('/fixtures/blobs/x/interior.glb');
+    expect(fixtureAssetUrl('https://cdn.example/x.glb')).toBe('https://cdn.example/x.glb');
+    expect(fixtureAssetUrl(null)).toBeNull();
   });
 });
 

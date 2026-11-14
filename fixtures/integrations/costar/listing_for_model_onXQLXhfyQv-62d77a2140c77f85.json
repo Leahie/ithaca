@@ -1,0 +1,11 @@
+{
+ "service": "costar",
+ "name": "listing_for_model_onXQLXhfyQv",
+ "request": {
+  "file": "residential-listings.csv",
+  "MatterportModelId": "onXQLXhfyQv"
+ },
+ "response": {
+  "listing_id": "237399188"
+ }
+}
