@@ -55,14 +55,14 @@ function VariantCard({ layout, index, twin, items, selected }: { layout: LayoutV
           <PlanPreview room={room} openings={openings} placements={layout.placements} items={items} className="h-full w-full p-3" />
         ) : null}
         <div className="absolute top-2 left-2 flex gap-1.5">
-          <Badge className="bg-ink/80">Layout {index + 1}</Badge>
+          <Badge>Layout {index + 1}</Badge>
           {selected && (
-            <Badge tone="sun" className="bg-ink/80">
+            <Badge tone="sun">
               <IconCheck width={11} height={11} /> In the house
             </Badge>
           )}
           {layout.status === 'rejected' && (
-            <Badge tone="danger" className="bg-ink/80">
+            <Badge tone="danger">
               Rejected
             </Badge>
           )}
@@ -78,7 +78,7 @@ function VariantCard({ layout, index, twin, items, selected }: { layout: LayoutV
         </div>
         <p className="text-[13px] leading-5 text-muted">{layout.rationale}</p>
         {layout.feedback && <p className="rounded-md border border-line px-2.5 py-1.5 text-xs text-muted">Your note: “{layout.feedback}”</p>}
-        {missing > 0 && <p className="text-xs text-sun">{missing} item(s) in this layout are no longer in your inventory.</p>}
+        {missing > 0 && <p className="text-xs text-sun-deep">{missing} item(s) in this layout are no longer in your inventory.</p>}
         <div className="mt-auto flex gap-2">
           <Button variant={selected ? 'subtle' : 'primary'} className="flex-1" disabled={selected} onClick={() => dispatch('layout.select', { layout_id: layout.layout_id })}>
             {selected ? 'Placed' : 'Place in the house'}

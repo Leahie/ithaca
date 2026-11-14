@@ -203,7 +203,7 @@ export function SunLabTab({ twin, active }: { twin: PropertyTwin; active: boolea
           {panelOpen ? 'Hide details' : 'Sun details'}
         </Button>
         {panelOpen && (
-          <div className="min-h-0 w-[300px] space-y-4 overflow-y-auto rounded-xl border border-line-strong bg-surface/95 p-4 shadow-xl backdrop-blur">
+          <div className="min-h-0 w-[300px] space-y-4 overflow-y-auto rounded-[var(--radius-card)] border border-line bg-raised p-4 shadow-float">
             <SunPanel twin={twin} room={room} heatmapOn={heatmapOn} onHeatmap={setHeatmapOn} />
             <div className="space-y-3 border-t border-line pt-3">
               <Toggle label="Show windows and doors" checked={showOpenings} onChange={setShowOpenings} />

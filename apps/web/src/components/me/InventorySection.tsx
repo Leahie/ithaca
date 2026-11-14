@@ -243,7 +243,7 @@ export function InventorySection() {
             <div className="flex items-center justify-between text-sm">
               <span className="text-muted">{selected.price != null ? `$${selected.price.toLocaleString('en-US')}` : 'No price recorded'}</span>
               {selected.product_url && (
-                <a href={selected.product_url} target="_blank" rel="noreferrer" className="text-sky hover:underline">
+                <a href={selected.product_url} target="_blank" rel="noreferrer" className="text-sky-deep hover:underline">
                   Product page
                 </a>
               )}

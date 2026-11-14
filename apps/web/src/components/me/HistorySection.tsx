@@ -28,7 +28,7 @@ function PropertyHistory({ propertyId, hasNotes }: { propertyId: string; hasNote
     <section className="rounded-xl border border-line bg-surface p-5" data-testid="property-history" data-property-id={propertyId}>
       <div className="flex flex-wrap items-baseline justify-between gap-3">
         <h2 className="text-base font-semibold">{twin.data?.address ?? propertyId}</h2>
-        <Link href={`/house/${encodeURIComponent(propertyId)}`} className="text-sm text-sky hover:underline">
+        <Link href={`/house/${encodeURIComponent(propertyId)}`} className="text-sm text-sky-deep hover:underline">
           Open this home
         </Link>
       </div>

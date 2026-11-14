@@ -2,7 +2,8 @@
 
 import type { InventoryItem, LayoutVariant, PropertyTwin } from '@ithaca/schema';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Badge, Notice, Spinner, ViewState } from '@/components/ui';
+import { HouseLoader } from '@/components/house/HouseLoader';
+import { Badge, Notice, ViewState } from '@/components/ui';
 import { api } from '@/lib/api';
 import { config } from '@/lib/config';
 import { useInventory, useLayouts } from '@/lib/data/hooks';
@@ -72,6 +73,9 @@ export function TourTab({ twin, active }: { twin: PropertyTwin; active: boolean 
   const [connected, setConnected] = useState<MpSdk | null>(null);
   const [sdk, setSdk] = useState<MpSdk | null>(null);
   const [error, setError] = useState<string | null>(null);
+  /** The first view is in place: the loading screen fades out, then goes. */
+  const [revealed, setRevealed] = useState(false);
+  const [loaderGone, setLoaderGone] = useState(false);
   const [frame, setFrame] = useState<FrameCheck | null>(null);
   const [placed, setPlaced] = useState<{ count: number; error: string | null }>({ count: 0, error: null });
   const sdkSweeps = useRef<Map<string, SdkSweep>>(new Map());
@@ -209,13 +213,25 @@ export function TourTab({ twin, active }: { twin: PropertyTwin; active: boolean 
   );
 
   // viewer.goto -> Sweep.moveTo. Also runs once when the tour becomes interactive: it goes to
-  // the room the session already names. With neither, the hosted viewer keeps the model's own
-  // start view; the bundle viewer starts indoors (its start view is the missing outside one).
+  // the room the session already names. With none, the hosted viewer opens outside; the bundle
+  // viewer starts indoors (its start view is the missing outside one).
   useEffect(() => {
     if (!sdk) return;
     const first = gotoSeq === 0;
     const wanted = sweepId ?? (roomId ? sweepForRoom(twin, roomId)?.sweep_id : undefined) ?? (first && canPlaceObjects ? defaultStartSweep(twin)?.sweep_id : undefined);
-    if (!wanted) return;
+    if (!wanted) {
+      // Nothing asked for yet: the hosted viewer opens on the outside view, where the house can
+      // be dragged round and zoomed (the bundle viewer has none, and started indoors above).
+      if (first && !canPlaceObjects) {
+        sdk.Mode.moveTo(sdk.Mode.Mode.DOLLHOUSE, { transition: sdk.Mode.TransitionType.INSTANT })
+          .catch((err: unknown) => console.warn('[tour] could not open outside', err))
+          // A moment for the viewer to draw the outside before the loading screen lifts.
+          .finally(() => setTimeout(() => setRevealed(true), 250));
+      } else {
+        setRevealed(true);
+      }
+      return;
+    }
     let target = wanted;
     if (sdkSweeps.current.size && !sdkSweeps.current.has(wanted)) {
       // The twin and the SDK disagree on sweep ids: fall back to the nearest SDK sweep.
@@ -232,6 +248,7 @@ export function TourTab({ twin, active }: { twin: PropertyTwin; active: boolean 
       console.warn(`[tour] sweep ${wanted} is not in the Showcase model; using the nearest sweep ${target} (${best.toFixed(2)} m away)`);
     }
     moveTo(target, first);
+    if (first) setTimeout(() => setRevealed(true), 400); // an instant move
     // The sweep list is read at the moment of the move; it is not a trigger.
   }, [sdk, gotoSeq]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -370,13 +387,14 @@ export function TourTab({ twin, active }: { twin: PropertyTwin; active: boolean 
   return (
     <div className="relative h-full w-full bg-black" data-testid="tour" data-sdk-ready={!!sdk} data-active={active}>
       <div ref={hostRef} className="h-full w-full" data-viewer={config.matterportViewer} />
-      {!sdk && (
-        <div className="pointer-events-none absolute right-3 bottom-3 rounded-lg border border-line bg-ink/85 px-3 py-2">
-          <Spinner label={connected ? 'Loading the tour…' : 'Starting the tour…'} />
+      {/* Covers the viewer's own loading screen and its first jump outside, then fades out. */}
+      {!loaderGone && (
+        <div className="absolute inset-0 z-20" onTransitionEnd={() => revealed && setLoaderGone(true)}>
+          <HouseLoader label={!connected ? 'Starting the tour…' : !sdk ? 'Loading the house…' : 'Going outside…'} leaving={revealed} />
         </div>
       )}
       {slow && !sdk && (
-        <div className="absolute top-12 left-3 w-[360px] max-w-[90%]">
+        <div className="absolute top-12 left-3 z-30 w-[360px] max-w-[90%]">
           <Notice tone="warn" title="The tour is not responding">
             The Matterport viewer has been loading for over 30 seconds. Reload the page. If it keeps happening, this model may use a feature the bundled viewer cannot load; the Sun Lab still shows the scanned
             interior.
@@ -388,24 +406,23 @@ export function TourTab({ twin, active }: { twin: PropertyTwin; active: boolean 
         {frame && !frameOk && (
           <Badge
             tone={frameOk ? 'leaf' : 'sun'}
-            className="bg-ink/80"
             title="Compares the twin's sweep positions with the positions the Showcase SDK reports. They must match for furniture to land where the layout says (I-G9)."
           >
             Frame check: {frame.matched} of {frame.total} sweeps match, max {(frame.maxError * 100).toFixed(1)} cm apart
           </Badge>
         )}
         {!canPlaceObjects && placements.length > 0 && (
-          <Badge className="bg-ink/80" title="The hosted Matterport viewer cannot add 3D objects. Set NEXT_PUBLIC_MATTERPORT_VIEWER=bundle to place furniture in the tour, or see it in the Sun Lab.">
+          <Badge title="The hosted Matterport viewer cannot add 3D objects. Set NEXT_PUBLIC_MATTERPORT_VIEWER=bundle to place furniture in the tour, or see it in the Sun Lab.">
             Furniture is not shown in this viewer
           </Badge>
         )}
         {placed.count > 0 && (
-          <Badge tone="sky" className="bg-ink/80">
+          <Badge tone="leaf">
             {placed.count} items placed
           </Badge>
         )}
         {placed.error && (
-          <Badge tone="danger" className="bg-ink/80" title={placed.error}>
+          <Badge tone="danger" title={placed.error}>
             Furniture could not be placed
           </Badge>
         )}

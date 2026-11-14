@@ -58,18 +58,18 @@ export function TimeScrubber({ twin, compact = false }: { twin: PropertyTwin; co
   ];
   const dayGradient =
     sunrise !== null && sunset !== null
-      ? `linear-gradient(to right, #1b2233 0%, #1b2233 ${(sunrise / 1440) * 100 - 2}%, #f2b84b ${(sunrise / 1440) * 100 + 3}%, #f6dc9a 50%, #f2b84b ${(sunset / 1440) * 100 - 3}%, #1b2233 ${(sunset / 1440) * 100 + 2}%, #1b2233 100%)`
-      : '#1b2233';
+      ? `linear-gradient(to right, #3a3552 0%, #3a3552 ${(sunrise / 1440) * 100 - 2}%, #ffd35a ${(sunrise / 1440) * 100 + 3}%, #ffe9a8 50%, #ffd35a ${(sunset / 1440) * 100 - 3}%, #3a3552 ${(sunset / 1440) * 100 + 2}%, #3a3552 100%)`
+      : '#3a3552';
 
   return (
-    <div className={cn('rounded-xl border border-line-strong bg-surface/95 shadow-xl backdrop-blur', compact ? 'p-3' : 'px-4 py-3')} data-testid="time-scrubber">
+    <div className={cn('rounded-[var(--radius-card)] border border-line bg-raised shadow-float', compact ? 'p-3' : 'px-4 py-3')} data-testid="time-scrubber">
       <div className="flex items-center gap-3">
         <Button variant={playing ? 'primary' : 'subtle'} square aria-label={playing ? 'Pause the day loop' : 'Play a day loop'} aria-pressed={playing} onClick={() => setPlaying(!playing)}>
           {playing ? <IconPause /> : <IconPlay />}
         </Button>
         <div className="min-w-0 flex-1">
           <div className="flex items-baseline justify-between gap-3">
-            <span className="text-lg font-semibold tabular-nums" data-testid="clock">
+            <span className="font-mono text-lg font-medium tabular-nums" data-testid="clock">
               {formatClock(minutes)}
             </span>
             <span className="truncate text-xs text-muted">
@@ -87,7 +87,7 @@ export function TimeScrubber({ twin, compact = false }: { twin: PropertyTwin; co
               aria-label="Time of day"
               aria-valuetext={formatClock(minutes)}
               onChange={(e) => setTime({ datetime: withTimeOfDay(datetime, tz, Number(e.target.value)) })}
-              className="relative block h-5 w-full cursor-pointer appearance-none bg-transparent [&::-moz-range-thumb]:h-4 [&::-moz-range-thumb]:w-4 [&::-moz-range-thumb]:rounded-full [&::-moz-range-thumb]:border-2 [&::-moz-range-thumb]:border-ink [&::-moz-range-thumb]:bg-text [&::-webkit-slider-thumb]:h-4 [&::-webkit-slider-thumb]:w-4 [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:border-2 [&::-webkit-slider-thumb]:border-ink [&::-webkit-slider-thumb]:bg-text"
+              className="relative block h-5 w-full cursor-pointer appearance-none bg-transparent [&::-moz-range-thumb]:h-4 [&::-moz-range-thumb]:w-4 [&::-moz-range-thumb]:rounded-full [&::-moz-range-thumb]:border-2 [&::-moz-range-thumb]:border-main [&::-moz-range-thumb]:bg-raised [&::-webkit-slider-thumb]:h-4 [&::-webkit-slider-thumb]:w-4 [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:border-2 [&::-webkit-slider-thumb]:border-main [&::-webkit-slider-thumb]:bg-raised"
             />
           </div>
           <div className="mt-0.5 flex justify-between text-[10px] text-faint tabular-nums">
@@ -105,7 +105,7 @@ export function TimeScrubber({ twin, compact = false }: { twin: PropertyTwin; co
           value={date}
           aria-label="Date"
           onChange={(e) => e.target.value && setTime({ datetime: withDate(datetime, tz, e.target.value) })}
-          className="h-7 rounded-md border border-line bg-ink px-2 text-xs text-text [color-scheme:dark]"
+          className="h-7 rounded-full border border-line bg-ink px-2.5 text-xs text-text"
         />
         {presets.map((p) => (
           <button
@@ -113,7 +113,7 @@ export function TimeScrubber({ twin, compact = false }: { twin: PropertyTwin; co
             type="button"
             aria-pressed={p.date === date}
             onClick={() => setTime({ datetime: withDate(datetime, tz, p.date) })}
-            className={cn('h-7 rounded-md border px-2 text-xs', p.date === date ? 'border-sun/50 bg-sun/10 text-sun' : 'border-line text-muted hover:text-text')}
+            className={cn('h-7 rounded-full border px-2.5 text-xs font-semibold', p.date === date ? 'border-main bg-main text-on-main' : 'border-line text-muted hover:text-text')}
           >
             {p.label}
           </button>

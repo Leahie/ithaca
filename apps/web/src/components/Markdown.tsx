@@ -50,7 +50,7 @@ export function Markdown({ text, className }: { text: string; className?: string
     } else if (line.startsWith('>')) {
       flush();
       blocks.push(
-        <blockquote key={blocks.length} className="border-l-2 border-sun/50 pl-3 text-sun/90">
+        <blockquote key={blocks.length} className="border-l-2 border-sun/50 pl-3 text-sun-deep">
           {inline(line.replace(/^>\s?/, ''))}
         </blockquote>,
       );

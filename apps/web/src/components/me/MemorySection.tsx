@@ -171,7 +171,7 @@ export function MemorySection() {
                   className="h-[420px] w-full resize-y rounded-md border border-line bg-ink p-3 font-mono text-[13px] leading-5 focus:border-line-strong focus:outline-none"
                 />
               )}
-              {isDerived(path) && <p className="mt-3 text-xs text-sun">This file is rebuilt from your inventory. Edits here are overwritten: change the inventory instead.</p>}
+              {isDerived(path) && <p className="mt-3 text-xs text-sun-deep">This file is rebuilt from your inventory. Edits here are overwritten: change the inventory instead.</p>}
               {error && <p className="mt-3 text-xs text-danger">{error}</p>}
               <div className="mt-4 flex flex-wrap items-center justify-between gap-2">
                 <div className="flex gap-2">

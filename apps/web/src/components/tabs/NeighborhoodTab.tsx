@@ -135,7 +135,7 @@ export function NeighborhoodTab({ twin }: { twin: PropertyTwin }) {
                 type="button"
                 aria-pressed={c === category}
                 onClick={() => setCategory(c === category ? null : c)}
-                className={cn('rounded-full border px-2.5 py-0.5 text-xs', c === category ? 'border-sun/50 bg-sun/10 text-sun' : 'border-line text-muted hover:text-text')}
+                className={cn('rounded-full border px-2.5 py-0.5 text-xs', c === category ? 'border-sun/50 bg-sun/10 text-sun-deep' : 'border-line text-muted hover:text-text')}
               >
                 {c}
               </button>
@@ -170,7 +170,7 @@ export function NeighborhoodTab({ twin }: { twin: PropertyTwin }) {
             <h2 className="text-sm font-medium">From above</h2>
             <div className="flex flex-wrap gap-1.5">
               {images.map((img, i) => (
-                <button key={img.url} type="button" aria-pressed={i === image} onClick={() => setImage(i)} className={cn('rounded-md border px-2 py-0.5 text-xs', i === image ? 'border-sun/50 bg-sun/10 text-sun' : 'border-line text-muted hover:text-text')}>
+                <button key={img.url} type="button" aria-pressed={i === image} onClick={() => setImage(i)} className={cn('rounded-md border px-2 py-0.5 text-xs', i === image ? 'border-sun/50 bg-sun/10 text-sun-deep' : 'border-line text-muted hover:text-text')}>
                   {img.label}
                 </button>
               ))}

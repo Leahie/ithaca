@@ -40,7 +40,7 @@ export function AnnotationPanel({ twin, openings, dirty, saving, error, hint, to
         </Button>
       ) : (
         <div className="space-y-2 rounded-lg border border-sun/40 bg-sun/5 p-3">
-          <div className="text-xs font-medium text-sun">Marking: click two opposite corners on a wall</div>
+          <div className="text-xs font-medium text-sun-deep">Marking: click two opposite corners on a wall</div>
           <Segmented
             label="Opening kind"
             size="sm"
@@ -70,7 +70,7 @@ export function AnnotationPanel({ twin, openings, dirty, saving, error, hint, to
             return (
               <li key={o.opening_id} className="flex items-center justify-between gap-2 rounded-md border border-line px-2 py-1 text-xs">
                 <span className="min-w-0 truncate">
-                  <span className={cn('font-medium', o.kind === 'door' ? 'text-sun' : 'text-sky')}>{o.kind}</span>
+                  <span className={cn('font-medium', o.kind === 'door' ? 'text-sun-deep' : 'text-sky-deep')}>{o.kind}</span>
                   <span className="text-muted">
                     {' '}
                     {size.width.toFixed(1)} × {size.height.toFixed(1)} m · faces {Math.round(o.facade_azimuth_deg)}° · {o.glazing}
