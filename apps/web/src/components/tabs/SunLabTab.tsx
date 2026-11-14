@@ -41,6 +41,8 @@ export function SunLabTab({ twin, active }: { twin: PropertyTwin; active: boolea
   const [panelOpen, setPanelOpen] = useState(false);
   const [heatmapOn, setHeatmapOn] = useState(false);
   const [showOpenings, setShowOpenings] = useState(false);
+  // Inside a room: walk mode (scan photos projected from scan points) or the mesh's own textures.
+  const [walkMode, setWalkMode] = useState(true);
   // Walk mode: Matterport's furniture-free scan photos instead of the furnished ones.
   const [defurnished, setDefurnished] = useState(false);
   const [photoLoading, setPhotoLoading] = useState(false);
@@ -159,6 +161,7 @@ export function SunLabTab({ twin, active }: { twin: PropertyTwin; active: boolea
           onWallClick={tool ? onWallClick : null}
           pendingCorner={corner?.point ?? null}
           view={view}
+          walkMode={walkMode}
           defurnished={defurnished}
           onPhotoLoading={setPhotoLoading}
           onAssetError={setAssetError}
@@ -204,6 +207,16 @@ export function SunLabTab({ twin, active }: { twin: PropertyTwin; active: boolea
           {room ? `Inside ${roomName(twin, room.room_id)}` : 'Go inside'}
         </Button>
         {walkable && view.kind === 'room' && (
+          <Button
+            size="sm"
+            variant="subtle"
+            title={walkMode ? 'Orbit the 3D mesh with its own textures' : 'Stand on scan points with the 4k scan photos'}
+            onClick={() => setWalkMode(!walkMode)}
+          >
+            {walkMode ? 'Mesh view' : 'Walk mode'}
+          </Button>
+        )}
+        {walkable && walkMode && view.kind === 'room' && (
           <Button
             size="sm"
             variant={defurnished ? 'primary' : 'subtle'}

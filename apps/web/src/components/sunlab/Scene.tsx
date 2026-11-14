@@ -68,6 +68,8 @@ export interface SceneProps {
   /** First corner of the opening being drawn. */
   pendingCorner: V3 | null;
   view: SunLabView;
+  /** Inside a room: stand on scan points with the scan photos projected (true), or orbit the mesh with its own textures (false). */
+  walkMode: boolean;
   /** Walk mode shows Matterport's furniture-free photos (the mesh, and its shadows, keep the furniture). */
   defurnished: boolean;
   /** True while the photo for a new `defurnished` setting is loading. */
@@ -839,7 +841,7 @@ class AssetBoundary extends Component<{ label: string; onError(message: string):
   }
 }
 
-export function Scene({ twin, openings, sun, placements, heatmap, showOpenings, onWallClick, pendingCorner, view, defurnished, onPhotoLoading, onAssetError, onReady }: SceneProps) {
+export function Scene({ twin, openings, sun, placements, heatmap, showOpenings, onWallClick, pendingCorner, view, walkMode, defurnished, onPhotoLoading, onAssetError, onReady }: SceneProps) {
   const portalUniforms = useMemo(createPortalUniforms, []);
   useEffect(() => {
     setPortals(portalUniforms, openings);
@@ -849,7 +851,7 @@ export function Scene({ twin, openings, sun, placements, heatmap, showOpenings, 
   // projected onto the mesh; outside, the mesh shows its own full-resolution textures.
   const pano = useMemo(createPanoUniforms, []);
   const walkable = !!twin.assets.interior_glb && panosAvailable(twin);
-  const walking = walkable && view.kind === 'room';
+  const walking = walkable && walkMode && view.kind === 'room';
   const walker = useRef<Walker | null>(null);
   const [here, setHere] = useState<Sweep | null>(null);
   const onWalkClick = useCallback((point: Vector3) => walker.current?.toward(point), []);
