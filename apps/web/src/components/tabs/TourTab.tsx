@@ -85,6 +85,7 @@ export function TourTab({ twin, active }: { twin: PropertyTwin; active: boolean 
   const [error, setError] = useState<string | null>(null);
   /** The first view is in place: the loading screen fades out, then goes. */
   const [revealed, setRevealed] = useState(false);
+  const firstMove = useRef<MpSdk | null>(null);
   const [loaderGone, setLoaderGone] = useState(false);
   const [frame, setFrame] = useState<FrameCheck | null>(null);
   const [placed, setPlaced] = useState<{ count: number; error: string | null }>({ count: 0, error: null });
@@ -248,12 +249,23 @@ export function TourTab({ twin, active }: { twin: PropertyTwin; active: boolean 
     [twin],
   );
 
+  // Whatever happens in the first move, the loading screen never stays for good.
+  useEffect(() => {
+    if (!sdk || revealed) return;
+    const t = setTimeout(() => setRevealed(true), 6000);
+    return () => clearTimeout(t);
+  }, [sdk, revealed]);
+
   // viewer.goto -> Sweep.moveTo. Also runs once when the tour becomes interactive: it goes to
   // the room the session already names. With none, the hosted viewer opens outside; the bundle
   // viewer starts indoors (its start view is the missing outside one).
   useEffect(() => {
     if (!sdk) return;
-    const first = gotoSeq === 0;
+    // The first run for this viewer, whatever the session's goto count is: after a page reload
+    // the session comes back with its room and a count above zero, and the loading screen must
+    // still lift (it used to wait for a "first" goto that never came).
+    const first = firstMove.current !== sdk;
+    firstMove.current = sdk;
     walkToken.current++; // a goto replaces a walk in progress
     // Going to a room (not to one sweep): stand where the room shows best and face into it. The
     // agent sends that view with the goto; for a click on the room list it is worked out here.
@@ -280,7 +292,10 @@ export function TourTab({ twin, active }: { twin: PropertyTwin; active: boolean 
     if (sdkSweeps.current.size && !sdkSweeps.current.has(wanted)) {
       // The twin and the SDK disagree on sweep ids: fall back to the nearest SDK sweep.
       const pos = twin.sweeps.find((s) => s.sweep_id === wanted)?.position;
-      if (!pos) return;
+      if (!pos) {
+        if (first) setRevealed(true);
+        return;
+      }
       let best = Infinity;
       for (const s of sdkSweeps.current.values()) {
         const d = Math.hypot(s.position.x - pos.x, s.position.y - pos.y, s.position.z - pos.z);
@@ -666,7 +681,7 @@ export function TourTab({ twin, active }: { twin: PropertyTwin; active: boolean 
       {/* Covers the viewer's own loading screen and its first jump outside, then fades out. */}
       {!loaderGone && (
         <div className="absolute inset-0 z-20" onTransitionEnd={() => revealed && setLoaderGone(true)}>
-          <HouseLoader label={!connected ? 'Starting the tour…' : !sdk ? 'Loading the house…' : 'Going outside…'} leaving={revealed} />
+          <HouseLoader label={!connected ? 'Starting the tour…' : !sdk ? 'Loading the house…' : 'Opening the house…'} leaving={revealed} />
         </div>
       )}
       {slow && !sdk && (

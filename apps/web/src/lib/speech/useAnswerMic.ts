@@ -30,13 +30,26 @@ export function useAnswerMic({ enabled, memberId, listening, start }: { enabled:
       window.clearTimeout(timer);
       setWaiting(false);
     };
+    // If the microphone opened by itself and the user said nothing, they did not want to answer:
+    // it stays shut after later questions until they tap the mic or type again.
+    let unanswered = false;
+    let openedHere = false;
     const open = () => {
       const { enabled: on, listening: busy, start: go } = live.current;
       drop();
-      if (on && !busy && speechProvider().canListenUntapped()) go(true);
+      if (on && !busy && !unanswered && speechProvider().canListenUntapped()) {
+        openedHere = true;
+        go(true);
+      }
     };
     const off = onSessionEvent((event) => {
       const mine = (event.member_id ?? null) === memberId;
+      if (event.type === 'voice.transcript' && event.payload.final && mine) {
+        if (openedHere && event.payload.text.trim() === '') unanswered = true;
+        else if (event.payload.text.trim() !== '') unanswered = false;
+        openedHere = false;
+      }
+      if (event.type === 'chat.user' && mine) unanswered = false;
       if (event.type === 'chat.user' || (event.type === 'voice.transcript' && event.payload.text.trim() !== '')) return drop();
       if (event.type === 'agent.message' && mine) {
         drop();

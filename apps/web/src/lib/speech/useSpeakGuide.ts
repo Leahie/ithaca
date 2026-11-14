@@ -55,7 +55,9 @@ export function useSpeakGuide(enabled: boolean): void {
       release();
     };
     const off = onSessionEvent((event) => {
-      if (event.type === 'chat.user' || event.type === 'voice.transcript') {
+      // The user's own words cut the guide off. An open microphone that has heard nothing yet
+      // (it sends empty transcripts while it waits) does not.
+      if (event.type === 'chat.user' || (event.type === 'voice.transcript' && event.payload.text.trim() !== '')) {
         for (const id of written.keys()) muted.add(id);
         held = [];
         holdUntil = 0;

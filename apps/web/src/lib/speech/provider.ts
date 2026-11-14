@@ -613,9 +613,43 @@ export class DeepgramProvider implements SpeechProvider {
       audio.onerror = done;
       audio.onpause = done;
       this.audio = audio;
-      audio.play().catch(done);
+      audio.play().catch((err: unknown) => {
+        // The browser refuses sound until the page has been clicked: say so, don't fail in silence.
+        if (err instanceof DOMException && err.name === 'NotAllowedError') setSoundBlocked(true);
+        done();
+      });
     });
   }
+}
+
+/**
+ * Browsers play no sound on a page that has not been clicked or tapped since it loaded (also after
+ * a reload). `soundBlocked` is true while that is the case and a reply could not be played;
+ * `unlockSound`, called from any click, plays a moment of silence so later replies are heard.
+ */
+let blocked = false;
+const blockedListeners = new Set<(blocked: boolean) => void>();
+function setSoundBlocked(next: boolean): void {
+  if (blocked === next) return;
+  blocked = next;
+  blockedListeners.forEach((l) => l(next));
+}
+export function onSoundBlocked(cb: (blocked: boolean) => void): () => void {
+  blockedListeners.add(cb);
+  return () => blockedListeners.delete(cb);
+}
+export function pageHasBeenClicked(): boolean {
+  const activation = (navigator as Navigator & { userActivation?: { hasBeenActive: boolean } }).userActivation;
+  return activation ? activation.hasBeenActive : true;
+}
+export function unlockSound(): void {
+  try {
+    const silent = new Audio('data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQAAAAA=');
+    void silent.play().catch(() => {});
+  } catch {
+    /* nothing to unlock here */
+  }
+  setSoundBlocked(false);
 }
 
 const providers = new Map<string, () => SpeechProvider>([

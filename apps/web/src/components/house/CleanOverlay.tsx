@@ -5,7 +5,7 @@ import type { PropertyTwin } from '@ithaca/schema';
 import { PlanPreview } from '@/components/design/PlanPreview';
 import { useInventory, useLayouts } from '@/lib/data/hooks';
 import { placeName, roomName } from '@/lib/rooms';
-import { setVoiceKind, speechProvider } from '@/lib/speech/provider';
+import { onSoundBlocked, pageHasBeenClicked, setVoiceKind, speechProvider, unlockSound } from '@/lib/speech/provider';
 import { canSpeak, useSpeakGuide } from '@/lib/speech/useSpeakGuide';
 import { onSessionEvent, useSession } from '@/lib/store/session';
 import { formatClock, minutesOfDay } from '@/lib/time';
@@ -70,6 +70,25 @@ export function CleanOverlay({ twin, pairing, onShowControls }: { twin: Property
     speechProvider().cancelSpeech();
     speechProvider().speak("Hi, I'll be your guide.");
   }, [kind, voice]);
+
+  // After a reload the browser plays no sound until the page is clicked: say so, and take the
+  // first click anywhere as the switch.
+  const [needsClick, setNeedsClick] = useState(false);
+  useEffect(() => {
+    setNeedsClick(!pageHasBeenClicked());
+    const off = onSoundBlocked((b) => b && setNeedsClick(true));
+    const unlock = () => {
+      unlockSound();
+      setNeedsClick(false);
+    };
+    window.addEventListener('pointerdown', unlock);
+    window.addEventListener('keydown', unlock);
+    return () => {
+      off();
+      window.removeEventListener('pointerdown', unlock);
+      window.removeEventListener('keydown', unlock);
+    };
+  }, []);
 
   // Between the user's words and the guide's first: a soft two-note chime says "heard you", and
   // three dots show it is working, so the pause reads as thinking and not as nothing happening.
@@ -142,6 +161,11 @@ export function CleanOverlay({ twin, pairing, onShowControls }: { twin: Property
               })}
             </div>
           </div>
+        </div>
+      )}
+      {voice && needsClick && (
+        <div className="absolute inset-x-0 top-16 flex justify-center" data-testid="sound-needs-click">
+          <div className="rounded-full border border-white/40 bg-main px-5 py-2.5 text-sm font-semibold text-on-main shadow-lg">Click anywhere on this screen to hear the guide</div>
         </div>
       )}
       {thinking && !caption && (
