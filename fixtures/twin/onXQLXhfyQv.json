@@ -1,6 +1,6 @@
 {
   "property_id": "onXQLXhfyQv",
-  "version": 7,
+  "version": 8,
   "sources": {
     "matterport_model_id": "onXQLXhfyQv",
     "vexcel_parcel_id": null,
@@ -46,7 +46,7 @@
     {
       "room_id": "19ab05tns5h6y4qm42esqqpea",
       "floor_id": "tsmq1wak12rhgn0mawksxcwcd",
-      "label": "Hallway",
+      "label": "Closet",
       "polygon": [
         [
           -1.399,
@@ -85,7 +85,7 @@
     {
       "room_id": "2qdmc5i9byxi79ry1pxdkqzea",
       "floor_id": "tsmq1wak12rhgn0mawksxcwcd",
-      "label": "Bedroom",
+      "label": "Office",
       "polygon": [
         [
           -3.617,
@@ -195,7 +195,7 @@
     {
       "room_id": "a5f9age4zzxewres6iqux2emc",
       "floor_id": "tsmq1wak12rhgn0mawksxcwcd",
-      "label": "Bedroom",
+      "label": "Office",
       "polygon": [
         [
           -23.792,
@@ -525,7 +525,7 @@
     {
       "room_id": "n81qfe51azs8iexnbqwspye6c",
       "floor_id": "tsmq1wak12rhgn0mawksxcwcd",
-      "label": "Laundry",
+      "label": "Pantry",
       "polygon": [
         [
           -4.964,
@@ -552,7 +552,7 @@
     {
       "room_id": "tt6gm2a0463x9wmnx7rn6gugc",
       "floor_id": "tsmq1wak12rhgn0mawksxcwcd",
-      "label": "Living Room",
+      "label": "Bedroom",
       "polygon": [
         [
           -13.209,
@@ -713,7 +713,7 @@
     {
       "room_id": "3ygfq6yfyyw3hi9x7u5rm2iqa",
       "floor_id": "pd0i1c4yq9w0y2zsb07ed23sb",
-      "label": "Living Room",
+      "label": "Family Room",
       "polygon": [
         [
           -16.03,
@@ -9214,7 +9214,9 @@
     "interior_glb": "blobs/onXQLXhfyQv/interior.glb",
     "context_glb": null,
     "ortho": null,
-    "obliques": []
+    "obliques": [],
+    "splat": null,
+    "splat_to_interior": null
   },
   "quality": {
     "alignment": "georef",

@@ -116,6 +116,8 @@ def build_twin(
     ]
     floor_index = {f.floor_id: f.index for f in floors}
     rooms = _rooms(kept, elevations)
+    relabel = annotations.load_room_labels(property_id)  # keeps room ids and floor materials
+    rooms = [r.model_copy(update={"label": relabel[r.room_id]}) if r.room_id in relabel else r for r in rooms]
     rooms.sort(key=lambda r: (floor_index.get(r.floor_id, 0), r.room_id))
     annotated = annotations.load_openings(property_id)
     openings = annotated if annotated is not None else _openings(

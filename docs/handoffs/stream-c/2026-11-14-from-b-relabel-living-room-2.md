@@ -2,7 +2,7 @@
 from: B
 to: C
 date: 2026-11-14
-status: open
+status: done
 source: fix/layout-solver-sense
 ---
 # Relabel one room: "Living Room" `tt6gm2a0463x9wmnx7rn6gugc` is a bedroom

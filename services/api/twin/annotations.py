@@ -1,4 +1,5 @@
-"""Opening annotations from the web app (PUT /properties/{pid}/openings).
+"""Corrections kept apart from the Matterport inputs: openings from the web app
+(PUT /properties/{pid}/openings) and room labels from the floor plan.
 
 Saved apart from the Matterport inputs so re-ingestion keeps them: ingest uses the annotated list
 in place of the detected openings and marks `quality.openings = "annotated"`.
@@ -26,6 +27,16 @@ def load_openings(property_id: str) -> list[Opening] | None:
     if not path.exists():
         return None
     return [Opening.model_validate(o) for o in json.loads(path.read_text(encoding="utf-8"))]
+
+
+def room_labels_path(property_id: str) -> Path:
+    return fixtures_dir() / "twin" / "annotations" / f"{property_id}.rooms.json"
+
+
+def load_room_labels(property_id: str) -> dict[str, str]:
+    """room_id -> corrected label (from the published floor plan), where Matterport's own is wrong."""
+    path = room_labels_path(property_id)
+    return json.loads(path.read_text(encoding="utf-8")) if path.exists() else {}
 
 
 def validate(twin: PropertyTwin, openings: list[Opening]) -> None:
