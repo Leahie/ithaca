@@ -58,8 +58,9 @@ def test_pair_token_is_single_use_expires_and_is_bound_to_its_session():
 def test_websocket_turn_with_scripted_agent(monkeypatch):
     monkeypatch.setenv("AGENT_PROVIDER", "scripted")
     monkeypatch.setenv("AGENT_STORAGE", "memory")  # no files on disk
-    from services.api import agent
-    agent.provider._storage.cache_clear()
+    from services.api.agent import provider
+
+    provider._storage.cache_clear()
     from services.api.main import app
 
     def read_until_turn_ends(ws):
