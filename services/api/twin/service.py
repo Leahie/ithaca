@@ -4,6 +4,7 @@ integrations/* directly. get_twin serves the twin that ingestion wrote.
 
 from __future__ import annotations
 
+import json
 import threading
 from datetime import date, datetime
 from functools import lru_cache
@@ -23,6 +24,9 @@ from packages.schema.reports import (
     NoiseReport,
     NoiseScenario,
     SkySource,
+    SoundDoors,
+    SoundField,
+    SoundPreset,
     SunMoment,
     SunReport,
     SunRoomDay,
@@ -32,7 +36,7 @@ from packages.schema.twin import PropertyTwin
 from services.api.integrations import costar, nsrdb, osm
 from services.api.integrations.cache import FixtureMissing
 from services.api.integrations.config import IntegrationNotConfigured, fixtures_dir
-from services.api.sim import daylight, sun
+from services.api.sim import daylight, noise, sun
 from services.api.twin import area
 
 
@@ -126,6 +130,45 @@ def _check_spot(property_id: str, room_id: str, x: float, z: float) -> None:
 
 
 # Not built yet. They raise IntegrationNotConfigured (I-G21) so agent tools can say so.
+
+
+def sound_presets() -> list[SoundPreset]:
+    """Sounds a user can place (level at 1 m and spectrum), plus loudness choices for own recordings."""
+    return list(acoustics().presets.values())
+
+
+def sound_field(property_id: str, room_id: str, x: float, z: float, preset_id: str = "tv",
+                level_dba: float | None = None, doors: SoundDoors = "closed", include_furniture: bool = True,
+                listener: tuple[str, float, float] | None = None) -> SoundField:
+    """A sound placed at (x, z) in a room: what every room hears, and optionally one listener spot
+    (room_id, x, z) with the direct sound added when it is in the source's room."""
+    _check_spot(property_id, room_id, x, z)
+    if listener is not None:
+        _check_spot(property_id, *listener)
+    return _sound_field(property_id, get_twin(property_id).version, room_id, x, z, preset_id, level_dba,
+                        doors, include_furniture, listener)
+
+
+@lru_cache(maxsize=1)
+def acoustics() -> noise.Acoustics:
+    path = fixtures_dir() / "tables" / "acoustics.json"
+    return noise.load_acoustics(json.loads(path.read_text(encoding="utf-8")))
+
+
+@lru_cache(maxsize=64)
+def _sound_network(property_id, version, doors, include_furniture, add_carpet=False, glazing=None) -> noise.Network:
+    return noise.network(get_twin(property_id), acoustics(), doors=doors, include_furniture=include_furniture,
+                         add_carpet=add_carpet, glazing=glazing)
+
+
+@lru_cache(maxsize=1024)
+def _sound_field(property_id, version, room_id, x, z, preset_id, level_dba, doors, include_furniture,
+                 listener) -> SoundField:
+    twin, table = get_twin(property_id), acoustics()
+    preset = noise.scaled_preset(table, preset_id, level_dba)
+    net = _sound_network(property_id, version, doors, include_furniture)
+    source, rooms, heard = noise.sound_field(twin, net, table, preset, room_id, x, z, listener)
+    return SoundField(source=source, doors=doors, include_furniture=include_furniture, rooms=rooms, listener=heard)
 
 
 def noise_report(property_id: str, room_id: str, scenario: NoiseScenario) -> NoiseReport:

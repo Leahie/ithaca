@@ -1,6 +1,6 @@
 {
   "property_id": "onXQLXhfyQv",
-  "version": 3,
+  "version": 5,
   "sources": {
     "matterport_model_id": "onXQLXhfyQv",
     "vexcel_parcel_id": null,
@@ -1247,7 +1247,8 @@
       "glazing": "none",
       "stc": null,
       "other_room_id": "b2kez6wsw32fm2x3ui593u3hc",
-      "exterior": false
+      "exterior": false,
+      "leaf": true
     },
     {
       "opening_id": "12nmz756ixbszas0mesd8n1hb",
@@ -1279,7 +1280,8 @@
       "glazing": "double",
       "stc": null,
       "other_room_id": null,
-      "exterior": true
+      "exterior": true,
+      "leaf": null
     },
     {
       "opening_id": "1eh7kq4yh1yue85eh5ixygqua",
@@ -1311,7 +1313,8 @@
       "glazing": "none",
       "stc": null,
       "other_room_id": null,
-      "exterior": true
+      "exterior": true,
+      "leaf": true
     },
     {
       "opening_id": "1uu51kzyg8s9p5mt5u05dxy1c",
@@ -1343,7 +1346,8 @@
       "glazing": "none",
       "stc": null,
       "other_room_id": "tyz3uyd99x00wa88mxhmugrxa",
-      "exterior": false
+      "exterior": false,
+      "leaf": true
     },
     {
       "opening_id": "1zbngrrwc7rpze5yw24a102ic",
@@ -1375,7 +1379,8 @@
       "glazing": "none",
       "stc": null,
       "other_room_id": "xy2x8mpaaqknp7q2c3nnbw1ma",
-      "exterior": false
+      "exterior": false,
+      "leaf": false
     },
     {
       "opening_id": "3mnd1uy5g5iuump78utxnkxic",
@@ -1407,7 +1412,8 @@
       "glazing": "none",
       "stc": null,
       "other_room_id": "peina19mpqedsku6a3huu38md",
-      "exterior": false
+      "exterior": false,
+      "leaf": true
     },
     {
       "opening_id": "45wqba0gnskquwd0xp9b9t8nc",
@@ -1439,7 +1445,8 @@
       "glazing": "double",
       "stc": null,
       "other_room_id": null,
-      "exterior": true
+      "exterior": true,
+      "leaf": null
     },
     {
       "opening_id": "49r3gmycef8ta6km3zrs12fca",
@@ -1471,7 +1478,8 @@
       "glazing": "none",
       "stc": null,
       "other_room_id": null,
-      "exterior": true
+      "exterior": true,
+      "leaf": true
     },
     {
       "opening_id": "4uc3t9shcq2he5gdqpmqkdwmd",
@@ -1503,7 +1511,8 @@
       "glazing": "none",
       "stc": null,
       "other_room_id": null,
-      "exterior": true
+      "exterior": true,
+      "leaf": null
     },
     {
       "opening_id": "575wxf6df7uw0dges6st7i5sb",
@@ -1535,7 +1544,8 @@
       "glazing": "double",
       "stc": null,
       "other_room_id": null,
-      "exterior": true
+      "exterior": true,
+      "leaf": null
     },
     {
       "opening_id": "5a5rd9hs92k5i0iym2ared47c",
@@ -1567,7 +1577,8 @@
       "glazing": "none",
       "stc": null,
       "other_room_id": null,
-      "exterior": true
+      "exterior": true,
+      "leaf": null
     },
     {
       "opening_id": "6006cyucc641eeg44dqcwy94c",
@@ -1599,7 +1610,8 @@
       "glazing": "none",
       "stc": null,
       "other_room_id": null,
-      "exterior": false
+      "exterior": false,
+      "leaf": false
     },
     {
       "opening_id": "62gx151h88566p0adrsgq6qsb",
@@ -1631,7 +1643,8 @@
       "glazing": "none",
       "stc": null,
       "other_room_id": "bmpu8rc0bpgc1bruwia8kktzd",
-      "exterior": false
+      "exterior": false,
+      "leaf": true
     },
     {
       "opening_id": "62xyq3ixpp59rtw3292hrpdca",
@@ -1663,7 +1676,8 @@
       "glazing": "none",
       "stc": null,
       "other_room_id": "cdz3fkt38kae7tapstpt0eaeb",
-      "exterior": false
+      "exterior": false,
+      "leaf": false
     },
     {
       "opening_id": "6t342k06kr4hsye67bggr4d6c",
@@ -1695,7 +1709,8 @@
       "glazing": "double",
       "stc": null,
       "other_room_id": null,
-      "exterior": true
+      "exterior": true,
+      "leaf": null
     },
     {
       "opening_id": "7mts6154c6kmpmrhyt3zxb0wb",
@@ -1727,7 +1742,8 @@
       "glazing": "none",
       "stc": null,
       "other_room_id": "kuc0fpmsgqxff63egrxrycfud",
-      "exterior": false
+      "exterior": false,
+      "leaf": false
     },
     {
       "opening_id": "7wwxe3ndwai8c9cp5gt0xnewb",
@@ -1759,7 +1775,8 @@
       "glazing": "double",
       "stc": null,
       "other_room_id": null,
-      "exterior": true
+      "exterior": true,
+      "leaf": null
     },
     {
       "opening_id": "burbhi8mf5nqwr3yg5816b61a",
@@ -1791,7 +1808,8 @@
       "glazing": "none",
       "stc": null,
       "other_room_id": "m8npxsuk79xy21dd09x9wtped",
-      "exterior": false
+      "exterior": false,
+      "leaf": true
     },
     {
       "opening_id": "ccr5pzz6tu4ptkb79k24azacc",
@@ -1823,7 +1841,8 @@
       "glazing": "double",
       "stc": null,
       "other_room_id": null,
-      "exterior": true
+      "exterior": true,
+      "leaf": null
     },
     {
       "opening_id": "cyqqad5ndmiw6nxadaaf0hkbc",
@@ -1855,7 +1874,8 @@
       "glazing": "none",
       "stc": null,
       "other_room_id": "tt6gm2a0463x9wmnx7rn6gugc",
-      "exterior": false
+      "exterior": false,
+      "leaf": false
     },
     {
       "opening_id": "dx79dipidg2fawu7ee5x0gmma",
@@ -1887,7 +1907,8 @@
       "glazing": "none",
       "stc": null,
       "other_room_id": null,
-      "exterior": true
+      "exterior": true,
+      "leaf": null
     },
     {
       "opening_id": "ehdd1d306yc8maq8h8tiy7tpa",
@@ -1919,7 +1940,8 @@
       "glazing": "double",
       "stc": null,
       "other_room_id": null,
-      "exterior": true
+      "exterior": true,
+      "leaf": null
     },
     {
       "opening_id": "f70run2x3rcsnqmamg5k0d0cb",
@@ -1951,7 +1973,8 @@
       "glazing": "double",
       "stc": null,
       "other_room_id": null,
-      "exterior": true
+      "exterior": true,
+      "leaf": null
     },
     {
       "opening_id": "fcrdu50r13r8ds27wxsc7cnpc",
@@ -1983,7 +2006,8 @@
       "glazing": "none",
       "stc": null,
       "other_room_id": "xy2x8mpaaqknp7q2c3nnbw1ma",
-      "exterior": false
+      "exterior": false,
+      "leaf": true
     },
     {
       "opening_id": "g0re3ptkimfqp2fgm8zt2yhid",
@@ -2015,7 +2039,8 @@
       "glazing": "double",
       "stc": null,
       "other_room_id": null,
-      "exterior": true
+      "exterior": true,
+      "leaf": null
     },
     {
       "opening_id": "gca8iwq0s91tznn03tb0eu9sa",
@@ -2047,7 +2072,8 @@
       "glazing": "none",
       "stc": null,
       "other_room_id": "xy2x8mpaaqknp7q2c3nnbw1ma",
-      "exterior": false
+      "exterior": false,
+      "leaf": false
     },
     {
       "opening_id": "hh1hid6r1bbup16kkb9qde12a",
@@ -2079,7 +2105,8 @@
       "glazing": "none",
       "stc": null,
       "other_room_id": "xy2x8mpaaqknp7q2c3nnbw1ma",
-      "exterior": false
+      "exterior": false,
+      "leaf": false
     },
     {
       "opening_id": "ma701g812wh3h4pa9hh8fu82d",
@@ -2111,7 +2138,8 @@
       "glazing": "double",
       "stc": null,
       "other_room_id": null,
-      "exterior": true
+      "exterior": true,
+      "leaf": null
     },
     {
       "opening_id": "mie6ezyc7pfuzhia4435ahska",
@@ -2143,7 +2171,8 @@
       "glazing": "none",
       "stc": null,
       "other_room_id": "peina19mpqedsku6a3huu38md",
-      "exterior": false
+      "exterior": false,
+      "leaf": true
     },
     {
       "opening_id": "mky1z5shmhbbsgn7264xedkrc",
@@ -2175,7 +2204,8 @@
       "glazing": "double",
       "stc": null,
       "other_room_id": null,
-      "exterior": true
+      "exterior": true,
+      "leaf": null
     },
     {
       "opening_id": "nef6ty1092fkirp0z1584kq4d",
@@ -2207,7 +2237,8 @@
       "glazing": "none",
       "stc": null,
       "other_room_id": null,
-      "exterior": true
+      "exterior": true,
+      "leaf": null
     },
     {
       "opening_id": "picauxzqz5h3wpad3ztq8dumd",
@@ -2239,7 +2270,8 @@
       "glazing": "double",
       "stc": null,
       "other_room_id": null,
-      "exterior": true
+      "exterior": true,
+      "leaf": null
     },
     {
       "opening_id": "qk5r0k75pzhxz5pfchh389yda",
@@ -2271,7 +2303,8 @@
       "glazing": "none",
       "stc": null,
       "other_room_id": "b2kez6wsw32fm2x3ui593u3hc",
-      "exterior": false
+      "exterior": false,
+      "leaf": false
     },
     {
       "opening_id": "qm3aip33nt8b04ta2c5syt84c",
@@ -2303,7 +2336,8 @@
       "glazing": "double",
       "stc": null,
       "other_room_id": null,
-      "exterior": true
+      "exterior": true,
+      "leaf": null
     },
     {
       "opening_id": "rggu1tb6mapme6mb3z9ku13ga",
@@ -2335,7 +2369,8 @@
       "glazing": "none",
       "stc": null,
       "other_room_id": "pcez6b4tqeep953kmm04hme9c",
-      "exterior": false
+      "exterior": false,
+      "leaf": true
     },
     {
       "opening_id": "rwkrh5zg5u9h98p2sr44ndgmb",
@@ -2367,7 +2402,8 @@
       "glazing": "none",
       "stc": null,
       "other_room_id": "n2yqr30509t7i8whfdf2htwic",
-      "exterior": false
+      "exterior": false,
+      "leaf": true
     },
     {
       "opening_id": "rxmrgit212eht4473pcuaq9ya",
@@ -2399,7 +2435,8 @@
       "glazing": "none",
       "stc": null,
       "other_room_id": "tyz3uyd99x00wa88mxhmugrxa",
-      "exterior": false
+      "exterior": false,
+      "leaf": true
     },
     {
       "opening_id": "s1pazfh2rrz71b284yfhs64mc",
@@ -2431,7 +2468,8 @@
       "glazing": "double",
       "stc": null,
       "other_room_id": null,
-      "exterior": true
+      "exterior": true,
+      "leaf": null
     },
     {
       "opening_id": "sp0fuaf9i7f0uys91h9nkxkdc",
@@ -2463,7 +2501,8 @@
       "glazing": "none",
       "stc": null,
       "other_room_id": null,
-      "exterior": false
+      "exterior": false,
+      "leaf": false
     },
     {
       "opening_id": "tgy5qz48u2fmpmc8qsck871ic",
@@ -2495,7 +2534,8 @@
       "glazing": "none",
       "stc": null,
       "other_room_id": "tt6gm2a0463x9wmnx7rn6gugc",
-      "exterior": false
+      "exterior": false,
+      "leaf": true
     },
     {
       "opening_id": "u65khnku36ekzn2amk8yyt92b",
@@ -2527,7 +2567,8 @@
       "glazing": "none",
       "stc": null,
       "other_room_id": null,
-      "exterior": true
+      "exterior": true,
+      "leaf": true
     },
     {
       "opening_id": "w5sk29zwr1a3tzqwhqc41hdsc",
@@ -2559,7 +2600,8 @@
       "glazing": "double",
       "stc": null,
       "other_room_id": null,
-      "exterior": true
+      "exterior": true,
+      "leaf": null
     },
     {
       "opening_id": "wsacsf5w68qfwduyymeh1e9ab",
@@ -2591,7 +2633,8 @@
       "glazing": "none",
       "stc": null,
       "other_room_id": "h26t7ky77ew74yb0pg8qqf5rd",
-      "exterior": false
+      "exterior": false,
+      "leaf": true
     },
     {
       "opening_id": "x039pk286m5yduy2kf8mh1y3c",
@@ -2623,7 +2666,8 @@
       "glazing": "double",
       "stc": null,
       "other_room_id": null,
-      "exterior": true
+      "exterior": true,
+      "leaf": null
     },
     {
       "opening_id": "x4ds1wx856mrifzpnae0fpc9d",
@@ -2655,7 +2699,8 @@
       "glazing": "none",
       "stc": null,
       "other_room_id": "xy2x8mpaaqknp7q2c3nnbw1ma",
-      "exterior": false
+      "exterior": false,
+      "leaf": false
     },
     {
       "opening_id": "x4mwheuiysxsch7p4kx251rab",
@@ -2687,7 +2732,8 @@
       "glazing": "double",
       "stc": null,
       "other_room_id": null,
-      "exterior": true
+      "exterior": true,
+      "leaf": null
     },
     {
       "opening_id": "x6ydnz3x2wn6wdbc0ua8y8ewa",
@@ -2719,7 +2765,8 @@
       "glazing": "none",
       "stc": null,
       "other_room_id": null,
-      "exterior": false
+      "exterior": false,
+      "leaf": false
     },
     {
       "opening_id": "yb9kss2580pp2f1wkp11wkrhb",
@@ -2751,7 +2798,8 @@
       "glazing": "none",
       "stc": null,
       "other_room_id": "q5n62dpd3mrc1exy2hr84132b",
-      "exterior": false
+      "exterior": false,
+      "leaf": true
     },
     {
       "opening_id": "yqadfepgs1udbwibbs51yytfc",
@@ -2783,7 +2831,8 @@
       "glazing": "double",
       "stc": null,
       "other_room_id": null,
-      "exterior": true
+      "exterior": true,
+      "leaf": null
     },
     {
       "opening_id": "zeq3r6z76b32sy6hd0rez4y6b",
@@ -2815,7 +2864,8 @@
       "glazing": "none",
       "stc": null,
       "other_room_id": "q5n62dpd3mrc1exy2hr84132b",
-      "exterior": false
+      "exterior": false,
+      "leaf": true
     },
     {
       "opening_id": "zfpp2p0x944q8ym758q42r9ma",
@@ -2847,7 +2897,8 @@
       "glazing": "none",
       "stc": null,
       "other_room_id": "peina19mpqedsku6a3huu38md",
-      "exterior": false
+      "exterior": false,
+      "leaf": true
     },
     {
       "opening_id": "zrh61zqy1g2xar5zit89ups8d",
@@ -2879,7 +2930,4036 @@
       "glazing": "none",
       "stc": null,
       "other_room_id": "f97s719x9ctqkce19r6s01b5a",
-      "exterior": false
+      "exterior": false,
+      "leaf": true
+    }
+  ],
+  "walls": [
+    {
+      "wall_id": "00uhzien4zx5h3bsfxpxbyk0c",
+      "floor_id": "pd0i1c4yq9w0y2zsb07ed23sb",
+      "ends": [
+        [
+          0.665,
+          -17.555
+        ],
+        [
+          0.665,
+          -17.182
+        ]
+      ],
+      "thickness_m": 0.16,
+      "room_ids": [
+        "bmpu8rc0bpgc1bruwia8kktzd"
+      ],
+      "exterior": true,
+      "assembly": "exterior_brick_veneer_frame",
+      "opening_ids": []
+    },
+    {
+      "wall_id": "1641ern2f7xfp6taw5ph4sd4c",
+      "floor_id": "pd0i1c4yq9w0y2zsb07ed23sb",
+      "ends": [
+        [
+          -4.875,
+          -9.995
+        ],
+        [
+          -4.874,
+          -10.912
+        ]
+      ],
+      "thickness_m": 0.09,
+      "room_ids": [
+        "b2kez6wsw32fm2x3ui593u3hc",
+        "f97s719x9ctqkce19r6s01b5a"
+      ],
+      "exterior": false,
+      "assembly": "interior_stud_gypsum",
+      "opening_ids": []
+    },
+    {
+      "wall_id": "1egxdcxgx0ds5at93h139p4za",
+      "floor_id": "pd0i1c4yq9w0y2zsb07ed23sb",
+      "ends": [
+        [
+          -0.406,
+          -6.511
+        ],
+        [
+          -0.406,
+          -6.895
+        ]
+      ],
+      "thickness_m": 0.13,
+      "room_ids": [
+        "g1gkrkdygg4zs5xge8bxfuc1d"
+      ],
+      "exterior": false,
+      "assembly": "interior_stud_gypsum",
+      "opening_ids": []
+    },
+    {
+      "wall_id": "1i8utki0uaffb2qsse0y5re5d",
+      "floor_id": "pd0i1c4yq9w0y2zsb07ed23sb",
+      "ends": [
+        [
+          -1.117,
+          -15.795
+        ],
+        [
+          -1.118,
+          -14.042
+        ]
+      ],
+      "thickness_m": 0.12,
+      "room_ids": [
+        "4mpd3yxnm0wrnpak1ibnr29wc",
+        "tyz3uyd99x00wa88mxhmugrxa"
+      ],
+      "exterior": false,
+      "assembly": "interior_stud_gypsum",
+      "opening_ids": [
+        "1uu51kzyg8s9p5mt5u05dxy1c"
+      ]
+    },
+    {
+      "wall_id": "1m1nqwwa1e8b96fkh0ng84t6a",
+      "floor_id": "pd0i1c4yq9w0y2zsb07ed23sb",
+      "ends": [
+        [
+          -4.799,
+          -14.043
+        ],
+        [
+          -2.457,
+          -14.042
+        ]
+      ],
+      "thickness_m": 0.12,
+      "room_ids": [
+        "4mpd3yxnm0wrnpak1ibnr29wc",
+        "b2kez6wsw32fm2x3ui593u3hc"
+      ],
+      "exterior": false,
+      "assembly": "interior_stud_gypsum",
+      "opening_ids": [
+        "082w4191t9d50cq0ktx90qi7c"
+      ]
+    },
+    {
+      "wall_id": "1mi3zpfsq665unwds270hxb9b",
+      "floor_id": "tsmq1wak12rhgn0mawksxcwcd",
+      "ends": [
+        [
+          -4.874,
+          -10.502
+        ],
+        [
+          -5.532,
+          -10.502
+        ]
+      ],
+      "thickness_m": 0.13,
+      "room_ids": [
+        "cdz3fkt38kae7tapstpt0eaeb"
+      ],
+      "exterior": false,
+      "assembly": "interior_stud_gypsum",
+      "opening_ids": []
+    },
+    {
+      "wall_id": "1rxz47mfeis186rsa7ikn1efc",
+      "floor_id": "tsmq1wak12rhgn0mawksxcwcd",
+      "ends": [
+        [
+          -11.775,
+          -6.685
+        ],
+        [
+          -11.776,
+          -3.538
+        ]
+      ],
+      "thickness_m": 0.13,
+      "room_ids": [
+        "3m54yff1z7crxaywd8if9rb0d",
+        "cdz3fkt38kae7tapstpt0eaeb"
+      ],
+      "exterior": false,
+      "assembly": "interior_stud_gypsum",
+      "opening_ids": [
+        "62xyq3ixpp59rtw3292hrpdca"
+      ]
+    },
+    {
+      "wall_id": "1yczxedn9f67c9eg7crmmbnfd",
+      "floor_id": "tsmq1wak12rhgn0mawksxcwcd",
+      "ends": [
+        [
+          -9.015,
+          -5.356
+        ],
+        [
+          -7.818,
+          -3.537
+        ]
+      ],
+      "thickness_m": 0.12,
+      "room_ids": [
+        "cdz3fkt38kae7tapstpt0eaeb"
+      ],
+      "exterior": false,
+      "assembly": "interior_stud_gypsum",
+      "opening_ids": []
+    },
+    {
+      "wall_id": "1yw65rzuiamxg1c99y3enr81c",
+      "floor_id": "pd0i1c4yq9w0y2zsb07ed23sb",
+      "ends": [
+        [
+          -8.92,
+          -5.592
+        ],
+        [
+          -14.237,
+          -5.593
+        ]
+      ],
+      "thickness_m": 0.16,
+      "room_ids": [
+        "3ygfq6yfyyw3hi9x7u5rm2iqa"
+      ],
+      "exterior": true,
+      "assembly": "exterior_brick_veneer_frame",
+      "opening_ids": []
+    },
+    {
+      "wall_id": "1z9i7mh73i60z6ucbc6fdnwpb",
+      "floor_id": "pd0i1c4yq9w0y2zsb07ed23sb",
+      "ends": [
+        [
+          -7.415,
+          -12.263
+        ],
+        [
+          -10.706,
+          -12.264
+        ]
+      ],
+      "thickness_m": 0.16,
+      "room_ids": [
+        "n2yqr30509t7i8whfdf2htwic"
+      ],
+      "exterior": false,
+      "assembly": "exterior_brick_veneer_frame",
+      "opening_ids": []
+    },
+    {
+      "wall_id": "215d3b2r149g76t49z7zpnx7d",
+      "floor_id": "pd0i1c4yq9w0y2zsb07ed23sb",
+      "ends": [
+        [
+          -2.459,
+          -6.512
+        ],
+        [
+          -0.406,
+          -6.511
+        ]
+      ],
+      "thickness_m": 0.12,
+      "room_ids": [
+        "3ygfq6yfyyw3hi9x7u5rm2iqa",
+        "g1gkrkdygg4zs5xge8bxfuc1d"
+      ],
+      "exterior": false,
+      "assembly": "interior_stud_gypsum",
+      "opening_ids": []
+    },
+    {
+      "wall_id": "2400a7hey8cpfue64nffz3g9c",
+      "floor_id": "tsmq1wak12rhgn0mawksxcwcd",
+      "ends": [
+        [
+          -0.868,
+          -8.972
+        ],
+        [
+          1.017,
+          -8.971
+        ]
+      ],
+      "thickness_m": 0.16,
+      "room_ids": [
+        "2qdmc5i9byxi79ry1pxdkqzea"
+      ],
+      "exterior": true,
+      "assembly": "exterior_brick_veneer_frame",
+      "opening_ids": []
+    },
+    {
+      "wall_id": "2525tuexudaari5dyk0nrxz1d",
+      "floor_id": "tsmq1wak12rhgn0mawksxcwcd",
+      "ends": [
+        [
+          -5.799,
+          -17.556
+        ],
+        [
+          -5.799,
+          -17.135
+        ]
+      ],
+      "thickness_m": 0.16,
+      "room_ids": [
+        "h26t7ky77ew74yb0pg8qqf5rd"
+      ],
+      "exterior": false,
+      "assembly": "exterior_brick_veneer_frame",
+      "opening_ids": []
+    },
+    {
+      "wall_id": "26hpd37zzsyehm89k6damartb",
+      "floor_id": "tsmq1wak12rhgn0mawksxcwcd",
+      "ends": [
+        [
+          -1.398,
+          -17.555
+        ],
+        [
+          -1.398,
+          -16.712
+        ]
+      ],
+      "thickness_m": 0.16,
+      "room_ids": [
+        "h26t7ky77ew74yb0pg8qqf5rd"
+      ],
+      "exterior": false,
+      "assembly": "exterior_brick_veneer_frame",
+      "opening_ids": []
+    },
+    {
+      "wall_id": "297tb9y8b7eh77s35ftdz92ga",
+      "floor_id": "pd0i1c4yq9w0y2zsb07ed23sb",
+      "ends": [
+        [
+          -2.459,
+          -6.512
+        ],
+        [
+          -2.459,
+          -7.836
+        ]
+      ],
+      "thickness_m": 0.11,
+      "room_ids": [
+        "3ygfq6yfyyw3hi9x7u5rm2iqa",
+        "g1gkrkdygg4zs5xge8bxfuc1d"
+      ],
+      "exterior": false,
+      "assembly": "interior_stud_gypsum",
+      "opening_ids": []
+    },
+    {
+      "wall_id": "29ht3uzz2mbxidqn0qcdmp3sd",
+      "floor_id": "tsmq1wak12rhgn0mawksxcwcd",
+      "ends": [
+        [
+          -14.369,
+          -2.165
+        ],
+        [
+          -13.745,
+          -2.165
+        ]
+      ],
+      "thickness_m": 0.12,
+      "room_ids": [
+        "xy2x8mpaaqknp7q2c3nnbw1ma"
+      ],
+      "exterior": false,
+      "assembly": "interior_stud_gypsum",
+      "opening_ids": []
+    },
+    {
+      "wall_id": "2a8cuxxx46wbakgs2c1bsh9ea",
+      "floor_id": "pd0i1c4yq9w0y2zsb07ed23sb",
+      "ends": [
+        [
+          -1.117,
+          -17.555
+        ],
+        [
+          0.665,
+          -17.555
+        ]
+      ],
+      "thickness_m": 0.16,
+      "room_ids": [
+        "bmpu8rc0bpgc1bruwia8kktzd"
+      ],
+      "exterior": true,
+      "assembly": "exterior_brick_veneer_frame",
+      "opening_ids": []
+    },
+    {
+      "wall_id": "2p5gp50giem8tng07s2dgnsmc",
+      "floor_id": "tsmq1wak12rhgn0mawksxcwcd",
+      "ends": [
+        [
+          -14.369,
+          -1.121
+        ],
+        [
+          -14.369,
+          -2.165
+        ]
+      ],
+      "thickness_m": 0.12,
+      "room_ids": [
+        "xy2x8mpaaqknp7q2c3nnbw1ma"
+      ],
+      "exterior": false,
+      "assembly": "interior_stud_gypsum",
+      "opening_ids": []
+    },
+    {
+      "wall_id": "3bzbm7sh397g3yquiqwkbnszc",
+      "floor_id": "tsmq1wak12rhgn0mawksxcwcd",
+      "ends": [
+        [
+          -9.352,
+          0.872
+        ],
+        [
+          -9.352,
+          0.196
+        ]
+      ],
+      "thickness_m": 0.16,
+      "room_ids": [
+        "xy2x8mpaaqknp7q2c3nnbw1ma"
+      ],
+      "exterior": false,
+      "assembly": "exterior_brick_veneer_frame",
+      "opening_ids": []
+    },
+    {
+      "wall_id": "3pdys845p0ntsxidenk2d29wb",
+      "floor_id": "pd0i1c4yq9w0y2zsb07ed23sb",
+      "ends": [
+        [
+          -3.617,
+          -8.72
+        ],
+        [
+          -3.616,
+          -10.912
+        ]
+      ],
+      "thickness_m": 0.13,
+      "room_ids": [
+        "b2kez6wsw32fm2x3ui593u3hc",
+        "f97s719x9ctqkce19r6s01b5a"
+      ],
+      "exterior": false,
+      "assembly": "interior_stud_gypsum",
+      "opening_ids": []
+    },
+    {
+      "wall_id": "44d3aahxsm4wtrz6dws8g6drd",
+      "floor_id": "tsmq1wak12rhgn0mawksxcwcd",
+      "ends": [
+        [
+          -10.412,
+          0.196
+        ],
+        [
+          -13.699,
+          0.195
+        ]
+      ],
+      "thickness_m": 0.13,
+      "room_ids": [
+        "ediidma5zg15dufx3n0qyq21a",
+        "xy2x8mpaaqknp7q2c3nnbw1ma"
+      ],
+      "exterior": false,
+      "assembly": "interior_stud_gypsum",
+      "opening_ids": [
+        "hh1hid6r1bbup16kkb9qde12a"
+      ]
+    },
+    {
+      "wall_id": "4gypeuya7iakiw6yg1eykdm7a",
+      "floor_id": "pd0i1c4yq9w0y2zsb07ed23sb",
+      "ends": [
+        [
+          -1.117,
+          -15.795
+        ],
+        [
+          1.111,
+          -15.795
+        ]
+      ],
+      "thickness_m": 0.19,
+      "room_ids": [
+        "bmpu8rc0bpgc1bruwia8kktzd",
+        "tyz3uyd99x00wa88mxhmugrxa"
+      ],
+      "exterior": false,
+      "assembly": "exterior_brick_veneer_frame",
+      "opening_ids": []
+    },
+    {
+      "wall_id": "4hps26513n4gnete1eea8dcia",
+      "floor_id": "tsmq1wak12rhgn0mawksxcwcd",
+      "ends": [
+        [
+          -13.21,
+          -6.685
+        ],
+        [
+          -13.209,
+          -12.896
+        ]
+      ],
+      "thickness_m": 0.16,
+      "room_ids": [
+        "cdz3fkt38kae7tapstpt0eaeb"
+      ],
+      "exterior": true,
+      "assembly": "exterior_brick_veneer_frame",
+      "opening_ids": [
+        "4uc3t9shcq2he5gdqpmqkdwmd"
+      ]
+    },
+    {
+      "wall_id": "4mz3w6u4bi5chg2u24dbu8fxc",
+      "floor_id": "tsmq1wak12rhgn0mawksxcwcd",
+      "ends": [
+        [
+          -6.178,
+          -10.912
+        ],
+        [
+          -6.178,
+          -12.358
+        ]
+      ],
+      "thickness_m": 0.12,
+      "room_ids": [
+        "cdz3fkt38kae7tapstpt0eaeb"
+      ],
+      "exterior": false,
+      "assembly": "interior_stud_gypsum",
+      "opening_ids": []
+    },
+    {
+      "wall_id": "53cdtai95xy22066qqx3qe75d",
+      "floor_id": "pd0i1c4yq9w0y2zsb07ed23sb",
+      "ends": [
+        [
+          -6.358,
+          -8.721
+        ],
+        [
+          -5.337,
+          -8.721
+        ]
+      ],
+      "thickness_m": 0.12,
+      "room_ids": [
+        "3ygfq6yfyyw3hi9x7u5rm2iqa"
+      ],
+      "exterior": false,
+      "assembly": "interior_stud_gypsum",
+      "opening_ids": []
+    },
+    {
+      "wall_id": "53rwid2key8cb14a8339enfxc",
+      "floor_id": "pd0i1c4yq9w0y2zsb07ed23sb",
+      "ends": [
+        [
+          -0.225,
+          -6.895
+        ],
+        [
+          -0.225,
+          -7.836
+        ]
+      ],
+      "thickness_m": 0.13,
+      "room_ids": [
+        "g1gkrkdygg4zs5xge8bxfuc1d",
+        "peina19mpqedsku6a3huu38md"
+      ],
+      "exterior": false,
+      "assembly": "interior_stud_gypsum",
+      "opening_ids": []
+    },
+    {
+      "wall_id": "57d921iiys3wzhx2k9nzme39d",
+      "floor_id": "tsmq1wak12rhgn0mawksxcwcd",
+      "ends": [
+        [
+          -13.699,
+          0.033
+        ],
+        [
+          -13.699,
+          0.195
+        ]
+      ],
+      "thickness_m": 0.13,
+      "room_ids": [
+        "wbpb7dkfuwnikd1kq2a9hz70a",
+        "xy2x8mpaaqknp7q2c3nnbw1ma"
+      ],
+      "exterior": false,
+      "assembly": "interior_stud_gypsum",
+      "opening_ids": []
+    },
+    {
+      "wall_id": "58u484z4sxxh5h2qg07zdi6pa",
+      "floor_id": "pd0i1c4yq9w0y2zsb07ed23sb",
+      "ends": [
+        [
+          1.109,
+          -8.712
+        ],
+        [
+          1.11,
+          -12.893
+        ]
+      ],
+      "thickness_m": 0.16,
+      "room_ids": [
+        "peina19mpqedsku6a3huu38md"
+      ],
+      "exterior": true,
+      "assembly": "exterior_brick_veneer_frame",
+      "opening_ids": [
+        "w5sk29zwr1a3tzqwhqc41hdsc"
+      ]
+    },
+    {
+      "wall_id": "5edimykzqa9c2bu0be1kzxeqc",
+      "floor_id": "pd0i1c4yq9w0y2zsb07ed23sb",
+      "ends": [
+        [
+          -7.415,
+          -12.895
+        ],
+        [
+          -10.706,
+          -12.896
+        ]
+      ],
+      "thickness_m": 0.16,
+      "room_ids": [
+        "q5n62dpd3mrc1exy2hr84132b"
+      ],
+      "exterior": false,
+      "assembly": "exterior_brick_veneer_frame",
+      "opening_ids": []
+    },
+    {
+      "wall_id": "5i8t1xq4i51ncdtu4sw1e5b4d",
+      "floor_id": "pd0i1c4yq9w0y2zsb07ed23sb",
+      "ends": [
+        [
+          -1.36,
+          -12.893
+        ],
+        [
+          1.11,
+          -12.893
+        ]
+      ],
+      "thickness_m": 0.13,
+      "room_ids": [
+        "peina19mpqedsku6a3huu38md",
+        "tyz3uyd99x00wa88mxhmugrxa"
+      ],
+      "exterior": false,
+      "assembly": "interior_stud_gypsum",
+      "opening_ids": [
+        "rxmrgit212eht4473pcuaq9ya"
+      ]
+    },
+    {
+      "wall_id": "5q5n2tt9epr64pw0re0ent9ia",
+      "floor_id": "tsmq1wak12rhgn0mawksxcwcd",
+      "ends": [
+        [
+          -1.011,
+          -17.304
+        ],
+        [
+          0.467,
+          -17.304
+        ]
+      ],
+      "thickness_m": 0.16,
+      "room_ids": [
+        "kuc0fpmsgqxff63egrxrycfud"
+      ],
+      "exterior": true,
+      "assembly": "exterior_brick_veneer_frame",
+      "opening_ids": []
+    },
+    {
+      "wall_id": "5qn16pe2rpydr1yi9bphbyxzb",
+      "floor_id": "tsmq1wak12rhgn0mawksxcwcd",
+      "ends": [
+        [
+          -4.309,
+          -12.894
+        ],
+        [
+          -2.458,
+          -12.894
+        ]
+      ],
+      "thickness_m": 0.13,
+      "room_ids": [
+        "cdz3fkt38kae7tapstpt0eaeb",
+        "h26t7ky77ew74yb0pg8qqf5rd"
+      ],
+      "exterior": false,
+      "assembly": "interior_stud_gypsum",
+      "opening_ids": [
+        "wsacsf5w68qfwduyymeh1e9ab"
+      ]
+    },
+    {
+      "wall_id": "5sbpftftxkzhi44wrgsmyngzc",
+      "floor_id": "tsmq1wak12rhgn0mawksxcwcd",
+      "ends": [
+        [
+          1.11,
+          -14.571
+        ],
+        [
+          1.11,
+          -15.197
+        ]
+      ],
+      "thickness_m": 0.16,
+      "room_ids": [
+        "h26t7ky77ew74yb0pg8qqf5rd"
+      ],
+      "exterior": true,
+      "assembly": "exterior_brick_veneer_frame",
+      "opening_ids": []
+    },
+    {
+      "wall_id": "5srx62q644fw18i9qmq83w81a",
+      "floor_id": "tsmq1wak12rhgn0mawksxcwcd",
+      "ends": [
+        [
+          -23.792,
+          -4.224
+        ],
+        [
+          -25.623,
+          -4.225
+        ]
+      ],
+      "thickness_m": 0.16,
+      "room_ids": [
+        "m8npxsuk79xy21dd09x9wtped"
+      ],
+      "exterior": true,
+      "assembly": "exterior_brick_veneer_frame",
+      "opening_ids": []
+    },
+    {
+      "wall_id": "5thxpxk0izz1dhs5x1f47899b",
+      "floor_id": "tsmq1wak12rhgn0mawksxcwcd",
+      "ends": [
+        [
+          -2.458,
+          -9.573
+        ],
+        [
+          -3.617,
+          -9.573
+        ]
+      ],
+      "thickness_m": 0.12,
+      "room_ids": [
+        "2qdmc5i9byxi79ry1pxdkqzea",
+        "cdz3fkt38kae7tapstpt0eaeb"
+      ],
+      "exterior": false,
+      "assembly": "interior_stud_gypsum",
+      "opening_ids": []
+    },
+    {
+      "wall_id": "6mp90n82nfkh5mfhuc8gqwcwc",
+      "floor_id": "tsmq1wak12rhgn0mawksxcwcd",
+      "ends": [
+        [
+          -3.747,
+          -10.502
+        ],
+        [
+          -3.617,
+          -10.502
+        ]
+      ],
+      "thickness_m": 0.13,
+      "room_ids": [
+        "cdz3fkt38kae7tapstpt0eaeb"
+      ],
+      "exterior": false,
+      "assembly": "interior_stud_gypsum",
+      "opening_ids": []
+    },
+    {
+      "wall_id": "71ghye2h72u7sh8i0ds48z49a",
+      "floor_id": "tsmq1wak12rhgn0mawksxcwcd",
+      "ends": [
+        [
+          1.11,
+          -14.571
+        ],
+        [
+          0.426,
+          -14.571
+        ]
+      ],
+      "thickness_m": 0.16,
+      "room_ids": [
+        "h26t7ky77ew74yb0pg8qqf5rd"
+      ],
+      "exterior": false,
+      "assembly": "exterior_brick_veneer_frame",
+      "opening_ids": []
+    },
+    {
+      "wall_id": "776kz2wwi97260cckrwwt1apd",
+      "floor_id": "tsmq1wak12rhgn0mawksxcwcd",
+      "ends": [
+        [
+          1.11,
+          -16.157
+        ],
+        [
+          0.467,
+          -16.157
+        ]
+      ],
+      "thickness_m": 0.16,
+      "room_ids": [
+        "19ab05tns5h6y4qm42esqqpea"
+      ],
+      "exterior": true,
+      "assembly": "exterior_brick_veneer_frame",
+      "opening_ids": []
+    },
+    {
+      "wall_id": "7e8g3ed4r5g8fg4bi7dpza7wb",
+      "floor_id": "tsmq1wak12rhgn0mawksxcwcd",
+      "ends": [
+        [
+          -0.432,
+          -4.343
+        ],
+        [
+          1.055,
+          -4.343
+        ]
+      ],
+      "thickness_m": 0.16,
+      "room_ids": [
+        "cdz3fkt38kae7tapstpt0eaeb"
+      ],
+      "exterior": true,
+      "assembly": "exterior_brick_veneer_frame",
+      "opening_ids": []
+    },
+    {
+      "wall_id": "7exwdnssbkgz16x665x046c4c",
+      "floor_id": "tsmq1wak12rhgn0mawksxcwcd",
+      "ends": [
+        [
+          -3.044,
+          -1.107
+        ],
+        [
+          -3.044,
+          0.765
+        ]
+      ],
+      "thickness_m": 0.12,
+      "room_ids": [
+        "cdz3fkt38kae7tapstpt0eaeb",
+        "xy2x8mpaaqknp7q2c3nnbw1ma"
+      ],
+      "exterior": false,
+      "assembly": "interior_stud_gypsum",
+      "opening_ids": [
+        "gca8iwq0s91tznn03tb0eu9sa"
+      ]
+    },
+    {
+      "wall_id": "7h3u1gas220gpnz54mwq72rib",
+      "floor_id": "tsmq1wak12rhgn0mawksxcwcd",
+      "ends": [
+        [
+          -5.799,
+          -17.135
+        ],
+        [
+          -5.8,
+          -12.895
+        ]
+      ],
+      "thickness_m": 0.13,
+      "room_ids": [
+        "h26t7ky77ew74yb0pg8qqf5rd",
+        "tt6gm2a0463x9wmnx7rn6gugc"
+      ],
+      "exterior": false,
+      "assembly": "interior_stud_gypsum",
+      "opening_ids": [
+        "tgy5qz48u2fmpmc8qsck871ic"
+      ]
+    },
+    {
+      "wall_id": "7pap8x6e7c509tawztnni0wfb",
+      "floor_id": "tsmq1wak12rhgn0mawksxcwcd",
+      "ends": [
+        [
+          -16.952,
+          -3.539
+        ],
+        [
+          -16.333,
+          -3.539
+        ]
+      ],
+      "thickness_m": 0.16,
+      "room_ids": [
+        "3m54yff1z7crxaywd8if9rb0d"
+      ],
+      "exterior": true,
+      "assembly": "exterior_brick_veneer_frame",
+      "opening_ids": []
+    },
+    {
+      "wall_id": "7q6zif06t9h8t9spzx7rx3pec",
+      "floor_id": "tsmq1wak12rhgn0mawksxcwcd",
+      "ends": [
+        [
+          -3.044,
+          0.873
+        ],
+        [
+          -3.044,
+          0.765
+        ]
+      ],
+      "thickness_m": 0.16,
+      "room_ids": [
+        "xy2x8mpaaqknp7q2c3nnbw1ma"
+      ],
+      "exterior": true,
+      "assembly": "exterior_brick_veneer_frame",
+      "opening_ids": []
+    },
+    {
+      "wall_id": "7xskskugb4s6x0texge6dppgc",
+      "floor_id": "tsmq1wak12rhgn0mawksxcwcd",
+      "ends": [
+        [
+          -3.617,
+          -10.502
+        ],
+        [
+          -3.617,
+          -9.573
+        ]
+      ],
+      "thickness_m": 0.13,
+      "room_ids": [
+        "2qdmc5i9byxi79ry1pxdkqzea",
+        "cdz3fkt38kae7tapstpt0eaeb"
+      ],
+      "exterior": false,
+      "assembly": "interior_stud_gypsum",
+      "opening_ids": []
+    },
+    {
+      "wall_id": "7z30d7wtpxdce0i5gfxabukea",
+      "floor_id": "tsmq1wak12rhgn0mawksxcwcd",
+      "ends": [
+        [
+          -13.209,
+          -12.896
+        ],
+        [
+          -7.591,
+          -12.895
+        ]
+      ],
+      "thickness_m": 0.12,
+      "room_ids": [
+        "cdz3fkt38kae7tapstpt0eaeb",
+        "tt6gm2a0463x9wmnx7rn6gugc"
+      ],
+      "exterior": false,
+      "assembly": "interior_stud_gypsum",
+      "opening_ids": []
+    },
+    {
+      "wall_id": "8iisd6wisriw2z25zxhmbg3tb",
+      "floor_id": "tsmq1wak12rhgn0mawksxcwcd",
+      "ends": [
+        [
+          1.055,
+          -4.343
+        ],
+        [
+          1.054,
+          0.766
+        ]
+      ],
+      "thickness_m": 0.16,
+      "room_ids": [
+        "cdz3fkt38kae7tapstpt0eaeb"
+      ],
+      "exterior": true,
+      "assembly": "exterior_brick_veneer_frame",
+      "opening_ids": [
+        "x039pk286m5yduy2kf8mh1y3c",
+        "yqadfepgs1udbwibbs51yytfc"
+      ]
+    },
+    {
+      "wall_id": "8r0i15y3mzaz83sqb0xxbrgua",
+      "floor_id": "tsmq1wak12rhgn0mawksxcwcd",
+      "ends": [
+        [
+          -1.398,
+          -16.712
+        ],
+        [
+          -1.399,
+          -15.197
+        ]
+      ],
+      "thickness_m": 0.12,
+      "room_ids": [
+        "19ab05tns5h6y4qm42esqqpea",
+        "h26t7ky77ew74yb0pg8qqf5rd"
+      ],
+      "exterior": false,
+      "assembly": "interior_stud_gypsum",
+      "opening_ids": []
+    },
+    {
+      "wall_id": "8tcz57kt2mq2d576a5d2b9bma",
+      "floor_id": "tsmq1wak12rhgn0mawksxcwcd",
+      "ends": [
+        [
+          -6.178,
+          -10.912
+        ],
+        [
+          -5.531,
+          -10.912
+        ]
+      ],
+      "thickness_m": 0.12,
+      "room_ids": [
+        "cdz3fkt38kae7tapstpt0eaeb"
+      ],
+      "exterior": false,
+      "assembly": "interior_stud_gypsum",
+      "opening_ids": []
+    },
+    {
+      "wall_id": "9949w8mrxmezc10r810uug41c",
+      "floor_id": "tsmq1wak12rhgn0mawksxcwcd",
+      "ends": [
+        [
+          -7.591,
+          -9.796
+        ],
+        [
+          -7.591,
+          -12.895
+        ]
+      ],
+      "thickness_m": 0.19,
+      "room_ids": [
+        "cdz3fkt38kae7tapstpt0eaeb"
+      ],
+      "exterior": false,
+      "assembly": "exterior_brick_veneer_frame",
+      "opening_ids": []
+    },
+    {
+      "wall_id": "9e91szzs5mewia4mc09f71iua",
+      "floor_id": "pd0i1c4yq9w0y2zsb07ed23sb",
+      "ends": [
+        [
+          -7.415,
+          -12.895
+        ],
+        [
+          -7.414,
+          -14.043
+        ]
+      ],
+      "thickness_m": 0.12,
+      "room_ids": [
+        "b2kez6wsw32fm2x3ui593u3hc",
+        "q5n62dpd3mrc1exy2hr84132b"
+      ],
+      "exterior": false,
+      "assembly": "interior_stud_gypsum",
+      "opening_ids": [
+        "zeq3r6z76b32sy6hd0rez4y6b"
+      ]
+    },
+    {
+      "wall_id": "9sfczqyk8k3kf7f1i7d15g3pd",
+      "floor_id": "pd0i1c4yq9w0y2zsb07ed23sb",
+      "ends": [
+        [
+          -3.078,
+          0.873
+        ],
+        [
+          1.127,
+          0.874
+        ]
+      ],
+      "thickness_m": 0.16,
+      "room_ids": [
+        "3ygfq6yfyyw3hi9x7u5rm2iqa"
+      ],
+      "exterior": true,
+      "assembly": "exterior_brick_veneer_frame",
+      "opening_ids": [
+        "picauxzqz5h3wpad3ztq8dumd"
+      ]
+    },
+    {
+      "wall_id": "a5fwpysyfni45txy88pheyt4b",
+      "floor_id": "tsmq1wak12rhgn0mawksxcwcd",
+      "ends": [
+        [
+          -2.932,
+          -10.501
+        ],
+        [
+          -2.458,
+          -10.919
+        ]
+      ],
+      "thickness_m": 0.13,
+      "room_ids": [
+        "cdz3fkt38kae7tapstpt0eaeb"
+      ],
+      "exterior": false,
+      "assembly": "interior_stud_gypsum",
+      "opening_ids": []
+    },
+    {
+      "wall_id": "a6xfn1xqz0cmy0gdxys18dxmc",
+      "floor_id": "tsmq1wak12rhgn0mawksxcwcd",
+      "ends": [
+        [
+          0.467,
+          -16.157
+        ],
+        [
+          0.467,
+          -16.712
+        ]
+      ],
+      "thickness_m": 0.16,
+      "room_ids": [
+        "19ab05tns5h6y4qm42esqqpea"
+      ],
+      "exterior": true,
+      "assembly": "exterior_brick_veneer_frame",
+      "opening_ids": []
+    },
+    {
+      "wall_id": "a84q8is8bzsyt2f1i8qyrcu1a",
+      "floor_id": "pd0i1c4yq9w0y2zsb07ed23sb",
+      "ends": [
+        [
+          -1.36,
+          -14.042
+        ],
+        [
+          -1.118,
+          -14.042
+        ]
+      ],
+      "thickness_m": 0.12,
+      "room_ids": [
+        "4mpd3yxnm0wrnpak1ibnr29wc",
+        "tyz3uyd99x00wa88mxhmugrxa"
+      ],
+      "exterior": false,
+      "assembly": "interior_stud_gypsum",
+      "opening_ids": []
+    },
+    {
+      "wall_id": "a8p0hasnxda1d9ibzt6in82ka",
+      "floor_id": "tsmq1wak12rhgn0mawksxcwcd",
+      "ends": [
+        [
+          -13.7,
+          2.502
+        ],
+        [
+          -13.699,
+          0.195
+        ]
+      ],
+      "thickness_m": 0.13,
+      "room_ids": [
+        "ediidma5zg15dufx3n0qyq21a",
+        "wbpb7dkfuwnikd1kq2a9hz70a"
+      ],
+      "exterior": false,
+      "assembly": "interior_stud_gypsum",
+      "opening_ids": []
+    },
+    {
+      "wall_id": "adwakmxt1tc46brs2htbyiexa",
+      "floor_id": "pd0i1c4yq9w0y2zsb07ed23sb",
+      "ends": [
+        [
+          -12.174,
+          -0.816
+        ],
+        [
+          -16.03,
+          -0.816
+        ]
+      ],
+      "thickness_m": 0.16,
+      "room_ids": [
+        "3ygfq6yfyyw3hi9x7u5rm2iqa"
+      ],
+      "exterior": true,
+      "assembly": "exterior_brick_veneer_frame",
+      "opening_ids": []
+    },
+    {
+      "wall_id": "aihhwuag8iufdg51te3mm3ymc",
+      "floor_id": "tsmq1wak12rhgn0mawksxcwcd",
+      "ends": [
+        [
+          -3.044,
+          0.873
+        ],
+        [
+          -9.352,
+          0.872
+        ]
+      ],
+      "thickness_m": 0.16,
+      "room_ids": [
+        "xy2x8mpaaqknp7q2c3nnbw1ma"
+      ],
+      "exterior": true,
+      "assembly": "exterior_brick_veneer_frame",
+      "opening_ids": [
+        "ma701g812wh3h4pa9hh8fu82d"
+      ]
+    },
+    {
+      "wall_id": "at3x7a5uz0a1dp0afkk3wrqrb",
+      "floor_id": "pd0i1c4yq9w0y2zsb07ed23sb",
+      "ends": [
+        [
+          -1.117,
+          -17.555
+        ],
+        [
+          -1.117,
+          -15.795
+        ]
+      ],
+      "thickness_m": 0.12,
+      "room_ids": [
+        "4mpd3yxnm0wrnpak1ibnr29wc",
+        "bmpu8rc0bpgc1bruwia8kktzd"
+      ],
+      "exterior": false,
+      "assembly": "interior_stud_gypsum",
+      "opening_ids": [
+        "62gx151h88566p0adrsgq6qsb"
+      ]
+    },
+    {
+      "wall_id": "awyyzf53ra72930aiy3z21zka",
+      "floor_id": "tsmq1wak12rhgn0mawksxcwcd",
+      "ends": [
+        [
+          -3.617,
+          -10.502
+        ],
+        [
+          -2.932,
+          -10.501
+        ]
+      ],
+      "thickness_m": 0.13,
+      "room_ids": [
+        "2qdmc5i9byxi79ry1pxdkqzea",
+        "cdz3fkt38kae7tapstpt0eaeb"
+      ],
+      "exterior": false,
+      "assembly": "interior_stud_gypsum",
+      "opening_ids": []
+    },
+    {
+      "wall_id": "b759hqb3egxqgshzmtwe9ntza",
+      "floor_id": "pd0i1c4yq9w0y2zsb07ed23sb",
+      "ends": [
+        [
+          -4.799,
+          -14.043
+        ],
+        [
+          -4.799,
+          -17.556
+        ]
+      ],
+      "thickness_m": 0.12,
+      "room_ids": [
+        "4mpd3yxnm0wrnpak1ibnr29wc",
+        "pcez6b4tqeep953kmm04hme9c"
+      ],
+      "exterior": false,
+      "assembly": "interior_stud_gypsum",
+      "opening_ids": []
+    },
+    {
+      "wall_id": "b9tnyiypb8szq67dc3bxbc04a",
+      "floor_id": "tsmq1wak12rhgn0mawksxcwcd",
+      "ends": [
+        [
+          -16.952,
+          -3.539
+        ],
+        [
+          -16.952,
+          -6.686
+        ]
+      ],
+      "thickness_m": 0.16,
+      "room_ids": [
+        "3m54yff1z7crxaywd8if9rb0d"
+      ],
+      "exterior": true,
+      "assembly": "exterior_brick_veneer_frame",
+      "opening_ids": []
+    },
+    {
+      "wall_id": "biuwtekr1iu9dedmpbr6mqpxb",
+      "floor_id": "pd0i1c4yq9w0y2zsb07ed23sb",
+      "ends": [
+        [
+          1.453,
+          -8.712
+        ],
+        [
+          1.109,
+          -8.712
+        ]
+      ],
+      "thickness_m": 0.16,
+      "room_ids": [
+        "peina19mpqedsku6a3huu38md"
+      ],
+      "exterior": true,
+      "assembly": "exterior_brick_veneer_frame",
+      "opening_ids": []
+    },
+    {
+      "wall_id": "bpy3bex56x5sm454gw9w4nzgc",
+      "floor_id": "pd0i1c4yq9w0y2zsb07ed23sb",
+      "ends": [
+        [
+          -0.225,
+          -6.511
+        ],
+        [
+          -0.406,
+          -6.511
+        ]
+      ],
+      "thickness_m": 0.12,
+      "room_ids": [
+        "3ygfq6yfyyw3hi9x7u5rm2iqa"
+      ],
+      "exterior": false,
+      "assembly": "interior_stud_gypsum",
+      "opening_ids": []
+    },
+    {
+      "wall_id": "br7d0h24eeqhz2ysrw000tfid",
+      "floor_id": "tsmq1wak12rhgn0mawksxcwcd",
+      "ends": [
+        [
+          1.11,
+          -15.197
+        ],
+        [
+          -1.399,
+          -15.197
+        ]
+      ],
+      "thickness_m": 0.13,
+      "room_ids": [
+        "19ab05tns5h6y4qm42esqqpea",
+        "h26t7ky77ew74yb0pg8qqf5rd"
+      ],
+      "exterior": false,
+      "assembly": "interior_stud_gypsum",
+      "opening_ids": []
+    },
+    {
+      "wall_id": "buu9h3i7p15hs73kqdkrtazqb",
+      "floor_id": "pd0i1c4yq9w0y2zsb07ed23sb",
+      "ends": [
+        [
+          -2.457,
+          -14.042
+        ],
+        [
+          -1.36,
+          -14.042
+        ]
+      ],
+      "thickness_m": 0.12,
+      "room_ids": [
+        "4mpd3yxnm0wrnpak1ibnr29wc"
+      ],
+      "exterior": false,
+      "assembly": "interior_stud_gypsum",
+      "opening_ids": []
+    },
+    {
+      "wall_id": "c6uhqkyd876s79ptucb9mznma",
+      "floor_id": "pd0i1c4yq9w0y2zsb07ed23sb",
+      "ends": [
+        [
+          1.111,
+          -17.182
+        ],
+        [
+          1.111,
+          -15.795
+        ]
+      ],
+      "thickness_m": 0.16,
+      "room_ids": [
+        "bmpu8rc0bpgc1bruwia8kktzd"
+      ],
+      "exterior": true,
+      "assembly": "exterior_brick_veneer_frame",
+      "opening_ids": []
+    },
+    {
+      "wall_id": "c7duupk107075zd5p53dxzy4d",
+      "floor_id": "pd0i1c4yq9w0y2zsb07ed23sb",
+      "ends": [
+        [
+          -6.357,
+          -12.895
+        ],
+        [
+          -6.357,
+          -9.995
+        ]
+      ],
+      "thickness_m": 0.11,
+      "room_ids": [
+        "b2kez6wsw32fm2x3ui593u3hc",
+        "n2yqr30509t7i8whfdf2htwic"
+      ],
+      "exterior": false,
+      "assembly": "interior_stud_gypsum",
+      "opening_ids": []
+    },
+    {
+      "wall_id": "ci4txdhf2datntwzbfawfrwyc",
+      "floor_id": "tsmq1wak12rhgn0mawksxcwcd",
+      "ends": [
+        [
+          -23.792,
+          -4.224
+        ],
+        [
+          -20.06,
+          -4.223
+        ]
+      ],
+      "thickness_m": 0.16,
+      "room_ids": [
+        "a5f9age4zzxewres6iqux2emc"
+      ],
+      "exterior": true,
+      "assembly": "exterior_brick_veneer_frame",
+      "opening_ids": []
+    },
+    {
+      "wall_id": "cw3iw3e618ezuamiftkit29rb",
+      "floor_id": "tsmq1wak12rhgn0mawksxcwcd",
+      "ends": [
+        [
+          -0.868,
+          -9.572
+        ],
+        [
+          -0.868,
+          -8.972
+        ]
+      ],
+      "thickness_m": 0.16,
+      "room_ids": [
+        "2qdmc5i9byxi79ry1pxdkqzea"
+      ],
+      "exterior": false,
+      "assembly": "exterior_brick_veneer_frame",
+      "opening_ids": []
+    },
+    {
+      "wall_id": "d4kasdp2e4xtf6483yewy443a",
+      "floor_id": "tsmq1wak12rhgn0mawksxcwcd",
+      "ends": [
+        [
+          -12.174,
+          -3.538
+        ],
+        [
+          -11.776,
+          -3.538
+        ]
+      ],
+      "thickness_m": 0.12,
+      "room_ids": [
+        "3m54yff1z7crxaywd8if9rb0d",
+        "xy2x8mpaaqknp7q2c3nnbw1ma"
+      ],
+      "exterior": false,
+      "assembly": "interior_stud_gypsum",
+      "opening_ids": []
+    },
+    {
+      "wall_id": "d7g84yrznskh3ym9iz93z6i4a",
+      "floor_id": "tsmq1wak12rhgn0mawksxcwcd",
+      "ends": [
+        [
+          -10.412,
+          0.196
+        ],
+        [
+          -9.352,
+          0.196
+        ]
+      ],
+      "thickness_m": 0.16,
+      "room_ids": [
+        "xy2x8mpaaqknp7q2c3nnbw1ma"
+      ],
+      "exterior": true,
+      "assembly": "exterior_brick_veneer_frame",
+      "opening_ids": []
+    },
+    {
+      "wall_id": "d9tg3gedgwt9m4k2cbr0dw94a",
+      "floor_id": "pd0i1c4yq9w0y2zsb07ed23sb",
+      "ends": [
+        [
+          -10.707,
+          -8.722
+        ],
+        [
+          -8.92,
+          -8.722
+        ]
+      ],
+      "thickness_m": 0.16,
+      "room_ids": [
+        "n2yqr30509t7i8whfdf2htwic"
+      ],
+      "exterior": true,
+      "assembly": "exterior_brick_veneer_frame",
+      "opening_ids": []
+    },
+    {
+      "wall_id": "dbnye24qcxh0fsyzw4tmgh7tb",
+      "floor_id": "pd0i1c4yq9w0y2zsb07ed23sb",
+      "ends": [
+        [
+          -7.084,
+          -14.043
+        ],
+        [
+          -7.083,
+          -17.556
+        ]
+      ],
+      "thickness_m": 0.12,
+      "room_ids": [
+        "pcez6b4tqeep953kmm04hme9c",
+        "q5n62dpd3mrc1exy2hr84132b"
+      ],
+      "exterior": false,
+      "assembly": "interior_stud_gypsum",
+      "opening_ids": [
+        "yb9kss2580pp2f1wkp11wkrhb"
+      ]
+    },
+    {
+      "wall_id": "dbu608bwe2sxk62m897cxfzkd",
+      "floor_id": "pd0i1c4yq9w0y2zsb07ed23sb",
+      "ends": [
+        [
+          -0.225,
+          -6.895
+        ],
+        [
+          -0.225,
+          -6.511
+        ]
+      ],
+      "thickness_m": 0.13,
+      "room_ids": [
+        "peina19mpqedsku6a3huu38md"
+      ],
+      "exterior": false,
+      "assembly": "interior_stud_gypsum",
+      "opening_ids": []
+    },
+    {
+      "wall_id": "dsgkkaa0fdk4wn49yfw7zdxua",
+      "floor_id": "tsmq1wak12rhgn0mawksxcwcd",
+      "ends": [
+        [
+          -2.458,
+          -10.501
+        ],
+        [
+          -2.458,
+          -10.919
+        ]
+      ],
+      "thickness_m": 0.17,
+      "room_ids": [
+        "2qdmc5i9byxi79ry1pxdkqzea"
+      ],
+      "exterior": false,
+      "assembly": "exterior_brick_veneer_frame",
+      "opening_ids": []
+    },
+    {
+      "wall_id": "dthx2u7u7chn86r68y4fpr3qc",
+      "floor_id": "tsmq1wak12rhgn0mawksxcwcd",
+      "ends": [
+        [
+          1.017,
+          -9.541
+        ],
+        [
+          -0.466,
+          -9.541
+        ]
+      ],
+      "thickness_m": 0.1,
+      "room_ids": [
+        "2qdmc5i9byxi79ry1pxdkqzea"
+      ],
+      "exterior": false,
+      "assembly": "interior_stud_gypsum",
+      "opening_ids": []
+    },
+    {
+      "wall_id": "dtpy9s79uac1w9s6wff7ai62a",
+      "floor_id": "pd0i1c4yq9w0y2zsb07ed23sb",
+      "ends": [
+        [
+          -8.92,
+          -5.592
+        ],
+        [
+          -8.92,
+          -8.722
+        ]
+      ],
+      "thickness_m": 0.16,
+      "room_ids": [
+        "3ygfq6yfyyw3hi9x7u5rm2iqa"
+      ],
+      "exterior": true,
+      "assembly": "exterior_brick_veneer_frame",
+      "opening_ids": []
+    },
+    {
+      "wall_id": "dwfsucaf9g44wpse8zf49bytc",
+      "floor_id": "tsmq1wak12rhgn0mawksxcwcd",
+      "ends": [
+        [
+          -23.791,
+          -7.581
+        ],
+        [
+          -23.792,
+          -4.224
+        ]
+      ],
+      "thickness_m": 0.12,
+      "room_ids": [
+        "a5f9age4zzxewres6iqux2emc",
+        "m8npxsuk79xy21dd09x9wtped"
+      ],
+      "exterior": false,
+      "assembly": "interior_stud_gypsum",
+      "opening_ids": [
+        "burbhi8mf5nqwr3yg5816b61a"
+      ]
+    },
+    {
+      "wall_id": "e16f8pqcq613tnfba48h1ntec",
+      "floor_id": "tsmq1wak12rhgn0mawksxcwcd",
+      "ends": [
+        [
+          -2.458,
+          -8.605
+        ],
+        [
+          -2.458,
+          -9.573
+        ]
+      ],
+      "thickness_m": 0.16,
+      "room_ids": [
+        "cdz3fkt38kae7tapstpt0eaeb"
+      ],
+      "exterior": false,
+      "assembly": "exterior_brick_veneer_frame",
+      "opening_ids": []
+    },
+    {
+      "wall_id": "e30rt500br9fx7nkf37g6qbda",
+      "floor_id": "tsmq1wak12rhgn0mawksxcwcd",
+      "ends": [
+        [
+          1.017,
+          -9.541
+        ],
+        [
+          1.017,
+          -8.971
+        ]
+      ],
+      "thickness_m": 0.16,
+      "room_ids": [
+        "2qdmc5i9byxi79ry1pxdkqzea"
+      ],
+      "exterior": true,
+      "assembly": "exterior_brick_veneer_frame",
+      "opening_ids": []
+    },
+    {
+      "wall_id": "e9sc3hspzxhw3b8nkxeebfn5c",
+      "floor_id": "pd0i1c4yq9w0y2zsb07ed23sb",
+      "ends": [
+        [
+          -5.337,
+          -9.995
+        ],
+        [
+          -5.337,
+          -8.721
+        ]
+      ],
+      "thickness_m": 0.12,
+      "room_ids": [
+        "f97s719x9ctqkce19r6s01b5a"
+      ],
+      "exterior": false,
+      "assembly": "interior_stud_gypsum",
+      "opening_ids": []
+    },
+    {
+      "wall_id": "edqybd8ehtssm5ifwy4dq6qgc",
+      "floor_id": "tsmq1wak12rhgn0mawksxcwcd",
+      "ends": [
+        [
+          -16.334,
+          2.502
+        ],
+        [
+          -13.7,
+          2.502
+        ]
+      ],
+      "thickness_m": 0.16,
+      "room_ids": [
+        "wbpb7dkfuwnikd1kq2a9hz70a"
+      ],
+      "exterior": true,
+      "assembly": "exterior_brick_veneer_frame",
+      "opening_ids": [
+        "f70run2x3rcsnqmamg5k0d0cb"
+      ]
+    },
+    {
+      "wall_id": "ehwe226fq00kxdfipxrrcwygd",
+      "floor_id": "tsmq1wak12rhgn0mawksxcwcd",
+      "ends": [
+        [
+          -4.874,
+          -10.502
+        ],
+        [
+          -4.874,
+          -11.604
+        ]
+      ],
+      "thickness_m": 0.12,
+      "room_ids": [
+        "cdz3fkt38kae7tapstpt0eaeb"
+      ],
+      "exterior": false,
+      "assembly": "interior_stud_gypsum",
+      "opening_ids": []
+    },
+    {
+      "wall_id": "eqhdtsmqc2ekyrxkawqkk7f7d",
+      "floor_id": "pd0i1c4yq9w0y2zsb07ed23sb",
+      "ends": [
+        [
+          1.452,
+          -4.307
+        ],
+        [
+          1.128,
+          -4.307
+        ]
+      ],
+      "thickness_m": 0.16,
+      "room_ids": [
+        "3ygfq6yfyyw3hi9x7u5rm2iqa"
+      ],
+      "exterior": true,
+      "assembly": "exterior_brick_veneer_frame",
+      "opening_ids": []
+    },
+    {
+      "wall_id": "er2wr5x206rt6d43eq05ki50a",
+      "floor_id": "pd0i1c4yq9w0y2zsb07ed23sb",
+      "ends": [
+        [
+          -4.875,
+          -9.995
+        ],
+        [
+          -5.337,
+          -9.995
+        ]
+      ],
+      "thickness_m": 0.11,
+      "room_ids": [
+        "b2kez6wsw32fm2x3ui593u3hc",
+        "f97s719x9ctqkce19r6s01b5a"
+      ],
+      "exterior": false,
+      "assembly": "interior_stud_gypsum",
+      "opening_ids": []
+    },
+    {
+      "wall_id": "f1pqd1mrzez0q33x831bcy65c",
+      "floor_id": "tsmq1wak12rhgn0mawksxcwcd",
+      "ends": [
+        [
+          -4.309,
+          -12.894
+        ],
+        [
+          -4.874,
+          -12.894
+        ]
+      ],
+      "thickness_m": 0.13,
+      "room_ids": [
+        "h26t7ky77ew74yb0pg8qqf5rd"
+      ],
+      "exterior": false,
+      "assembly": "interior_stud_gypsum",
+      "opening_ids": []
+    },
+    {
+      "wall_id": "f2e3dcpbqatud33qafbmb2ckd",
+      "floor_id": "tsmq1wak12rhgn0mawksxcwcd",
+      "ends": [
+        [
+          -2.458,
+          -10.501
+        ],
+        [
+          -2.932,
+          -10.501
+        ]
+      ],
+      "thickness_m": 0.13,
+      "room_ids": [
+        "2qdmc5i9byxi79ry1pxdkqzea"
+      ],
+      "exterior": false,
+      "assembly": "interior_stud_gypsum",
+      "opening_ids": []
+    },
+    {
+      "wall_id": "f4km95ye99rhcud4nc5g4tgub",
+      "floor_id": "pd0i1c4yq9w0y2zsb07ed23sb",
+      "ends": [
+        [
+          -2.458,
+          -8.72
+        ],
+        [
+          -2.459,
+          -7.836
+        ]
+      ],
+      "thickness_m": 0.11,
+      "room_ids": [
+        "3ygfq6yfyyw3hi9x7u5rm2iqa",
+        "peina19mpqedsku6a3huu38md"
+      ],
+      "exterior": false,
+      "assembly": "interior_stud_gypsum",
+      "opening_ids": []
+    },
+    {
+      "wall_id": "fe0rtxuzk94rcp882r831earb",
+      "floor_id": "tsmq1wak12rhgn0mawksxcwcd",
+      "ends": [
+        [
+          -16.333,
+          -3.539
+        ],
+        [
+          -13.745,
+          -3.539
+        ]
+      ],
+      "thickness_m": 0.12,
+      "room_ids": [
+        "3m54yff1z7crxaywd8if9rb0d",
+        "xy2x8mpaaqknp7q2c3nnbw1ma"
+      ],
+      "exterior": false,
+      "assembly": "interior_stud_gypsum",
+      "opening_ids": []
+    },
+    {
+      "wall_id": "femb1ishcdwm5uk8w2r31y4nc",
+      "floor_id": "tsmq1wak12rhgn0mawksxcwcd",
+      "ends": [
+        [
+          -4.874,
+          -10.502
+        ],
+        [
+          -4.501,
+          -10.502
+        ]
+      ],
+      "thickness_m": 0.13,
+      "room_ids": [
+        "cdz3fkt38kae7tapstpt0eaeb"
+      ],
+      "exterior": false,
+      "assembly": "interior_stud_gypsum",
+      "opening_ids": []
+    },
+    {
+      "wall_id": "fmb6rdbnun63rs2pt22xuuyic",
+      "floor_id": "tsmq1wak12rhgn0mawksxcwcd",
+      "ends": [
+        [
+          -13.7,
+          2.502
+        ],
+        [
+          -10.412,
+          2.503
+        ]
+      ],
+      "thickness_m": 0.16,
+      "room_ids": [
+        "ediidma5zg15dufx3n0qyq21a"
+      ],
+      "exterior": true,
+      "assembly": "exterior_brick_veneer_frame",
+      "opening_ids": [
+        "ehdd1d306yc8maq8h8tiy7tpa"
+      ]
+    },
+    {
+      "wall_id": "fn1b9q8c66k3i9bcuem1xbapb",
+      "floor_id": "pd0i1c4yq9w0y2zsb07ed23sb",
+      "ends": [
+        [
+          1.452,
+          -4.307
+        ],
+        [
+          1.452,
+          -6.511
+        ]
+      ],
+      "thickness_m": 0.16,
+      "room_ids": [
+        "3ygfq6yfyyw3hi9x7u5rm2iqa"
+      ],
+      "exterior": true,
+      "assembly": "exterior_brick_veneer_frame",
+      "opening_ids": [
+        "ccr5pzz6tu4ptkb79k24azacc"
+      ]
+    },
+    {
+      "wall_id": "fsau1zbkwzp1at76weifzdirc",
+      "floor_id": "pd0i1c4yq9w0y2zsb07ed23sb",
+      "ends": [
+        [
+          -12.174,
+          -3.538
+        ],
+        [
+          -3.077,
+          -3.537
+        ]
+      ],
+      "thickness_m": 0.16,
+      "room_ids": [
+        "3ygfq6yfyyw3hi9x7u5rm2iqa"
+      ],
+      "exterior": true,
+      "assembly": "exterior_brick_veneer_frame",
+      "opening_ids": []
+    },
+    {
+      "wall_id": "fzfu305fm0mqhrkw0x4zs0y5c",
+      "floor_id": "pd0i1c4yq9w0y2zsb07ed23sb",
+      "ends": [
+        [
+          -1.36,
+          -12.893
+        ],
+        [
+          -2.458,
+          -12.894
+        ]
+      ],
+      "thickness_m": 0.13,
+      "room_ids": [
+        "peina19mpqedsku6a3huu38md"
+      ],
+      "exterior": false,
+      "assembly": "interior_stud_gypsum",
+      "opening_ids": []
+    },
+    {
+      "wall_id": "g49dmy60uymwqfm2kkkmm0rka",
+      "floor_id": "tsmq1wak12rhgn0mawksxcwcd",
+      "ends": [
+        [
+          -1.398,
+          -16.712
+        ],
+        [
+          -1.011,
+          -16.712
+        ]
+      ],
+      "thickness_m": 0.16,
+      "room_ids": [
+        "19ab05tns5h6y4qm42esqqpea"
+      ],
+      "exterior": true,
+      "assembly": "exterior_brick_veneer_frame",
+      "opening_ids": []
+    },
+    {
+      "wall_id": "g6760952a2c96sh2hy56qg83a",
+      "floor_id": "pd0i1c4yq9w0y2zsb07ed23sb",
+      "ends": [
+        [
+          1.128,
+          -4.307
+        ],
+        [
+          1.127,
+          0.874
+        ]
+      ],
+      "thickness_m": 0.16,
+      "room_ids": [
+        "3ygfq6yfyyw3hi9x7u5rm2iqa"
+      ],
+      "exterior": true,
+      "assembly": "exterior_brick_veneer_frame",
+      "opening_ids": [
+        "7wwxe3ndwai8c9cp5gt0xnewb"
+      ]
+    },
+    {
+      "wall_id": "g6hg7hw5miw19m2aazkz0hupc",
+      "floor_id": "pd0i1c4yq9w0y2zsb07ed23sb",
+      "ends": [
+        [
+          -2.459,
+          -7.836
+        ],
+        [
+          -0.225,
+          -7.836
+        ]
+      ],
+      "thickness_m": 0.14,
+      "room_ids": [
+        "g1gkrkdygg4zs5xge8bxfuc1d",
+        "peina19mpqedsku6a3huu38md"
+      ],
+      "exterior": false,
+      "assembly": "interior_stud_gypsum",
+      "opening_ids": [
+        "mie6ezyc7pfuzhia4435ahska"
+      ]
+    },
+    {
+      "wall_id": "gefa363h5a4tkzi7s20m3pnwd",
+      "floor_id": "tsmq1wak12rhgn0mawksxcwcd",
+      "ends": [
+        [
+          0.467,
+          -17.304
+        ],
+        [
+          0.467,
+          -16.712
+        ]
+      ],
+      "thickness_m": 0.16,
+      "room_ids": [
+        "kuc0fpmsgqxff63egrxrycfud"
+      ],
+      "exterior": true,
+      "assembly": "exterior_brick_veneer_frame",
+      "opening_ids": []
+    },
+    {
+      "wall_id": "gftrttwayfueuen49qg3nbzpc",
+      "floor_id": "tsmq1wak12rhgn0mawksxcwcd",
+      "ends": [
+        [
+          -4.309,
+          -12.894
+        ],
+        [
+          -4.31,
+          -11.603
+        ]
+      ],
+      "thickness_m": 0.12,
+      "room_ids": [
+        "cdz3fkt38kae7tapstpt0eaeb"
+      ],
+      "exterior": false,
+      "assembly": "interior_stud_gypsum",
+      "opening_ids": []
+    },
+    {
+      "wall_id": "gw9pufi7gfq8qmpte8qggqkeb",
+      "floor_id": "pd0i1c4yq9w0y2zsb07ed23sb",
+      "ends": [
+        [
+          -3.617,
+          -8.72
+        ],
+        [
+          -2.458,
+          -8.72
+        ]
+      ],
+      "thickness_m": 0.12,
+      "room_ids": [
+        "3ygfq6yfyyw3hi9x7u5rm2iqa",
+        "b2kez6wsw32fm2x3ui593u3hc"
+      ],
+      "exterior": false,
+      "assembly": "interior_stud_gypsum",
+      "opening_ids": [
+        "qk5r0k75pzhxz5pfchh389yda"
+      ]
+    },
+    {
+      "wall_id": "gynd1s0rueq4p03twi3hat8ca",
+      "floor_id": "pd0i1c4yq9w0y2zsb07ed23sb",
+      "ends": [
+        [
+          -1.117,
+          -17.555
+        ],
+        [
+          -4.799,
+          -17.556
+        ]
+      ],
+      "thickness_m": 0.16,
+      "room_ids": [
+        "4mpd3yxnm0wrnpak1ibnr29wc"
+      ],
+      "exterior": true,
+      "assembly": "exterior_brick_veneer_frame",
+      "opening_ids": [
+        "mky1z5shmhbbsgn7264xedkrc"
+      ]
+    },
+    {
+      "wall_id": "hebzdi2rhrbdequ8kef9nzfwd",
+      "floor_id": "tsmq1wak12rhgn0mawksxcwcd",
+      "ends": [
+        [
+          -1.36,
+          -14.164
+        ],
+        [
+          0.426,
+          -14.164
+        ]
+      ],
+      "thickness_m": 0.16,
+      "room_ids": [
+        "h26t7ky77ew74yb0pg8qqf5rd"
+      ],
+      "exterior": false,
+      "assembly": "exterior_brick_veneer_frame",
+      "opening_ids": []
+    },
+    {
+      "wall_id": "hs7bkagrp4ieixt2m83rud2ec",
+      "floor_id": "tsmq1wak12rhgn0mawksxcwcd",
+      "ends": [
+        [
+          -7.818,
+          -3.537
+        ],
+        [
+          -4.964,
+          -3.537
+        ]
+      ],
+      "thickness_m": 0.12,
+      "room_ids": [
+        "cdz3fkt38kae7tapstpt0eaeb",
+        "xy2x8mpaaqknp7q2c3nnbw1ma"
+      ],
+      "exterior": false,
+      "assembly": "interior_stud_gypsum",
+      "opening_ids": [
+        "1zbngrrwc7rpze5yw24a102ic"
+      ]
+    },
+    {
+      "wall_id": "hsz0ixi7x0wg683enku4nw86c",
+      "floor_id": "tsmq1wak12rhgn0mawksxcwcd",
+      "ends": [
+        [
+          1.017,
+          -9.541
+        ],
+        [
+          1.135,
+          -9.541
+        ]
+      ],
+      "thickness_m": 0.16,
+      "room_ids": [
+        "2qdmc5i9byxi79ry1pxdkqzea"
+      ],
+      "exterior": true,
+      "assembly": "exterior_brick_veneer_frame",
+      "opening_ids": []
+    },
+    {
+      "wall_id": "hzmft4qkiqmq9ie7egxy65upd",
+      "floor_id": "pd0i1c4yq9w0y2zsb07ed23sb",
+      "ends": [
+        [
+          1.453,
+          -8.712
+        ],
+        [
+          1.452,
+          -6.511
+        ]
+      ],
+      "thickness_m": 0.16,
+      "room_ids": [
+        "peina19mpqedsku6a3huu38md"
+      ],
+      "exterior": true,
+      "assembly": "exterior_brick_veneer_frame",
+      "opening_ids": [
+        "g0re3ptkimfqp2fgm8zt2yhid"
+      ]
+    },
+    {
+      "wall_id": "i1yz8hzgta3bgxecc86simuqc",
+      "floor_id": "pd0i1c4yq9w0y2zsb07ed23sb",
+      "ends": [
+        [
+          -3.078,
+          0.873
+        ],
+        [
+          -3.077,
+          -3.537
+        ]
+      ],
+      "thickness_m": 0.16,
+      "room_ids": [
+        "3ygfq6yfyyw3hi9x7u5rm2iqa"
+      ],
+      "exterior": true,
+      "assembly": "exterior_brick_veneer_frame",
+      "opening_ids": []
+    },
+    {
+      "wall_id": "i35t3159hdmct2kuz6x9c4ega",
+      "floor_id": "tsmq1wak12rhgn0mawksxcwcd",
+      "ends": [
+        [
+          -20.204,
+          -7.58
+        ],
+        [
+          -20.204,
+          -6.652
+        ]
+      ],
+      "thickness_m": 0.16,
+      "room_ids": [
+        "a5f9age4zzxewres6iqux2emc"
+      ],
+      "exterior": true,
+      "assembly": "exterior_brick_veneer_frame",
+      "opening_ids": []
+    },
+    {
+      "wall_id": "i723q9ebby4pr6u5y1yiux1bb",
+      "floor_id": "tsmq1wak12rhgn0mawksxcwcd",
+      "ends": [
+        [
+          -1.011,
+          -16.712
+        ],
+        [
+          0.467,
+          -16.712
+        ]
+      ],
+      "thickness_m": 0.12,
+      "room_ids": [
+        "19ab05tns5h6y4qm42esqqpea",
+        "kuc0fpmsgqxff63egrxrycfud"
+      ],
+      "exterior": false,
+      "assembly": "interior_stud_gypsum",
+      "opening_ids": [
+        "7mts6154c6kmpmrhyt3zxb0wb"
+      ]
+    },
+    {
+      "wall_id": "i7gh4s0e40we2mph52h579k1d",
+      "floor_id": "tsmq1wak12rhgn0mawksxcwcd",
+      "ends": [
+        [
+          -5.799,
+          -17.135
+        ],
+        [
+          -6.05,
+          -17.136
+        ]
+      ],
+      "thickness_m": 0.16,
+      "room_ids": [
+        "tt6gm2a0463x9wmnx7rn6gugc"
+      ],
+      "exterior": true,
+      "assembly": "exterior_brick_veneer_frame",
+      "opening_ids": []
+    },
+    {
+      "wall_id": "ir9fgbnzyzbg09zfh2u73y6ud",
+      "floor_id": "pd0i1c4yq9w0y2zsb07ed23sb",
+      "ends": [
+        [
+          -7.415,
+          -12.895
+        ],
+        [
+          -6.357,
+          -12.895
+        ]
+      ],
+      "thickness_m": 0.13,
+      "room_ids": [
+        "b2kez6wsw32fm2x3ui593u3hc",
+        "n2yqr30509t7i8whfdf2htwic"
+      ],
+      "exterior": false,
+      "assembly": "interior_stud_gypsum",
+      "opening_ids": [
+        "rwkrh5zg5u9h98p2sr44ndgmb"
+      ]
+    },
+    {
+      "wall_id": "k1fqytbarpax22s0y1wb3kdac",
+      "floor_id": "tsmq1wak12rhgn0mawksxcwcd",
+      "ends": [
+        [
+          -4.874,
+          -12.894
+        ],
+        [
+          -5.8,
+          -12.895
+        ]
+      ],
+      "thickness_m": 0.13,
+      "room_ids": [
+        "cdz3fkt38kae7tapstpt0eaeb",
+        "h26t7ky77ew74yb0pg8qqf5rd"
+      ],
+      "exterior": false,
+      "assembly": "interior_stud_gypsum",
+      "opening_ids": []
+    },
+    {
+      "wall_id": "k4mm2tkritf76zsq8i7n0xa2b",
+      "floor_id": "pd0i1c4yq9w0y2zsb07ed23sb",
+      "ends": [
+        [
+          -2.458,
+          -12.894
+        ],
+        [
+          -2.457,
+          -14.042
+        ]
+      ],
+      "thickness_m": 0.11,
+      "room_ids": [
+        "b2kez6wsw32fm2x3ui593u3hc"
+      ],
+      "exterior": false,
+      "assembly": "interior_stud_gypsum",
+      "opening_ids": []
+    },
+    {
+      "wall_id": "k71zaikcaeq053adw7is0qr9c",
+      "floor_id": "tsmq1wak12rhgn0mawksxcwcd",
+      "ends": [
+        [
+          -11.776,
+          -3.538
+        ],
+        [
+          -9.015,
+          -5.356
+        ]
+      ],
+      "thickness_m": 0.13,
+      "room_ids": [
+        "cdz3fkt38kae7tapstpt0eaeb"
+      ],
+      "exterior": false,
+      "assembly": "interior_stud_gypsum",
+      "opening_ids": []
+    },
+    {
+      "wall_id": "kd2ape3fa8caya8ht4wifa2qa",
+      "floor_id": "tsmq1wak12rhgn0mawksxcwcd",
+      "ends": [
+        [
+          -25.623,
+          -7.581
+        ],
+        [
+          -25.623,
+          -4.225
+        ]
+      ],
+      "thickness_m": 0.16,
+      "room_ids": [
+        "m8npxsuk79xy21dd09x9wtped"
+      ],
+      "exterior": true,
+      "assembly": "exterior_brick_veneer_frame",
+      "opening_ids": []
+    },
+    {
+      "wall_id": "kmux4nmkecaa8ifhzqehiix8a",
+      "floor_id": "tsmq1wak12rhgn0mawksxcwcd",
+      "ends": [
+        [
+          -3.043,
+          -3.537
+        ],
+        [
+          -4.964,
+          -3.537
+        ]
+      ],
+      "thickness_m": 0.12,
+      "room_ids": [
+        "cdz3fkt38kae7tapstpt0eaeb",
+        "n81qfe51azs8iexnbqwspye6c"
+      ],
+      "exterior": false,
+      "assembly": "interior_stud_gypsum",
+      "opening_ids": []
+    },
+    {
+      "wall_id": "kr685uqc8zx22y7ss5t9q9ybb",
+      "floor_id": "tsmq1wak12rhgn0mawksxcwcd",
+      "ends": [
+        [
+          -0.431,
+          -8.604
+        ],
+        [
+          -0.432,
+          -4.343
+        ]
+      ],
+      "thickness_m": 0.16,
+      "room_ids": [
+        "cdz3fkt38kae7tapstpt0eaeb"
+      ],
+      "exterior": true,
+      "assembly": "exterior_brick_veneer_frame",
+      "opening_ids": [
+        "49r3gmycef8ta6km3zrs12fca"
+      ]
+    },
+    {
+      "wall_id": "m1cstw826h3phwuixcerczrda",
+      "floor_id": "tsmq1wak12rhgn0mawksxcwcd",
+      "ends": [
+        [
+          -13.21,
+          -6.685
+        ],
+        [
+          -16.952,
+          -6.686
+        ]
+      ],
+      "thickness_m": 0.16,
+      "room_ids": [
+        "3m54yff1z7crxaywd8if9rb0d"
+      ],
+      "exterior": true,
+      "assembly": "exterior_brick_veneer_frame",
+      "opening_ids": []
+    },
+    {
+      "wall_id": "m6s121q4u11dfifhbzugwgw1c",
+      "floor_id": "pd0i1c4yq9w0y2zsb07ed23sb",
+      "ends": [
+        [
+          -4.799,
+          -14.043
+        ],
+        [
+          -7.084,
+          -14.043
+        ]
+      ],
+      "thickness_m": 0.12,
+      "room_ids": [
+        "b2kez6wsw32fm2x3ui593u3hc",
+        "pcez6b4tqeep953kmm04hme9c"
+      ],
+      "exterior": false,
+      "assembly": "interior_stud_gypsum",
+      "opening_ids": [
+        "rggu1tb6mapme6mb3z9ku13ga"
+      ]
+    },
+    {
+      "wall_id": "m83xput6ra3177pw7u07w0u8b",
+      "floor_id": "pd0i1c4yq9w0y2zsb07ed23sb",
+      "ends": [
+        [
+          0.665,
+          -17.182
+        ],
+        [
+          1.111,
+          -17.182
+        ]
+      ],
+      "thickness_m": 0.16,
+      "room_ids": [
+        "bmpu8rc0bpgc1bruwia8kktzd"
+      ],
+      "exterior": true,
+      "assembly": "exterior_brick_veneer_frame",
+      "opening_ids": []
+    },
+    {
+      "wall_id": "maf2cn2978fiwuppggq08sged",
+      "floor_id": "tsmq1wak12rhgn0mawksxcwcd",
+      "ends": [
+        [
+          -20.06,
+          -6.652
+        ],
+        [
+          -20.204,
+          -6.652
+        ]
+      ],
+      "thickness_m": 0.16,
+      "room_ids": [
+        "a5f9age4zzxewres6iqux2emc"
+      ],
+      "exterior": true,
+      "assembly": "exterior_brick_veneer_frame",
+      "opening_ids": []
+    },
+    {
+      "wall_id": "mcg6zq53takesk351r2ef9pdb",
+      "floor_id": "tsmq1wak12rhgn0mawksxcwcd",
+      "ends": [
+        [
+          1.135,
+          -9.541
+        ],
+        [
+          1.136,
+          -12.893
+        ]
+      ],
+      "thickness_m": 0.16,
+      "room_ids": [
+        "2qdmc5i9byxi79ry1pxdkqzea"
+      ],
+      "exterior": true,
+      "assembly": "exterior_brick_veneer_frame",
+      "opening_ids": [
+        "qm3aip33nt8b04ta2c5syt84c"
+      ]
+    },
+    {
+      "wall_id": "mfpnsem611e4uqw120iyrurbc",
+      "floor_id": "tsmq1wak12rhgn0mawksxcwcd",
+      "ends": [
+        [
+          -16.333,
+          0.032
+        ],
+        [
+          -16.333,
+          -3.539
+        ]
+      ],
+      "thickness_m": 0.16,
+      "room_ids": [
+        "xy2x8mpaaqknp7q2c3nnbw1ma"
+      ],
+      "exterior": true,
+      "assembly": "exterior_brick_veneer_frame",
+      "opening_ids": [
+        "1eh7kq4yh1yue85eh5ixygqua"
+      ]
+    },
+    {
+      "wall_id": "n0m51w74ef402b6frex5z78pb",
+      "floor_id": "tsmq1wak12rhgn0mawksxcwcd",
+      "ends": [
+        [
+          -5.531,
+          -10.912
+        ],
+        [
+          -5.532,
+          -10.502
+        ]
+      ],
+      "thickness_m": 0.12,
+      "room_ids": [
+        "cdz3fkt38kae7tapstpt0eaeb"
+      ],
+      "exterior": false,
+      "assembly": "interior_stud_gypsum",
+      "opening_ids": []
+    },
+    {
+      "wall_id": "n1qd75b989ut52m5i3xbxg4pc",
+      "floor_id": "tsmq1wak12rhgn0mawksxcwcd",
+      "ends": [
+        [
+          -0.432,
+          -4.343
+        ],
+        [
+          -1.756,
+          -4.344
+        ]
+      ],
+      "thickness_m": 0.2,
+      "room_ids": [
+        "cdz3fkt38kae7tapstpt0eaeb"
+      ],
+      "exterior": false,
+      "assembly": "exterior_brick_veneer_frame",
+      "opening_ids": []
+    },
+    {
+      "wall_id": "nd3d54d71d3a5eg1z10rf0yia",
+      "floor_id": "tsmq1wak12rhgn0mawksxcwcd",
+      "ends": [
+        [
+          -13.208,
+          -17.557
+        ],
+        [
+          -13.209,
+          -12.896
+        ]
+      ],
+      "thickness_m": 0.16,
+      "room_ids": [
+        "tt6gm2a0463x9wmnx7rn6gugc"
+      ],
+      "exterior": true,
+      "assembly": "exterior_brick_veneer_frame",
+      "opening_ids": [
+        "45wqba0gnskquwd0xp9b9t8nc",
+        "dx79dipidg2fawu7ee5x0gmma"
+      ]
+    },
+    {
+      "wall_id": "nk22mcr6wqq9ib7h1cxuqp4ia",
+      "floor_id": "pd0i1c4yq9w0y2zsb07ed23sb",
+      "ends": [
+        [
+          -0.225,
+          -6.511
+        ],
+        [
+          1.452,
+          -6.511
+        ]
+      ],
+      "thickness_m": 0.12,
+      "room_ids": [
+        "3ygfq6yfyyw3hi9x7u5rm2iqa",
+        "peina19mpqedsku6a3huu38md"
+      ],
+      "exterior": false,
+      "assembly": "interior_stud_gypsum",
+      "opening_ids": []
+    },
+    {
+      "wall_id": "p2bnd88pyndbnyx7cgg0hpquc",
+      "floor_id": "pd0i1c4yq9w0y2zsb07ed23sb",
+      "ends": [
+        [
+          -12.174,
+          -3.538
+        ],
+        [
+          -12.174,
+          -0.816
+        ]
+      ],
+      "thickness_m": 0.16,
+      "room_ids": [
+        "3ygfq6yfyyw3hi9x7u5rm2iqa"
+      ],
+      "exterior": true,
+      "assembly": "exterior_brick_veneer_frame",
+      "opening_ids": []
+    },
+    {
+      "wall_id": "peibarpbp1k61paerd510z2sb",
+      "floor_id": "tsmq1wak12rhgn0mawksxcwcd",
+      "ends": [
+        [
+          -20.06,
+          -6.652
+        ],
+        [
+          -20.06,
+          -4.223
+        ]
+      ],
+      "thickness_m": 0.16,
+      "room_ids": [
+        "a5f9age4zzxewres6iqux2emc"
+      ],
+      "exterior": true,
+      "assembly": "exterior_brick_veneer_frame",
+      "opening_ids": []
+    },
+    {
+      "wall_id": "pnq35gfaaxrh0h2zccq9seu0d",
+      "floor_id": "tsmq1wak12rhgn0mawksxcwcd",
+      "ends": [
+        [
+          -4.964,
+          -1.107
+        ],
+        [
+          -4.964,
+          -3.537
+        ]
+      ],
+      "thickness_m": 0.13,
+      "room_ids": [
+        "n81qfe51azs8iexnbqwspye6c",
+        "xy2x8mpaaqknp7q2c3nnbw1ma"
+      ],
+      "exterior": false,
+      "assembly": "interior_stud_gypsum",
+      "opening_ids": []
+    },
+    {
+      "wall_id": "q9n0384c47x6xp5b2s3sbss8a",
+      "floor_id": "pd0i1c4yq9w0y2zsb07ed23sb",
+      "ends": [
+        [
+          -16.03,
+          -3.577
+        ],
+        [
+          -16.03,
+          -0.816
+        ]
+      ],
+      "thickness_m": 0.16,
+      "room_ids": [
+        "3ygfq6yfyyw3hi9x7u5rm2iqa"
+      ],
+      "exterior": true,
+      "assembly": "exterior_brick_veneer_frame",
+      "opening_ids": []
+    },
+    {
+      "wall_id": "qrga98ccqgwdxrx3tgzbkgnkd",
+      "floor_id": "tsmq1wak12rhgn0mawksxcwcd",
+      "ends": [
+        [
+          -1.36,
+          -14.164
+        ],
+        [
+          -1.36,
+          -12.893
+        ]
+      ],
+      "thickness_m": 0.16,
+      "room_ids": [
+        "h26t7ky77ew74yb0pg8qqf5rd"
+      ],
+      "exterior": true,
+      "assembly": "exterior_brick_veneer_frame",
+      "opening_ids": []
+    },
+    {
+      "wall_id": "qrgxb3fz0nsqxbdcz693umunb",
+      "floor_id": "pd0i1c4yq9w0y2zsb07ed23sb",
+      "ends": [
+        [
+          -7.084,
+          -14.043
+        ],
+        [
+          -7.414,
+          -14.043
+        ]
+      ],
+      "thickness_m": 0.12,
+      "room_ids": [
+        "b2kez6wsw32fm2x3ui593u3hc",
+        "q5n62dpd3mrc1exy2hr84132b"
+      ],
+      "exterior": false,
+      "assembly": "interior_stud_gypsum",
+      "opening_ids": []
+    },
+    {
+      "wall_id": "qx2t0k86ez30ncdmxpbuyq92d",
+      "floor_id": "pd0i1c4yq9w0y2zsb07ed23sb",
+      "ends": [
+        [
+          -3.616,
+          -10.912
+        ],
+        [
+          -4.874,
+          -10.912
+        ]
+      ],
+      "thickness_m": 0.12,
+      "room_ids": [
+        "b2kez6wsw32fm2x3ui593u3hc",
+        "f97s719x9ctqkce19r6s01b5a"
+      ],
+      "exterior": false,
+      "assembly": "interior_stud_gypsum",
+      "opening_ids": []
+    },
+    {
+      "wall_id": "qygn34pm7kidh124mnnzbc77a",
+      "floor_id": "tsmq1wak12rhgn0mawksxcwcd",
+      "ends": [
+        [
+          -5.799,
+          -17.556
+        ],
+        [
+          -1.398,
+          -17.555
+        ]
+      ],
+      "thickness_m": 0.16,
+      "room_ids": [
+        "h26t7ky77ew74yb0pg8qqf5rd"
+      ],
+      "exterior": true,
+      "assembly": "exterior_brick_veneer_frame",
+      "opening_ids": [
+        "575wxf6df7uw0dges6st7i5sb"
+      ]
+    },
+    {
+      "wall_id": "r22ynyhne5851fycczkd9b4sa",
+      "floor_id": "pd0i1c4yq9w0y2zsb07ed23sb",
+      "ends": [
+        [
+          1.111,
+          -15.795
+        ],
+        [
+          1.11,
+          -12.893
+        ]
+      ],
+      "thickness_m": 0.16,
+      "room_ids": [
+        "tyz3uyd99x00wa88mxhmugrxa"
+      ],
+      "exterior": true,
+      "assembly": "exterior_brick_veneer_frame",
+      "opening_ids": []
+    },
+    {
+      "wall_id": "rdw5y7gnifm1wzt20bmhei4kc",
+      "floor_id": "tsmq1wak12rhgn0mawksxcwcd",
+      "ends": [
+        [
+          -12.174,
+          -3.538
+        ],
+        [
+          -12.174,
+          -1.121
+        ]
+      ],
+      "thickness_m": 0.12,
+      "room_ids": [
+        "xy2x8mpaaqknp7q2c3nnbw1ma"
+      ],
+      "exterior": false,
+      "assembly": "interior_stud_gypsum",
+      "opening_ids": []
+    },
+    {
+      "wall_id": "rgb231zgiyhhkip93wxxn2gca",
+      "floor_id": "tsmq1wak12rhgn0mawksxcwcd",
+      "ends": [
+        [
+          -6.05,
+          -17.556
+        ],
+        [
+          -13.208,
+          -17.557
+        ]
+      ],
+      "thickness_m": 0.16,
+      "room_ids": [
+        "tt6gm2a0463x9wmnx7rn6gugc"
+      ],
+      "exterior": true,
+      "assembly": "exterior_brick_veneer_frame",
+      "opening_ids": []
+    },
+    {
+      "wall_id": "rsbb50r0bq5rzpq7n50wa42rb",
+      "floor_id": "tsmq1wak12rhgn0mawksxcwcd",
+      "ends": [
+        [
+          1.054,
+          0.766
+        ],
+        [
+          -3.044,
+          0.765
+        ]
+      ],
+      "thickness_m": 0.16,
+      "room_ids": [
+        "cdz3fkt38kae7tapstpt0eaeb"
+      ],
+      "exterior": true,
+      "assembly": "exterior_brick_veneer_frame",
+      "opening_ids": [
+        "6t342k06kr4hsye67bggr4d6c",
+        "s1pazfh2rrz71b284yfhs64mc"
+      ]
+    },
+    {
+      "wall_id": "ru1wbe0ybezb5y0it51cws0qc",
+      "floor_id": "tsmq1wak12rhgn0mawksxcwcd",
+      "ends": [
+        [
+          -10.412,
+          0.196
+        ],
+        [
+          -10.412,
+          2.503
+        ]
+      ],
+      "thickness_m": 0.16,
+      "room_ids": [
+        "ediidma5zg15dufx3n0qyq21a"
+      ],
+      "exterior": true,
+      "assembly": "exterior_brick_veneer_frame",
+      "opening_ids": []
+    },
+    {
+      "wall_id": "ru29x8hqzt9fm5u8q97n2d7gd",
+      "floor_id": "pd0i1c4yq9w0y2zsb07ed23sb",
+      "ends": [
+        [
+          -6.358,
+          -8.721
+        ],
+        [
+          -8.92,
+          -8.722
+        ]
+      ],
+      "thickness_m": 0.12,
+      "room_ids": [
+        "3ygfq6yfyyw3hi9x7u5rm2iqa",
+        "n2yqr30509t7i8whfdf2htwic"
+      ],
+      "exterior": false,
+      "assembly": "interior_stud_gypsum",
+      "opening_ids": []
+    },
+    {
+      "wall_id": "rwd1fwi6h0db0qcb8upxi7prb",
+      "floor_id": "tsmq1wak12rhgn0mawksxcwcd",
+      "ends": [
+        [
+          1.136,
+          -12.893
+        ],
+        [
+          -1.36,
+          -12.893
+        ]
+      ],
+      "thickness_m": 0.16,
+      "room_ids": [
+        "2qdmc5i9byxi79ry1pxdkqzea"
+      ],
+      "exterior": false,
+      "assembly": "exterior_brick_veneer_frame",
+      "opening_ids": []
+    },
+    {
+      "wall_id": "s5zuiaui8by4k6wzfm2y58axd",
+      "floor_id": "tsmq1wak12rhgn0mawksxcwcd",
+      "ends": [
+        [
+          -5.8,
+          -12.895
+        ],
+        [
+          -7.591,
+          -12.895
+        ]
+      ],
+      "thickness_m": 0.13,
+      "room_ids": [
+        "cdz3fkt38kae7tapstpt0eaeb",
+        "tt6gm2a0463x9wmnx7rn6gugc"
+      ],
+      "exterior": false,
+      "assembly": "interior_stud_gypsum",
+      "opening_ids": [
+        "cyqqad5ndmiw6nxadaaf0hkbc"
+      ]
+    },
+    {
+      "wall_id": "s7e1yfdupyupw1f7s0kqfp52b",
+      "floor_id": "tsmq1wak12rhgn0mawksxcwcd",
+      "ends": [
+        [
+          -14.369,
+          -1.121
+        ],
+        [
+          -12.174,
+          -1.121
+        ]
+      ],
+      "thickness_m": 0.13,
+      "room_ids": [
+        "xy2x8mpaaqknp7q2c3nnbw1ma"
+      ],
+      "exterior": false,
+      "assembly": "interior_stud_gypsum",
+      "opening_ids": []
+    },
+    {
+      "wall_id": "sd5i4n4f7szqptt2gmruu2a1d",
+      "floor_id": "tsmq1wak12rhgn0mawksxcwcd",
+      "ends": [
+        [
+          -2.458,
+          -12.894
+        ],
+        [
+          -1.36,
+          -12.893
+        ]
+      ],
+      "thickness_m": 0.13,
+      "room_ids": [
+        "2qdmc5i9byxi79ry1pxdkqzea",
+        "h26t7ky77ew74yb0pg8qqf5rd"
+      ],
+      "exterior": false,
+      "assembly": "interior_stud_gypsum",
+      "opening_ids": []
+    },
+    {
+      "wall_id": "si1xd5tdcc7igu2d7817rua4b",
+      "floor_id": "tsmq1wak12rhgn0mawksxcwcd",
+      "ends": [
+        [
+          -11.776,
+          -3.538
+        ],
+        [
+          -7.818,
+          -3.537
+        ]
+      ],
+      "thickness_m": 0.12,
+      "room_ids": [
+        "xy2x8mpaaqknp7q2c3nnbw1ma"
+      ],
+      "exterior": false,
+      "assembly": "interior_stud_gypsum",
+      "opening_ids": [
+        "x6ydnz3x2wn6wdbc0ua8y8ewa"
+      ]
+    },
+    {
+      "wall_id": "skszh4r5xk8xq277byg127nxa",
+      "floor_id": "pd0i1c4yq9w0y2zsb07ed23sb",
+      "ends": [
+        [
+          -7.083,
+          -17.556
+        ],
+        [
+          -4.799,
+          -17.556
+        ]
+      ],
+      "thickness_m": 0.16,
+      "room_ids": [
+        "pcez6b4tqeep953kmm04hme9c"
+      ],
+      "exterior": true,
+      "assembly": "exterior_brick_veneer_frame",
+      "opening_ids": []
+    },
+    {
+      "wall_id": "smd4yhrky6ux9fu9t4wst8swa",
+      "floor_id": "tsmq1wak12rhgn0mawksxcwcd",
+      "ends": [
+        [
+          -4.31,
+          -11.603
+        ],
+        [
+          -4.874,
+          -11.604
+        ]
+      ],
+      "thickness_m": 0.12,
+      "room_ids": [
+        "cdz3fkt38kae7tapstpt0eaeb"
+      ],
+      "exterior": false,
+      "assembly": "interior_stud_gypsum",
+      "opening_ids": []
+    },
+    {
+      "wall_id": "swa8759nnw91kb61tr8tyssxd",
+      "floor_id": "pd0i1c4yq9w0y2zsb07ed23sb",
+      "ends": [
+        [
+          -3.077,
+          -4.423
+        ],
+        [
+          -3.077,
+          -3.537
+        ]
+      ],
+      "thickness_m": 0.3,
+      "room_ids": [
+        "3ygfq6yfyyw3hi9x7u5rm2iqa"
+      ],
+      "exterior": false,
+      "assembly": "exterior_brick_veneer_frame",
+      "opening_ids": []
+    },
+    {
+      "wall_id": "t79tty4fafqtznbrpa27h2a9b",
+      "floor_id": "tsmq1wak12rhgn0mawksxcwcd",
+      "ends": [
+        [
+          -0.868,
+          -9.572
+        ],
+        [
+          -2.458,
+          -9.573
+        ]
+      ],
+      "thickness_m": 0.16,
+      "room_ids": [
+        "2qdmc5i9byxi79ry1pxdkqzea"
+      ],
+      "exterior": false,
+      "assembly": "exterior_brick_veneer_frame",
+      "opening_ids": []
+    },
+    {
+      "wall_id": "tbxck6t44z4tfpe4ccgyf7red",
+      "floor_id": "pd0i1c4yq9w0y2zsb07ed23sb",
+      "ends": [
+        [
+          -5.337,
+          -9.995
+        ],
+        [
+          -6.357,
+          -9.995
+        ]
+      ],
+      "thickness_m": 0.11,
+      "room_ids": [
+        "b2kez6wsw32fm2x3ui593u3hc"
+      ],
+      "exterior": false,
+      "assembly": "interior_stud_gypsum",
+      "opening_ids": []
+    },
+    {
+      "wall_id": "th2r2e8ff6mm58ks1tdd7mbaa",
+      "floor_id": "pd0i1c4yq9w0y2zsb07ed23sb",
+      "ends": [
+        [
+          -6.358,
+          -8.721
+        ],
+        [
+          -6.357,
+          -9.995
+        ]
+      ],
+      "thickness_m": 0.11,
+      "room_ids": [
+        "n2yqr30509t7i8whfdf2htwic"
+      ],
+      "exterior": false,
+      "assembly": "interior_stud_gypsum",
+      "opening_ids": []
+    },
+    {
+      "wall_id": "u5s59sygwihe2tx1ci59yrqza",
+      "floor_id": "pd0i1c4yq9w0y2zsb07ed23sb",
+      "ends": [
+        [
+          -7.083,
+          -17.556
+        ],
+        [
+          -10.705,
+          -17.557
+        ]
+      ],
+      "thickness_m": 0.16,
+      "room_ids": [
+        "q5n62dpd3mrc1exy2hr84132b"
+      ],
+      "exterior": true,
+      "assembly": "exterior_brick_veneer_frame",
+      "opening_ids": []
+    },
+    {
+      "wall_id": "u8afasnwkfp8piwf7wby5srsc",
+      "floor_id": "pd0i1c4yq9w0y2zsb07ed23sb",
+      "ends": [
+        [
+          -3.617,
+          -8.72
+        ],
+        [
+          -5.337,
+          -8.721
+        ]
+      ],
+      "thickness_m": 0.12,
+      "room_ids": [
+        "3ygfq6yfyyw3hi9x7u5rm2iqa",
+        "f97s719x9ctqkce19r6s01b5a"
+      ],
+      "exterior": false,
+      "assembly": "interior_stud_gypsum",
+      "opening_ids": [
+        "zrh61zqy1g2xar5zit89ups8d"
+      ]
+    },
+    {
+      "wall_id": "u8q1gnk5dkef8yrsya3aqzt7d",
+      "floor_id": "tsmq1wak12rhgn0mawksxcwcd",
+      "ends": [
+        [
+          -2.458,
+          -12.894
+        ],
+        [
+          -2.458,
+          -10.919
+        ]
+      ],
+      "thickness_m": 0.17,
+      "room_ids": [
+        "2qdmc5i9byxi79ry1pxdkqzea",
+        "cdz3fkt38kae7tapstpt0eaeb"
+      ],
+      "exterior": false,
+      "assembly": "exterior_brick_veneer_frame",
+      "opening_ids": []
+    },
+    {
+      "wall_id": "uh7c779w5c79nnd0295cu44cb",
+      "floor_id": "pd0i1c4yq9w0y2zsb07ed23sb",
+      "ends": [
+        [
+          -10.705,
+          -17.557
+        ],
+        [
+          -10.706,
+          -12.896
+        ]
+      ],
+      "thickness_m": 0.16,
+      "room_ids": [
+        "q5n62dpd3mrc1exy2hr84132b"
+      ],
+      "exterior": true,
+      "assembly": "exterior_brick_veneer_frame",
+      "opening_ids": [
+        "x4mwheuiysxsch7p4kx251rab"
+      ]
+    },
+    {
+      "wall_id": "ukfuz13pqpci7us8789did4xb",
+      "floor_id": "pd0i1c4yq9w0y2zsb07ed23sb",
+      "ends": [
+        [
+          -16.03,
+          -3.577
+        ],
+        [
+          -14.237,
+          -3.577
+        ]
+      ],
+      "thickness_m": 0.16,
+      "room_ids": [
+        "3ygfq6yfyyw3hi9x7u5rm2iqa"
+      ],
+      "exterior": true,
+      "assembly": "exterior_brick_veneer_frame",
+      "opening_ids": []
+    },
+    {
+      "wall_id": "uzei1xw3qidtirfhixmt5pa9a",
+      "floor_id": "pd0i1c4yq9w0y2zsb07ed23sb",
+      "ends": [
+        [
+          -1.36,
+          -12.893
+        ],
+        [
+          -1.36,
+          -14.042
+        ]
+      ],
+      "thickness_m": 0.11,
+      "room_ids": [
+        "tyz3uyd99x00wa88mxhmugrxa"
+      ],
+      "exterior": false,
+      "assembly": "interior_stud_gypsum",
+      "opening_ids": []
+    },
+    {
+      "wall_id": "w20umpfaim0nq2eug9wxuu0ka",
+      "floor_id": "tsmq1wak12rhgn0mawksxcwcd",
+      "ends": [
+        [
+          -20.204,
+          -7.58
+        ],
+        [
+          -23.791,
+          -7.581
+        ]
+      ],
+      "thickness_m": 0.16,
+      "room_ids": [
+        "a5f9age4zzxewres6iqux2emc"
+      ],
+      "exterior": true,
+      "assembly": "exterior_brick_veneer_frame",
+      "opening_ids": [
+        "5a5rd9hs92k5i0iym2ared47c"
+      ]
+    },
+    {
+      "wall_id": "w76xapkx40gfhkw0zsgyqnhcb",
+      "floor_id": "tsmq1wak12rhgn0mawksxcwcd",
+      "ends": [
+        [
+          -3.043,
+          -3.537
+        ],
+        [
+          -3.044,
+          -1.107
+        ]
+      ],
+      "thickness_m": 0.12,
+      "room_ids": [
+        "cdz3fkt38kae7tapstpt0eaeb",
+        "n81qfe51azs8iexnbqwspye6c"
+      ],
+      "exterior": false,
+      "assembly": "interior_stud_gypsum",
+      "opening_ids": []
+    },
+    {
+      "wall_id": "we8axyuwqxgh8k145i7mnc8sd",
+      "floor_id": "pd0i1c4yq9w0y2zsb07ed23sb",
+      "ends": [
+        [
+          -14.237,
+          -3.577
+        ],
+        [
+          -14.237,
+          -5.593
+        ]
+      ],
+      "thickness_m": 0.16,
+      "room_ids": [
+        "3ygfq6yfyyw3hi9x7u5rm2iqa"
+      ],
+      "exterior": true,
+      "assembly": "exterior_brick_veneer_frame",
+      "opening_ids": [
+        "u65khnku36ekzn2amk8yyt92b"
+      ]
+    },
+    {
+      "wall_id": "wxt5c4zhr387g27ybuyrqtpfa",
+      "floor_id": "tsmq1wak12rhgn0mawksxcwcd",
+      "ends": [
+        [
+          -3.36,
+          -15.198
+        ],
+        [
+          -1.399,
+          -15.197
+        ]
+      ],
+      "thickness_m": 0.13,
+      "room_ids": [
+        "h26t7ky77ew74yb0pg8qqf5rd"
+      ],
+      "exterior": false,
+      "assembly": "interior_stud_gypsum",
+      "opening_ids": []
+    },
+    {
+      "wall_id": "x5xzpcd8xut628y9c94map8cc",
+      "floor_id": "tsmq1wak12rhgn0mawksxcwcd",
+      "ends": [
+        [
+          -16.333,
+          0.032
+        ],
+        [
+          -13.699,
+          0.033
+        ]
+      ],
+      "thickness_m": 0.12,
+      "room_ids": [
+        "wbpb7dkfuwnikd1kq2a9hz70a",
+        "xy2x8mpaaqknp7q2c3nnbw1ma"
+      ],
+      "exterior": false,
+      "assembly": "interior_stud_gypsum",
+      "opening_ids": [
+        "x4ds1wx856mrifzpnae0fpc9d"
+      ]
+    },
+    {
+      "wall_id": "xkeh1c1pcpkb4nxgdwneaedkc",
+      "floor_id": "tsmq1wak12rhgn0mawksxcwcd",
+      "ends": [
+        [
+          -6.05,
+          -17.556
+        ],
+        [
+          -6.05,
+          -17.136
+        ]
+      ],
+      "thickness_m": 0.16,
+      "room_ids": [
+        "tt6gm2a0463x9wmnx7rn6gugc"
+      ],
+      "exterior": false,
+      "assembly": "exterior_brick_veneer_frame",
+      "opening_ids": []
+    },
+    {
+      "wall_id": "xsfsumsbz47gx9ebm45z1p4da",
+      "floor_id": "tsmq1wak12rhgn0mawksxcwcd",
+      "ends": [
+        [
+          -1.011,
+          -17.304
+        ],
+        [
+          -1.011,
+          -16.712
+        ]
+      ],
+      "thickness_m": 0.16,
+      "room_ids": [
+        "kuc0fpmsgqxff63egrxrycfud"
+      ],
+      "exterior": false,
+      "assembly": "exterior_brick_veneer_frame",
+      "opening_ids": []
+    },
+    {
+      "wall_id": "xya6403pseffgwnezf0qqt2tc",
+      "floor_id": "tsmq1wak12rhgn0mawksxcwcd",
+      "ends": [
+        [
+          -11.775,
+          -6.685
+        ],
+        [
+          -13.21,
+          -6.685
+        ]
+      ],
+      "thickness_m": 0.12,
+      "room_ids": [
+        "3m54yff1z7crxaywd8if9rb0d",
+        "cdz3fkt38kae7tapstpt0eaeb"
+      ],
+      "exterior": false,
+      "assembly": "interior_stud_gypsum",
+      "opening_ids": []
+    },
+    {
+      "wall_id": "xycpsabpqp1xxmk0fea7xci6d",
+      "floor_id": "pd0i1c4yq9w0y2zsb07ed23sb",
+      "ends": [
+        [
+          -0.225,
+          -6.895
+        ],
+        [
+          -0.406,
+          -6.895
+        ]
+      ],
+      "thickness_m": 0.12,
+      "room_ids": [
+        "g1gkrkdygg4zs5xge8bxfuc1d"
+      ],
+      "exterior": false,
+      "assembly": "interior_stud_gypsum",
+      "opening_ids": []
+    },
+    {
+      "wall_id": "y0217ahy2pk42i0924xhy7cfa",
+      "floor_id": "tsmq1wak12rhgn0mawksxcwcd",
+      "ends": [
+        [
+          -4.874,
+          -12.894
+        ],
+        [
+          -4.874,
+          -12.358
+        ]
+      ],
+      "thickness_m": 0.12,
+      "room_ids": [
+        "cdz3fkt38kae7tapstpt0eaeb"
+      ],
+      "exterior": false,
+      "assembly": "interior_stud_gypsum",
+      "opening_ids": []
+    },
+    {
+      "wall_id": "y2ir4p591fchr3bsm17upfkqd",
+      "floor_id": "tsmq1wak12rhgn0mawksxcwcd",
+      "ends": [
+        [
+          -25.623,
+          -7.581
+        ],
+        [
+          -23.791,
+          -7.581
+        ]
+      ],
+      "thickness_m": 0.16,
+      "room_ids": [
+        "m8npxsuk79xy21dd09x9wtped"
+      ],
+      "exterior": true,
+      "assembly": "exterior_brick_veneer_frame",
+      "opening_ids": [
+        "nef6ty1092fkirp0z1584kq4d"
+      ]
+    },
+    {
+      "wall_id": "ybcwfxhhah0wpnnmmypw7ik7a",
+      "floor_id": "tsmq1wak12rhgn0mawksxcwcd",
+      "ends": [
+        [
+          -16.333,
+          0.032
+        ],
+        [
+          -16.334,
+          2.502
+        ]
+      ],
+      "thickness_m": 0.16,
+      "room_ids": [
+        "wbpb7dkfuwnikd1kq2a9hz70a"
+      ],
+      "exterior": true,
+      "assembly": "exterior_brick_veneer_frame",
+      "opening_ids": []
+    },
+    {
+      "wall_id": "yn03me15sfg6n9paiig9i9k8b",
+      "floor_id": "tsmq1wak12rhgn0mawksxcwcd",
+      "ends": [
+        [
+          1.11,
+          -16.157
+        ],
+        [
+          1.11,
+          -15.197
+        ]
+      ],
+      "thickness_m": 0.16,
+      "room_ids": [
+        "19ab05tns5h6y4qm42esqqpea"
+      ],
+      "exterior": true,
+      "assembly": "exterior_brick_veneer_frame",
+      "opening_ids": []
+    },
+    {
+      "wall_id": "ypzs7z1uh82yzh9fmep0u8fnc",
+      "floor_id": "tsmq1wak12rhgn0mawksxcwcd",
+      "ends": [
+        [
+          -12.174,
+          -3.538
+        ],
+        [
+          -13.745,
+          -3.539
+        ]
+      ],
+      "thickness_m": 0.12,
+      "room_ids": [
+        "3m54yff1z7crxaywd8if9rb0d"
+      ],
+      "exterior": false,
+      "assembly": "interior_stud_gypsum",
+      "opening_ids": [
+        "6006cyucc641eeg44dqcwy94c"
+      ]
+    },
+    {
+      "wall_id": "yqbd113zw4y97zc2bzw2c826c",
+      "floor_id": "tsmq1wak12rhgn0mawksxcwcd",
+      "ends": [
+        [
+          0.426,
+          -14.571
+        ],
+        [
+          0.426,
+          -14.164
+        ]
+      ],
+      "thickness_m": 0.16,
+      "room_ids": [
+        "h26t7ky77ew74yb0pg8qqf5rd"
+      ],
+      "exterior": true,
+      "assembly": "exterior_brick_veneer_frame",
+      "opening_ids": []
+    },
+    {
+      "wall_id": "ys269tr55iqxwgb49q3t6udgd",
+      "floor_id": "tsmq1wak12rhgn0mawksxcwcd",
+      "ends": [
+        [
+          -3.398,
+          -14.165
+        ],
+        [
+          -1.36,
+          -14.164
+        ]
+      ],
+      "thickness_m": 0.13,
+      "room_ids": [
+        "h26t7ky77ew74yb0pg8qqf5rd"
+      ],
+      "exterior": false,
+      "assembly": "interior_stud_gypsum",
+      "opening_ids": []
+    },
+    {
+      "wall_id": "ysb98a6xx2458b511tsgnq2sb",
+      "floor_id": "tsmq1wak12rhgn0mawksxcwcd",
+      "ends": [
+        [
+          -5.825,
+          -1.108
+        ],
+        [
+          -4.964,
+          -1.107
+        ]
+      ],
+      "thickness_m": 0.12,
+      "room_ids": [
+        "xy2x8mpaaqknp7q2c3nnbw1ma"
+      ],
+      "exterior": false,
+      "assembly": "interior_stud_gypsum",
+      "opening_ids": []
+    },
+    {
+      "wall_id": "yx3bxes5wqgrweg4gdns2ch3d",
+      "floor_id": "tsmq1wak12rhgn0mawksxcwcd",
+      "ends": [
+        [
+          -3.044,
+          -1.107
+        ],
+        [
+          -4.964,
+          -1.107
+        ]
+      ],
+      "thickness_m": 0.12,
+      "room_ids": [
+        "n81qfe51azs8iexnbqwspye6c",
+        "xy2x8mpaaqknp7q2c3nnbw1ma"
+      ],
+      "exterior": false,
+      "assembly": "interior_stud_gypsum",
+      "opening_ids": [
+        "fcrdu50r13r8ds27wxsc7cnpc"
+      ]
+    },
+    {
+      "wall_id": "z7rkctxsr4s872awtt67b3a8c",
+      "floor_id": "tsmq1wak12rhgn0mawksxcwcd",
+      "ends": [
+        [
+          -13.745,
+          -2.165
+        ],
+        [
+          -13.745,
+          -3.539
+        ]
+      ],
+      "thickness_m": 0.12,
+      "room_ids": [
+        "xy2x8mpaaqknp7q2c3nnbw1ma"
+      ],
+      "exterior": false,
+      "assembly": "interior_stud_gypsum",
+      "opening_ids": []
+    },
+    {
+      "wall_id": "z8d639608dmkzfrs9htty1wfd",
+      "floor_id": "pd0i1c4yq9w0y2zsb07ed23sb",
+      "ends": [
+        [
+          -7.415,
+          -12.895
+        ],
+        [
+          -7.415,
+          -12.263
+        ]
+      ],
+      "thickness_m": 0.16,
+      "room_ids": [
+        "n2yqr30509t7i8whfdf2htwic"
+      ],
+      "exterior": true,
+      "assembly": "exterior_brick_veneer_frame",
+      "opening_ids": []
+    },
+    {
+      "wall_id": "z9qwkce0ff0q6yzfy287nadab",
+      "floor_id": "tsmq1wak12rhgn0mawksxcwcd",
+      "ends": [
+        [
+          -6.178,
+          -12.358
+        ],
+        [
+          -4.874,
+          -12.358
+        ]
+      ],
+      "thickness_m": 0.12,
+      "room_ids": [
+        "cdz3fkt38kae7tapstpt0eaeb"
+      ],
+      "exterior": false,
+      "assembly": "interior_stud_gypsum",
+      "opening_ids": []
+    },
+    {
+      "wall_id": "zb73i9k0724qq61ea6wzs3qdd",
+      "floor_id": "pd0i1c4yq9w0y2zsb07ed23sb",
+      "ends": [
+        [
+          -10.707,
+          -8.722
+        ],
+        [
+          -10.706,
+          -12.264
+        ]
+      ],
+      "thickness_m": 0.16,
+      "room_ids": [
+        "n2yqr30509t7i8whfdf2htwic"
+      ],
+      "exterior": true,
+      "assembly": "exterior_brick_veneer_frame",
+      "opening_ids": [
+        "12nmz756ixbszas0mesd8n1hb"
+      ]
+    },
+    {
+      "wall_id": "zne5nh4f9drfec8d1ysbahm6c",
+      "floor_id": "pd0i1c4yq9w0y2zsb07ed23sb",
+      "ends": [
+        [
+          -2.458,
+          -8.72
+        ],
+        [
+          -2.458,
+          -12.894
+        ]
+      ],
+      "thickness_m": 0.11,
+      "room_ids": [
+        "b2kez6wsw32fm2x3ui593u3hc",
+        "peina19mpqedsku6a3huu38md"
+      ],
+      "exterior": false,
+      "assembly": "interior_stud_gypsum",
+      "opening_ids": [
+        "3mnd1uy5g5iuump78utxnkxic",
+        "zfpp2p0x944q8ym758q42r9ma"
+      ]
+    },
+    {
+      "wall_id": "zx98khmgzgi5r0heuf04mbfyc",
+      "floor_id": "tsmq1wak12rhgn0mawksxcwcd",
+      "ends": [
+        [
+          -2.458,
+          -8.605
+        ],
+        [
+          -0.431,
+          -8.604
+        ]
+      ],
+      "thickness_m": 0.16,
+      "room_ids": [
+        "cdz3fkt38kae7tapstpt0eaeb"
+      ],
+      "exterior": false,
+      "assembly": "exterior_brick_veneer_frame",
+      "opening_ids": [
+        "sp0fuaf9i7f0uys91h9nkxkdc"
+      ]
+    }
+  ],
+  "floor_openings": [
+    {
+      "floor_opening_id": "4zgy5afdb9eadqxq8qmauzh0d",
+      "floor_id": "tsmq1wak12rhgn0mawksxcwcd",
+      "polygon": [
+        [
+          -9.015,
+          -5.356
+        ],
+        [
+          -11.776,
+          -3.538
+        ],
+        [
+          -7.818,
+          -3.537
+        ]
+      ],
+      "area_m2": 3.6,
+      "room_ids": [
+        "xy2x8mpaaqknp7q2c3nnbw1ma"
+      ],
+      "via_opening_ids": [
+        "x6ydnz3x2wn6wdbc0ua8y8ewa"
+      ],
+      "other_floor_room_ids": [
+        "3ygfq6yfyyw3hi9x7u5rm2iqa"
+      ]
+    },
+    {
+      "floor_opening_id": "pksbu53py2kqgiahqc3d44p7d",
+      "floor_id": "tsmq1wak12rhgn0mawksxcwcd",
+      "polygon": [
+        [
+          -13.745,
+          -3.539
+        ],
+        [
+          -13.745,
+          -2.165
+        ],
+        [
+          -14.369,
+          -2.165
+        ],
+        [
+          -14.369,
+          -1.121
+        ],
+        [
+          -12.174,
+          -1.121
+        ],
+        [
+          -12.174,
+          -3.538
+        ]
+      ],
+      "area_m2": 4.45,
+      "room_ids": [
+        "3m54yff1z7crxaywd8if9rb0d"
+      ],
+      "via_opening_ids": [
+        "6006cyucc641eeg44dqcwy94c"
+      ],
+      "other_floor_room_ids": [
+        "3ygfq6yfyyw3hi9x7u5rm2iqa"
+      ]
     }
   ],
   "sweeps": [
@@ -3950,6 +8030,7 @@
     "alignment": "georef",
     "openings": "detected",
     "context": "none",
-    "traffic": "none"
+    "traffic": "none",
+    "walls": "inferred"
   }
 }

@@ -164,6 +164,62 @@ class NoiseReport(BaseModel):
     sources: list[NoiseSource]
 
 
+# Sound placed inside the house ("a TV in the den: what do I hear in the bedroom?"). Every
+# bands list is the 8 octave bands of I-G14. Levels are dB re 20 uPa.
+
+SoundDoors = Literal["closed", "open"]  # the hinged interior doors; passages are always open
+
+
+class SoundPreset(BaseModel):
+    preset_id: str
+    label: str
+    level_dba: float  # free field, 1 m from the source
+    bands_db: list[float]  # at 1 m
+
+
+class SoundCatalog(BaseModel):
+    presets: list[SoundPreset]
+    loudness_dba: dict[str, float]  # choices for the user's own recording, e.g. {"talking": 60}
+
+
+class SoundSource(BaseModel):
+    room_id: str
+    position: Vec3  # interior frame
+    preset_id: str
+    level_dba: float  # at 1 m
+    bands_db: list[float]  # at 1 m
+
+
+class SoundRoom(BaseModel):
+    room_id: str
+    laeq_dba: float  # the room's diffuse (reverberant) level; uniform across the room
+    bands_db: list[float]
+    # Per band, this room's level minus the source's level at 1 m. For auralization: play a clip
+    # recorded about 1 m from the source through these band gains and this room's reverb.
+    gain_db: list[float]
+    rt60_s: float  # mean of 500 and 1000 Hz
+    rt60_bands_s: list[float]
+
+
+class SoundListener(BaseModel):
+    room_id: str
+    position: Vec3
+    distance_m: float | None  # to the source, when in the source's room
+    laeq_dba: float  # direct + reverberant
+    bands_db: list[float]
+    gain_db: list[float]
+    direct_fraction: float  # share of the energy (A-weighted) arriving directly: the dry/wet mix
+    rt60_s: float
+
+
+class SoundField(BaseModel):
+    source: SoundSource
+    doors: SoundDoors
+    include_furniture: bool
+    rooms: list[SoundRoom]  # every room, loudest first
+    listener: SoundListener | None = None
+
+
 AmenityCategory = Literal[
     "grocery", "school", "park", "playground", "restaurant", "cafe", "transit", "pharmacy",
     "health", "fitness", "library", "worship", "shopping",

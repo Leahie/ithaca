@@ -828,6 +828,248 @@
       "title": "RoomDaylight",
       "type": "object"
     },
+    "SoundCatalog": {
+      "properties": {
+        "loudness_dba": {
+          "additionalProperties": {
+            "type": "number"
+          },
+          "title": "Loudness Dba",
+          "type": "object"
+        },
+        "presets": {
+          "items": {
+            "$ref": "#/$defs/SoundPreset"
+          },
+          "title": "Presets",
+          "type": "array"
+        }
+      },
+      "required": [
+        "presets",
+        "loudness_dba"
+      ],
+      "title": "SoundCatalog",
+      "type": "object"
+    },
+    "SoundField": {
+      "properties": {
+        "doors": {
+          "enum": [
+            "closed",
+            "open"
+          ],
+          "title": "Doors",
+          "type": "string"
+        },
+        "include_furniture": {
+          "title": "Include Furniture",
+          "type": "boolean"
+        },
+        "listener": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/SoundListener"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "rooms": {
+          "items": {
+            "$ref": "#/$defs/SoundRoom"
+          },
+          "title": "Rooms",
+          "type": "array"
+        },
+        "source": {
+          "$ref": "#/$defs/SoundSource"
+        }
+      },
+      "required": [
+        "source",
+        "doors",
+        "include_furniture",
+        "rooms"
+      ],
+      "title": "SoundField",
+      "type": "object"
+    },
+    "SoundListener": {
+      "properties": {
+        "bands_db": {
+          "items": {
+            "type": "number"
+          },
+          "title": "Bands Db",
+          "type": "array"
+        },
+        "direct_fraction": {
+          "title": "Direct Fraction",
+          "type": "number"
+        },
+        "distance_m": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Distance M"
+        },
+        "gain_db": {
+          "items": {
+            "type": "number"
+          },
+          "title": "Gain Db",
+          "type": "array"
+        },
+        "laeq_dba": {
+          "title": "Laeq Dba",
+          "type": "number"
+        },
+        "position": {
+          "$ref": "#/$defs/Vec3"
+        },
+        "room_id": {
+          "title": "Room Id",
+          "type": "string"
+        },
+        "rt60_s": {
+          "title": "Rt60 S",
+          "type": "number"
+        }
+      },
+      "required": [
+        "room_id",
+        "position",
+        "distance_m",
+        "laeq_dba",
+        "bands_db",
+        "gain_db",
+        "direct_fraction",
+        "rt60_s"
+      ],
+      "title": "SoundListener",
+      "type": "object"
+    },
+    "SoundPreset": {
+      "properties": {
+        "bands_db": {
+          "items": {
+            "type": "number"
+          },
+          "title": "Bands Db",
+          "type": "array"
+        },
+        "label": {
+          "title": "Label",
+          "type": "string"
+        },
+        "level_dba": {
+          "title": "Level Dba",
+          "type": "number"
+        },
+        "preset_id": {
+          "title": "Preset Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "preset_id",
+        "label",
+        "level_dba",
+        "bands_db"
+      ],
+      "title": "SoundPreset",
+      "type": "object"
+    },
+    "SoundRoom": {
+      "properties": {
+        "bands_db": {
+          "items": {
+            "type": "number"
+          },
+          "title": "Bands Db",
+          "type": "array"
+        },
+        "gain_db": {
+          "items": {
+            "type": "number"
+          },
+          "title": "Gain Db",
+          "type": "array"
+        },
+        "laeq_dba": {
+          "title": "Laeq Dba",
+          "type": "number"
+        },
+        "room_id": {
+          "title": "Room Id",
+          "type": "string"
+        },
+        "rt60_bands_s": {
+          "items": {
+            "type": "number"
+          },
+          "title": "Rt60 Bands S",
+          "type": "array"
+        },
+        "rt60_s": {
+          "title": "Rt60 S",
+          "type": "number"
+        }
+      },
+      "required": [
+        "room_id",
+        "laeq_dba",
+        "bands_db",
+        "gain_db",
+        "rt60_s",
+        "rt60_bands_s"
+      ],
+      "title": "SoundRoom",
+      "type": "object"
+    },
+    "SoundSource": {
+      "properties": {
+        "bands_db": {
+          "items": {
+            "type": "number"
+          },
+          "title": "Bands Db",
+          "type": "array"
+        },
+        "level_dba": {
+          "title": "Level Dba",
+          "type": "number"
+        },
+        "position": {
+          "$ref": "#/$defs/Vec3"
+        },
+        "preset_id": {
+          "title": "Preset Id",
+          "type": "string"
+        },
+        "room_id": {
+          "title": "Room Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "room_id",
+        "position",
+        "preset_id",
+        "level_dba",
+        "bands_db"
+      ],
+      "title": "SoundSource",
+      "type": "object"
+    },
     "SunDay": {
       "properties": {
         "date": {

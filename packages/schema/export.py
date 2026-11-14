@@ -29,6 +29,7 @@ def build() -> dict[str, str]:
         "reports": [
             reports.SunReport, reports.SunMoment, reports.SunRoomDay, reports.SunSpot,
             reports.DaylightMoment, reports.DaylightSpot, reports.NoiseReport, reports.AreaProfile,
+            reports.SoundCatalog, reports.SoundField,
         ],
     }
     files = {}

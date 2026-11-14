@@ -52,6 +52,32 @@ class Opening(BaseModel):
     stc: int | None = None
     other_room_id: str | None = None  # the room on the far side of an interior door
     exterior: bool | None = None  # leads outside; False = interior (maybe unlabeled space); None = unknown
+    leaf: bool | None = None  # doors: True = a hinged leaf that can close; False = open passage; None = unknown
+
+
+class Wall(BaseModel):
+    """A wall centerline from the floor plan. Sound and (later) the layout solver use these."""
+
+    wall_id: str
+    floor_id: str
+    ends: tuple[tuple[float, float], tuple[float, float]]  # (x, z) centerline ends, interior frame
+    thickness_m: float
+    room_ids: list[str]  # the rooms it bounds: two for a partition, one for an outside wall
+    exterior: bool  # one side is outside
+    assembly: str  # construction, key in the shared acoustics table (fixtures/tables/acoustics.json)
+    opening_ids: list[str] = Field(default_factory=list)
+
+
+class FloorOpening(BaseModel):
+    """An open stairwell or open-to-below space (Matterport "Void") joining rooms on two floors."""
+
+    floor_opening_id: str  # the Matterport room id of the void
+    floor_id: str  # the floor its outline is on
+    polygon: list[tuple[float, float]]  # (x, z) in interior frame
+    area_m2: float
+    room_ids: list[str]  # rooms on the same floor that open onto it
+    via_opening_ids: list[str]  # the passages between those rooms and the void
+    other_floor_room_ids: list[str]  # rooms on the floor above or below that it overlaps
 
 
 class Sweep(BaseModel):
@@ -75,6 +101,8 @@ class TwinQuality(BaseModel):
     openings: Literal["annotated", "detected", "none"]
     context: Literal["dsm", "none"]
     traffic: Literal["aadt", "class_default", "none"]
+    # "inferred": assemblies guessed from wall thickness and position (Matterport has no materials)
+    walls: Literal["annotated", "inferred", "none"] = "none"
 
 
 class PropertyTwin(BaseModel):
@@ -89,6 +117,8 @@ class PropertyTwin(BaseModel):
     floors: list[Floor]
     rooms: list[Room]
     openings: list[Opening]
+    walls: list[Wall] = Field(default_factory=list)
+    floor_openings: list[FloorOpening] = Field(default_factory=list)
     sweeps: list[Sweep]
     assets: TwinAssets
     quality: TwinQuality

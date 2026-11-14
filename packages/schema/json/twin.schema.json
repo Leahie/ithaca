@@ -35,6 +35,72 @@
       "title": "Floor",
       "type": "object"
     },
+    "FloorOpening": {
+      "description": "An open stairwell or open-to-below space (Matterport \"Void\") joining rooms on two floors.",
+      "properties": {
+        "area_m2": {
+          "title": "Area M2",
+          "type": "number"
+        },
+        "floor_id": {
+          "title": "Floor Id",
+          "type": "string"
+        },
+        "floor_opening_id": {
+          "title": "Floor Opening Id",
+          "type": "string"
+        },
+        "other_floor_room_ids": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Other Floor Room Ids",
+          "type": "array"
+        },
+        "polygon": {
+          "items": {
+            "maxItems": 2,
+            "minItems": 2,
+            "prefixItems": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "number"
+              }
+            ],
+            "type": "array"
+          },
+          "title": "Polygon",
+          "type": "array"
+        },
+        "room_ids": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Room Ids",
+          "type": "array"
+        },
+        "via_opening_ids": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Via Opening Ids",
+          "type": "array"
+        }
+      },
+      "required": [
+        "floor_opening_id",
+        "floor_id",
+        "polygon",
+        "area_m2",
+        "room_ids",
+        "via_opening_ids",
+        "other_floor_room_ids"
+      ],
+      "title": "FloorOpening",
+      "type": "object"
+    },
     "Opening": {
       "properties": {
         "exterior": {
@@ -71,6 +137,18 @@
           ],
           "title": "Kind",
           "type": "string"
+        },
+        "leaf": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Leaf"
         },
         "opening_id": {
           "title": "Opening Id",
@@ -131,6 +209,13 @@
         },
         "assets": {
           "$ref": "#/$defs/TwinAssets"
+        },
+        "floor_openings": {
+          "items": {
+            "$ref": "#/$defs/FloorOpening"
+          },
+          "title": "Floor Openings",
+          "type": "array"
         },
         "floors": {
           "items": {
@@ -194,6 +279,13 @@
         "version": {
           "title": "Version",
           "type": "integer"
+        },
+        "walls": {
+          "items": {
+            "$ref": "#/$defs/Wall"
+          },
+          "title": "Walls",
+          "type": "array"
         }
       },
       "required": [
@@ -414,6 +506,16 @@
           ],
           "title": "Traffic",
           "type": "string"
+        },
+        "walls": {
+          "default": "none",
+          "enum": [
+            "annotated",
+            "inferred",
+            "none"
+          ],
+          "title": "Walls",
+          "type": "string"
         }
       },
       "required": [
@@ -483,6 +585,90 @@
         "z"
       ],
       "title": "Vec3",
+      "type": "object"
+    },
+    "Wall": {
+      "description": "A wall centerline from the floor plan. Sound and (later) the layout solver use these.",
+      "properties": {
+        "assembly": {
+          "title": "Assembly",
+          "type": "string"
+        },
+        "ends": {
+          "maxItems": 2,
+          "minItems": 2,
+          "prefixItems": [
+            {
+              "maxItems": 2,
+              "minItems": 2,
+              "prefixItems": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "number"
+                }
+              ],
+              "type": "array"
+            },
+            {
+              "maxItems": 2,
+              "minItems": 2,
+              "prefixItems": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "number"
+                }
+              ],
+              "type": "array"
+            }
+          ],
+          "title": "Ends",
+          "type": "array"
+        },
+        "exterior": {
+          "title": "Exterior",
+          "type": "boolean"
+        },
+        "floor_id": {
+          "title": "Floor Id",
+          "type": "string"
+        },
+        "opening_ids": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Opening Ids",
+          "type": "array"
+        },
+        "room_ids": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Room Ids",
+          "type": "array"
+        },
+        "thickness_m": {
+          "title": "Thickness M",
+          "type": "number"
+        },
+        "wall_id": {
+          "title": "Wall Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "wall_id",
+        "floor_id",
+        "ends",
+        "thickness_m",
+        "room_ids",
+        "exterior",
+        "assembly"
+      ],
+      "title": "Wall",
       "type": "object"
     }
   },
