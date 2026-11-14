@@ -108,7 +108,14 @@ function resolveAssets(twin: PropertyTwin): PropertyTwin {
   const a = twin.assets;
   return {
     ...twin,
-    assets: { interior_glb: fixtureAssetUrl(a.interior_glb), context_glb: fixtureAssetUrl(a.context_glb), ortho: fixtureAssetUrl(a.ortho), obliques: (a.obliques ?? []).flatMap((o) => fixtureAssetUrl(o) ?? []) },
+    assets: {
+      interior_glb: fixtureAssetUrl(a.interior_glb),
+      context_glb: fixtureAssetUrl(a.context_glb),
+      ortho: fixtureAssetUrl(a.ortho),
+      obliques: (a.obliques ?? []).flatMap((o) => fixtureAssetUrl(o) ?? []),
+      splat: fixtureAssetUrl(a.splat),
+      splat_to_interior: a.splat_to_interior ?? null,
+    },
   };
 }
 

@@ -10,6 +10,7 @@ failing (C3).
 from __future__ import annotations
 
 import argparse
+import json
 import logging
 import math
 import statistics
@@ -38,7 +39,7 @@ from services.api.integrations import costar
 from services.api.integrations.cache import RecordReplayCache
 from services.api.integrations.config import fixtures_dir
 from services.api.integrations.matterport import MatterportClient
-from services.api.twin import annotations, frames, nav
+from services.api.twin import annotations, frames, nav, splat
 from services.api.twin import panos as panos_frames
 from services.api.twin import rooms as plan
 from services.api.twin.mesh import interior_glb_path
@@ -169,7 +170,12 @@ def write_twin(twin: PropertyTwin, path: Path) -> PropertyTwin:
 def _assets(property_id: str) -> TwinAssets:
     """Asset keys relative to the fixtures dir; the API turns them into URLs."""
     glb = interior_glb_path(property_id)
-    return TwinAssets(interior_glb=glb.relative_to(fixtures_dir()).as_posix() if glb.exists() else None)
+    assets = TwinAssets(interior_glb=glb.relative_to(fixtures_dir()).as_posix() if glb.exists() else None)
+    ply, placed = splat.splat_path(property_id), splat.transform_path(property_id)
+    if ply.exists() and placed.exists():
+        assets.splat = ply.relative_to(fixtures_dir()).as_posix()
+        assets.splat_to_interior = json.loads(placed.read_text(encoding="utf-8"))["splat_to_interior"]
+    return assets
 
 
 # --- georeference --------------------------------------------------------------------------

@@ -4,7 +4,7 @@ import struct
 import pytest
 
 from services.api.integrations.config import fixtures_dir
-from services.api.twin.mesh import MAX_GLB_BYTES, interior_glb_path
+from services.api.twin.mesh import interior_glb_path
 from services.api.twin.service import get_twin
 
 PROPERTY_ID = "onXQLXhfyQv"
@@ -21,10 +21,9 @@ def glb() -> bytes:
     return data
 
 
-def test_glb_header_and_budget(glb):
+def test_glb_header(glb):
     magic, version, length = struct.unpack("<4sII", glb[:12])
     assert (magic, version, length) == (b"glTF", 2, len(glb))
-    assert len(glb) <= MAX_GLB_BYTES
 
 
 def test_glb_uses_only_supported_extensions(glb):

@@ -320,7 +320,7 @@ These mocks let the other two streams start at once. Each mock must pass schema 
 - **C6. Frame correctness is tested.** A test round-trips a known point: interior → world → interior. A Phase 0 spike checks that Model API sweep positions equal Showcase SDK `Sweep.data` positions for `onXQLXhfyQv` (this is what makes I-G9 true). ICP is tested on a synthetic rotated footprint.
 - **C7. Every external call goes through the cache** (I-G20). Fixtures for `onXQLXhfyQv` are recorded once and committed, so A and B never need Matterport, Vexcel or CoStar keys.
 - **C8. Report latency.** `sun_report` and `noise_report` for one room return in under 2 s from cache (the heatmaps are precomputed at ingestion). If a value is not cached yet, the call starts a job and does not block the agent.
-- **C9. Asset budget.** `interior_glb` ≤ 25 MB and `context_glb` ≤ 10 MB after Draco/meshopt, so the Sun Lab loads on a laptop.
+- **C9. Asset budget.** `context_glb` ≤ 10 MB after Draco/meshopt. `interior_glb` is full resolution (original 2048 px scan textures, no quantization; about 80 MB): render quality over load time.
 
 ### Work per phase
 | Phase | C delivers |

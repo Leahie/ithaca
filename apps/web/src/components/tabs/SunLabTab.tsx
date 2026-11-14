@@ -2,6 +2,7 @@
 
 import { shownLayouts } from '@/lib/layouts';
 import type { Opening, PropertyTwin } from '@ithaca/schema';
+import { PerformanceMonitor } from '@react-three/drei';
 import { Canvas } from '@react-three/fiber';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { AnnotationPanel, type AnnotationTool } from '@/components/sunlab/AnnotationPanel';
@@ -38,6 +39,11 @@ export function SunLabTab({ twin, active }: { twin: PropertyTwin; active: boolea
   const [view, setView] = useState<SunLabView>(() => (room ? { kind: 'room', room, seq: 0 } : { kind: 'overview', seq: 0 }));
   const [ready, setReady] = useState(false);
   const [assetError, setAssetError] = useState<string | null>(null);
+  // Resolution follows the frame rate: from 1 up to the screen's own pixel ratio (at most 2), in
+  // quarter steps. drei's monitor lowers it below ~60 fps (on a 120 Hz screen) and raises it above ~100.
+  const [dprFactor, setDprFactor] = useState(0.5);
+  const maxDpr = typeof window === 'undefined' ? 1 : Math.min(2, Math.max(1, window.devicePixelRatio || 1));
+  const dpr = 1 + (maxDpr - 1) * dprFactor;
   // A clean view first: the live sun on the scan. Numbers, heatmap and window outlines are a click away.
   const [panelOpen, setPanelOpen] = useState(false);
   const [heatmapOn, setHeatmapOn] = useState(false);
@@ -148,10 +154,11 @@ export function SunLabTab({ twin, active }: { twin: PropertyTwin; active: boolea
       <Canvas
         shadows
         frameloop={active ? 'always' : 'never'}
-        dpr={[1, 2]}
+        dpr={dpr}
         camera={{ fov: 58, near: 0.08, far: 900, position: [-40, 30, 30] }}
         className={cn(tool && 'cursor-crosshair')}
       >
+        <PerformanceMonitor flipflops={3} onChange={({ factor }) => setDprFactor(Math.round(factor * 4) / 4)} onFallback={() => setDprFactor(0)} />
         <Scene
           twin={twin}
           openings={openings}

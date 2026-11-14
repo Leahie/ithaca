@@ -104,6 +104,15 @@ const WALK_SUN = 2.8;
 const NIGHT = new Color('#0a0e18');
 const DUSK = new Color('#d98a5a');
 const DAY = new Color('#a9c9e6');
+/**
+ * Shadow range. Outside, the cascades reach 160 m (neighbors and trees shade the house); in walk
+ * mode everything in view is inside the house, so a short range puts all three cascades on it.
+ */
+const SHADOW_FAR = 160;
+const SHADOW_FAR_WALK = 30;
+/** Shadow maps are redrawn only when the camera or sun moved, and at least this often (frames). */
+const SHADOW_REFRESH_FRAMES = 30;
+
 const SUN_LOW = new Color('#ffb070');
 const SUN_HIGH = new Color('#fff3e0');
 
@@ -111,6 +120,7 @@ function SunRig({ sun, walking, children }: { sun: SunState; walking: boolean; c
   const camera = useThree((s) => s.camera) as PerspectiveCamera;
   const scene = useThree((s) => s.scene);
   const size = useThree((s) => s.size);
+  const gl = useThree((s) => s.gl);
   const sunRef = useRef(sun);
   sunRef.current = sun;
   const walkingRef = useRef(walking);
@@ -124,9 +134,10 @@ function SunRig({ sun, walking, children }: { sun: SunState; walking: boolean; c
       camera,
       parent: scene,
       cascades: 3,
-      maxFar: 160,
+      maxFar: SHADOW_FAR,
       mode: 'practical',
-      shadowMapSize: 4096,
+      // 2048, not 4096: a quarter of the depth fill per cascade, which an integrated GPU feels.
+      shadowMapSize: 2048,
       shadowBias: -0.00025,
       lightIntensity: 1,
       lightNear: 1,
@@ -143,7 +154,25 @@ function SunRig({ sun, walking, children }: { sun: SunState; walking: boolean; c
       setCsm(null);
     };
   }, [camera, scene]);
-  useEffect(() => csm?.updateFrustums(), [csm, size.width, size.height]);
+  useEffect(() => {
+    if (!csm) return;
+    csm.maxFar = walking ? SHADOW_FAR_WALK : SHADOW_FAR;
+    csm.updateFrustums();
+  }, [csm, walking, size.width, size.height]);
+
+  // Redraw the shadow maps only when they can have changed: the cascades follow the camera, and
+  // the light follows the sun. A periodic refresh catches meshes that load or move.
+  useEffect(() => {
+    gl.shadowMap.autoUpdate = false;
+    gl.shadowMap.needsUpdate = true;
+    return () => {
+      gl.shadowMap.autoUpdate = true;
+    };
+  }, [gl]);
+  const lastShadow = useMemo(() => ({ view: new Float32Array(16), proj: new Float32Array(16), light: new Vector3(), on: false, frames: 0 }), []);
+  useEffect(() => {
+    lastShadow.frames = SHADOW_REFRESH_FRAMES; // a new cascade setup: redraw on the next frame
+  }, [lastShadow, csm, walking, size.width, size.height]);
 
   const background = useMemo(() => new Color(), []);
   const sunColor = useMemo(() => new Color(), []);
@@ -168,6 +197,21 @@ function SunRig({ sun, walking, children }: { sun: SunState; walking: boolean; c
     }
     const glow = walkingRef.current ? skyLevel(el) : GLOW_NIGHT + (GLOW_DAY - GLOW_NIGHT) * smoothstep(-6, 12, el);
     for (const m of glowMaterials) m.emissiveIntensity = glow;
+    const on = up > 0;
+    camera.updateMatrixWorld(); // the controls moved it this frame; the renderer would only do this later
+    const moved =
+      !camera.matrixWorld.elements.every((v, i) => v === lastShadow.view[i]) ||
+      !camera.projectionMatrix.elements.every((v, i) => v === lastShadow.proj[i]) ||
+      !csm.lightDirection.equals(lastShadow.light) ||
+      on !== lastShadow.on;
+    if (moved || ++lastShadow.frames >= SHADOW_REFRESH_FRAMES) {
+      gl.shadowMap.needsUpdate = true;
+      lastShadow.view.set(camera.matrixWorld.elements);
+      lastShadow.proj.set(camera.projectionMatrix.elements);
+      lastShadow.light.copy(csm.lightDirection);
+      lastShadow.on = on;
+      lastShadow.frames = 0;
+    }
     background.copy(NIGHT).lerp(DUSK, smoothstep(-8, 1, el) * (1 - smoothstep(4, 18, el)) * 0.7).lerp(DAY, smoothstep(-2, 16, el));
     csm.update();
   });

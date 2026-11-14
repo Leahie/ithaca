@@ -59,8 +59,9 @@ export function faceUrls(propertyId: string, sweepId: string, res = PANO_RES, de
 }
 
 /**
- * Cube textures by sweep. A 4k cube with mipmaps is about 540 MB on the GPU, so only a few stay
- * resident (the current one, the one being walked to, and the last one); older ones are disposed.
+ * Cube textures by sweep. A 4k cube with mipmaps is about 540 MB on the GPU, so only two stay
+ * resident (the current one and the one being walked to); older ones are disposed. Going back is
+ * a re-upload from the browser's HTTP cache, not a download.
  * Furnished and defurnished photos are cached apart, so switching keeps the other set until it ages out.
  */
 export class PanoCache {
@@ -74,7 +75,7 @@ export class PanoCache {
   constructor(
     private propertyId: string,
     private anisotropy: number,
-    private keep = 3,
+    private keep = 2,
   ) {}
 
   private key(sweepId: string): string {
