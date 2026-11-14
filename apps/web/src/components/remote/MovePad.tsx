@@ -140,8 +140,9 @@ export function MovePad({ hint, side = 'right' }: { hint: string; side?: 'left' 
         const dx = e.clientX - was.x;
         const dy = e.clientY - was.y;
         const gain = DRAG_SENSITIVITY * Math.min(ACCEL_MAX, 1 + Math.hypot(dx, dy) * ACCEL_PER_PX);
-        // Swiping down looks up: the view follows the finger, like dragging the scene.
-        const yaw = dx * gain;
+        // The view follows the finger, like dragging the scene: swiping down looks up, swiping
+        // right looks left.
+        const yaw = -dx * gain;
         const pitch = dy * gain;
         acc.current.yaw += yaw;
         acc.current.pitch += pitch;
