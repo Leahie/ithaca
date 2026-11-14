@@ -27,7 +27,7 @@ def test_best_view_stands_in_the_room_and_faces_into_it():
         assert math.dist((at.position.x, at.position.z), (view.look_at.x, view.look_at.z)) > 0.3
 
 
-def test_route_follows_doors_and_stairs_not_walls_or_floors():
+def test_route_follows_the_scan_and_only_reports_stairs_when_it_climbs():
     twin = get_twin(PROPERTY)
     sweeps = {s.sweep_id: s for s in twin.sweeps}
 
@@ -36,6 +36,13 @@ def test_route_follows_doors_and_stairs_not_walls_or_floors():
 
     downstairs = views.route(twin, EAST_BEDROOM, KITCHEN)
     assert downstairs.floor_changes == 1 and downstairs.room_ids[0] == EAST_BEDROOM and downstairs.room_ids[-1] == KITCHEN
-    steps = list(zip(downstairs.sweep_ids, downstairs.sweep_ids[1:]))
-    assert all(abs(sweeps[a].position.y - sweeps[b].position.y) <= views.MAX_RISE_M for a, b in steps)  # stairs, not a ceiling
-    assert downstairs.distance_m > 15  # going round by the stairs, not 3 m straight down
+    for a, b in zip(downstairs.sweep_ids, downstairs.sweep_ids[1:]):
+        assert b in sweeps[a].neighbors  # every step is one the scan recorded as a clear line
+
+    # Two rooms on the same floor: a level walk through rooms of that floor only. (The first version
+    # sent this one up the stairs, because the bottom steps are labelled as the upstairs room.)
+    office, bedroomish = "3m54yff1z7crxaywd8if9rb0d", "tt6gm2a0463x9wmnx7rn6gugc"
+    level = views.route(twin, office, bedroomish)
+    floor = next(r.floor_id for r in twin.rooms if r.room_id == office)
+    assert level.floor_changes == 0 and level.distance_m < 20
+    assert all(next(r.floor_id for r in twin.rooms if r.room_id == rid) == floor for rid in level.room_ids)

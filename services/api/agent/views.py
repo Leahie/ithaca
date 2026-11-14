@@ -22,6 +22,7 @@ STEP_M = 3.6  # two sweeps this close can be one step of a walk
 DOOR_REACH_M = 0.7  # a step between rooms counts as "through the door" if it passes this close to one
 UNMAPPED_COST = 3.0  # a step between adjoining rooms with no recorded door costs this much more
 STAIRS_COST = 1.5
+STAIRS_RISE_M = 1.2  # a route that climbs or drops more than this goes by stairs
 MAX_RISE_M = 1.0  # the most one step may climb; more than that is a different storey, not a stair
 WALK_SPEED_M_S = 1.2
 
@@ -113,6 +114,19 @@ def _graph(property_id: str, version: int, twin_json: str) -> dict[str, list[tup
     """sweep_id -> [(neighbor, cost, meters, unmapped)]. Cached per twin version."""
     twin = PropertyTwin.model_validate_json(twin_json)
     sweeps = [s for s in twin.sweeps if s.room_id is not None]
+    if any(s.neighbors for s in sweeps):
+        # The scan's own record of which sweeps have a clear straight line between them. Nothing to
+        # guess: a step along one of these never crosses a wall or a floor.
+        inside = {s.sweep_id: s for s in sweeps}
+        known: dict[str, list[tuple[str, float, float, bool]]] = {s.sweep_id: [] for s in sweeps}
+        for a in sweeps:
+            for other_id in a.neighbors:
+                b = inside.get(other_id)
+                if b is not None:
+                    meters = math.dist((a.position.x, a.position.y, a.position.z), (b.position.x, b.position.y, b.position.z))
+                    known[a.sweep_id].append((other_id, meters, meters, False))
+        return known
+    # No neighbor data (older twins): infer the steps from distance, room outlines and doors.
     polys = {r.room_id: Polygon(r.polygon) for r in twin.rooms}
     floor_of = {r.room_id: r.floor_id for r in twin.rooms}
     doors: dict[frozenset[str], list[Point]] = {}
@@ -190,12 +204,18 @@ def route(twin: PropertyTwin, from_room_id: str, to_room_id: str) -> Route | Non
     for sid in path:
         if not room_ids or room_ids[-1] != by_id[sid].room_id:
             room_ids.append(by_id[sid].room_id)
-    floors = [by_id[sid].floor_id for sid in path]
+    # Stairs are judged by how far the route actually climbs, not by room labels: the bottom steps
+    # of a staircase can be labelled as the upstairs room they lead to.
+    heights = [by_id[sid].position.y for sid in path]
+    climbs = max(heights) - min(heights) > STAIRS_RISE_M
+    if not climbs:  # a level walk: don't name a room on another floor it merely brushed past
+        level = {_room(twin, from_room_id).floor_id, _room(twin, to_room_id).floor_id}
+        room_ids = [r for r in room_ids if _room(twin, r).floor_id in level]
     return Route(
         sweep_ids=path,
         room_ids=room_ids,
         distance_m=meters,
-        floor_changes=sum(a != b for a, b in zip(floors, floors[1:])),
+        floor_changes=1 if climbs else 0,
         unmapped_steps=unmapped_steps,
         look_at=end.look_at,
     )
