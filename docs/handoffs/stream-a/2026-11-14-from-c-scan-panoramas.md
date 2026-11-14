@@ -25,7 +25,7 @@ projective material can be built against real data now.
 | | |
 |---|---|
 | `Sweep.rotation: {x, y, z, w}` | Quaternion taking pano-frame directions to the interior frame. Set on all 96 sweeps; `null` only if Matterport has none. |
-| `GET /api/properties/{pid}/sweeps/{sweep_id}/skybox/{face}?res=low\|2k\|high\|4k` | JPEG. `face` is one of `px nx py ny pz nz` (GL cube order). `low` gives 256 px faces, `2k` (default) 1024 px. |
+| `GET /api/properties/{pid}/sweeps/{sweep_id}/skybox/{face}?res=low\|2k\|high\|4k` | JPEG. `face` is one of `px nx py ny pz nz` (GL cube order). `low` gives 256 px faces, `2k` (default) 2048 px. |
 
 Errors: 404 for an unknown sweep, 422 for a bad face or `res`, and 503 if the server has no
 Matterport keys. The first request for each sweep and resolution takes a few seconds (download and
@@ -35,8 +35,9 @@ re-cut). After that, faces are cached files with `Cache-Control: max-age=86400`.
 - **Face convention:** fitted against the point cloud's colours, which come from the same photos.
   The side faces correlate 0.70 with this convention and 0.2 or less with any other (see the
   docstring of `services/api/twin/panos.py`).
-- **Not built yet:** the test page that renders one room through the lookup. The face order and
-  rotation are checked against the point cloud, but not yet in three.js.
+- **Checked in three.js too:** `services/api/twin/static/walk.html` renders through this lookup
+  (walk mode, crossfades, sun). How to run it and what was learned is in
+  `2026-11-14-from-c-sunlab-photo-rendering.md`.
 - **Mesh changes in `interior.glb`:** the yard is removed (scan geometry outside the house outline,
   plus 0.5 m, is cut), and loose fragments under 200 triangles are dropped. It now has smooth
   vertex normals, so three.js no longer shades each triangle flat.
