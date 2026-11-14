@@ -1,0 +1,38 @@
+#!/bin/bash
+#SBATCH -J ithaca_setup
+#SBATCH -o /home/qx235/ithaca-recon/logs/%x_%j.out
+#SBATCH -e /home/qx235/ithaca-recon/logs/%x_%j.err
+#SBATCH -N 1
+#SBATCH -n 1
+#SBATCH --cpus-per-task=8
+#SBATCH --get-user-env
+#SBATCH --mem=32g
+#SBATCH -t 3:00:00
+#SBATCH --partition=default_partition
+# CPU job: the Gaussian-splat training env (gsplat + its examples) on /share/cuvl (home is nearly full).
+# torch cu128 runs on both the CUDA 12.8 and the 580 drivers here; nvcc 12.8 comes from conda.
+set -euo pipefail
+ENV=/share/cuvl/qx235/envs/ithaca-recon
+WORK=/share/cuvl/qx235/ithaca-recon
+CONDA=/share/apps/software/anaconda3/bin/conda
+if [ ! -x "$ENV/bin/python" ]; then
+  $CONDA create -y -p "$ENV" -c conda-forge --override-channels python=3.12
+fi
+[ -x "$ENV/bin/nvcc" ] || $CONDA install -y -p "$ENV" -c nvidia/label/cuda-12.8.1 -c conda-forge --override-channels cuda-toolkit
+export PATH="$ENV/bin:$PATH" CUDA_HOME="$ENV" MAX_JOBS=8
+# Built for the RTX A6000 (8.6), which unicorn_train.sub is submitted to; add "8.9;9.0" for 6000 Ada/L40S and
+# H100. 2DGS only: the 3DGS and 3DGUT kernels are compiled out (they take over an hour per GPU generation).
+export TORCH_CUDA_ARCH_LIST="${TORCH_CUDA_ARCH_LIST:-8.6}" BUILD_3DGS=0 BUILD_3DGUT=0
+python -m pip install -q -U pip uv ninja setuptools wheel
+uv pip install --python "$ENV/bin/python" torch==2.9.1 torchvision==0.24.1 --index-url https://download.pytorch.org/whl/cu128
+cd "$WORK"
+[ -d gsplat ] || git clone -q --depth 1 --recurse-submodules --shallow-submodules https://github.com/nerfstudio-project/gsplat.git
+git -C gsplat submodule update --init --recursive --depth 1
+grep -v -E "fused-ssim|fused-bilagrid|ppisp|^torchvision|^#" gsplat/examples/requirements.txt > req.txt
+uv pip install --python "$ENV/bin/python" -r req.txt
+rm -rf gsplat/build
+uv pip install --python "$ENV/bin/python" --no-build-isolation --reinstall-package gsplat -e gsplat
+uv pip install --python "$ENV/bin/python" --no-build-isolation "git+https://github.com/rahul-goel/fused-ssim@a7c48d6dd7ac6dc39a7958c7c4452e0b10418f38"
+uv cache clean || true
+python -c "import torch, gsplat, pycolmap, nerfview; from importlib.metadata import version; print('torch', torch.__version__, 'gsplat', version('gsplat'))"
+echo SETUP_ENV_OK
