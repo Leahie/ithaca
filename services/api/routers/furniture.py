@@ -102,9 +102,10 @@ def _placed(twin, room, item_id: str, pose: layout_solver.Pose) -> Placement:
 
 @router.put("/layouts/{layout_id}/placements/{item_id}")
 def move_placement(layout_id: str, item_id: str, body: PlacementMove, x_user_id: str = Header("demo")) -> LayoutVariant:
-    """The user moved or turned one piece. Saved only if the layout is still valid (B2): inside the
-    room, no overlaps, doors, windows and the walking path clear. Otherwise 409 with the reasons,
-    and the piece should snap back."""
+    """The user moved or turned one piece by hand. Their call: any spot and any angle is saved as
+    long as the piece's center stays inside its room. Anything a designer would flag (an overlap, a
+    blocked door or path, a corner through a wall) comes back in `warnings`, for the UI to show
+    without getting in the way. 409 only when the piece's center would leave the room."""
     store = furniture_store()
     layout = _found(store.get_layout(x_user_id, layout_id), "layout")
     if all(str(p.item_id) != item_id for p in layout.placements):
@@ -112,12 +113,13 @@ def move_placement(layout_id: str, item_id: str, body: PlacementMove, x_user_id:
     twin, room, _owned, items, poses = _room_state(x_user_id, layout)
     pose = layout_solver.Pose(body.x, body.z, body.yaw_deg % 360)
     problems = layout_solver.violations(room, twin.openings, items, {**poses, item_id: pose}, walls=twin.walls, sweeps=twin.sweeps)
-    if problems:
-        raise HTTPException(409, {"error": "invalid_placement", "violations": problems})
+    if not Polygon(room.polygon).contains(Point(body.x, body.z)):  # its center left the room
+        label = next((i.label for i in items if i.item_id == item_id), "That piece")
+        raise HTTPException(409, {"error": "outside_room", "violations": [f"{label} has to stay inside the room"]})
     placements = [_placed(twin, room, item_id, pose) if str(p.item_id) == item_id else p for p in layout.placements]
     moved = layout.model_copy(update={"placements": placements})
     store.put_layout(moved)
-    return moved
+    return moved.model_copy(update={"warnings": problems or None})
 
 
 @router.post("/layouts/drop")

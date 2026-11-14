@@ -17,6 +17,7 @@ import { useSession } from '@/lib/store/session';
 import { sunPosition } from '@/lib/sun/position';
 import { fromZonedParts, toZonedIso, zonedParts } from '@/lib/time';
 import { AgentDock } from './AgentDock';
+import { ArrangePanel } from './ArrangePanel';
 import { HouseLoader } from './HouseLoader';
 import { FamilyButton } from './FamilyButton';
 import { PairingButton } from './PairingButton';
@@ -78,6 +79,8 @@ function House({ propertyId }: { propertyId: string }) {
   const { error: sessionError } = useSessionInfo();
   const [visited, setVisited] = useState<Set<ViewerMode>>(() => new Set());
   const [dockOpen, setDockOpen] = useState(has('agent'));
+  const [arranging, setArranging] = useState(false);
+  const hasLayout = useSession((s) => Boolean(s.viewer.selected_layout_id));
   const initialised = useRef<string | null>(null);
 
   // Values that come from the twin, not from a user action.
@@ -159,6 +162,11 @@ function House({ propertyId }: { propertyId: string }) {
           <div className="mx-auto" />
         )}
         <div className="flex items-center gap-1">
+          {(has('design') || has('agent')) && (mode === 'tour' || mode === 'sun') && (hasLayout || arranging) && (
+            <button type="button" onClick={() => setArranging(!arranging)} aria-pressed={arranging} className="inline-flex h-10 items-center rounded-full px-3.5 font-display font-semibold text-muted hover:bg-ink hover:text-text">
+              {arranging ? 'Done arranging' : 'Arrange'}
+            </button>
+          )}
           {has('hands') && <HandsButton />}
           {/* The family code covers one phone too, so it replaces single-phone pairing. */}
           {has('family') ? <FamilyButton propertyId={propertyId} /> : has('phone') && <PairingButton propertyId={propertyId} />}
@@ -206,6 +214,7 @@ function House({ propertyId }: { propertyId: string }) {
               {mode === 'design' && <DesignTab twin={t} />}
             </div>
           )}
+          {arranging && (mode === 'tour' || mode === 'sun') && <ArrangePanel twin={t} onClose={() => setArranging(false)} />}
           {has('hands') && <HandsOverlay />}
         </main>
         {has('agent') && dockOpen && <AgentDock />}

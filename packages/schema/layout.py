@@ -28,6 +28,9 @@ class LayoutVariant(Model):
     feedback: str | None = None
     # None until the render job finishes.
     thumbnail_url: str | None = None
+    # Only in the reply to a manual move or drop: things a designer would flag (a blocked door, an
+    # overlap). The move was saved anyway. Never stored.
+    warnings: list[str] | None = None
 
 
 class PlacementMove(Model):

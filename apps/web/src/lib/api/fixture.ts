@@ -12,7 +12,7 @@ const OVERLAY_KEY = `ithaca.fixture.${config.userId}`;
 
 interface Overlay {
   openings: Record<string, Opening[]>;
-  layouts: Record<string, Partial<Pick<LayoutVariant, 'status' | 'feedback'>>>;
+  layouts: Record<string, Partial<Pick<LayoutVariant, 'status' | 'feedback' | 'placements'>>>;
   addedItems: InventoryItem[];
   deletedItems: string[];
   memory: Record<string, string | null>; // null = deleted
@@ -284,6 +284,13 @@ export function createFixtureApi(): ApiClient {
         o.layouts[id] = { ...o.layouts[id], status: 'chosen' };
       });
       return { ...chosen, status: 'chosen' };
+    },
+    async movePlacement(id, itemId, pose) {
+      // Fixture mode has no solver: the move is kept as given, with no warnings.
+      const layout = withOverlay(await findLayout(id), readOverlay());
+      const placements = layout.placements.map((p) => (p.item_id === itemId ? { ...p, position: { ...p.position, x: pose.x, z: pose.z }, yaw_deg: ((pose.yaw_deg % 360) + 360) % 360 } : p));
+      patchOverlay((o) => (o.layouts[id] = { ...o.layouts[id], placements }));
+      return { ...layout, placements };
     },
     async layoutFeedback(id, feedback) {
       const layout = await findLayout(id);

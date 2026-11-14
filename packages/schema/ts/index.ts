@@ -290,6 +290,7 @@ export interface LayoutVariant {
   status: "proposed" | "chosen" | "rejected";
   feedback?: string | null;
   thumbnail_url?: string | null;
+  warnings?: string[] | null;
 }
 
 /**

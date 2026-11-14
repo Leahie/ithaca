@@ -768,7 +768,10 @@ def nearest_valid_pose(
             angle = 2 * math.pi * k / max(1, ring * 6)
             for yaw in yaws:
                 candidates.append(Pose(x + radius * math.cos(angle), z + radius * math.sin(angle), float(yaw)))
+    # Pieces the user already placed by hand may break a rule. The dropped piece must not add to that.
+    others = [i for i in items if i.item_id != item_id]
+    already = set(_violations(scene, others, poses))
     for pose in candidates:
-        if not _violations(scene, items, {**poses, item_id: pose}):
+        if set(_violations(scene, items, {**poses, item_id: pose})) <= already:
             return pose
     return None
