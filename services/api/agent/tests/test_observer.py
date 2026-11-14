@@ -55,7 +55,7 @@ def test_observer_reads_the_log_writes_inferred_memory_and_returns_a_note():
     assert "direct sun on the floor" in model.tool_results[1]
     assert "permission denied" in model.tool_results[3].lower()
     assert note.startswith("They keep returning")
-    saved = store.get(memory_namespace("alice"), "/preferences.md").value["content"]
+    saved = store.get(memory_namespace(ctx.memory_user), "/preferences.md").value["content"]
     assert finding in (saved if isinstance(saved, str) else "\n".join(saved))
 
 

@@ -30,6 +30,11 @@ class AgentContext:
         family never reads another's notes, although every big screen is the same user."""
         if self.household_id and self.member_name is None and self.house_user_id is None and not self.asked:
             return self.household_id
+        if self.session_id and not self.household_id:
+            # A big screen with no family named yet (also right after "Start a new family"): every
+            # such screen is the same user, so what one visitor told the guide must not greet the
+            # next. It gets a memory of its own, for this session only.
+            return f"guest-{self.session_id}"
         return self.user_id
 
     @property
