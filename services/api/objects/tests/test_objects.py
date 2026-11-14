@@ -141,3 +141,21 @@ def test_moving_a_piece_is_saved_only_when_the_layout_stays_valid(client):
     assert dropped.status_code == 200 and len(dropped.json()["placements"]) == 3
     fresh = client.post("/api/layouts/drop", headers=alice, json={**drop, "layout_id": None, "floor_id": room.floor_id}).json()
     assert fresh["room_id"] == LIVING_ROOM and len(fresh["placements"]) == 1  # no layout given: the room is found from the pin
+
+
+def test_catalog_piece_is_added_at_its_own_size(client, monkeypatch, tmp_path):
+    from services.api.objects.providers import catalog
+
+    cid, _cls, label, w, d, h = catalog.BY_ID["GothicBed_01"]
+    monkeypatch.setattr(catalog, "fetch", lambda asset_id: raw_glb((w * 3, h * 3, d * 3)))  # no download in tests
+    alice = {"X-User-Id": "alice"}
+
+    listed = client.get("/api/catalog?item_class=bed").json()
+    assert cid in [p["catalog_id"] for p in listed] and all(p["item_class"] == "bed" for p in listed)
+
+    item = client.post(f"/api/catalog/{cid}/add", headers=alice).json()
+    assert item["label"] == label and item["dims_m"] == {"w": w, "d": d, "h": h}  # the model's own size
+    assert label in client.get("/api/memory/inventory.md", headers=alice).text  # the agent can now place it
+    resized = client.post(f"/api/catalog/{cid}/add", headers=alice, json={"width_m": 1.8, "depth_m": 2.1, "height_m": 1.2}).json()
+    assert resized["dims_m"] == {"w": 1.8, "d": 2.1, "h": 1.2}
+    assert client.post("/api/catalog/nope/add", headers=alice).status_code == 404

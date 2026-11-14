@@ -9,12 +9,13 @@ from pathlib import Path
 from fastapi import APIRouter, Form, Header, HTTPException, Request, UploadFile
 from fastapi.responses import FileResponse
 
-from packages.schema.inventory import InventoryItem
+from packages.schema.inventory import CatalogAddRequest, CatalogPiece, InventoryItem, ItemDims
 from packages.schema.session import JobRef, ObjectIngestRequest, UploadResult
 from services.api.agent import memory_files
 from services.api.furniture.store import furniture_store
 from services.api.objects import files, pipeline
 from services.api.objects.normalize import NormalizeError
+from services.api.objects.providers import catalog
 from services.api.runner_hooks import object_ready
 
 router = APIRouter(tags=["objects"])
@@ -88,6 +89,35 @@ async def import_model(
         item = pipeline.import_glb(data, label, item_class, (width_m, depth_m, height_m), x_user_id, furniture_store())
     except NormalizeError as e:
         raise HTTPException(422, str(e)) from e
+    memory_files.sync_inventory(request.app.state.memory_store, x_user_id, furniture_store().list_items(x_user_id))
+    return item
+
+
+@router.get("/catalog")
+def list_catalog(item_class: str | None = None) -> list[CatalogPiece]:
+    """Ready-made furniture anyone can add: free models, at real size."""
+    return [
+        CatalogPiece(
+            catalog_id=cid, label=label, item_class=cls, dims_m=ItemDims(w=w, d=d, h=h),
+            thumbnail_url=catalog.thumbnail_url(cid), source=catalog.SOURCE,
+        )
+        for cid, cls, label, w, d, h in catalog.PIECES
+        if item_class is None or cls == item_class
+    ]
+
+
+@router.post("/catalog/{catalog_id}/add")
+def add_catalog_piece(catalog_id: str, request: Request, body: CatalogAddRequest | None = None, x_user_id: str = Header("demo")) -> InventoryItem:
+    """Put a catalog piece into the user's inventory. The first use of a piece downloads its model."""
+    if catalog_id not in catalog.BY_ID:
+        raise HTTPException(404, "no such catalog piece")
+    body = body or CatalogAddRequest()
+    try:
+        item = pipeline.add_from_catalog(catalog_id, x_user_id, furniture_store(), body.label, (body.width_m, body.depth_m, body.height_m))
+    except NormalizeError as e:
+        raise HTTPException(422, str(e)) from e
+    except Exception as e:  # the model could not be downloaded
+        raise HTTPException(503, f"could not load that model: {e}") from e
     memory_files.sync_inventory(request.app.state.memory_store, x_user_id, furniture_store().list_items(x_user_id))
     return item
 

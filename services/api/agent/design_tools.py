@@ -42,6 +42,46 @@ def inventory_search(runtime: Runtime, query: str = "") -> str:
 
 
 @tool
+def catalog_search(runtime: Runtime, query: str = "") -> str:
+    """Ready-made furniture the user can add without a photo: generic pieces at real size, not
+    products to buy. query filters by a word in the name or kind ("bed", "round table", "bookshelf").
+    Leave it empty to see the kinds available."""
+    from services.api.objects.providers import catalog
+
+    words = query.lower().replace("_", " ").split()
+    rows = [r for r in catalog.PIECES if all(w in f"{r[2]} {r[1].replace('_', ' ')}".lower() for w in words)]
+    if not words:
+        kinds = sorted({r[1].replace("_", " ") for r in catalog.PIECES})
+        return f"{len(catalog.PIECES)} pieces. Kinds: {', '.join(kinds)}. Search with one of these words to see the pieces."
+    if not rows:
+        return f"Nothing in the catalog matches {query!r}. Call with no query to see the kinds available."
+    return "\n".join(f"- {label} ({cls}) · catalog_id {cid} · {w:.2f} m wide × {d:.2f} m deep × {h:.2f} m high" for cid, cls, label, w, d, h in rows[:12])
+
+
+@tool
+def catalog_add(catalog_id: str, runtime: Runtime) -> str:
+    """Add a catalog piece to the user's furniture so it can be placed in a room. Ask first unless
+    they told you to add it. Returns the new item_id. catalog_id comes from catalog_search."""
+    from services.api.agent import memory_files
+    from services.api.objects import pipeline
+    from services.api.objects.providers import catalog
+
+    if catalog_id not in catalog.BY_ID:
+        return f"Error: unknown catalog_id {catalog_id!r}. Use a catalog_id from catalog_search."
+    store, user_id = furniture_store(), runtime.context.user_id
+    try:
+        item = pipeline.add_from_catalog(catalog_id, user_id, store)
+    except Exception as e:
+        return f"Error: that piece could not be added ({e})."
+    if runtime.store is not None:
+        memory_files.sync_inventory(runtime.store, user_id, store.list_items(user_id))
+    return (
+        f"Added {item.label} ({item.item_class}), {item.dims_m.w:.2f} × {item.dims_m.d:.2f} × {item.dims_m.h:.2f} m, "
+        f"item_id {item.item_id}. It is a generic stand-in, not a specific product: say so."
+    )
+
+
+@tool
 def propose_layouts(room_id: str, item_ids: list[str], wishes: list[Constraint], idea: str, runtime: Runtime, n: int = 3) -> str:
     """Arrange the user's furniture in a room. Returns up to n saved layouts, each with a layout_id.
 

@@ -73,6 +73,28 @@ export interface CaptureUploadPayload {
   upload_id: string;
 }
 
+/**
+ * Body of POST /catalog/{catalog_id}/add. Give all three sizes to resize the piece, or none.
+ */
+export interface CatalogAddRequest {
+  label?: string | null;
+  width_m?: number | null;
+  depth_m?: number | null;
+  height_m?: number | null;
+}
+
+/**
+ * A ready-made piece the user can add to their inventory without a photo.
+ */
+export interface CatalogPiece {
+  catalog_id: string;
+  label: string;
+  item_class: string;
+  dims_m: ItemDims;
+  thumbnail_url: string;
+  source: string;
+}
+
 export interface ChatUserPayload {
   text: string;
 }

@@ -127,6 +127,7 @@ def import_glb(
     user_id: str,
     store: FurnitureStore,
     source_url: str = "",
+    product_url: str | None = None,
 ) -> InventoryItem:
     """Add a 3D file the user already has (for example one generated on a TRELLIS demo site).
     It goes through the same sizing rules as a generated model. Raises NormalizeError if it fails."""
@@ -144,7 +145,26 @@ def import_glb(
         source_image_url=source_url,
         mask_url=None,
         price=None,
-        product_url=None,
+        product_url=product_url,
     )
     store.put_item(item)
     return item
+
+
+def add_from_catalog(
+    catalog_id: str,
+    user_id: str,
+    store: FurnitureStore,
+    label: str | None = None,
+    size: tuple[float | None, float | None, float | None] = (None, None, None),
+) -> InventoryItem:
+    """Add a ready-made catalog piece to the user's inventory, at its own size unless all three of
+    `size` are given. Raises KeyError for an unknown id, NormalizeError if it can't be sized."""
+    from services.api.objects.providers import catalog
+
+    _id, item_class, name, w, d, h = catalog.BY_ID[catalog_id]
+    stated = size if all(size) else (w, d, h)
+    return import_glb(
+        catalog.fetch(catalog_id), label or name, item_class, stated, user_id, store,
+        source_url=catalog.thumbnail_url(catalog_id), product_url=f"https://polyhaven.com/a/{catalog_id}",
+    )

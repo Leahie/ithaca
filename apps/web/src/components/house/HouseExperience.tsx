@@ -80,7 +80,6 @@ function House({ propertyId }: { propertyId: string }) {
   const [visited, setVisited] = useState<Set<ViewerMode>>(() => new Set());
   const [dockOpen, setDockOpen] = useState(has('agent'));
   const [arranging, setArranging] = useState(false);
-  const hasLayout = useSession((s) => Boolean(s.viewer.selected_layout_id));
   const initialised = useRef<string | null>(null);
 
   // Values that come from the twin, not from a user action.
@@ -162,7 +161,7 @@ function House({ propertyId }: { propertyId: string }) {
           <div className="mx-auto" />
         )}
         <div className="flex items-center gap-1">
-          {(has('design') || has('agent')) && (mode === 'tour' || mode === 'sun') && (hasLayout || arranging) && (
+          {(has('design') || has('agent')) && (mode === 'tour' || mode === 'sun') && (
             <button type="button" onClick={() => setArranging(!arranging)} aria-pressed={arranging} className="inline-flex h-10 items-center rounded-full px-3.5 font-display font-semibold text-muted hover:bg-ink hover:text-text">
               {arranging ? 'Done arranging' : 'Arrange'}
             </button>
