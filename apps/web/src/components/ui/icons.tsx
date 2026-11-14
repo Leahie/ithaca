@@ -105,3 +105,9 @@ export const IconPin = (p: P) => (
     <circle cx="12" cy="9.5" r="2.5" />
   </svg>
 );
+export const IconHand = (p: P) => (
+  <svg {...base(p)}>
+    <path d="M8 13V5.5a1.5 1.5 0 013 0V11M11 10.5v-6a1.5 1.5 0 013 0V11M14 10.5V6a1.5 1.5 0 013 0v7.5" />
+    <path d="M8 12.5a1.5 1.5 0 00-3 0v1.5a7 7 0 007 7h1a5 5 0 005-5v-2.5" />
+  </svg>
+);

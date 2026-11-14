@@ -4,12 +4,14 @@ import type { PropertyTwin, ViewerMode } from '@ithaca/schema';
 import dynamic from 'next/dynamic';
 import Link from 'next/link';
 import { useEffect, useRef, useState } from 'react';
+import { HandsButton, HandsOverlay } from '@/components/hands/HandControl';
 import { SessionProvider, useSessionInfo } from '@/components/session/SessionProvider';
 import { Badge, Notice, Spinner, ViewState, cn } from '@/components/ui';
 import { IconDesign, IconMap, IconSound, IconSun, IconTour, IconUser } from '@/components/ui/icons';
 import { ApiError } from '@/lib/api';
 import { config, type Feature } from '@/lib/config';
 import { useLayouts, useTwin } from '@/lib/data/hooks';
+import { useHands } from '@/lib/hands/store';
 import { useSession } from '@/lib/store/session';
 import { sunPosition } from '@/lib/sun/position';
 import { fromZonedParts, toZonedIso, zonedParts } from '@/lib/time';
@@ -100,6 +102,9 @@ function House({ propertyId }: { propertyId: string }) {
     setVisited((v) => (v.has(mode) ? v : new Set(v).add(mode)));
   }, [mode]);
 
+  // Leaving the page turns the camera off.
+  useEffect(() => () => useHands.getState().stop(), []);
+
   if (twin.error) {
     const notFound = twin.error instanceof ApiError && twin.error.status === 404;
     return (
@@ -156,6 +161,7 @@ function House({ propertyId }: { propertyId: string }) {
           <div className="mx-auto" />
         )}
         <div className="flex items-center gap-1">
+          {has('hands') && <HandsButton />}
           {has('phone') && <PairingButton propertyId={propertyId} />}
           {has('me') && (
             <Link href="/me" className="inline-flex h-9 items-center gap-1.5 rounded-md px-3 text-sm text-muted hover:bg-raised hover:text-text">
@@ -201,6 +207,7 @@ function House({ propertyId }: { propertyId: string }) {
               {mode === 'design' && <DesignTab twin={t} />}
             </div>
           )}
+          {has('hands') && <HandsOverlay />}
         </main>
         {has('agent') && dockOpen && <AgentDock />}
       </div>

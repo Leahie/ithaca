@@ -6,6 +6,7 @@ import { Badge, Notice, Spinner, ViewState } from '@/components/ui';
 import { api } from '@/lib/api';
 import { config } from '@/lib/config';
 import { useInventory, useLayouts } from '@/lib/data/hooks';
+import { onHandNav } from '@/lib/hands/engine';
 import { defaultStartSweep, sweepForRoom } from '@/lib/showcase/rooms';
 import type { MpSdk } from '@/lib/showcase/sdk-types';
 import { mountShowcase, type ShowcaseHandle } from '@/lib/showcase/viewer';
@@ -31,7 +32,10 @@ declare global {
   }
 }
 
-const exposeForTests = (key: string, value: unknown) => {
+/** How far a hand gesture turns and zooms the tour. A drag across the whole view is `*PerView` degrees. */
+const HAND_TOUR = { yawDegPerView: 160, pitchDegPerView: 90, speedDegPerS: 900, zoomGain: 2 } as const;
+
+const exposeForTests =(key: string, value: unknown) => {
   window.__ITHACA__ = { ...window.__ITHACA__, [key]: value };
 };
 
@@ -240,6 +244,49 @@ export function TourTab({ twin, active }: { twin: PropertyTwin; active: boolean 
       }
     });
   }, [sdk]);
+
+  // Hand control: a pinch-drag turns the view, both hands pinching zoom. The viewer takes one
+  // camera call at a time, so movement gathers while a call is out and goes in the next one.
+  useEffect(() => {
+    if (!sdk || !active) return;
+    let yaw = 0;
+    let pitch = 0;
+    let zoom = 0;
+    let busy = false;
+    let live = true;
+    const flush = () => {
+      if (busy || !live) return;
+      let call: Promise<unknown> | null = null;
+      if (Math.abs(yaw) >= 0.2 || Math.abs(pitch) >= 0.2) {
+        call = sdk.Camera.rotate(yaw, pitch, { speed: HAND_TOUR.speedDegPerS });
+        yaw = pitch = 0;
+      } else if (Math.abs(zoom) >= 0.01) {
+        // Inside only: the viewer has no zoom in the outside (dollhouse) view.
+        call = sdk.Camera.zoomBy(zoom);
+        zoom = 0;
+      }
+      if (!call) return;
+      busy = true;
+      call.catch(() => {}).finally(() => {
+        busy = false;
+        flush();
+      });
+    };
+    const off = onHandNav((nav) => {
+      if (nav.type === 'drag') {
+        // The scene follows the hand: moving it right turns the view left.
+        yaw -= nav.du * HAND_TOUR.yawDegPerView;
+        pitch += nav.dv * HAND_TOUR.pitchDegPerView;
+      } else {
+        zoom += (nav.factor - 1) * HAND_TOUR.zoomGain;
+      }
+      flush();
+    });
+    return () => {
+      live = false;
+      off();
+    };
+  }, [sdk, active]);
 
   // The chosen layout's furniture, in the Showcase scene.
   const placements = useMemo(() => {

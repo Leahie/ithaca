@@ -151,9 +151,25 @@ list beside them. Everything else is built and tested but switched off. `NEXT_PU
 | `agent` | The chat dock |
 | `phone` | QR pairing for the phone controller |
 | `me` | The link to `/me` |
+| `hands` (default) | Hand control: the **Hands** button in the header |
 | `all` | Everything |
 
 Example: `NEXT_PUBLIC_FEATURES=tour,sun,agent`.
+
+## Hand control
+
+The **Hands** button turns on the webcam and follows the user's hands with MediaPipe, in the
+browser (`src/lib/hands/`, after HoloTouch). Nothing leaves the machine.
+
+- Pinch thumb and index, and move the hand: drag the view, as with a mouse. In the Tour this
+  turns the camera; in the Sun Lab it orbits.
+- Pinch with both hands: pull them apart to zoom in, together to zoom out (the Tour zooms
+  indoors only).
+
+A ring follows each hand over the view (sky blue left, coral right) and tightens as the
+fingers close; a small camera picture in the corner shows what is tracked. The wasm is copied to
+`public/mediapipe` at install; the model is fetched from Google's model storage the first time
+(`NEXT_PUBLIC_HAND_MODEL_URL` points elsewhere).
 
 ## The Tour: indoors and outdoors
 

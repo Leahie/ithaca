@@ -186,6 +186,9 @@ importers:
       '@matterport/webcomponent':
         specifier: ^0.1.47
         version: 0.1.47(three@0.184.0)
+      '@mediapipe/tasks-vision':
+        specifier: 1.1.1
+        version: 1.1.1
       '@react-three/drei':
         specifier: ^10.7.9
         version: 10.7.9(@react-three/fiber@9.8.2(@types/react@19.3.0)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(three@0.184.0))(@types/react@19.3.0)(@types/three@0.184.0)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(three@0.184.0)
@@ -627,6 +630,9 @@ packages:
 
   '@mediapipe/tasks-vision@0.10.17':
     resolution: {integrity: sha512-CZWV/q6TTe8ta61cZXjfnnHsfWIdFhms03M9T7Cnd5y2mdpylJM0rF1qRq+wsQVRMLz1OYPVEBU9ph2Bx8cxrg==}
+
+  '@mediapipe/tasks-vision@1.1.1':
+    resolution: {integrity: sha512-jwntgT5tzDrKOkqg6xNDNpRcTUnGvmylZE5DFnzPXossiWOIDdZX+C81LI75hlXhsG58YZW+lGzcmjH1qrQE/Q==}
 
   '@monogrid/gainmap-js@3.7.3':
     resolution: {integrity: sha512-YjgdH65wZ9lQnzkVWerrR9FJR0JYhn3ahV7DJqDZVtIvR/kWv7XzFbMSIOFS/47+nWbZ5zFTRxsFhq0OX//SuA==}
@@ -1983,6 +1989,8 @@ snapshots:
       three: 0.184.0
 
   '@mediapipe/tasks-vision@0.10.17': {}
+
+  '@mediapipe/tasks-vision@1.1.1': {}
 
   '@monogrid/gainmap-js@3.7.3(three@0.184.0)':
     dependencies:

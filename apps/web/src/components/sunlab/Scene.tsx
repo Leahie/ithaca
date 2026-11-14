@@ -24,6 +24,7 @@ import { CSM } from 'three/examples/jsm/csm/CSM.js';
 import { rampColor } from '@/components/charts/kit';
 import type { V3 } from '@/lib/geometry/frames';
 import { bounds, centroid, pointInPolygon } from '@/lib/geometry/polygon';
+import { onHandNav } from '@/lib/hands/engine';
 import { onSessionEvent, useSession } from '@/lib/store/session';
 import { createPortalDepthMaterial, createPortalUniforms, passesLight, setPortals, type PortalUniforms } from '@/lib/sunlab/portals';
 import { floorGeometry, wallGeometry } from '@/lib/three/roomShell';
@@ -473,6 +474,9 @@ function roomCamera(room: Room, openings: Opening[], sweeps: PropertyTwin['sweep
   return { position: new Vector3(cx + dx * reach, room.floor_y + 1.6, cz + dz * reach), target, reach };
 }
 
+/** Radians a hand drag across the whole view orbits the camera. */
+const HAND_ORBIT_PER_VIEW = 200 * DEG;
+
 function CameraRig({ twin, openings, view }: { twin: PropertyTwin; openings: Opening[]; view: SunLabView }) {
   const controls = useRef<CameraControls>(null);
   const first = useRef(true);
@@ -505,6 +509,19 @@ function CameraRig({ twin, openings, view }: { twin: PropertyTwin; openings: Ope
         if (event.type === 'viewer.look' && useSession.getState().viewer.mode === 'sun') {
           void controls.current?.rotate(-event.payload.yaw_delta_deg * DEG, -event.payload.pitch_delta_deg * DEG, true);
         }
+      }),
+    [],
+  );
+
+  // Hand control: a pinch-drag orbits as a mouse drag does, both hands pinching dolly in and out.
+  // The engine sends small steps every display frame, so they are applied at once, not eased.
+  useEffect(
+    () =>
+      onHandNav((nav) => {
+        const c = controls.current;
+        if (!c || useSession.getState().viewer.mode !== 'sun') return;
+        if (nav.type === 'drag') void c.rotate(-nav.du * HAND_ORBIT_PER_VIEW, -nav.dv * HAND_ORBIT_PER_VIEW * 0.6, false);
+        else void c.dollyTo(c.distance / nav.factor, false);
       }),
     [],
   );
