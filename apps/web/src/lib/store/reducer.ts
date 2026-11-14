@@ -198,6 +198,7 @@ export function applyEvent(state: CoreState, event: AnyEvent): CoreState {
       return { ...state, chat: push(state.chat, { kind: 'catalog', id: event.id, property_id: p.property_id, room_id: p.room_id ?? null, near_item_id: p.near_item_id ?? null, pieces: p.pieces, member_id: event.member_id ?? null }) };
     }
     case 'catalog.picked': // the user's click; the agent is told by the server
+    case 'layout.confirm': // "keep this layout": the agent records it; the view already shows it
     case 'viewer.look':
     case 'capture.upload':
     case 'sound.placeSource': // TODO(A): C's place-a-sound demo (docs/handoffs/stream-a)

@@ -237,7 +237,8 @@ def design_show_variants(layout_ids: list[str], runtime: Runtime) -> str:
     _place_in_view(runtime, layouts[0])
     return (
         f"Option 1 is now placed in the room and the user is looking at it. All {len(layout_ids)} option(s) are in the chat "
-        "as small plans they can click to switch. Say briefly what option 1 does; they can also tell you what to change."
+        "as small plans they can click to try, with a Keep button to settle on one. Say briefly what option 1 does. "
+        "Nothing is decided until they press Keep: don't record a choice in memory before the layout_chosen event."
     )
 
 

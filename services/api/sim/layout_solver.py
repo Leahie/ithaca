@@ -33,7 +33,8 @@ PATH_M = 0.9  # width a person needs to walk
 DOOR_CLEAR_M = 0.9  # clear floor in front of a door
 WINDOW_CLEAR_M = 0.3
 GAP_M = 0.05  # minimum gap between two pieces
-WALL_GAP_M = 0.03
+WALL_GAP_M = 0.03  # between a piece and the wall face (room for a baseboard)
+DEFAULT_WALL_M = 0.14  # wall thickness assumed when the twin has no wall list
 RESTARTS = 14
 STEPS_PER_ITEM = 260
 HARD = 1000.0  # energy per unit of hard violation: always dominates the soft terms
@@ -189,6 +190,13 @@ def _scene(room: Room, openings: list[Opening], twin_walls: list[Wall] | None = 
     poly = Polygon(room.polygon)
     if not poly.is_valid:
         poly = poly.buffer(0)
+    # Room outlines run along the middle of the walls (adjoining rooms share an edge), so the wall
+    # face a piece can touch is half a wall inside the outline. Work on that inner floor.
+    thickness = [w.thickness_m for w in (twin_walls or []) if room.room_id in w.room_ids]
+    inset = (max(thickness) if thickness else DEFAULT_WALL_M) / 2
+    inner = poly.buffer(-inset, join_style="mitre")
+    if not inner.is_empty:
+        poly = max(getattr(inner, "geoms", [inner]), key=lambda g: g.area)
     outline = poly.simplify(0.03)
     pts = list(outline.exterior.coords)[:-1]
     walls = []

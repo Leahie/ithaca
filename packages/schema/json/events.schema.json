@@ -981,6 +981,13 @@
         "server"
       ]
     },
+    "layout.confirm": {
+      "payload": "LayoutSelectPayload",
+      "sent_by": [
+        "desktop",
+        "phone"
+      ]
+    },
     "layout.select": {
       "payload": "LayoutSelectPayload",
       "sent_by": [

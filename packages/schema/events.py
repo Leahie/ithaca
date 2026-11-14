@@ -201,6 +201,9 @@ EVENTS: dict[str, tuple[type[Model], frozenset[str]]] = {
     "viewer.look": (ViewerLookPayload, frozenset({"phone"})),
     "design.showVariants": (DesignShowVariantsPayload, frozenset({"agent"})),
     "layout.select": (LayoutSelectPayload, frozenset({"agent", "phone", "desktop"})),
+    # Additive to v0. layout.select only previews an option in the room; layout.confirm is the user
+    # saying "keep this one", and is what the agent records.
+    "layout.confirm": (LayoutSelectPayload, frozenset({"phone", "desktop"})),
     "sound.setScenario": (SoundSetScenarioPayload, frozenset({"agent", "phone", "desktop"})),
     "sound.placeSource": (SoundPlaceSourcePayload, frozenset({"agent", "phone", "desktop"})),
     "sound.clearSource": (SoundClearSourcePayload, frozenset({"agent", "phone", "desktop"})),

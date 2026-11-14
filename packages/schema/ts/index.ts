@@ -822,6 +822,7 @@ export interface EventPayloads {
   "viewer.look": ViewerLookPayload;
   "design.showVariants": DesignShowVariantsPayload;
   "layout.select": LayoutSelectPayload;
+  "layout.confirm": LayoutSelectPayload;
   "sound.setScenario": SoundSetScenarioPayload;
   "sound.placeSource": SoundPlaceSourcePayload;
   "sound.clearSource": SoundClearSourcePayload;
@@ -842,7 +843,7 @@ export interface EventPayloads {
 }
 
 export type EventType = keyof EventPayloads;
-export const EVENT_TYPES = ["session.state", "session.joined", "session.left", "viewer.goto", "viewer.walk", "viewer.setTime", "viewer.setMode", "viewer.look", "design.showVariants", "layout.select", "sound.setScenario", "sound.placeSource", "sound.clearSource", "catalog.suggest", "catalog.picked", "capture.upload", "chat.user", "voice.transcript", "agent.token", "agent.message", "agent.action", "agent.error", "agent.turn", "job.progress", "family.note", "family.ask", "family.answer"] as const satisfies readonly EventType[];
+export const EVENT_TYPES = ["session.state", "session.joined", "session.left", "viewer.goto", "viewer.walk", "viewer.setTime", "viewer.setMode", "viewer.look", "design.showVariants", "layout.select", "layout.confirm", "sound.setScenario", "sound.placeSource", "sound.clearSource", "catalog.suggest", "catalog.picked", "capture.upload", "chat.user", "voice.transcript", "agent.token", "agent.message", "agent.action", "agent.error", "agent.turn", "job.progress", "family.note", "family.ask", "family.answer"] as const satisfies readonly EventType[];
 
 /** The typed envelope for one known event type. */
 export interface Event<T extends EventType = EventType> {

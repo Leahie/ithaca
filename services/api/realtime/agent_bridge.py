@@ -128,7 +128,7 @@ class AgentBridge:
         elif event.type == "viewer.walk":
             self._last_room[sid] = p["to_room_id"]
             log_.enter_room(p["to_room_id"], by_user=False)
-        elif event.type == "layout.select" and by_user:
+        elif event.type == "layout.confirm" and by_user:  # a click on an option only previews it (layout.select)
             from services.api.agent.design_tools import describe_layout
             from services.api.furniture.store import furniture_store
 
