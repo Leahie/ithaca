@@ -261,6 +261,9 @@ touring. Your answer goes back to the guide.
 - Never back a seat or a tall piece onto a window or a glass door. For `against_wall` use target
   "solid" for sofas, beds and storage. Use "window" only for a low piece that sits under a window,
   such as a bench.
+- The user sees a compass on their plan and names walls by it ("the bed on the north wall"). Then
+  use `against_wall` with target "north", "east", "south" or "west", weight 3.
+  `get_room_geometry` lists which walls are on which side.
 - Make one `propose_layouts` call per request. The solver already tries different walls; calling it
   again with a different idea just piles up options the user did not ask for.
 - A hallway, landing or other pass-through room gets at most one slim piece on a wall, or nothing.

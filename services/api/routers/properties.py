@@ -248,6 +248,17 @@ def get_noise_house(pid: str, hour: int = Query(..., ge=0, le=23), glazing: Glaz
         return service.noise_house(pid, hour, _scenario(glazing, add_carpet, include_furniture, windows_open))
 
 
+@router.get("/properties/{pid}/soundscape")
+def get_soundscape(pid: str, x_user_id: str = UserId) -> FileResponse:
+    """Each outdoor sound at the house (highway, main roads, birds, insects, ...) per local hour for
+    every season x weekday/weekend. Built offline by `python -m services.api.twin.soundscape_cli <pid>`;
+    404 until that has been run for this home."""
+    path = fixtures_dir() / "reports" / Path(pid).name / "soundscape.json"
+    if Path(pid).name != pid or not path.is_file():
+        raise HTTPException(404, f"No soundscape for {pid} yet")
+    return FileResponse(path, media_type="application/json")
+
+
 @router.get("/properties/{pid}/noise/sources", response_model=NoiseSources)
 def get_noise_sources(pid: str, x_user_id: str = UserId) -> NoiseSources:
     """Roads and railways around the house (traffic, speed, where the numbers came from, lat/lon

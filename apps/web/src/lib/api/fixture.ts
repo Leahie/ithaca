@@ -1,5 +1,6 @@
-import type { Household, InventoryItem, JobProgressPayload, LayoutVariant, NoiseReport, NoiseScenario, Opening, PropertyTwin, SunReport } from '@ithaca/schema';
+import type { HousePiece, Household, InventoryItem, JobProgressPayload, LayoutVariant, NoiseReport, NoiseScenario, Opening, PropertyTwin, SunReport } from '@ithaca/schema';
 import { config } from '@/lib/config';
+import { pointInPolygon } from '@/lib/geometry/polygon';
 import { ApiError, type ApiClient } from './types';
 
 /**
@@ -12,14 +13,22 @@ const OVERLAY_KEY = `ithaca.fixture.${config.userId}`;
 
 interface Overlay {
   openings: Record<string, Opening[]>;
-  layouts: Record<string, Partial<Pick<LayoutVariant, 'status' | 'feedback' | 'placements'>>>;
+  layouts: Record<string, Partial<Pick<LayoutVariant, 'status' | 'feedback'>>>;
+  /** The in_house table, per property. Absent until this browser first changes the house. */
+  house: Record<string, HousePiece[]>;
   addedItems: InventoryItem[];
   deletedItems: string[];
   memory: Record<string, string | null>; // null = deleted
   uploads: Record<string, string>; // upload_id -> preview URL
 }
 
-const empty = (): Overlay => ({ openings: {}, layouts: {}, addedItems: [], deletedItems: [], memory: {}, uploads: {} });
+const empty = (): Overlay => ({ openings: {}, layouts: {}, house: {}, addedItems: [], deletedItems: [], memory: {}, uploads: {} });
+
+/** Yaw in [0, 360), to 0.1° (F5). */
+const normYaw = (deg: number): number => {
+  const r = Math.round((((deg % 360) + 360) % 360) * 10) / 10;
+  return r >= 360 ? 0 : r;
+};
 
 function readOverlay(): Overlay {
   try {
@@ -139,6 +148,27 @@ export function createFixtureApi(): ApiClient {
     const o = readOverlay();
     const base = await fixture<InventoryItem[]>(`inventory/${encodeURIComponent(config.userId)}.json`).catch(() => [] as InventoryItem[]);
     return [...base, ...o.addedItems].filter((i) => !o.deletedItems.includes(i.item_id));
+  };
+
+  /**
+   * What stands in the house. Until this browser first changes it, that is the fixture's chosen
+   * layouts (one per room, later ones winning a piece), less pieces no longer in storage.
+   */
+  const house = async (pid: string): Promise<HousePiece[]> => {
+    const o = readOverlay();
+    const owned = new Set((await inventory()).map((i) => i.item_id));
+    const stored = o.house[pid];
+    if (stored) return stored.filter((p) => owned.has(p.item_id));
+    const twin = await baseTwin(pid);
+    const pieces = new Map<string, HousePiece>();
+    for (const l of (await baseLayouts(pid)).map((x) => withOverlay(x, o)).filter((x) => x.status === 'chosen')) {
+      const floorY = twin.rooms.find((r) => r.room_id === l.room_id)?.floor_y ?? 0;
+      for (const p of l.placements) {
+        if (!owned.has(p.item_id)) continue;
+        pieces.set(p.item_id, { item_id: p.item_id, property_id: pid, room_id: l.room_id, position: { ...p.position, y: floorY }, yaw_deg: normYaw(p.yaw_deg), placed_by: l.user_id, updated_at: new Date(0).toISOString(), warnings: [] });
+      }
+    }
+    return [...pieces.values()];
   };
 
   const findLayout = async (id: string): Promise<LayoutVariant> => {
@@ -272,10 +302,41 @@ export function createFixtureApi(): ApiClient {
       return hit;
     },
     async deleteInventoryItem(id) {
+      // A deleted piece leaves every house too (F3).
+      const pids = new Set([...twins.keys(), ...Object.keys(readOverlay().house), config.defaultPropertyId].filter(Boolean));
+      const houses = await Promise.all([...pids].map(async (pid) => [pid, await house(pid)] as const));
       patchOverlay((o) => {
         o.addedItems = o.addedItems.filter((i) => i.item_id !== id);
         if (!o.deletedItems.includes(id)) o.deletedItems.push(id);
+        for (const [pid, pieces] of houses) o.house[pid] = pieces.filter((p) => p.item_id !== id);
       });
+    },
+    listHouseFurniture: house,
+    async placePiece(pid, itemId, place) {
+      // Fixture mode has no solver: the spot is kept as given (snap included), with no warnings.
+      if (!(await inventory()).some((i) => i.item_id === itemId)) throw new ApiError(`No piece ${itemId} in storage`, 404);
+      const twin = await baseTwin(pid);
+      const room = twin.rooms.find((r) => (!place.floor_id || r.floor_id === place.floor_id) && pointInPolygon([place.x, place.z], r.polygon));
+      if (!room) throw new ApiError('That spot is not inside any room.', 409);
+      if (place.room_id && place.room_id !== room.room_id) throw new ApiError(`That spot is in ${room.label}, not ${place.room_id}.`, 409);
+      const pieces = await house(pid);
+      const prev = pieces.find((p) => p.item_id === itemId);
+      const piece: HousePiece = {
+        item_id: itemId,
+        property_id: pid,
+        room_id: room.room_id,
+        position: { x: place.x, y: room.floor_y, z: place.z },
+        yaw_deg: normYaw(place.yaw_deg ?? prev?.yaw_deg ?? 0),
+        placed_by: config.userId,
+        updated_at: new Date().toISOString(),
+        warnings: [],
+      };
+      patchOverlay((o) => (o.house[pid] = [...pieces.filter((p) => p.item_id !== itemId), piece]));
+      return piece;
+    },
+    async removePiece(pid, itemId) {
+      const pieces = await house(pid);
+      patchOverlay((o) => (o.house[pid] = pieces.filter((p) => p.item_id !== itemId)));
     },
     async listLayouts(pid, roomId) {
       const o = readOverlay();
@@ -284,31 +345,26 @@ export function createFixtureApi(): ApiClient {
     getLayout: findLayout,
     async selectLayout(id) {
       const chosen = await findLayout(id);
-      const siblings = (await baseLayouts(chosen.property_id)).filter((l) => l.room_id === chosen.room_id);
+      const pid = chosen.property_id;
+      const siblings = (await baseLayouts(pid)).filter((l) => l.room_id === chosen.room_id);
+      const owned = new Set((await inventory()).map((i) => i.item_id));
+      const twin = await baseTwin(pid);
+      const floorY = twin.rooms.find((r) => r.room_id === chosen.room_id)?.floor_y ?? 0;
+      const now = new Date().toISOString();
+      const kept: HousePiece[] = chosen.placements
+        .filter((p) => owned.has(p.item_id))
+        .map((p) => ({ item_id: p.item_id, property_id: pid, room_id: chosen.room_id, position: { ...p.position, y: floorY }, yaw_deg: normYaw(p.yaw_deg), placed_by: config.userId, updated_at: now, warnings: [] }));
+      const keptIds = new Set(kept.map((p) => p.item_id));
+      // The room becomes exactly the proposal; a piece it takes from another room leaves that room.
+      const rest = (await house(pid)).filter((p) => p.room_id !== chosen.room_id && !keptIds.has(p.item_id));
       patchOverlay((o) => {
-        // One chosen layout per room: the previous choice goes back to "proposed".
-        for (const s of siblings) if (o.layouts[s.layout_id]?.status === 'chosen') o.layouts[s.layout_id] = { ...o.layouts[s.layout_id], status: 'proposed' };
+        for (const s of siblings) if (withOverlay(s, o).status === 'chosen') o.layouts[s.layout_id] = { ...o.layouts[s.layout_id], status: 'proposed' };
         o.layouts[id] = { ...o.layouts[id], status: 'chosen' };
+        o.house[pid] = [...rest, ...kept];
       });
       return { ...chosen, status: 'chosen' };
     },
-    async movePlacement(id, itemId, pose) {
-      // Fixture mode has no solver: the move is kept as given, with no warnings.
-      const layout = withOverlay(await findLayout(id), readOverlay());
-      const placements = layout.placements.map((p) => (p.item_id === itemId ? { ...p, position: { ...p.position, x: pose.x, z: pose.z }, yaw_deg: ((pose.yaw_deg % 360) + 360) % 360 } : p));
-      patchOverlay((o) => (o.layouts[id] = { ...o.layouts[id], placements }));
-      return { ...layout, placements };
-    },
-    async removePlacement(id, itemId) {
-      const layout = withOverlay(await findLayout(id), readOverlay());
-      const placements = layout.placements.filter((p) => p.item_id !== itemId);
-      patchOverlay((o) => (o.layouts[id] = { ...o.layouts[id], placements }));
-      return { ...layout, placements };
-    },
-    // The catalog and the drop solver live on the API: fixture mode has neither.
-    async dropItem() {
-      throw new ApiError('Placing a piece needs the API (fixture mode is on).', 501, true);
-    },
+    // The catalog and the placement solver live on the API: fixture mode has neither.
     async placementOptions() {
       throw new ApiError('Placing a piece needs the API (fixture mode is on).', 501, true);
     },

@@ -5,6 +5,8 @@
   "scripts": {
     "dev": "pnpm --filter @ithaca/web dev",
     "dev:all": "bash scripts/dev.sh",
+    "dev:win": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/dev.ps1",
+    "dev:tunnel": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/dev.ps1 -Tunnel",
     "build": "pnpm --filter @ithaca/web build",
     "test": "pnpm --filter @ithaca/web test",
     "typecheck": "pnpm --filter @ithaca/web typecheck",

@@ -1,4 +1,4 @@
-import type { LayoutVariant } from '@ithaca/schema';
+import type { HousePiece, LayoutVariant, Vec3 } from '@ithaca/schema';
 
 export interface VisibleLayouts {
   variants: LayoutVariant[];
@@ -18,20 +18,27 @@ export function visibleLayouts(all: LayoutVariant[], shownIds: string[], roomId:
   return { variants: all, scope: 'all' };
 }
 
-
-/**
- * The layouts whose furniture is drawn in the house: the selected one, plus the chosen layout of
- * every other room. So furniture stays where the user put it when they walk on to the next room.
- */
-export function shownLayouts(layouts: readonly LayoutVariant[] | undefined, selectedId: string | null): LayoutVariant[] {
-  const all = layouts ?? [];
-  const selected = all.find((l) => l.layout_id === selectedId);
-  const rest = all.filter((l) => l.status === 'chosen' && l.layout_id !== selectedId && l.room_id !== selected?.room_id);
-  return selected ? [selected, ...rest] : rest;
+/** The proposal being tried in its room: the selected layout while it is still only proposed. */
+export function previewLayout(layouts: readonly LayoutVariant[] | undefined, selectedId: string | null): LayoutVariant | undefined {
+  const selected = (layouts ?? []).find((l) => l.layout_id === selectedId);
+  return selected?.status === 'proposed' ? selected : undefined;
 }
 
-/** The layout to work on in a room: the chosen one, else the most recent. Lists come newest first. */
-export function layoutForRoom(layouts: readonly LayoutVariant[] | undefined, roomId: string | null): LayoutVariant | undefined {
-  const inRoom = (layouts ?? []).filter((l) => l.room_id === roomId);
-  return inRoom.find((l) => l.status === 'chosen') ?? inRoom[0];
+export interface OnScreenPiece {
+  item_id: string;
+  room_id: string;
+  position: Vec3;
+  yaw_deg: number;
+}
+
+/**
+ * The furniture every screen draws: what stands in the house, except that the room of a proposal
+ * being tried shows the proposal instead (docs/specs/furniture.md, "What a screen draws").
+ */
+export function furnitureOnScreen(house: readonly HousePiece[] | undefined, preview: LayoutVariant | undefined): OnScreenPiece[] {
+  const standing = (house ?? []).filter((p) => p.room_id !== preview?.room_id);
+  const tried = (preview?.placements ?? []).map((p) => ({ ...p, room_id: preview!.room_id }));
+  const out = new Map<string, OnScreenPiece>();
+  for (const p of [...standing, ...tried]) out.set(p.item_id, { item_id: p.item_id, room_id: p.room_id, position: p.position, yaw_deg: p.yaw_deg });
+  return [...out.values()];
 }

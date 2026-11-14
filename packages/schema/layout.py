@@ -1,4 +1,4 @@
-"""Layout types. Owner: B. Consumer: A."""
+"""Layout and in-house furniture types. Owner: B. Consumer: A. Rules: docs/specs/furniture.md."""
 from __future__ import annotations
 
 from typing import Literal
@@ -17,8 +17,11 @@ class Placement(Model):
 
 
 class LayoutVariant(Model):
+    """A proposal: an arrangement of one room someone suggested. Never furniture in the house
+    until it is applied (F8)."""
+
     layout_id: UUID
-    user_id: str
+    user_id: str  # the house user
     property_id: str
     room_id: str
     placements: list[Placement]
@@ -28,26 +31,33 @@ class LayoutVariant(Model):
     feedback: str | None = None
     # None until the render job finishes.
     thumbnail_url: str | None = None
-    # Only in the reply to a manual move or drop: things a designer would flag (a blocked door, an
-    # overlap). The move was saved anyway. Never stored.
+
+
+class HousePiece(Model):
+    """A stored piece standing in a house: one row of the in-house table."""
+
+    item_id: UUID
+    property_id: str
+    # Always the room whose outline holds (position.x, position.z) on its floor (F4).
+    room_id: str
+    # Interior frame; position.y == the room's floor height.
+    position: Vec3
+    # I-G12; 0 <= yaw_deg < 360 (F5).
+    yaw_deg: float
+    # The person who put it there last.
+    placed_by: str
+    updated_at: str
+    # Only in the reply to a move: things a designer would flag (a blocked door, an overlap).
+    # The move was saved anyway. Never stored (F9).
     warnings: list[str] | None = None
 
 
-class PlacementMove(Model):
-    """Body of PUT /layouts/{layout_id}/placements/{item_id}: where the user dragged a piece."""
+class PlacePiece(Model):
+    """Body of PUT /properties/{property_id}/furniture/{item_id}: put a piece at a spot, or move it."""
 
     x: float  # interior frame, meters
     z: float
-    yaw_deg: float  # I-G12
-
-
-class PlacementDrop(Model):
-    """Body of POST /layouts/drop: the user pointed at a spot on the floor plan for one piece."""
-
-    property_id: str
-    room_id: str | None = None  # None: the server finds the room under the point on floor_id
-    floor_id: str | None = None
-    item_id: str
-    x: float  # interior frame, meters
-    z: float
-    layout_id: str | None = None  # add the piece to this layout; None starts a new one for the room
+    yaw_deg: float | None = None  # None: keep the piece's turn (0 for a piece new to the house)
+    floor_id: str | None = None  # the floor of the spot; None: the piece's floor, else any floor
+    room_id: str | None = None  # with snap: the room to look in, when the spot itself is not in it
+    snap: bool = False  # True: the nearest spot within 2 m that breaks no rule; False: exactly here

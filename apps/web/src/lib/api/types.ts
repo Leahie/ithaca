@@ -5,9 +5,9 @@ import type {
   InventoryItem,
   JoinHouseholdResult,
   JobRef,
+  HousePiece,
   LayoutVariant,
-  PlacementDrop,
-  PlacementMove,
+  PlacePiece,
   NoiseReport,
   NoiseScenario,
   Ok,
@@ -57,31 +57,33 @@ export interface ApiClient {
   joinSession(sessionId: string, pairToken: string): Promise<Ok>;
   upload(file: Blob, filename: string): Promise<UploadResult>;
   ingestObject(uploadId: string): Promise<JobRef>;
+  // Furniture: docs/specs/furniture.md.
+  /** Storage: the family's pieces (each with its owner). */
   listInventory(): Promise<InventoryItem[]>;
   getInventoryItem(itemId: string): Promise<InventoryItem>;
+  /** Delete a piece for good; it leaves the house too. Only its owner (or the host) may. */
   deleteInventoryItem(itemId: string): Promise<void>;
+  /** In the house: every piece standing in it, with its room and pose. */
+  listHouseFurniture(propertyId: string): Promise<HousePiece[]>;
+  /**
+   * Place a piece, or move it. The server finds the room from the spot. By hand (`snap: false`)
+   * any spot inside a room is saved, with `warnings`; `snap: true` takes the nearest valid spot.
+   * 409 when the spot is in no room (or, snapping, nothing fits).
+   */
+  placePiece(propertyId: string, itemId: string, place: PlacePiece): Promise<HousePiece>;
+  /** Take a piece out of the house. It stays in storage. */
+  removePiece(propertyId: string, itemId: string): Promise<void>;
+  /** Proposals: arrangements suggested for one room. Never furniture until kept. */
   listLayouts(propertyId: string, roomId?: string): Promise<LayoutVariant[]>;
   /**
    * One layout by id, for the render page (section 2.6). REST v0 has no such route yet;
    * the HTTP client asks for `GET /layouts/{id}`. See docs/stream-a.md, "Contract gaps".
    */
   getLayout(layoutId: string): Promise<LayoutVariant>;
+  /** Keep a proposal: its room's furniture becomes exactly its pieces. */
   selectLayout(layoutId: string): Promise<LayoutVariant>;
   layoutFeedback(layoutId: string, feedback: string): Promise<LayoutVariant>;
-  /**
-   * The user moved or turned one piece by hand. Saved at any spot and angle inside the room;
-   * `warnings` on the result lists what a designer would flag. Rejects (409) only if the piece's
-   * center leaves the room.
-   */
-  movePlacement(layoutId: string, itemId: string, pose: PlacementMove): Promise<LayoutVariant>;
-  /**
-   * Put one owned piece near a spot. The server moves it to the nearest place that works. With
-   * `layout_id` it joins that layout; with `room_id` (or `floor_id`) and no layout, a new one starts.
-   */
-  /** Take one piece out of a layout. It stays in the inventory. */
-  removePlacement(layoutId: string, itemId: string): Promise<LayoutVariant>;
-  dropItem(drop: PlacementDrop): Promise<LayoutVariant>;
-  /** Up to three proposed layouts that add one owned piece to a room, each at a different spot. */
+  /** Up to three proposed layouts that add one piece to a room, each at a different spot. */
   placementOptions(ask: { property_id: string; room_id: string; item_id: string }): Promise<LayoutVariant[]>;
   /** Ready-made furniture that can be added without a photo. */
   listCatalog(): Promise<CatalogPiece[]>;

@@ -12,8 +12,10 @@ import { ApiError } from '@/lib/api';
 import { config, type Feature } from '@/lib/config';
 import { useLayouts, useTwin } from '@/lib/data/hooks';
 import { useHands } from '@/lib/hands/store';
+import { sweepRooms } from '@/lib/rooms';
 import { useFamily } from '@/lib/store/family';
 import { useSession } from '@/lib/store/session';
+import { useDesktopPlayback } from '@/lib/store/usePlayback';
 import { sunPosition } from '@/lib/sun/position';
 import { fromZonedParts, toZonedIso, zonedParts } from '@/lib/time';
 import { AgentDock } from './AgentDock';
@@ -86,6 +88,7 @@ function House({ propertyId }: { propertyId: string }) {
   const [controls, setControls] = useState(false);
   const clean = (has('family') || has('phone')) && !controls && (mode === 'tour' || mode === 'sun');
   const initialised = useRef<string | null>(null);
+  useDesktopPlayback(twin.data?.timezone);
 
   // Values that come from the twin, not from a user action.
   useEffect(() => {
@@ -99,7 +102,7 @@ function House({ propertyId }: { propertyId: string }) {
     }
     useSession.getState().init({
       viewer: { datetime: toZonedIso(now, twin.data.timezone) },
-      sweepRooms: Object.fromEntries(twin.data.sweeps.map((s) => [s.sweep_id, s.room_id ?? null])),
+      sweepRooms: sweepRooms(twin.data),
     });
   }, [twin.data]);
 

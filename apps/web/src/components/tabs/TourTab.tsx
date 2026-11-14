@@ -2,16 +2,17 @@
 
 import { cubicBezier } from '@/lib/geometry/bezier';
 import { HousePlan } from '@/components/house/HousePlan';
-import { shownLayouts } from '@/lib/layouts';
-import type { InventoryItem, LayoutVariant, PropertyTwin } from '@ithaca/schema';
+import { furnitureOnScreen, previewLayout } from '@/lib/layouts';
+import type { InventoryItem, PropertyTwin } from '@ithaca/schema';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { HouseLoader } from '@/components/house/HouseLoader';
 import { SoundTimelapse } from '@/components/sound/SoundTimelapse';
 import { Badge, Notice, ViewState } from '@/components/ui';
 import { api } from '@/lib/api';
 import { config } from '@/lib/config';
-import { useInventory, useLayouts } from '@/lib/data/hooks';
+import { useHouseFurniture, useInventory, useLayouts } from '@/lib/data/hooks';
 import { onHandNav } from '@/lib/hands/engine';
+import { sweepRooms } from '@/lib/rooms';
 import { defaultStartSweep, rotationToward, sweepForRoom, viewForRoom } from '@/lib/showcase/rooms';
 import type { MpSdk } from '@/lib/showcase/sdk-types';
 import { mountShowcase, type ShowcaseHandle } from '@/lib/showcase/viewer';
@@ -89,12 +90,15 @@ export function TourTab({ twin, active }: { twin: PropertyTwin; active: boolean 
   const [placed, setPlaced] = useState<{ count: number; error: string | null }>({ count: 0, error: null });
   const sdkSweeps = useRef<Map<string, SdkSweep>>(new Map());
   const programmatic = useRef<string | null>(null);
+  /** The sweep the camera stands on now, as the viewer last reported it. */
+  const here = useRef<string | null>(null);
 
   const roomId = useSession((s) => s.viewer.room_id);
   const sweepId = useSession((s) => s.viewer.sweep_id);
   const gotoSeq = useSession((s) => s.viewer.goto_seq);
   const selectedLayoutId = useSession((s) => s.viewer.selected_layout_id);
   const layouts = useLayouts(twin.property_id);
+  const house = useHouseFurniture(twin.property_id);
   const inventory = useInventory();
   const outsideSeq = useTour((s) => s.outsideSeq);
   const canPlaceObjects = config.matterportViewer === 'bundle';
@@ -174,17 +178,18 @@ export function TourTab({ twin, active }: { twin: PropertyTwin; active: boolean 
   // When the user walks in the Showcase, the session follows: same event as a click on the room list (A1).
   useEffect(() => {
     if (!sdk) return;
-    const twinSweeps = new Map(twin.sweeps.map((s) => [s.sweep_id, s]));
+    const rooms = sweepRooms(twin);
     const currentSub = sdk.Sweep.current.subscribe((current) => {
       const id = current.id;
-      if (!id) return;
+      if (id) here.current = id;
+      if (!id || !(id in rooms)) return;
       if (programmatic.current) {
         if (programmatic.current === id) programmatic.current = null;
         return;
       }
       const s = useSession.getState();
-      const room = twinSweeps.get(id)?.room_id;
-      if (room && room !== s.viewer.room_id) s.dispatch('viewer.goto', { sweep_id: id });
+      // Into no room too (stairs, patio): the label must not keep the last room.
+      if (rooms[id] !== s.viewer.room_id) s.dispatch('viewer.goto', { sweep_id: id });
     });
     return () => currentSub.cancel();
   }, [sdk, twin]);
@@ -219,6 +224,9 @@ export function TourTab({ twin, active }: { twin: PropertyTwin; active: boolean 
         })
         .finally(() => {
           moving.current = false;
+          // The viewer does not always report arriving (a move to where it already is); a guard
+          // left standing would ignore the user's next walk into another room.
+          if (programmatic.current === target) programmatic.current = null;
           const next = queued.current;
           queued.current = null;
           if (next) moveTo(next.target, next.instant, next.attempt, next.facing);
@@ -283,6 +291,8 @@ export function TourTab({ twin, active }: { twin: PropertyTwin; active: boolean 
       }
       console.warn(`[tour] sweep ${wanted} is not in the Showcase model; using the nearest sweep ${target} (${best.toFixed(2)} m away)`);
     }
+    // The user walked here themselves: the session is following the camera, not moving it.
+    if (!first && sweepId && target === here.current) return;
     const from = sweepPosition(target);
     moveTo(target, first, 0, best && from ? rotationToward(from, best.lookAt) : undefined);
     if (first) setTimeout(() => setRevealed(true), 400); // an instant move
@@ -498,15 +508,14 @@ export function TourTab({ twin, active }: { twin: PropertyTwin; active: boolean 
     };
   }, [sdk, active]);
 
-  // The chosen layout's furniture, in the Showcase scene.
+  // The house's furniture (or the layout being tried in its room), in the Showcase scene.
   const placements = useMemo(() => {
     const items = new Map<string, InventoryItem>((inventory.data ?? []).map((i) => [i.item_id, i]));
-    // Every room keeps its furniture: the layout on screen plus the chosen one of each other room.
-    return shownLayouts(layouts.data, selectedLayoutId).flatMap((l) => l.placements).flatMap((p) => {
+    return furnitureOnScreen(house.data, previewLayout(layouts.data, selectedLayoutId)).flatMap((p) => {
       const item = items.get(p.item_id);
       return item ? [{ ...p, url: api().assetUrl(item.glb_url) }] : [];
     });
-  }, [layouts.data, inventory.data, selectedLayoutId]);
+  }, [house.data, layouts.data, inventory.data, selectedLayoutId]);
 
   // One scene object per piece, kept between changes: a piece that only moved or turned is
   // re-posed where it stands, a new one is loaded, one that left is taken out. Nothing else is

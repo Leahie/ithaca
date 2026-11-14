@@ -174,7 +174,8 @@ class NoiseReport(BaseModel):
     laeq_24h_dba: float | None = None
     laeq_day_dba: float | None = None
     laeq_night_dba: float | None = None
-    outdoor_hourly: list[NoiseHour] = []  # just outside the room's most exposed wall
+    # just outside the room's most exposed wall; with no outside wall, the one its outside sound comes in by
+    outdoor_hourly: list[NoiseHour] = []
     outdoor_lden_dba: float | None = None
     outdoor_lnight_dba: float | None = None
     traffic: TrafficData = "none"  # where road volumes came from (counts or class defaults)
@@ -185,8 +186,8 @@ class NoiseRoomHour(BaseModel):
     room_id: str
     laeq_dba: float
     bands_db: list[float]
-    outdoor_laeq_dba: float  # outside the room's most exposed wall; 0 for rooms with no outside wall
-    outdoor_bands_db: list[float]  # the same, per band (all 0 with no outside wall)
+    outdoor_laeq_dba: float  # outside the room's most exposed wall, or the one its outside sound comes in by
+    outdoor_bands_db: list[float]  # the same, per band
     rt60_s: float
 
 

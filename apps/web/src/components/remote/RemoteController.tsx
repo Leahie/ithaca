@@ -1,164 +1,21 @@
 'use client';
 
-import type { NoiseScenario, PropertyTwin } from '@ithaca/schema';
-import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { PlanPreview } from '@/components/design/PlanPreview';
-import { JobRows, useObjectUpload } from '@/components/me/InventorySection';
+import type { PropertyTwin } from '@ithaca/schema';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { SessionProvider, useSessionInfo } from '@/components/session/SessionProvider';
-import { Badge, Button, Notice, Segmented, Spinner, Toggle, cn } from '@/components/ui';
-import { IconCamera, IconCheck, IconDesign, IconMap, IconMic, IconSend, IconSound, IconSun, IconTour } from '@/components/ui/icons';
-import { useInventory, useLayouts, useTwin } from '@/lib/data/hooks';
-import { visibleLayouts } from '@/lib/layouts';
-import { roomArea, roomName, roomsOnFloor } from '@/lib/rooms';
+import { Badge, Notice, Segmented, Spinner, cn } from '@/components/ui';
+import { IconChat, IconDesign, IconMap, IconMic, IconMute, IconPause, IconPlay, IconSend, IconSound, IconSun, IconTour } from '@/components/ui/icons';
+import { useTwin } from '@/lib/data/hooks';
+import { roomArea, roomName, roomsOnFloor, sweepRooms } from '@/lib/rooms';
 import { usePushToTalk } from '@/lib/speech/usePushToTalk';
 import { useFamily, useMemberName } from '@/lib/store/family';
 import { useSession } from '@/lib/store/session';
+import { togglePlaying, toggleListening } from '@/lib/store/usePlayback';
 import { RoomIcon } from '@/components/ui/RoomIcon';
-import { ArrangePanel, offerPlacement } from '@/components/house/ArrangePanel';
-import { LightPanel } from './LightPanel';
+import { FurnitureRoom } from './FurnitureRoom';
+import { LightPanel, OFF, ON } from './LightPanel';
 import { MovePad } from './MovePad';
-
-const AS_BUILT: NoiseScenario = { glazing: null, add_carpet: false, include_furniture: true };
-
-function Card({ title, children, testId }: { title: string; children: ReactNode; testId?: string }) {
-  return (
-    <section className="rounded-2xl border border-line bg-surface p-4" data-testid={testId}>
-      <h2 className="mb-3 text-[11px] font-semibold tracking-wider text-faint uppercase">{title}</h2>
-      {children}
-    </section>
-  );
-}
-
-/** Swipe through layout variants; a tap places one. */
-function Variants({ twin }: { twin: PropertyTwin }) {
-  const roomId = useSession((s) => s.viewer.room_id);
-  const shown = useSession((s) => s.viewer.shown_layout_ids);
-  const selectedId = useSession((s) => s.viewer.selected_layout_id);
-  const dispatch = useSession((s) => s.dispatch);
-  const layouts = useLayouts(twin.property_id);
-  const inventory = useInventory();
-  const items = useMemo(() => new Map((inventory.data ?? []).map((i) => [i.item_id, i])), [inventory.data]);
-  const { variants } = useMemo(() => visibleLayouts(layouts.data ?? [], shown, roomId), [layouts.data, shown, roomId]);
-
-  if (!layouts.data) return layouts.error ? <p className="text-sm text-danger">{layouts.error.message}</p> : <Spinner label="Loading layouts…" />;
-  if (!variants.length) return <p className="text-sm leading-5 text-muted">No layouts yet. Ask the agent to lay out a room.</p>;
-
-  return (
-    <div className="-mx-4 flex snap-x snap-mandatory gap-3 overflow-x-auto px-4 pb-1" data-testid="variant-swiper">
-      {variants.map((l, i) => {
-        const room = twin.rooms.find((r) => r.room_id === l.room_id);
-        const selected = l.layout_id === selectedId;
-        return (
-          <article key={l.layout_id} data-layout-id={l.layout_id} data-selected={selected} className={cn('w-[82%] shrink-0 snap-center overflow-hidden rounded-xl border', selected ? 'border-sun' : 'border-line')}>
-            <div className="aspect-[4/3] bg-ink">
-              {l.thumbnail_url ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img src={l.thumbnail_url} alt={`Layout ${i + 1}`} className="h-full w-full object-cover" />
-              ) : (
-                room && <PlanPreview room={room} openings={twin.openings.filter((o) => o.room_id === room.room_id)} placements={l.placements} items={items} labels={false} className="h-full w-full p-3" />
-              )}
-            </div>
-            <div className="space-y-2 p-3">
-              <div className="flex items-baseline justify-between text-sm">
-                <span className="font-medium">
-                  {room ? roomName(twin, room.room_id) : 'Room'} · {i + 1}/{variants.length}
-                </span>
-                <span className="text-xs text-muted">fit {(l.score * 100).toFixed(0)}%</span>
-              </div>
-              <p className="line-clamp-2 text-xs leading-4 text-muted">{l.rationale}</p>
-              <Button variant={selected ? 'subtle' : 'primary'} className="w-full" disabled={selected} onClick={() => dispatch('layout.select', { layout_id: l.layout_id })}>
-                {selected ? (
-                  <>
-                    <IconCheck /> Placed
-                  </>
-                ) : (
-                  'Place in the house'
-                )}
-              </Button>
-            </div>
-          </article>
-        );
-      })}
-    </div>
-  );
-}
-
-function Capture({ twin }: { twin: PropertyTwin }) {
-  const input = useRef<HTMLInputElement>(null);
-  const { upload, busy, error, rows, dismiss } = useObjectUpload();
-  const roomId = useSession((s) => s.viewer.room_id);
-  const [note, setNote] = useState<string | null>(null);
-  // A photo that has become a piece is offered straight away: where could it go in this room?
-  const offeredJobs = useRef(new Set<string>());
-  useEffect(() => {
-    for (const r of rows) {
-      const itemId = r.progress?.status === 'done' ? r.progress.result_ref?.split(',')[0] : undefined;
-      if (!itemId || offeredJobs.current.has(r.job_id)) continue;
-      offeredJobs.current.add(r.job_id);
-      if (!roomId) {
-        setNote('Added to your furniture. Walk into a room to place it.');
-        continue;
-      }
-      offerPlacement(twin.property_id, roomId, itemId).then(
-        (n) => setNote(n > 1 ? `${n} places it fits in ${roomName(twin, roomId)} are on the big screen. Pick one above.` : `Placed in ${roomName(twin, roomId)}.`),
-        (err: unknown) => setNote(err instanceof Error ? err.message : String(err)),
-      );
-    }
-  }, [rows, roomId, twin]);
-  return (
-    <div className="space-y-3">
-      <input
-        ref={input}
-        type="file"
-        accept="image/*"
-        capture="environment"
-        className="sr-only"
-        data-testid="capture-input"
-        onChange={(e) => {
-          const f = e.target.files?.[0];
-          if (f) void upload(f);
-          e.target.value = '';
-        }}
-      />
-      <Button variant="subtle" size="lg" className="w-full" disabled={busy} onClick={() => input.current?.click()}>
-        <IconCamera width={18} height={18} /> {busy ? 'Uploading…' : 'Photograph a piece of furniture'}
-      </Button>
-      {error && <p className="text-xs text-danger">{error}</p>}
-      <JobRows rows={rows} dismiss={dismiss} />
-      {note && <p role="status" className="text-sm text-leaf-deep">{note}</p>}
-    </div>
-  );
-}
-
-function SoundControls({ twin }: { twin: PropertyTwin }) {
-  const viewerRoom = useSession((s) => s.viewer.room_id);
-  const sound = useSession((s) => s.viewer.sound_scenario);
-  const dispatch = useSession((s) => s.dispatch);
-  const roomId = sound?.room_id ?? viewerRoom ?? twin.rooms.find((r) => /bedroom/i.test(r.label))?.room_id ?? twin.rooms[0]?.room_id;
-  const scenario = sound?.scenario ?? AS_BUILT;
-  const room = twin.rooms.find((r) => r.room_id === roomId);
-  if (!roomId) return <p className="text-sm text-muted">No rooms.</p>;
-  const set = (patch: Partial<NoiseScenario>) => dispatch('sound.setScenario', { room_id: roomId, scenario: { ...scenario, ...patch } });
-  type G = 'asbuilt' | 'single' | 'double' | 'triple';
-  return (
-    <div className="space-y-3">
-      <p className="text-xs text-muted">Scenario for {roomName(twin, room?.room_id)}. The sound plays on the desktop.</p>
-      <Segmented<G>
-        className="w-full [&>button]:flex-1 [&>button]:justify-center"
-        label="Window glazing"
-        value={scenario.glazing ?? 'asbuilt'}
-        options={[
-          { value: 'asbuilt', label: 'As built' },
-          { value: 'single', label: 'Single' },
-          { value: 'double', label: 'Double' },
-          { value: 'triple', label: 'Triple' },
-        ]}
-        onChange={(g) => set({ glazing: g === 'asbuilt' ? null : g })}
-      />
-      <Toggle label="Add carpet" checked={!!scenario.add_carpet} onChange={(add_carpet) => set({ add_carpet })} />
-    </div>
-  );
-}
+import { SoundPicker } from './SoundPicker';
 
 /**
  * The conversation as messages: yours on the right, the guide's on the left, newest at the bottom
@@ -215,11 +72,11 @@ function Messages({ memberId }: { memberId: string | null }) {
 
 type RemoteView = 'move' | 'rooms' | 'guide' | 'furniture' | 'light';
 const VIEWS: { view: RemoteView; label: string; icon: typeof IconTour }[] = [
-  { view: 'move', label: 'Move', icon: IconTour },
   { view: 'rooms', label: 'Rooms', icon: IconMap },
-  { view: 'guide', label: 'Guide', icon: IconMic },
+  { view: 'guide', label: 'Guide', icon: IconChat },
+  { view: 'move', label: 'Move', icon: IconTour },
   { view: 'furniture', label: 'Furniture', icon: IconDesign },
-  { view: 'light', label: 'Light', icon: IconSun },
+  { view: 'light', label: 'Env', icon: IconSun },
 ];
 
 /** Big blocks to tap, floor by floor. The map itself is on the big screen while this is open. */
@@ -231,26 +88,37 @@ function RoomBlocks({ twin, onPicked }: { twin: PropertyTwin; onPicked(): void }
   const floors = [...twin.floors].sort((a, b) => Number(b.floor_id === here) - Number(a.floor_id === here) || a.index - b.index);
   return (
     <div className="space-y-5" data-testid="remote-rooms">
-      <p className="text-sm text-muted">The map is on the big screen. Tap where you want to go.</p>
-      {floors.map((floor) => (
-        <section key={floor.floor_id}>
-          <h2 className="mb-2 text-[11px] font-semibold tracking-wider text-faint uppercase">{floor.label ?? `Floor ${floor.index + 1}`}{floor.floor_id === here && ' · you are here'}</h2>
-          <div className="grid grid-cols-2 gap-2">
-            {roomsOnFloor(twin, floor.floor_id).map((r) => (
-              <button key={r.room_id} type="button" data-room-id={r.room_id} aria-pressed={r.room_id === roomId}
-                onClick={() => { dispatch('viewer.goto', { room_id: r.room_id }); onPicked(); }}
-                className={cn('flex min-h-16 items-center gap-3 rounded-[var(--radius-frame)] border px-3 py-2.5 text-left',
-                  r.room_id === roomId ? 'border-main bg-main text-on-main' : 'border-line bg-raised text-text active:bg-ink')}>
-                <RoomIcon label={r.label} width={26} height={26} className={cn('shrink-0', r.room_id === roomId ? 'text-leaf' : 'text-leaf-deep')} />
-                <span className="flex min-w-0 flex-col">
-                  <span className="text-[15px] leading-5 font-semibold">{roomName(twin, r.room_id)}</span>
-                  <span className={cn('font-mono text-xs', r.room_id === roomId ? 'text-on-main/70' : 'text-muted')}>{roomArea(r).toFixed(0)} m²</span>
-                </span>
-              </button>
-            ))}
-          </div>
-        </section>
-      ))}
+      {floors.map((floor) => {
+        const rooms = roomsOnFloor(twin, floor.floor_id);
+        return (
+          <section key={floor.floor_id}>
+            <h2 className="mb-2 flex items-baseline justify-between px-0.5">
+              <span className="font-display text-[15px] font-semibold">{floor.label ?? `Floor ${floor.index + 1}`}</span>
+              <span className="text-xs text-faint">{rooms.length} room{rooms.length === 1 ? '' : 's'}</span>
+            </h2>
+            <div className="grid grid-cols-2 gap-2.5">
+              {rooms.map((r) => {
+                const on = r.room_id === roomId;
+                return (
+                  <button key={r.room_id} type="button" data-room-id={r.room_id} aria-pressed={on}
+                    onClick={() => { dispatch('viewer.goto', { room_id: r.room_id }); onPicked(); }}
+                    className={cn('relative flex min-h-[92px] flex-col justify-between gap-3 rounded-2xl border p-3 text-left transition-transform active:scale-[0.97]',
+                      on ? ON : 'border-line bg-raised text-text active:bg-ink')}>
+                    <span className={cn('flex h-9 w-9 items-center justify-center rounded-xl', on ? 'bg-leaf/25' : 'bg-leaf/15 text-leaf-deep')}>
+                      <RoomIcon label={r.label} width={20} height={20} />
+                    </span>
+                    {on && <span className="absolute top-3 right-3 rounded-full bg-leaf-deep px-2 py-0.5 text-[10px] font-semibold tracking-wide text-white uppercase">Here</span>}
+                    <span className="min-w-0">
+                      <span className="line-clamp-2 text-[15px] leading-tight font-semibold">{roomName(twin, r.room_id)}</span>
+                      <span className="mt-0.5 block font-mono text-[11px] text-muted">{roomArea(r).toFixed(0)} m²</span>
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          </section>
+        );
+      })}
     </div>
   );
 }
@@ -267,7 +135,6 @@ function Remote({ propertyId }: { propertyId: string }) {
   const ptt = usePushToTalk();
   const [text, setText] = useState('');
   const [view, setView] = useState<RemoteView>('move');
-  const choosing = useSession((s) => s.viewer.shown_layout_ids.length > 0 && !s.viewer.shown_layout_ids.includes(s.viewer.selected_layout_id ?? ''));
   // Handedness: the walking stick sits under the dominant thumb, the talk button on the other side.
   const [hand, setHand] = useState<'left' | 'right'>('right');
   const [settings, setSettings] = useState(false);
@@ -283,6 +150,8 @@ function Remote({ propertyId }: { propertyId: string }) {
     } catch {}
   };
   const roomId = useSession((s) => s.viewer.room_id);
+  const room = twin.data?.rooms.find((r) => r.room_id === roomId);
+  const playback = useSession((s) => s.viewer.playback);
 
   // The big screen follows the phone: it shows the floor plan while a room is being chosen.
   useEffect(() => {
@@ -291,7 +160,7 @@ function Remote({ propertyId }: { propertyId: string }) {
 
   // sweep -> room lookup comes from the twin, as on the desktop.
   useEffect(() => {
-    if (twin.data) useSession.getState().init({ sweepRooms: Object.fromEntries(twin.data.sweeps.map((s) => [s.sweep_id, s.room_id ?? null])) });
+    if (twin.data) useSession.getState().init({ sweepRooms: sweepRooms(twin.data) });
   }, [twin.data]);
 
   // A phone held in the hand should not dim while it is the controller.
@@ -337,15 +206,72 @@ function Remote({ propertyId }: { propertyId: string }) {
             options={[{ value: 'left', label: 'Left-handed' }, { value: 'right', label: 'Right-handed' }]}
             onChange={chooseHand}
           />
-          <p className="text-xs text-muted">The walking stick sits under that thumb; the talk button moves to the other corner.</p>
+          <p className="text-xs text-muted">The talk, play and sound buttons sit in the top corner on that side.</p>
+          <div className="pt-2 text-sm font-semibold">The guide&apos;s voice</div>
+          <Segmented<'female' | 'male'>
+            className="w-full [&>button]:flex-1 [&>button]:justify-center"
+            label="The guide's voice"
+            value={playback.voice}
+            options={[{ value: 'female', label: "Woman's voice" }, { value: 'male', label: "Man's voice" }]}
+            onChange={(voice) => dispatch('viewer.playback', { voice })}
+          />
+          <p className="text-xs text-muted">The guide speaks on the big screen.</p>
         </div>
       )}
 
+      {/* Where you are on one side; talk, play the day and sound in the top corner on the dominant hand's side. */}
+      <div className={cn('flex shrink-0 items-center gap-3 border-b border-line bg-ink/95 px-3 py-1', hand === 'left' && 'flex-row-reverse')} data-testid="remote-bar">
+        <div className={cn('min-w-0 flex-1 truncate', hand === 'left' && 'text-right')} data-testid="remote-room">
+          {ptt.listening || ptt.error ? (
+            <span className={cn('text-sm', ptt.error ? 'text-danger' : 'text-text')}>{ptt.error ?? 'Listening…'}</span>
+          ) : twin.data && room ? (
+            <>
+              <span className="font-display text-[15px] font-semibold">{roomName(twin.data, room.room_id)}</span>
+              <span className="font-mono text-xs text-muted"> · {roomArea(room).toFixed(0)} m²</span>
+            </>
+          ) : (
+            <span className="text-sm text-muted">{twin.data ? 'Not in a room yet' : ''}</span>
+          )}
+        </div>
+        {/* The mic is outermost, in the corner; then play, then sound. */}
+        <div className={cn('flex shrink-0 items-center gap-2', hand === 'right' && 'flex-row-reverse')}>
+          <button
+            type="button"
+            disabled={!ptt.supported}
+            aria-label="Hold to talk to the guide"
+            title={ptt.supported ? 'Hold to talk' : 'Speech recognition is not available in this browser'}
+            data-testid="ptt"
+            className={cn('flex h-9 w-9 touch-none items-center justify-center rounded-full transition-transform select-none disabled:opacity-40',
+              ptt.listening ? 'scale-110 bg-leaf text-main' : 'bg-main text-on-main')}
+            onPointerDown={(e) => {
+              e.currentTarget.setPointerCapture(e.pointerId);
+              ptt.start();
+            }}
+            onPointerUp={ptt.stop}
+            onPointerCancel={ptt.stop}
+            onContextMenu={(e) => e.preventDefault()}
+          >
+            <IconMic width={18} height={18} />
+          </button>
+          <button type="button" disabled={!desktopOn} aria-label={playback.playing ? 'Pause the day' : 'Play the day'} aria-pressed={playback.playing} data-testid="remote-play"
+            title={desktopOn ? undefined : 'Open the house on the big screen first'} onClick={togglePlaying}
+            className={cn('flex h-9 w-9 items-center justify-center rounded-full border disabled:opacity-40', playback.playing ? ON : OFF)}>
+            {playback.playing ? <IconPause width={15} height={15} /> : <IconPlay width={15} height={15} />}
+          </button>
+          <button type="button" disabled={!desktopOn} aria-label={playback.listening ? 'Turn the sound off' : 'Turn the sound on'} aria-pressed={playback.listening} data-testid="remote-sound"
+            title={desktopOn ? undefined : 'Open the house on the big screen first'} onClick={toggleListening}
+            className={cn('flex h-9 w-9 items-center justify-center rounded-full border disabled:opacity-40', playback.listening ? ON : OFF)}>
+            {playback.listening ? <IconSound width={18} height={18} /> : <IconMute width={18} height={18} />}
+          </button>
+        </div>
+      </div>
+
       {view === 'move' && (
         <div className="min-h-0 flex-1">
-          <MovePad side={hand} hint={twin.data ? `You are in ${roomName(twin.data, roomId)}` : ''} />
+          <MovePad />
         </div>
       )}
+      {view === 'furniture' && twin.data && <FurnitureRoom twin={twin.data} />}
       {view === 'guide' && (
         <div className="flex min-h-0 flex-1 flex-col" data-testid="remote-guide">
           <div className="min-h-0 flex-1 overflow-y-auto px-4 py-3">
@@ -369,7 +295,7 @@ function Remote({ propertyId }: { propertyId: string }) {
           </form>
         </div>
       )}
-      <main className={cn('min-h-0 flex-1 space-y-3 overflow-y-auto px-4 pt-4 pb-24', (view === 'move' || view === 'guide') && 'hidden')}>
+      <main className={cn('min-h-0 flex-1 space-y-3 overflow-y-auto px-4 pt-4 pb-6', (view === 'move' || view === 'guide' || (view === 'furniture' && twin.data)) && 'hidden')}>
         {sessionError && (
           <Notice tone="error" title="Could not join the session">
             {sessionError}. Pairing codes are single-use and expire after 10 minutes: ask for a new code on the desktop.
@@ -382,67 +308,20 @@ function Remote({ propertyId }: { propertyId: string }) {
         )}
         {!twin.data && !twin.error && <Spinner label="Loading the home…" />}
         {twin.data && view === 'rooms' && <RoomBlocks twin={twin.data} onPicked={() => setView('move')} />}
-        {twin.data && view === 'furniture' && (
-          <>
-            {/* Options waiting for a choice come first; otherwise the room's plan does. */}
-            {choosing && (
-              <Card title="Where should it go?" testId="remote-layouts">
-                <Variants twin={twin.data} />
-              </Card>
-            )}
-            {/* The room you are standing in, from above: drag, turn, add and remove pieces. */}
-            <ArrangePanel twin={twin.data} inline />
-            <Card title="Add a piece from a photo">
-              <Capture twin={twin.data} />
-            </Card>
-            {!choosing && (
-              <Card title="Layout options" testId="remote-layouts">
-                <Variants twin={twin.data} />
-              </Card>
-            )}
-          </>
-        )}
         {twin.data && view === 'light' && (
           <>
             <LightPanel twin={twin.data} />
-            <Card title="Sound">
-              <SoundControls twin={twin.data} />
-            </Card>
+            <SoundPicker twin={twin.data} />
           </>
         )}
       </main>
 
-      {/* Talk floats over every screen, in the corner away from the walking stick. */}
-      <div className={cn('pointer-events-none absolute bottom-[calc(68px+env(safe-area-inset-bottom))] z-30 flex items-end gap-2', hand === 'right' ? 'left-4' : 'right-4 flex-row-reverse', view === 'guide' && 'hidden')}>
-        <button
-          type="button"
-          disabled={!ptt.supported}
-          aria-label="Hold to talk to the guide"
-          title={ptt.supported ? 'Hold to talk' : 'Speech recognition is not available in this browser'}
-          data-testid="ptt"
-          className={cn('pointer-events-auto flex h-14 w-14 touch-none items-center justify-center rounded-full shadow-float transition-transform select-none disabled:opacity-40',
-            ptt.listening ? 'scale-110 bg-leaf text-main' : 'bg-main text-on-main')}
-          onPointerDown={(e) => {
-            e.currentTarget.setPointerCapture(e.pointerId);
-            ptt.start();
-          }}
-          onPointerUp={ptt.stop}
-          onPointerCancel={ptt.stop}
-          onContextMenu={(e) => e.preventDefault()}
-        >
-          <IconMic width={24} height={24} />
-        </button>
-        {(ptt.listening || ptt.error) && (
-          <span className={cn('mb-3 rounded-full bg-raised px-3 py-1 text-xs shadow-float', ptt.error ? 'text-danger' : 'text-text')}>{ptt.error ?? 'Listening…'}</span>
-        )}
-      </div>
       <footer className="shrink-0 border-t border-line bg-ink/95">
-        <nav aria-label="Remote screens" className="grid grid-cols-5 pb-[max(8px,env(safe-area-inset-bottom))]">
+        <nav aria-label="Remote screens" className="grid grid-cols-5 pb-[max(2px,env(safe-area-inset-bottom))]">
           {VIEWS.map(({ view: v, label, icon: Icon }) => (
-            <button key={v} type="button" data-tab={v} aria-pressed={v === view} onClick={() => setView(v)}
-              className={cn('flex flex-col items-center gap-1 pt-2.5 pb-1 text-[11px]', v === view ? 'font-semibold text-sun-deep' : 'text-muted')}>
-              <Icon width={20} height={20} />
-              {label}
+            <button key={v} type="button" data-tab={v} aria-pressed={v === view} aria-label={label} title={label} onClick={() => setView(v)}
+              className={cn('flex items-center justify-center py-2', v === view ? 'text-sun-deep' : 'text-muted')}>
+              <Icon width={22} height={22} strokeWidth={v === view ? 2.2 : 1.8} />
             </button>
           ))}
         </nav>

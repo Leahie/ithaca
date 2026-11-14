@@ -70,18 +70,58 @@ class HouseholdStore:
         self._db = sqlite3.connect(str(path), check_same_thread=False, isolation_level=None)
         self._db.row_factory = sqlite3.Row
         self._db.executescript(_SCHEMA)
+        if "host_user_id" not in {r["name"] for r in self._db.execute("PRAGMA table_info(households)")}:
+            self._db.execute("ALTER TABLE households ADD COLUMN host_user_id TEXT")
         self._lock = threading.Lock()
 
     # --- households -----------------------------------------------------------------------------
 
-    def create(self, name: str) -> Household:
+    def create(self, name: str, host_user_id: str | None = None) -> Household:
+        """host_user_id: the big screen's user, whose house the family's phones arrange."""
         hid = f"h-{uuid.uuid4().hex[:12]}"
         with self._lock:
             self._db.execute(
-                "INSERT INTO households VALUES (?, ?, ?, ?, NULL, ?)",
-                (hid, name.strip() or "Our family", secrets.token_urlsafe(12), (_now() + INVITE_TTL).isoformat(), _now().isoformat()),
+                "INSERT INTO households (household_id, name, invite_token, invite_expires_at, active_session_id, created_at, host_user_id) "
+                "VALUES (?, ?, ?, ?, NULL, ?, ?)",
+                (hid, name.strip() or "Our family", secrets.token_urlsafe(12), (_now() + INVITE_TTL).isoformat(), _now().isoformat(), host_user_id),
             )
         return self.get(hid)  # type: ignore[return-value]
+
+    def set_host(self, household_id: str, host_user_id: str) -> None:
+        """Record the host if the household has none yet (households made before hosts existed)."""
+        with self._lock:
+            self._db.execute("UPDATE households SET host_user_id = ? WHERE household_id = ? AND host_user_id IS NULL", (host_user_id, household_id))
+
+    # --- families (docs/specs/furniture.md) -----------------------------------------------------
+
+    def family_of(self, user_id: str) -> set[str]:
+        """The user, plus the host and every member of each household they host or belong to.
+        Their furniture is one pool (F6)."""
+        with self._lock:
+            rows = self._db.execute(
+                "SELECT h.host_user_id AS host, m.member_id AS member FROM households h LEFT JOIN members m ON m.household_id = h.household_id "
+                "WHERE h.host_user_id = ? OR h.household_id IN (SELECT household_id FROM members WHERE member_id = ?)",
+                (user_id, user_id),
+            ).fetchall()
+        return {user_id} | {r["host"] for r in rows if r["host"]} | {r["member"] for r in rows if r["member"]}
+
+    def hosts_of(self, member_id: str) -> set[str]:
+        """The hosts of every household this member belongs to."""
+        with self._lock:
+            rows = self._db.execute(
+                "SELECT h.host_user_id FROM households h JOIN members m ON m.household_id = h.household_id WHERE m.member_id = ? AND h.host_user_id IS NOT NULL",
+                (member_id,),
+            ).fetchall()
+        return {r[0] for r in rows}
+
+    def names(self, user_ids: set[str]) -> dict[str, str]:
+        """Members' names by member_id (hosts have none)."""
+        if not user_ids:
+            return {}
+        marks = ",".join("?" * len(user_ids))
+        with self._lock:
+            rows = self._db.execute(f"SELECT member_id, name FROM members WHERE member_id IN ({marks})", tuple(user_ids)).fetchall()
+        return {r["member_id"]: r["name"] for r in rows}
 
     def get(self, household_id: str) -> Household | None:
         with self._lock:

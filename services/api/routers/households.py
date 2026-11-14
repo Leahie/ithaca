@@ -12,7 +12,7 @@ if the family's desktop has a house open, hands back a phone token for that sess
 
 from __future__ import annotations
 
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, Header, HTTPException, Request
 
 from packages.schema.session import CreateHouseholdRequest, Household, JoinHouseholdRequest, JoinHouseholdResult
 from services.api.realtime.households import InviteInvalid, households
@@ -22,8 +22,9 @@ router = APIRouter()
 
 
 @router.post("/households")
-def create_household(body: CreateHouseholdRequest) -> Household:
-    return households().create(body.name)
+def create_household(body: CreateHouseholdRequest, x_user_id: str = Header("demo")) -> Household:
+    """The caller (the big screen's user) is the host: the family arranges their house."""
+    return households().create(body.name, host_user_id=x_user_id)
 
 
 @router.get("/households/{household_id}")

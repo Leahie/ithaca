@@ -11,7 +11,7 @@ from packages.schema.reports import NoiseScenario
 from packages.schema.twin import Floor, Opening, Vec3
 from services.api.integrations.config import fixtures_dir
 from services.api.sim import noise, traffic
-from services.api.sim.tests.test_noise import TABLE, _room, _twin, _wall
+from services.api.sim.tests.test_noise import TABLE, _room, _twin, _wall, house
 from services.api.twin import frames
 
 T = traffic.load_traffic(json.loads((fixtures_dir() / "tables" / "traffic.json").read_text(encoding="utf-8")),
@@ -143,6 +143,24 @@ def test_better_glazing_and_closed_windows_are_quieter_inside():
     assert opened.laeq_24h_dba - double.laeq_24h_dba > 15
     assert opened.laeq_24h_dba < opened.outdoor_lden_dba
     assert double.laeq_night_dba < double.laeq_day_dba
+
+
+def test_a_room_with_no_outside_wall_gets_the_outdoor_level_it_hears_through():
+    """b sits behind a: its outdoor level is a's road-facing wall, so outdoor minus inside (what the
+    house stops) is larger for b than for a, never a guess."""
+    twin = house()
+    twin = twin.model_copy(update={"walls": [w.model_copy(update={"exterior": False}) if w.wall_id.startswith("b_") else w
+                                             for w in twin.walls]})
+    out = traffic.outdoor(twin, T, [road(-30.0)], None)
+    net = noise.network(twin, TABLE)
+    a, b = (noise.noise_report(twin, net, TABLE, out, rid, NoiseScenario(), "class_default", []) for rid in "ab")
+    assert len(b.outdoor_hourly) == 24
+    assert [h.bands_db for h in b.outdoor_hourly] == [h.bands_db for h in a.outdoor_hourly]
+    stopped = lambda rep: rep.outdoor_hourly[17].laeq_dba - rep.hourly[17].laeq_dba
+    assert stopped(b) > stopped(a) > 0
+    by_room = {r.room_id: r for r in noise.noise_house(twin, net, TABLE, out, 17, NoiseScenario(), "class_default", []).rooms}
+    assert by_room["b"].outdoor_bands_db == by_room["a"].outdoor_bands_db
+    assert by_room["b"].outdoor_laeq_dba > 0
 
 
 def test_source_contributions_add_up_to_the_room_total():

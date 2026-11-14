@@ -4,18 +4,25 @@ import { ApiError, type ApiClient } from './types';
 import { apiUserId } from './user';
 
 /**
- * The furniture belongs to the house on the big screen, not to whoever holds a phone: a family
- * member's phone reads and changes the same pieces and layouts the desktop draws. Their memory and
- * their guide stay their own (`apiUserId`).
+ * The house on the big screen is one for the whole family: what stands in it and the layouts
+ * suggested for it are read and changed as the screen's user, from any phone. Storage, memory and
+ * the guide are the person's own (`apiUserId`); storage lists the whole family's pieces
+ * (docs/specs/furniture.md).
  */
-const HOUSE = /^\/(layouts|inventory|catalog|objects|uploads)(\/|\?|$)/;
+const HOUSE = /^\/(layouts(\/|\?|$)|properties\/[^/]+\/furniture)/;
 
 async function request<T>(path: string, init: RequestInit = {}, as: 'json' | 'text' | 'none' = 'json'): Promise<T> {
   let res: Response;
   try {
+    const house = HOUSE.test(path);
     res = await fetch(config.apiBase + path, {
       ...init,
-      headers: { 'X-User-Id': HOUSE.test(path) ? config.userId : apiUserId(), ...(init.body && !(init.body instanceof FormData) ? { 'content-type': 'application/json' } : {}), ...init.headers },
+      headers: {
+        'X-User-Id': house ? config.userId : apiUserId(),
+        ...(house ? { 'X-Person-Id': apiUserId() } : {}),
+        ...(init.body && !(init.body instanceof FormData) ? { 'content-type': 'application/json' } : {}),
+        ...init.headers,
+      },
     });
   } catch (err) {
     throw new ApiError(`Cannot reach the API at ${config.apiBase} (${(err as Error).message})`, 0);
@@ -75,13 +82,13 @@ export function createHttpApi(): ApiClient {
     listInventory: () => request('/inventory'),
     getInventoryItem: (id) => request(`/inventory/${enc(id)}`),
     deleteInventoryItem: (id) => request(`/inventory/${enc(id)}`, { method: 'DELETE' }, 'none'),
+    listHouseFurniture: (pid) => request(`/properties/${enc(pid)}/furniture`),
+    placePiece: (pid, itemId, place) => request(`/properties/${enc(pid)}/furniture/${enc(itemId)}`, { method: 'PUT', body: JSON.stringify(place) }),
+    removePiece: (pid, itemId) => request(`/properties/${enc(pid)}/furniture/${enc(itemId)}`, { method: 'DELETE' }, 'none'),
     listLayouts: (pid, roomId) => request(`/layouts${q({ property_id: pid, room_id: roomId })}`),
     getLayout: (id) => request(`/layouts/${enc(id)}`),
     selectLayout: (id) => request(`/layouts/${enc(id)}/select`, { method: 'POST' }),
     layoutFeedback: (id, feedback) => request(`/layouts/${enc(id)}/feedback`, { method: 'POST', body: JSON.stringify({ feedback }) }),
-    movePlacement: (id, itemId, pose) => request(`/layouts/${enc(id)}/placements/${enc(itemId)}`, { method: 'PUT', body: JSON.stringify(pose) }),
-    removePlacement: (id, itemId) => request(`/layouts/${enc(id)}/placements/${enc(itemId)}`, { method: 'DELETE' }),
-    dropItem: (drop) => request('/layouts/drop', { method: 'POST', body: JSON.stringify(drop) }),
     placementOptions: (ask) => request('/layouts/options', { method: 'POST', body: JSON.stringify(ask) }),
     listCatalog: () => request('/catalog'),
     addFromCatalog: (catalogId) => request(`/catalog/${enc(catalogId)}/add`, { method: 'POST' }),

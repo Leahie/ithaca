@@ -86,6 +86,8 @@ def _apply(state: ViewerState, event: EventEnvelope) -> None:
         state.sound_source = None
     elif event.type == "design.showVariants":
         state.shown_layout_ids = p["layout_ids"]
+    elif event.type == "viewer.playback":
+        state.playback = state.playback.model_copy(update={k: v for k, v in p.items() if v is not None})
 
 
 class Hub:
@@ -222,6 +224,10 @@ class Hub:
         if room and conn in room.connections:
             room.connections.remove(conn)
             self.publish(make_event(conn.session_id, "server", "session.left", conn.presence()))
+            # The desktop runs the clock and plays the sound: with none left, nothing is playing.
+            pb = room.state.playback
+            if conn.client == "desktop" and (pb.playing or pb.listening) and not any(c.client == "desktop" for c in room.connections):
+                self.publish(make_event(conn.session_id, "server", "viewer.playback", {"playing": False, "listening": False}))
 
     def publish(self, event: EventEnvelope) -> None:
         """Update the state and queue the event for every client. Call from the event loop only;

@@ -44,6 +44,8 @@ const WAIT_POLL_MS = 4000;
 export function JoinFamily({ inviteToken, propertyId }: { inviteToken: string; propertyId: string }) {
   const [phase, setPhase] = useState<Phase>({ kind: 'name' });
   const [name, setName] = useState('');
+  // Read from localStorage after mount: the server has none, and the first render must match its HTML.
+  const [me, setMe] = useState<Remembered | null>(null);
   const joined = useFamily((s) => s.joined);
 
   const join = useCallback(
@@ -51,7 +53,9 @@ export function JoinFamily({ inviteToken, propertyId }: { inviteToken: string; p
       setPhase((p) => (p.kind === 'waiting' ? p : { kind: 'joining' }));
       try {
         const result = await api().joinHousehold(inviteToken, who, memberId);
-        remember({ member_id: result.member.member_id, name: result.member.name });
+        const self = { member_id: result.member.member_id, name: result.member.name };
+        remember(self);
+        setMe(self);
         joined(result.household, result.member);
         setPhase(result.session_id && result.client_token ? { kind: 'in', result } : { kind: 'waiting', result });
       } catch (err) {
@@ -63,10 +67,11 @@ export function JoinFamily({ inviteToken, propertyId }: { inviteToken: string; p
 
   // Known on this phone: join straight away as the same person.
   useEffect(() => {
-    const me = remembered();
-    if (me) {
-      setName(me.name);
-      void join(me.name, me.member_id);
+    const known = remembered();
+    setMe(known);
+    if (known) {
+      setName(known.name);
+      void join(known.name, known.member_id);
     }
   }, [join]);
 
@@ -129,17 +134,18 @@ export function JoinFamily({ inviteToken, propertyId }: { inviteToken: string; p
               {phase.message}
             </Notice>
           )}
-          {remembered() && (
+          {me && (
             <button
               type="button"
               className="min-h-11 text-sm text-muted underline"
               onClick={() => {
                 remember(null);
+                setMe(null);
                 setName('');
                 setPhase({ kind: 'name' });
               }}
             >
-              Not {remembered()?.name}? Join as someone else
+              Not {me.name}? Join as someone else
             </button>
           )}
         </form>

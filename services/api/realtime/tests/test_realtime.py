@@ -115,11 +115,15 @@ def test_trying_a_layout_tells_the_agent_nothing_and_keeping_it_does(monkeypatch
         AgentBridge(hub, runner)
         sid = hub.create_session("demo", PROPERTY).session_id
         layout_id = demo_layout_ids(PROPERTY)[0]
+        sent = []
+        hub.subscribe(lambda _room, event: sent.append(event))
         hub.publish(make_event(sid, "desktop", "layout.select", {"layout_id": layout_id}))  # clicking through options
         await asyncio.sleep(0.05)
-        assert turns == []
+        assert turns == [] and store.furniture_store().house_pieces("demo", PROPERTY) == []  # a preview changes nothing
         hub.publish(make_event(sid, "desktop", "layout.confirm", {"layout_id": layout_id}))  # "Keep this layout"
         await asyncio.sleep(0.05)
         assert len(turns) == 1 and '<event type="layout_chosen">' in turns[0] and layout_id in turns[0]
+        assert store.furniture_store().house_pieces("demo", PROPERTY)  # kept: now it is in the house (F8)
+        assert any(e.type == "layout.changed" and e.source == "server" for e in sent)  # and every screen reloads
 
     asyncio.run(scenario())

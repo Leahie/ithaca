@@ -102,12 +102,9 @@ def test_upload_to_inventory_through_the_routes(client):
     assert client.get("/api/files/../../.env").status_code == 404  # no escaping the files folder
 
 
-def test_moving_a_piece_is_saved_only_when_the_layout_stays_valid(client):
+def test_placing_moving_and_options_in_the_house(client):
     from services.api.sim import layout_solver as ls
     from services.api.twin.service import get_twin
-    from packages.schema.layout import LayoutVariant, Placement
-    from packages.schema.twin import Vec3
-    import uuid
 
     alice = {"X-User-Id": "alice"}
     furniture = store.furniture_store()
@@ -116,32 +113,26 @@ def test_moving_a_piece_is_saved_only_when_the_layout_stays_valid(client):
     owned = furniture.list_items("alice")[:2]
     items = [ls.Item(str(i.item_id), i.label, i.item_class, i.dims_m.w, i.dims_m.d, i.dims_m.h) for i in owned]
     poses = ls.solve(room, twin.openings, items, [], n=1).variants[0].poses
-    layout = LayoutVariant(
-        layout_id=uuid.uuid4(), user_id="alice", property_id=PROPERTY, room_id=LIVING_ROOM, score=50, rationale="", status="proposed",
-        placements=[Placement(item_id=k, position=Vec3(x=p.x, y=room.floor_y, z=p.z), yaw_deg=p.yaw) for k, p in poses.items()],
-    )
-    furniture.put_layout(layout)
+    base = f"/api/properties/{PROPERTY}/furniture"
+    for k, p in poses.items():
+        assert client.put(f"{base}/{k}", headers=alice, json={"x": p.x, "z": p.z, "yaw_deg": p.yaw, "floor_id": room.floor_id}).status_code == 200
     sofa, table = (str(i.item_id) for i in owned)
-    url = f"/api/layouts/{layout.layout_id}/placements/{table}"
 
     # the user's hand wins: any spot and any angle inside the room is saved, with warnings, not refusals
-    onto_sofa = client.put(url, headers=alice, json={"x": poses[sofa].x, "z": poses[sofa].z, "yaw_deg": 0})
+    onto_sofa = client.put(f"{base}/{table}", headers=alice, json={"x": poses[sofa].x, "z": poses[sofa].z, "yaw_deg": 0})
     assert onto_sofa.status_code == 200 and any("overlap" in w for w in onto_sofa.json()["warnings"])
-    assert client.put(url, headers=alice, json={"x": 500, "z": 500, "yaw_deg": 0}).status_code == 409  # except leaving the room
+    assert client.put(f"{base}/{table}", headers=alice, json={"x": 500, "z": 500, "yaw_deg": 0}).status_code == 409  # except leaving every room
 
-    turned = client.put(url, headers=alice, json={"x": poses[table].x, "z": poses[table].z, "yaw_deg": 37.5})
+    turned = client.put(f"{base}/{table}", headers=alice, json={"x": poses[table].x, "z": poses[table].z, "yaw_deg": 37.5})
     assert turned.status_code == 200
-    saved = next(p for p in client.get(f"/api/layouts/{layout.layout_id}", headers=alice).json()["placements"] if p["item_id"] == table)
-    assert saved["yaw_deg"] == 37.5  # any angle, not only along the walls
+    saved = next(p for p in client.get(base, headers=alice).json() if p["item_id"] == table)
+    assert saved["yaw_deg"] == 37.5 and saved["room_id"] == LIVING_ROOM  # any angle, not only along the walls
 
-    # a pin on the floor plan: the third piece is dropped near the table and lands somewhere valid
+    # a pin on the floor plan: the third piece snaps to a valid spot near the table, in the room under the pin
     chair = str(furniture.list_items("alice")[2].item_id)
-    drop = {"property_id": PROPERTY, "item_id": chair, "x": poses[table].x, "z": poses[table].z, "layout_id": str(layout.layout_id)}
-    dropped = client.post("/api/layouts/drop", headers=alice, json=drop)
-    assert dropped.status_code == 200 and len(dropped.json()["placements"]) == 3
-    fresh = client.post("/api/layouts/drop", headers=alice, json={**drop, "layout_id": None, "floor_id": room.floor_id}).json()
-    # no layout given: the room is found from the pin, and the piece joins that room's own layout
-    assert fresh["room_id"] == LIVING_ROOM and fresh["layout_id"] == str(layout.layout_id) and len(fresh["placements"]) == 3
+    dropped = client.put(f"{base}/{chair}", headers=alice, json={"x": poses[table].x, "z": poses[table].z, "floor_id": room.floor_id, "snap": True})
+    assert dropped.status_code == 200 and dropped.json()["room_id"] == LIVING_ROOM
+    assert len(client.get(f"{base}?room_id={LIVING_ROOM}", headers=alice).json()) == 3
     # "where could it go?": up to three proposed layouts, the room's other pieces untouched, the piece somewhere new in each
     options = client.post("/api/layouts/options", headers=alice, json={"property_id": PROPERTY, "room_id": LIVING_ROOM, "item_id": chair}).json()
     spots = {(p["position"]["x"], p["position"]["z"]) for o in options for p in o["placements"] if p["item_id"] == chair}

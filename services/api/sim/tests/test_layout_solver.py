@@ -114,3 +114,20 @@ def test_large_pieces_stand_with_their_back_on_solid_wall_even_when_asked_onto_a
 
     sideways = ls.Pose(v.poses[SOFA].x, v.poses[SOFA].z, v.poses[SOFA].yaw + 90)  # an end touching the wall is not "on the wall"
     assert ls._off_wall(scene, ITEMS[0], ls.footprint(ITEMS[0], sideways)) > 0.5
+
+
+def test_a_wall_can_be_named_by_its_compass_side():
+    """The user says "the sofa on the north wall": its back goes to that side, so it faces away."""
+    from services.api.agent.design_tools import compass_axes
+
+    living, axes = room("tt6gm2a0463x9wmnx7rn6gugc"), compass_axes(TWIN)
+    assert abs(axes["north"][0] * axes["east"][0] + axes["north"][1] * axes["east"][1]) < 1e-6  # at right angles
+    met = []
+    for side in ("north", "east", "south", "west"):
+        wish = [ls.Constraint(kind="against_wall", item=SOFA, target=side, weight=3)]
+        best = ls.solve(living, TWIN.openings, ITEMS[:1], wish, n=1, walls=TWIN.walls, sweeps=TWIN.sweeps, compass=axes).variants[0]
+        if f"Gray three-seat sofa against a wall ({side})" in best.met:
+            met.append(side)
+            back = (-axes[side][0], -axes[side][1])  # it faces into the room, away from that wall
+            assert ls._angle_between(best.poses[SOFA].front, back) <= 50
+    assert met  # at least one side of this room has a solid wall long enough for the sofa

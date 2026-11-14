@@ -130,9 +130,14 @@ class AgentBridge:
             log_.enter_room(p["to_room_id"], by_user=False)
         elif event.type == "layout.confirm" and by_user:  # a click on an option only previews it (layout.select)
             from services.api.agent.design_tools import describe_layout
-            from services.api.furniture.store import furniture_store
+            from services.api.furniture import house
 
-            furniture_store().choose_layout(room.user_id, p["layout_id"])
+            try:  # the kept layout goes into the house (F8), and every screen reloads
+                house.apply(room.user_id, p["layout_id"], event.member_id or room.user_id)
+            except house.FurnitureError as e:
+                log.warning("layout %s not applied: %s", p["layout_id"], e.detail)
+            else:
+                asyncio.get_running_loop().call_soon(self.hub.publish, make_event(sid, "server", "layout.changed", {"layout_id": p["layout_id"]}))
             picked = describe_layout(room.user_id, room.property_id, p["layout_id"])
             if picked:
                 self._signal(room)
@@ -140,7 +145,7 @@ class AgentBridge:
         elif event.type == "catalog.picked" and by_user:
             from services.api.furniture.store import furniture_store
 
-            item = furniture_store().get_item(room.user_id, p["item_id"])
+            item = furniture_store().get_item(p["item_id"])
             if item:
                 self._signal(room)
                 note = f"{item.label} ({item.item_class}), item_id {item.item_id}, room_id {p.get('room_id') or 'the room they are in'}"

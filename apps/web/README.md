@@ -217,4 +217,7 @@ to the tab for now (`src/lib/store/tour.ts`).
 
 - **A real phone**, and full-stack mode: there is no backend on this branch yet.
 - **Second property** (M6): nothing in `src/` names a property id, but only one twin exists.
-- Speech: only the Web Speech provider exists behind `SpeechProvider`.
+- Speech: with `NEXT_PUBLIC_SPEECH_PROVIDER=deepgram` (and `DEEPGRAM_API_KEY` in the API's
+  `.env`), Deepgram speaks and transcribes push-to-talk: the microphone streams 16-bit PCM to
+  `/ws/speech/listen`, which relays it to Deepgram. Without the key, or in fixture mode, the
+  browser's own speech takes over.

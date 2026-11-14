@@ -1,10 +1,11 @@
 'use client';
 
-import type { InventoryItem, LayoutVariant, Opening, Placement, Room } from '@ithaca/schema';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import type { HousePiece, InventoryItem, Opening, Room } from '@ithaca/schema';
+import { useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState, type Ref } from 'react';
 import { api } from '@/lib/api';
 import { invalidate } from '@/lib/data/resource';
 import { dispatch } from '@/lib/store/session';
+import { compassToInterior, type Mat4 } from '@/lib/geometry/frames';
 import { bounds, footprint, frontDirection } from '@/lib/geometry/polygon';
 
 const ITEM_COLORS = ['#b9c7d6', '#e2c39b', '#f0d58a', '#b5dcc4', '#d3c2e6', '#e6b9b4'];
@@ -18,16 +19,73 @@ interface Pose {
   yaw: number;
 }
 
+/** What a toolbar outside the plan can do to the selected piece. */
+export interface PlanControls {
+  /** Turn by this many degrees (positive: counter-clockwise seen from above). */
+  turn(deg: number): void;
+  /** Move by this many meters along the plan: +x right, +z down the page. */
+  nudge(dx: number, dz: number): void;
+  remove(): void;
+}
+
 interface Props {
+  propertyId: string;
   room: Room;
   openings: Opening[];
-  layout: LayoutVariant;
+  /** The pieces standing in this room of the house. */
+  pieces: Pick<HousePiece, 'item_id' | 'position' | 'yaw_deg'>[];
   items: Map<string, InventoryItem>;
   className?: string;
   /** Shows a "Look at it" button for the selected piece (the phone turns the big screen to it). */
   onLookAt?(itemId: string, at: { x: number; z: number }): void;
   /** Told whenever the selected piece changes (null: none). */
   onSelect?(itemId: string | null): void;
+  /** Told after every saved change, once the house's furniture has been reloaded. */
+  onChanged?(): void;
+  /** Only the plan, filling its box: the piece list and buttons are the caller's (see `controls`). */
+  fill?: boolean;
+  /** Look, don't touch: a suggested layout that is not in the house. */
+  readOnly?: boolean;
+  /** Select this piece from outside (null: none). */
+  selected?: string | null;
+  controls?: Ref<PlanControls | null>;
+  /** The twin's interior_to_world: each wall gets the letter of the side of the room it is on. */
+  interiorToWorld?: Mat4;
+}
+
+const SIDES = [
+  ['N', 0],
+  ['E', 90],
+  ['S', 180],
+  ['W', 270],
+] as const;
+
+/** The compass side (N, E, S or W) each wall of a room outline looks out to, at its middle. */
+function wallSides(polygon: readonly (readonly [number, number])[], interiorToWorld: Mat4): { x: number; z: number; nx: number; nz: number; side: string }[] {
+  const axes = SIDES.map(([side, az]) => {
+    const [x, , z] = compassToInterior(interiorToWorld, az, 0);
+    return { side, x, z };
+  });
+  let turn = 0;
+  polygon.forEach(([ax, az], i) => {
+    const [bx, bz] = polygon[(i + 1) % polygon.length]!;
+    turn += ax * bz - bx * az;
+  });
+  // One letter per side, on its longest wall.
+  const longest = new Map<string, { x: number; z: number; nx: number; nz: number; side: string; len: number }>();
+  for (let i = 0; i < polygon.length; i++) {
+    const [ax, az] = polygon[i]!;
+    const [bx, bz] = polygon[(i + 1) % polygon.length]!;
+    const len = Math.hypot(bx - ax, bz - az);
+    if (len < 0.8) continue;
+    // Outward normal: (dz, -dx) for a counter-clockwise outline in (x, z).
+    let nx = (bz - az) / len;
+    let nz = -(bx - ax) / len;
+    if (turn < 0) [nx, nz] = [-nx, -nz];
+    const best = axes.reduce((a, b) => (a.x * nx + a.z * nz >= b.x * nx + b.z * nz ? a : b));
+    if ((longest.get(best.side)?.len ?? 0) < len) longest.set(best.side, { x: (ax + bx) / 2, z: (az + bz) / 2, nx, nz, side: best.side, len });
+  }
+  return [...longest.values()];
 }
 
 type Drag = { kind: 'move'; id: string; dx: number; dz: number } | { kind: 'turn'; id: string };
@@ -35,40 +93,54 @@ type Drag = { kind: 'move'; id: string; dx: number; dz: number } | { kind: 'turn
 const norm = (deg: number) => ((deg % 360) + 360) % 360;
 
 /**
- * Top-down plan of one layout that the user edits by hand: drag a piece to move it anywhere in
- * the room, drag its round handle (or use the buttons, or Q / E) to turn it to any angle. Arrow
- * keys nudge the selected piece 5 cm; Remove (or Delete) takes it out of the room. A change is sent
- * when the pointer is released; the server
- * keeps it and may answer with warnings (an overlap, a blocked door), which are shown but never
- * block. Seen from above: +X is right and +Z is down the page, as in PlanPreview.
+ * Top-down plan of one room of the house that the user edits by hand: drag a piece to move it
+ * anywhere, drag its round handle (or use the buttons, or Q / E) to turn it to any angle. Arrow
+ * keys nudge the selected piece 5 cm; Remove (or Delete) takes it out of the house. A change is
+ * sent when the pointer is released; the server keeps it, finds the room from the spot (a piece
+ * dragged through a doorway joins the next room) and may answer with warnings (an overlap, a
+ * blocked door), which are shown but never block. Seen from above: +X is right and +Z is down the
+ * page, as in PlanPreview.
  */
-export function PlanEditor({ room, openings, layout, items, className, onLookAt, onSelect }: Props) {
+export function PlanEditor({ propertyId, room, openings, pieces, items, className, onLookAt, onSelect, onChanged, fill = false, readOnly = false, selected: pick, controls, interiorToWorld }: Props) {
   const svg = useRef<SVGSVGElement>(null);
   const [poses, setPoses] = useState<Record<string, Pose>>({});
-  const [selected, setSelected] = useState<string | null>(null);
+  // With a `selected` prop the caller owns the selection; without one, the plan does.
+  const [own, setOwn] = useState<string | null>(null);
+  const controlled = pick !== undefined;
+  const selected = controlled ? pick : own;
+  const sides = useMemo(() => (interiorToWorld ? wallSides(room.polygon, interiorToWorld) : []), [room.polygon, interiorToWorld]);
   const [drag, setDrag] = useState<Drag | null>(null);
   const [note, setNote] = useState<{ tone: 'warn' | 'error'; text: string } | null>(null);
   const saved = useRef<Record<string, Pose>>({});
   const report = useRef(onSelect);
   report.current = onSelect;
   useEffect(() => {
-    report.current?.(selected);
+    if (controlled) return;
+    report.current?.(own);
     return () => report.current?.(null);
-  }, [selected]);
+  }, [own, controlled]);
+  const setSelected = (id: string | null) => (controlled ? onSelect?.(id) : setOwn(id));
 
-  // The stored layout is the truth when nothing is being dragged and no change is on its way to
+  // The stored house is the truth when nothing is being dragged and no change is on its way to
   // the server. (A reply to an earlier turn must not undo the turns made since.)
   const pending = useRef(0);
   useEffect(() => {
     if (drag || pending.current > 0) return;
     const next: Record<string, Pose> = {};
-    for (const p of layout.placements) next[p.item_id] = { x: p.position.x, z: p.position.z, yaw: p.yaw_deg };
+    for (const p of pieces) next[p.item_id] = { x: p.position.x, z: p.position.z, yaw: p.yaw_deg };
     saved.current = next;
     setPoses(next);
-  }, [layout, drag]);
+  }, [pieces, drag]);
+  const announce = useRef(onChanged);
+  announce.current = onChanged;
+  const reload = useCallback(() => {
+    invalidate(`furniture:${propertyId}`); // the 3D views redraw from the stored house
+    dispatch('layout.changed', { layout_id: null }); // and so do the other screens
+    announce.current?.();
+  }, [propertyId]);
 
   const b = bounds(room.polygon);
-  const pad = 0.5;
+  const pad = sides.length ? 0.7 : 0.5; // room for the wall letters
   const w = b.maxX - b.minX + pad * 2;
   const h = b.maxZ - b.minZ + pad * 2;
   const sx = (x: number) => x - b.minX + pad;
@@ -84,7 +156,7 @@ export function PlanEditor({ room, openings, layout, items, className, onLookAt,
       const p = new DOMPoint(e.clientX, e.clientY).matrixTransform(ctm.inverse());
       return [p.x + b.minX - pad, p.y + b.minZ - pad];
     },
-    [b.minX, b.minZ],
+    [b.minX, b.minZ, pad],
   );
 
   const commit = useCallback(
@@ -93,25 +165,27 @@ export function PlanEditor({ room, openings, layout, items, className, onLookAt,
       if (before && Math.abs(before.x - pose.x) < 1e-3 && Math.abs(before.z - pose.z) < 1e-3 && Math.abs(before.yaw - pose.yaw) < 0.05) return;
       pending.current += 1;
       try {
-        const result = await api().movePlacement(layout.layout_id, id, { x: pose.x, z: pose.z, yaw_deg: norm(pose.yaw) });
+        const result = await api().placePiece(propertyId, id, { x: pose.x, z: pose.z, yaw_deg: norm(pose.yaw), floor_id: room.floor_id, room_id: null, snap: false });
         saved.current = { ...saved.current, [id]: pose };
-        setNote(result.warnings?.length ? { tone: 'warn', text: result.warnings[0]! } : null);
+        setNote(
+          result.room_id !== room.room_id
+            ? { tone: 'warn', text: 'It went through to the next room.' }
+            : result.warnings?.length
+              ? { tone: 'warn', text: result.warnings[0]! }
+              : null,
+        );
         pending.current -= 1;
-        if (pending.current === 0) {
-          invalidate('layouts:'); // the 3D views redraw from the stored layout
-          invalidate('layout:');
-          dispatch('layout.changed', { layout_id: layout.layout_id }); // and so do the other screens
-        }
+        if (pending.current === 0) reload();
       } catch (err) {
         pending.current -= 1;
-        // The only refusal is leaving the room: put the piece back where it was.
+        // The only refusal is a spot in no room at all: put the piece back where it was.
         if (before) setPoses((all) => ({ ...all, [id]: before }));
         const text = err instanceof Error ? err.message : String(err);
         const match = /"violations":\s*\["([^"]+)"/.exec(text);
         setNote({ tone: 'error', text: match?.[1] ?? text });
       }
     },
-    [layout.layout_id],
+    [propertyId, room.floor_id, room.room_id, reload],
   );
 
   const onPointerMove = (e: React.PointerEvent) => {
@@ -138,26 +212,30 @@ export function PlanEditor({ room, openings, layout, items, className, onLookAt,
 
   const change = (id: string, f: (p: Pose) => Pose) => {
     const pose = poses[id];
-    if (!pose) return;
+    if (!pose || readOnly) return;
     const next = f(pose);
     setPoses((all) => ({ ...all, [id]: next }));
-    svg.current?.focus({ preventScroll: true }); // keep the keys on the plan for the next turn
+    if (!fill) svg.current?.focus({ preventScroll: true }); // keep the keys on the plan for the next turn
     void commit(id, next);
   };
 
-  /** Take a piece out of the room. It stays in the user's furniture. */
+  /** Take a piece out of the house. It stays in the family's furniture. */
   const remove = async (id: string) => {
     try {
-      await api().removePlacement(layout.layout_id, id);
+      await api().removePiece(propertyId, id);
       setSelected(null);
       setNote(null);
-      invalidate('layouts:');
-      invalidate('layout:');
-      dispatch('layout.changed', { layout_id: layout.layout_id });
+      reload();
     } catch (err) {
       setNote({ tone: 'error', text: err instanceof Error ? err.message : String(err) });
     }
   };
+
+  useImperativeHandle(controls, () => ({
+    turn: (deg) => selected && change(selected, (p) => ({ ...p, yaw: norm(p.yaw + deg) })),
+    nudge: (dx, dz) => selected && change(selected, (p) => ({ ...p, x: p.x + dx, z: p.z + dz })),
+    remove: () => selected && void remove(selected),
+  }));
 
   const onKeyDown = (e: React.KeyboardEvent) => {
     if (!selected) return;
@@ -181,21 +259,26 @@ export function PlanEditor({ room, openings, layout, items, className, onLookAt,
     change(selected, move);
   };
 
-  const ordered = layout.placements.filter((p: Placement) => items.has(p.item_id) && poses[p.item_id]);
+  const ordered = pieces.filter((p) => items.has(p.item_id) && poses[p.item_id]);
   const selectedItem = selected ? items.get(selected) : undefined;
   const selectedPose = selected ? poses[selected] : undefined;
 
   return (
-    <div className={className}>
+    <div className={fill ? `relative h-full w-full ${className ?? ''}` : className}>
       <svg
         ref={svg}
         viewBox={`0 0 ${w.toFixed(3)} ${h.toFixed(3)}`}
-        className="block w-full touch-none select-none rounded-xl bg-ink outline-none focus-visible:ring-2 focus-visible:ring-leaf-deep"
-        style={{ aspectRatio: `${w} / ${h}`, maxHeight: '46vh' }}
+        className={
+          fill
+            ? 'block h-full w-full touch-none select-none outline-none'
+            : 'block w-full touch-none select-none rounded-xl bg-ink outline-none focus-visible:ring-2 focus-visible:ring-leaf-deep'
+        }
+        style={fill ? undefined : { aspectRatio: `${w} / ${h}`, maxHeight: '46vh' }}
+        preserveAspectRatio="xMidYMid meet"
         role="application"
-        aria-label={`Plan of ${room.label}. Drag a piece to move it; drag its round handle to turn it.`}
+        aria-label={readOnly ? `Plan of ${room.label} with a suggested layout` : `Plan of ${room.label}. Drag a piece to move it; drag its round handle to turn it.`}
         tabIndex={0}
-        onKeyDown={onKeyDown}
+        onKeyDown={readOnly ? undefined : onKeyDown}
         onPointerMove={onPointerMove}
         onPointerUp={endDrag}
         onPointerCancel={endDrag}
@@ -204,6 +287,11 @@ export function PlanEditor({ room, openings, layout, items, className, onLookAt,
         }}
       >
         <polygon points={pts(room.polygon)} fill="#ffffff" stroke="#06261f" strokeWidth={0.09} strokeLinejoin="round" pointerEvents="none" />
+        {sides.map((s, i) => (
+          <text key={i} x={sx(s.x + s.nx * 0.38)} y={sz(s.z + s.nz * 0.38)} textAnchor="middle" dominantBaseline="central" fontSize={0.26} fontWeight={700} fill="#0a6b47" pointerEvents="none">
+            {s.side}
+          </text>
+        ))}
         {openings.map((o) => {
           const [p0, p1] = o.polygon;
           if (!p0 || !p1) return null;
@@ -227,7 +315,8 @@ export function PlanEditor({ room, openings, layout, items, className, onLookAt,
                 stroke={active ? SELECTED : '#06261f'}
                 strokeWidth={active ? 0.09 : 0.03}
                 strokeLinejoin="round"
-                style={{ cursor: drag?.kind === 'move' && drag.id === p.item_id ? 'grabbing' : 'grab' }}
+                style={readOnly ? undefined : { cursor: drag?.kind === 'move' && drag.id === p.item_id ? 'grabbing' : 'grab' }}
+                pointerEvents={readOnly ? 'none' : undefined}
                 onPointerDown={(e) => {
                   const at = toRoom(e);
                   if (!at) return;
@@ -242,7 +331,7 @@ export function PlanEditor({ room, openings, layout, items, className, onLookAt,
               <text x={cx} y={cz} textAnchor="middle" dominantBaseline="central" fontSize={0.2} fill="#06261f" fontWeight={600} pointerEvents="none">
                 {item.item_class.replace(/_/g, ' ')}
               </text>
-              {active && (
+              {active && !readOnly && (
                 <>
                   <line x1={cx + fx * reach} y1={cz + fz * reach} x2={cx + fx * handle} y2={cz + fz * handle} stroke={SELECTED} strokeWidth={0.05} pointerEvents="none" />
                   <circle
@@ -266,6 +355,22 @@ export function PlanEditor({ room, openings, layout, items, className, onLookAt,
         })}
       </svg>
 
+      {fill ? (
+        note && (
+          <p role="status" className={`absolute inset-x-3 top-14 rounded-xl border px-3 py-1.5 text-sm shadow-sm ${note.tone === 'error' ? 'border-danger/30 bg-surface text-danger' : 'border-line bg-surface text-muted'}`}>
+            {note.tone === 'warn' ? 'Saved. Note: ' : ''}
+            {note.text}
+          </p>
+        )
+      ) : (
+        listAndBar()
+      )}
+    </div>
+  );
+
+  function listAndBar() {
+    return (
+      <>
       {/* Every piece in the room, to tap: small ones are hard to hit on the plan. */}
       {ordered.length > 0 && (
         <div className="mt-2 flex flex-wrap gap-1.5 text-sm" data-testid="plan-pieces">
@@ -311,6 +416,7 @@ export function PlanEditor({ room, openings, layout, items, className, onLookAt,
           {note.text}
         </p>
       )}
-    </div>
-  );
+      </>
+    );
+  }
 }

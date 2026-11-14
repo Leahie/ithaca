@@ -1,4 +1,4 @@
-import type { AnyEvent, CatalogPiece, ClientKind, EventSource, JobProgressPayload, SoundSetScenarioPayload, ViewerMode, ViewerState, RemoteViewPayload } from '@ithaca/schema';
+import type { AnyEvent, CatalogPiece, ClientKind, EventSource, JobProgressPayload, SoundSetScenarioPayload, ViewerMode, ViewerPlayback, ViewerState, RemoteViewPayload } from '@ithaca/schema';
 
 /**
  * Viewer state and its reducer (A1). Every change to what the viewer shows is an event:
@@ -19,7 +19,21 @@ export interface ViewerSlice {
   view: { at_sweep_id: string; look_at: { x: number; y: number; z: number } } | null;
   /** Bumps on every goto, so a repeated goto to the same room still moves the camera. */
   goto_seq: number;
+  /** What the big screen is playing; the desktop runs the clock while `playing`. */
+  playback: Playback;
 }
+
+export type SoundLayer = NonNullable<ViewerPlayback['sounds']>[number];
+
+export interface Playback {
+  playing: boolean;
+  listening: boolean;
+  /** The outdoor sounds chosen to be heard while `listening`. */
+  sounds: SoundLayer[];
+  voice: 'female' | 'male';
+}
+
+const NOTHING_PLAYING: Playback = { playing: false, listening: false, sounds: ['highway', 'streets', 'birds', 'insects', 'frogs'], voice: 'female' };
 
 /**
  * One line of the conversation. `member_id` says whose it is in a household session: the member
@@ -64,7 +78,7 @@ const MAX_CHAT = 300;
 
 export function initialCore(datetime: string): CoreState {
   return {
-    viewer: { mode: 'tour', room_id: null, sweep_id: null, datetime, sound_scenario: null, shown_layout_ids: [], selected_layout_id: null, view: null, goto_seq: 0 },
+    viewer: { mode: 'tour', room_id: null, sweep_id: null, datetime, sound_scenario: null, shown_layout_ids: [], selected_layout_id: null, view: null, goto_seq: 0, playback: NOTHING_PLAYING },
     chat: [],
     interim: null,
     jobs: {},
@@ -96,6 +110,7 @@ export function applyEvent(state: CoreState, event: AnyEvent): CoreState {
           datetime: p.datetime || v.datetime,
           sound_scenario: p.sound_scenario ?? null,
           shown_layout_ids: p.shown_layout_ids ?? [],
+          playback: { ...NOTHING_PLAYING, ...p.playback },
         },
       };
     }
@@ -117,13 +132,32 @@ export function applyEvent(state: CoreState, event: AnyEvent): CoreState {
       const { room_id, sweep_id, at_sweep_id, look_at } = event.payload;
       const view = at_sweep_id && look_at ? { at_sweep_id, look_at } : null;
       if (room_id) return { ...state, viewer: { ...v, room_id, sweep_id: null, view, goto_seq: v.goto_seq + 1 } };
-      if (sweep_id) return { ...state, viewer: { ...v, sweep_id, room_id: state.sweepRooms[sweep_id] ?? v.room_id, view: null, goto_seq: v.goto_seq + 1 } };
+      if (sweep_id) {
+        // A sweep in no room (stairs, patio) leaves no room, rather than the last one.
+        const room = sweep_id in state.sweepRooms ? state.sweepRooms[sweep_id]! : v.room_id;
+        return { ...state, viewer: { ...v, sweep_id, room_id: room, view: null, goto_seq: v.goto_seq + 1 } };
+      }
       return state;
     }
     case 'viewer.setTime':
       return event.payload.datetime ? { ...state, viewer: { ...v, datetime: event.payload.datetime } } : state;
     case 'viewer.setMode':
       return { ...state, viewer: { ...v, mode: event.payload.mode } };
+    case 'viewer.playback': {
+      const { playing, listening, sounds, voice } = event.payload;
+      return {
+        ...state,
+        viewer: {
+          ...v,
+          playback: {
+            playing: playing ?? v.playback.playing,
+            listening: listening ?? v.playback.listening,
+            sounds: sounds ?? v.playback.sounds,
+            voice: voice ?? v.playback.voice,
+          },
+        },
+      };
+    }
     case 'design.showVariants':
       return {
         ...state,
@@ -131,7 +165,7 @@ export function applyEvent(state: CoreState, event: AnyEvent): CoreState {
         chat: event.payload.layout_ids.length ? push(state.chat, { kind: 'layouts', id: event.id, layout_ids: event.payload.layout_ids, member_id: event.member_id ?? null }) : state.chat,
       };
     case 'layout.select':
-      return { ...state, viewer: { ...v, selected_layout_id: event.payload.layout_id } };
+      return { ...state, viewer: { ...v, selected_layout_id: event.payload.layout_id ?? null } };
     case 'sound.setScenario':
       return { ...state, viewer: { ...v, sound_scenario: event.payload } };
     case 'chat.user':
@@ -222,5 +256,5 @@ export function applyEvent(state: CoreState, event: AnyEvent): CoreState {
 }
 
 export function toViewerState(v: ViewerSlice): ViewerState {
-  return { mode: v.mode, room_id: v.room_id, datetime: v.datetime, sound_scenario: v.sound_scenario, shown_layout_ids: v.shown_layout_ids };
+  return { mode: v.mode, room_id: v.room_id, datetime: v.datetime, sound_scenario: v.sound_scenario, shown_layout_ids: v.shown_layout_ids, playback: v.playback };
 }

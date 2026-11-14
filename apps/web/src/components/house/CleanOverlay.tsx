@@ -1,10 +1,11 @@
 'use client';
 
-import { useEffect, useMemo, useState, type ReactNode } from 'react';
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import type { PropertyTwin } from '@ithaca/schema';
 import { PlanPreview } from '@/components/design/PlanPreview';
 import { useInventory, useLayouts } from '@/lib/data/hooks';
-import { roomName } from '@/lib/rooms';
+import { placeName, roomName } from '@/lib/rooms';
+import { setVoiceKind, speechProvider } from '@/lib/speech/provider';
 import { canSpeak, useSpeakGuide } from '@/lib/speech/useSpeakGuide';
 import { useSession } from '@/lib/store/session';
 import { formatClock, minutesOfDay } from '@/lib/time';
@@ -18,6 +19,7 @@ const GLASS = 'rounded-full border border-white/30 bg-black/35 text-white shadow
  */
 export function CleanOverlay({ twin, pairing, onShowControls }: { twin: PropertyTwin; pairing: ReactNode; onShowControls(): void }) {
   const roomId = useSession((s) => s.viewer.room_id);
+  const sweepId = useSession((s) => s.viewer.sweep_id);
   const datetime = useSession((s) => s.viewer.datetime);
   const interim = useSession((s) => s.interim);
   const last = useSession((s) => {
@@ -33,6 +35,17 @@ export function CleanOverlay({ twin, pairing, onShowControls }: { twin: Property
   // The guide talks; the caption is a small subtitle, not a chat.
   const [voice, setVoice] = useState(true);
   useSpeakGuide(voice);
+  // Which voice is chosen on the phone, in its settings; a new choice says hello in it.
+  const kind = useSession((s) => s.viewer.playback.voice);
+  const heard = useRef(kind);
+  useEffect(() => {
+    if (kind === heard.current) return;
+    heard.current = kind;
+    if (!voice) return;
+    setVoiceKind(kind);
+    speechProvider().cancelSpeech();
+    speechProvider().speak("Hi, I'll be your guide.");
+  }, [kind, voice]);
 
   // A caption stays while it is being written and for a few seconds after.
   useEffect(() => {
@@ -65,7 +78,7 @@ export function CleanOverlay({ twin, pairing, onShowControls }: { twin: Property
         </button>
         {pairing}
       </div>
-      <div className={`absolute bottom-3 left-3 px-3.5 py-1.5 text-sm tabular-nums ${GLASS}`}><span className="font-display font-semibold">{roomName(twin, roomId)}</span> · {formatClock(minutesOfDay(datetime, twin.timezone))}</div>
+      <div className={`absolute bottom-3 left-3 px-3.5 py-1.5 text-sm tabular-nums ${GLASS}`}><span className="font-display font-semibold">{placeName(twin, roomId, sweepId)}</span> · {formatClock(minutesOfDay(datetime, twin.timezone))}</div>
       {options.length > 1 && (
         <div className="absolute inset-x-0 top-20 flex justify-center px-6" data-testid="clean-options">
           <div className="rounded-3xl border border-white/30 bg-black/45 p-4 text-white shadow-lg backdrop-blur-md">

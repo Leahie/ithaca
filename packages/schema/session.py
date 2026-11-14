@@ -36,6 +36,29 @@ class SoundPlaceSourcePayload(Model):
     upload_id: str | None = None
 
 
+# The outdoor sounds one can choose to hear, each a group of soundscape sources (sim/soundscape.py).
+SoundLayer = Literal["highway", "streets", "birds", "insects", "frogs", "dogs"]
+
+
+class ViewerPlaybackPayload(Model):
+    """Additive to v0. What the big screen is playing: the day passing, the outside sounds (and
+    which of them), and the guide's voice. Each field is optional; one event changes only the
+    fields it names. The desktop runs the clock while ``playing``, so a phone and a desktop never
+    both advance time."""
+
+    playing: bool | None = None
+    listening: bool | None = None
+    sounds: list[SoundLayer] | None = None
+    voice: Literal["female", "male"] | None = None
+
+
+class ViewerPlayback(Model):
+    playing: bool = False
+    listening: bool = False
+    sounds: list[SoundLayer] = ["highway", "streets", "birds", "insects", "frogs"]
+    voice: Literal["female", "male"] = "female"
+
+
 class ViewerState(Model):
     """Payload of ``session.state``: what the desktop is showing. The hub keeps the latest copy
     and sends it on join (B9)."""
@@ -46,6 +69,7 @@ class ViewerState(Model):
     sound_scenario: SoundSetScenarioPayload | None = None
     sound_source: SoundPlaceSourcePayload | None = None  # additive to v0
     shown_layout_ids: list[str] = []
+    playback: ViewerPlayback = ViewerPlayback()  # additive to v0
 
 
 class CreateSessionRequest(Model):

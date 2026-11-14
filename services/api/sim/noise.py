@@ -348,7 +348,8 @@ MAX_LISTED_SOURCES = 8
 def noise_report(twin: PropertyTwin, net: Network, table: Acoustics, out: traffic.Outdoor, room_id: str,
                  scenario: NoiseScenario, data: TrafficData, caveats: list[str]) -> NoiseReport:
     """A room's level through the day from everything outside, what it's made of, and the level
-    just outside its most exposed wall."""
+    just outside its most exposed wall (for a room with no outside wall, the wall its outside
+    sound mostly comes in by)."""
     _room(twin, room_id)
     k = net.index(room_id)
     parts = _per_source(out)  # (receivers, parts, 24, bands)
@@ -361,6 +362,9 @@ def noise_report(twin: PropertyTwin, net: Network, table: Acoustics, out: traffi
     outdoor_hourly, outdoor_lden, outdoor_lnight, facade = [], None, None, None
     if facades:
         facade = max(facades, key=lambda i: _leq(_hourly_dba(parts[i].sum(axis=0), table), range(24)))
+    elif out.receivers:
+        facade = int(_feeding_facades(net, out, parts.sum(axis=(1, 2)), table)[k])
+    if facade is not None:
         outside_total = parts[facade].sum(axis=0)
         outside_dba = _hourly_dba(outside_total, table)
         outdoor_hourly = _hours(outside_total, outside_dba)
@@ -402,13 +406,15 @@ def noise_house(twin: PropertyTwin, net: Network, table: Acoustics, out: traffic
     for i, r in enumerate(out.receivers):
         if r.room_id not in loudest or _hourly_dba(hourly[i], table) > _hourly_dba(hourly[loudest[r.room_id]], table):
             loudest[r.room_id] = i
+    feeding = _feeding_facades(net, out, hourly, table) if out.receivers else None
     rooms = []
     for k, rid in enumerate(net.room_ids):
-        outside = hourly[loudest[rid]] if rid in loudest else np.zeros(N_BANDS)
+        facade = loudest.get(rid, None if feeding is None else int(feeding[k]))
+        outside = hourly[facade] if facade is not None else np.zeros(N_BANDS)
         rooms.append(NoiseRoomHour(
             room_id=rid, laeq_dba=round(max(float(_hourly_dba(inside[k], table)), 0.0), 1),
             bands_db=_round(_level(inside[k])),
-            outdoor_laeq_dba=round(max(float(_hourly_dba(outside, table)), 0.0), 1) if rid in loudest else 0.0,
+            outdoor_laeq_dba=round(max(float(_hourly_dba(outside, table)), 0.0), 1) if facade is not None else 0.0,
             outdoor_bands_db=_round(_level(outside)), rt60_s=round(float(rt60[k, 3:5].mean()), 2)))
     rooms.sort(key=lambda r: -r.laeq_dba)
     return NoiseHouse(hour=hour, scenario=scenario, rooms=rooms, traffic=data, caveats=caveats)
@@ -430,6 +436,19 @@ def noise_sources(table: Acoustics, out: traffic.Outdoor, data: TrafficData, cav
                                 facade_laeq_dba=round(_leq(_hourly_dba(out.background, table), range(24)), 1)))
     listed.sort(key=lambda s: -s.facade_laeq_dba)
     return NoiseSources(sources=listed, traffic=data, caveats=caveats)
+
+
+def _feeding_facades(net: Network, out: traffic.Outdoor, energy: np.ndarray, table: Acoustics) -> np.ndarray:
+    """(rooms,) for each room, the receiver whose outside level brings it the most sound (A-weighted),
+    for energy (receivers, bands). A room with no outside wall of its own hears the outside through
+    its neighbours; this is the wall that sound mostly comes in by."""
+    n = len(out.receivers)
+    incident = {}
+    for i, r in enumerate(out.receivers):
+        one = np.zeros((n, N_BANDS))
+        one[i] = energy[i]
+        incident[r.key] = one
+    return _hourly_dba(net.solve_outside(incident), table).argmax(axis=1)  # (rooms, receivers) -> (rooms,)
 
 
 def _per_source(out: traffic.Outdoor) -> np.ndarray:

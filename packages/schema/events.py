@@ -14,7 +14,7 @@ from pydantic import model_validator
 
 from .common import Model
 from .inventory import CatalogPiece
-from .session import ClientKind, SoundPlaceSourcePayload, SoundSetScenarioPayload, ViewerMode, ViewerState
+from .session import ClientKind, SoundPlaceSourcePayload, SoundSetScenarioPayload, ViewerMode, ViewerPlaybackPayload, ViewerState
 from .twin import Vec3
 
 EVENT_VERSION = 1
@@ -131,8 +131,9 @@ class ViewerZoomPayload(Model):
 
 
 class LayoutChangedPayload(Model):
-    """Additive to v0. A client edited furniture by hand (moved, turned, added or removed a piece),
-    so every other screen in the session should load the layouts and the inventory again."""
+    """Additive to v0. The furniture changed: a client edited it by hand (moved, turned, added or
+    removed a piece), or the server applied a kept layout. Every screen in the session loads the
+    house's furniture, the layouts and the inventory again."""
 
     layout_id: str | None = None
 
@@ -156,6 +157,15 @@ class DesignShowVariantsPayload(Model):
 
 
 class LayoutSelectPayload(Model):
+    """The layout on screen. A proposal still `proposed` is previewed in its room; None ends the
+    preview, so every room shows what is really in the house."""
+
+    layout_id: str | None = None
+
+
+class LayoutConfirmPayload(Model):
+    """The user kept this layout: the server applies it to the house (F8)."""
+
     layout_id: str
 
 
@@ -239,15 +249,16 @@ EVENTS: dict[str, tuple[type[Model], frozenset[str]]] = {
     "viewer.look": (ViewerLookPayload, frozenset({"phone"})),
     "viewer.step": (ViewerStepPayload, frozenset({"phone"})),
     "viewer.zoom": (ViewerZoomPayload, frozenset({"phone"})),
-    "layout.changed": (LayoutChangedPayload, frozenset({"phone", "desktop"})),
+    "viewer.playback": (ViewerPlaybackPayload, frozenset({"phone", "desktop", "server"})),
+    "layout.changed": (LayoutChangedPayload, frozenset({"agent", "phone", "desktop", "server"})),
     "furniture.select": (FurnitureSelectPayload, frozenset({"phone", "desktop"})),
     "remote.view": (RemoteViewPayload, frozenset({"phone"})),
     # the agent's layouts, or the placement options a phone or the desktop asked the server for
     "design.showVariants": (DesignShowVariantsPayload, frozenset({"agent", "phone", "desktop"})),
     "layout.select": (LayoutSelectPayload, frozenset({"agent", "phone", "desktop"})),
     # Additive to v0. layout.select only previews an option in the room; layout.confirm is the user
-    # saying "keep this one", and is what the agent records.
-    "layout.confirm": (LayoutSelectPayload, frozenset({"phone", "desktop"})),
+    # saying "keep this one": the server puts it in the house, and the agent records it.
+    "layout.confirm": (LayoutConfirmPayload, frozenset({"phone", "desktop"})),
     "sound.setScenario": (SoundSetScenarioPayload, frozenset({"agent", "phone", "desktop"})),
     "sound.placeSource": (SoundPlaceSourcePayload, frozenset({"agent", "phone", "desktop"})),
     "sound.clearSource": (SoundClearSourcePayload, frozenset({"agent", "phone", "desktop"})),

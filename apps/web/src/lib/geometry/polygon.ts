@@ -80,6 +80,22 @@ export function pointInPolygon(pt: Pt, poly: readonly Pt[]): boolean {
   return inside;
 }
 
+/** Distance from a point to a polygon's outline; 0 inside it. */
+export function distanceToPolygon(pt: Pt, poly: readonly Pt[]): number {
+  if (pointInPolygon(pt, poly)) return 0;
+  let best = Infinity;
+  for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
+    const a = poly[j]!;
+    const b = poly[i]!;
+    const dx = b[0] - a[0];
+    const dz = b[1] - a[1];
+    const len2 = dx * dx + dz * dz;
+    const t = len2 ? Math.max(0, Math.min(1, ((pt[0] - a[0]) * dx + (pt[1] - a[1]) * dz) / len2)) : 0;
+    best = Math.min(best, Math.hypot(pt[0] - (a[0] + t * dx), pt[1] - (a[1] + t * dz)));
+  }
+  return best;
+}
+
 function cross(o: Pt, a: Pt, b: Pt): number {
   return (a[0] - o[0]) * (b[1] - o[1]) - (a[1] - o[1]) * (b[0] - o[0]);
 }

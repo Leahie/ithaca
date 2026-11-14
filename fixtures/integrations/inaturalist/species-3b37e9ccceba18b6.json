@@ -1,0 +1,263 @@
+{
+ "service": "inaturalist",
+ "name": "species",
+ "request": {
+  "lat": 29.6782,
+  "lon": -95.462,
+  "radius_km": 2,
+  "taxa": {
+   "birds": 3,
+   "frogs": 20979,
+   "cicadas": 50186,
+   "orthoptera": 47651
+  },
+  "quality_grade": "research"
+ },
+ "response": {
+  "birds": {
+   "species": 81,
+   "observations": 451,
+   "top": [
+    {
+     "name": "Yellow-crowned Night Heron",
+     "scientific": "Nyctanassa violacea",
+     "count": 21
+    },
+    {
+     "name": "Great-tailed Grackle",
+     "scientific": "Quiscalus mexicanus",
+     "count": 19
+    },
+    {
+     "name": "Cooper's Hawk",
+     "scientific": "Astur cooperii",
+     "count": 18
+    },
+    {
+     "name": "Monk Parakeet",
+     "scientific": "Myiopsitta monachus",
+     "count": 16
+    },
+    {
+     "name": "Osprey",
+     "scientific": "Pandion haliaetus",
+     "count": 16
+    },
+    {
+     "name": "Great Blue Heron",
+     "scientific": "Ardea herodias",
+     "count": 15
+    },
+    {
+     "name": "Muscovy Duck",
+     "scientific": "Cairina moschata",
+     "count": 15
+    },
+    {
+     "name": "Rock Pigeon",
+     "scientific": "Columba livia",
+     "count": 14
+    },
+    {
+     "name": "Mallard",
+     "scientific": "Anas platyrhynchos",
+     "count": 14
+    },
+    {
+     "name": "Northern Mockingbird",
+     "scientific": "Mimus polyglottos",
+     "count": 13
+    },
+    {
+     "name": "Red-shouldered Hawk",
+     "scientific": "Buteo lineatus",
+     "count": 12
+    },
+    {
+     "name": "Blue Jay",
+     "scientific": "Cyanocitta cristata",
+     "count": 12
+    },
+    {
+     "name": "Great Egret",
+     "scientific": "Ardea alba",
+     "count": 12
+    },
+    {
+     "name": "Red-tailed Hawk",
+     "scientific": "Buteo jamaicensis",
+     "count": 11
+    },
+    {
+     "name": "American Robin",
+     "scientific": "Turdus migratorius",
+     "count": 11
+    }
+   ],
+   "by_month": {
+    "1": 23,
+    "2": 33,
+    "3": 21,
+    "4": 147,
+    "5": 68,
+    "6": 26,
+    "7": 29,
+    "8": 20,
+    "9": 18,
+    "10": 16,
+    "11": 20,
+    "12": 30
+   }
+  },
+  "frogs": {
+   "species": 8,
+   "observations": 44,
+   "top": [
+    {
+     "name": "Gulf Coast Toad",
+     "scientific": "Incilius nebulifer",
+     "count": 32
+    },
+    {
+     "name": "Green Treefrog",
+     "scientific": "Dryophytes cinereus",
+     "count": 4
+    },
+    {
+     "name": "Greenhouse Frog",
+     "scientific": "Eleutherodactylus planirostris",
+     "count": 2
+    },
+    {
+     "name": "Squirrel Tree Frog",
+     "scientific": "Dryophytes squirellus",
+     "count": 2
+    },
+    {
+     "name": "Cuban Tree Frog",
+     "scientific": "Osteopilus septentrionalis",
+     "count": 1
+    },
+    {
+     "name": "Eastern Narrow-mouthed Toad",
+     "scientific": "Gastrophryne carolinensis",
+     "count": 1
+    },
+    {
+     "name": "American Bullfrog",
+     "scientific": "Lithobates catesbeianus",
+     "count": 1
+    },
+    {
+     "name": "Rio Grande Chirping Frog",
+     "scientific": "Eleutherodactylus campi",
+     "count": 1
+    }
+   ],
+   "by_month": {
+    "1": 1,
+    "2": 4,
+    "3": 3,
+    "4": 8,
+    "5": 11,
+    "6": 6,
+    "7": 4,
+    "8": 1,
+    "9": 3,
+    "10": 2,
+    "11": 0,
+    "12": 1
+   }
+  },
+  "cicadas": {
+   "species": 2,
+   "observations": 5,
+   "top": [
+    {
+     "name": "Resh Cicada",
+     "scientific": "Megatibicen resh",
+     "count": 3
+    },
+    {
+     "name": "Superb Dog-day Cicada",
+     "scientific": "Neotibicen superbus",
+     "count": 2
+    }
+   ],
+   "by_month": {
+    "1": 0,
+    "2": 0,
+    "3": 1,
+    "4": 0,
+    "5": 3,
+    "6": 1,
+    "7": 0,
+    "8": 0,
+    "9": 0,
+    "10": 0,
+    "11": 0,
+    "12": 0
+   }
+  },
+  "orthoptera": {
+   "species": 8,
+   "observations": 23,
+   "top": [
+    {
+     "name": "Obscure Bird Grasshopper",
+     "scientific": "Schistocerca obscura",
+     "count": 12
+    },
+    {
+     "name": "American Bird Grasshopper",
+     "scientific": "Schistocerca americana",
+     "count": 3
+    },
+    {
+     "name": "Green-striped Grasshopper",
+     "scientific": "Chortophaga viridifasciata",
+     "count": 3
+    },
+    {
+     "name": "Fork-tailed Bush Katydid",
+     "scientific": "Scudderia furcata",
+     "count": 1
+    },
+    {
+     "name": "Aztec Spur-throated Grasshopper",
+     "scientific": "Aidemona azteca",
+     "count": 1
+    },
+    {
+     "name": "Broad-tipped Conehead",
+     "scientific": "Neoconocephalus triops",
+     "count": 1
+    },
+    {
+     "name": "Two-spotted Tree Cricket",
+     "scientific": "Neoxabea bipunctata",
+     "count": 1
+    },
+    {
+     "name": "Mischievous Bird Grasshopper",
+     "scientific": "Schistocerca damnifica",
+     "count": 1
+    }
+   ],
+   "by_month": {
+    "1": 0,
+    "2": 0,
+    "3": 2,
+    "4": 3,
+    "5": 1,
+    "6": 6,
+    "7": 4,
+    "8": 1,
+    "9": 3,
+    "10": 3,
+    "11": 0,
+    "12": 0
+   }
+  }
+ }
+}

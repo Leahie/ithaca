@@ -20,6 +20,12 @@ export const IconSound = (p: P) => (
     <path d="M16.5 8.5a5 5 0 010 7M19 6a8.5 8.5 0 010 12" />
   </svg>
 );
+export const IconMute = (p: P) => (
+  <svg {...base(p)}>
+    <path d="M4 9v6h4l5 4V5L8 9z" />
+    <path d="M16.5 9.5l5 5M21.5 9.5l-5 5" />
+  </svg>
+);
 export const IconMap = (p: P) => (
   <svg {...base(p)}>
     <path d="M9 4L3 6v14l6-2 6 2 6-2V4l-6 2z" />
@@ -103,6 +109,48 @@ export const IconPin = (p: P) => (
   <svg {...base(p)}>
     <path d="M12 21s7-6.2 7-11.5A7 7 0 005 9.5C5 14.8 12 21 12 21z" />
     <circle cx="12" cy="9.5" r="2.5" />
+  </svg>
+);
+export const IconPlus = (p: P) => (
+  <svg {...base(p)}>
+    <path d="M12 5v14M5 12h14" />
+  </svg>
+);
+export const IconList = (p: P) => (
+  <svg {...base(p)}>
+    <path d="M9 6h11M9 12h11M9 18h11" />
+    <circle cx="4.5" cy="6" r="1" />
+    <circle cx="4.5" cy="12" r="1" />
+    <circle cx="4.5" cy="18" r="1" />
+  </svg>
+);
+export const IconSparkle = (p: P) => (
+  <svg {...base(p)}>
+    <path d="M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8z" />
+    <path d="M19 16l.7 1.8 1.8.7-1.8.7L19 21l-.7-1.8-1.8-.7 1.8-.7z" />
+  </svg>
+);
+export const IconTurnLeft = (p: P) => (
+  <svg {...base(p)}>
+    <path d="M9 4L5 8l4 4" />
+    <path d="M5 8h9a5 5 0 010 10h-3" />
+  </svg>
+);
+export const IconTurnRight = (p: P) => (
+  <svg {...base(p)}>
+    <path d="M15 4l4 4-4 4" />
+    <path d="M19 8h-9a5 5 0 000 10h3" />
+  </svg>
+);
+export const IconArrowUp = (p: P) => (
+  <svg {...base(p)}>
+    <path d="M12 19V5M6 11l6-6 6 6" />
+  </svg>
+);
+export const IconEye = (p: P) => (
+  <svg {...base(p)}>
+    <path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12z" />
+    <circle cx="12" cy="12" r="3" />
   </svg>
 );
 export const IconHand = (p: P) => (

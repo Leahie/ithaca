@@ -24,7 +24,7 @@ def furniture(monkeypatch):
 
 def test_guide_delegates_to_the_designer_and_shows_valid_layouts(furniture):
     sofa, table, _chair = [str(i.item_id) for i in furniture.list_items("alice")]
-    saved = lambda: [str(l.layout_id) for l in furniture.list_layouts("alice")]  # noqa: E731
+    saved = lambda: [str(l.layout_id) for l in furniture.list_proposals("alice")]  # noqa: E731
     model = ScriptedModel(
         script=[
             # the guide hands the job over
@@ -50,8 +50,9 @@ def test_guide_delegates_to_the_designer_and_shows_valid_layouts(furniture):
     out = run(model, InMemoryStore(), user="alice", thread="t1", text="lay out the living room")
 
     assert sofa in model.tool_results[0]  # the subagent's tool saw alice's furniture (context reached it)
-    layouts = furniture.list_layouts("alice", PROPERTY, LIVING_ROOM)
-    assert len(layouts) == 3 and furniture.list_layouts("bob") == []
+    layouts = furniture.list_proposals("alice", PROPERTY, LIVING_ROOM)
+    assert len(layouts) == 3 and furniture.list_proposals("bob") == []
+    assert furniture.house_pieces("alice", PROPERTY) == []  # proposals are not furniture in the house (F8)
 
     twin = get_twin(PROPERTY)
     room = next(r for r in twin.rooms if r.room_id == LIVING_ROOM)

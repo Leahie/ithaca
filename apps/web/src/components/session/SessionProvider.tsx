@@ -13,6 +13,14 @@ import { onSessionEvent, useSession, viewerSnapshot } from '@/lib/store/session'
 
 const STORAGE_KEY = 'ithaca.session';
 
+/** Storage, the house's furniture and the layouts, loaded again by every view that shows them. */
+function reloadFurniture(): void {
+  invalidate('inventory');
+  invalidate('furniture:');
+  invalidate('layouts:');
+  invalidate('layout:');
+}
+
 function restoreSession(): Session | null {
   try {
     const raw = window.sessionStorage.getItem(STORAGE_KEY);
@@ -126,31 +134,24 @@ export function SessionProvider({ client, propertyId, join, householdId = null, 
     () =>
       onSessionEvent((event) => {
         if (event.type === 'job.progress' && event.payload.status === 'done') {
-          invalidate('inventory');
-          invalidate('layouts:');
+          reloadFurniture();
         } else if (event.type === 'layout.changed') {
-          // Someone moved, added or removed furniture by hand, on this screen or another.
-          invalidate('inventory');
-          invalidate('layouts:');
-          invalidate('layout:');
+          // Furniture was moved, added or removed (by hand, by the guide, or a kept layout).
+          reloadFurniture();
         } else if (event.type === 'design.showVariants') {
           // New layouts often come with pieces the guide has just added: reload both.
-          invalidate('inventory');
-          invalidate('layouts:');
-          invalidate('layout:');
+          reloadFurniture();
         } else if (event.type === 'agent.action' && FURNITURE_TOOLS.has(event.payload.tool)) {
           furnitureTouched.current = true; // the tool has only been asked for; it finishes within this turn
         } else if (event.type === 'agent.turn' && event.payload.status === 'ended' && furnitureTouched.current) {
           furnitureTouched.current = false;
-          invalidate('inventory');
-          invalidate('layouts:');
-          invalidate('layout:');
-        } else if (event.type === 'layout.select' && client === 'desktop') {
-          // The desktop is the viewer authority (A2): it persists the choice, whoever made it.
+          reloadFurniture();
+        } else if (event.type === 'layout.confirm' && client === 'desktop' && config.useFixtures) {
+          // With the API the server keeps the layout and says layout.changed; in fixture mode the desktop does.
           api()
             .selectLayout(event.payload.layout_id)
-            .then(() => invalidate('layouts:'))
-            .catch((err: unknown) => console.warn('[layout] select failed', err));
+            .then(reloadFurniture)
+            .catch((err: unknown) => console.warn('[layout] keep failed', err));
         }
       }),
     [client],

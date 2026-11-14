@@ -48,16 +48,16 @@ def get_room_geometry(room_id: str, runtime: Runtime) -> str:
         return f"Error: unknown room_id {room_id!r}. Use a room_id from the room directory."
     names = prompts.room_display_names(twin)
 
+    from services.api.agent.design_tools import wall_sides
+
     pts = room.polygon
-    walls = sorted(
-        (math.dist(pts[i], pts[(i + 1) % len(pts)]) for i in range(len(pts))), reverse=True
-    )
+    walls = sorted(wall_sides(twin, room), key=lambda w: -w[1])
     xs, zs = [p[0] for p in pts], [p[1] for p in pts]
     lines = [
         f"{names[room_id]} (`{room_id}`)",
         f"- Area: {room.area_m2:.1f} m²" if room.area_m2 is not None else "- Area: unknown",
         f"- Bounding box: {max(xs) - min(xs):.2f} m × {max(zs) - min(zs):.2f} m, ceiling {room.height_m:.2f} m",
-        f"- Wall lengths (m): {', '.join(f'{w:.2f}' for w in walls if w >= 0.3)}",
+        f"- Walls, by the side of the room they are on (m): {', '.join(f'{side} {w:.2f}' for side, w in walls)}",
         f"- Floor: {room.floor_material}",
         "- Openings:",
     ]

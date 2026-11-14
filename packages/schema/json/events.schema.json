@@ -398,6 +398,25 @@
       "title": "FamilyNotePayload",
       "type": "object"
     },
+    "FurnitureSelectPayload": {
+      "description": "Additive to v0. The piece selected in a plan editor (None: nothing), so the 3D view can\npoint it out.",
+      "properties": {
+        "item_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Item Id"
+        }
+      },
+      "title": "FurnitureSelectPayload",
+      "type": "object"
+    },
     "ItemDims": {
       "description": "Item space: w along X, d along Z, h along Y. Meters.",
       "properties": {
@@ -468,7 +487,27 @@
       "title": "JobProgressPayload",
       "type": "object"
     },
-    "LayoutSelectPayload": {
+    "LayoutChangedPayload": {
+      "description": "Additive to v0. The furniture changed: a client edited it by hand (moved, turned, added or\nremoved a piece), or the server applied a kept layout. Every screen in the session loads the\nhouse's furniture, the layouts and the inventory again.",
+      "properties": {
+        "layout_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Layout Id"
+        }
+      },
+      "title": "LayoutChangedPayload",
+      "type": "object"
+    },
+    "LayoutConfirmPayload": {
+      "description": "The user kept this layout: the server applies it to the house (F8).",
       "properties": {
         "layout_id": {
           "title": "Layout Id",
@@ -478,6 +517,25 @@
       "required": [
         "layout_id"
       ],
+      "title": "LayoutConfirmPayload",
+      "type": "object"
+    },
+    "LayoutSelectPayload": {
+      "description": "The layout on screen. A proposal still `proposed` is previewed in its room; None ends the\npreview, so every room shows what is really in the house.",
+      "properties": {
+        "layout_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Layout Id"
+        }
+      },
       "title": "LayoutSelectPayload",
       "type": "object"
     },
@@ -517,6 +575,27 @@
         }
       },
       "title": "NoiseScenario",
+      "type": "object"
+    },
+    "RemoteViewPayload": {
+      "description": "Additive to v0. Which screen the phone remote is on, so the big screen can follow it\n(it shows the floor plan while the phone is choosing a room).",
+      "properties": {
+        "view": {
+          "enum": [
+            "move",
+            "rooms",
+            "guide",
+            "furniture",
+            "light"
+          ],
+          "title": "View",
+          "type": "string"
+        }
+      },
+      "required": [
+        "view"
+      ],
+      "title": "RemoteViewPayload",
       "type": "object"
     },
     "SessionPresencePayload": {
@@ -731,6 +810,123 @@
       "title": "ViewerLookPayload",
       "type": "object"
     },
+    "ViewerPlayback": {
+      "properties": {
+        "listening": {
+          "default": false,
+          "title": "Listening",
+          "type": "boolean"
+        },
+        "playing": {
+          "default": false,
+          "title": "Playing",
+          "type": "boolean"
+        },
+        "sounds": {
+          "default": [
+            "highway",
+            "streets",
+            "birds",
+            "insects",
+            "frogs"
+          ],
+          "items": {
+            "enum": [
+              "highway",
+              "streets",
+              "birds",
+              "insects",
+              "frogs",
+              "dogs"
+            ],
+            "type": "string"
+          },
+          "title": "Sounds",
+          "type": "array"
+        },
+        "voice": {
+          "default": "female",
+          "enum": [
+            "female",
+            "male"
+          ],
+          "title": "Voice",
+          "type": "string"
+        }
+      },
+      "title": "ViewerPlayback",
+      "type": "object"
+    },
+    "ViewerPlaybackPayload": {
+      "description": "Additive to v0. What the big screen is playing: the day passing, the outside sounds (and\nwhich of them), and the guide's voice. Each field is optional; one event changes only the\nfields it names. The desktop runs the clock while ``playing``, so a phone and a desktop never\nboth advance time.",
+      "properties": {
+        "listening": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Listening"
+        },
+        "playing": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Playing"
+        },
+        "sounds": {
+          "anyOf": [
+            {
+              "items": {
+                "enum": [
+                  "highway",
+                  "streets",
+                  "birds",
+                  "insects",
+                  "frogs",
+                  "dogs"
+                ],
+                "type": "string"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Sounds"
+        },
+        "voice": {
+          "anyOf": [
+            {
+              "enum": [
+                "female",
+                "male"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Voice"
+        }
+      },
+      "title": "ViewerPlaybackPayload",
+      "type": "object"
+    },
     "ViewerSetModePayload": {
       "properties": {
         "mode": {
@@ -782,6 +978,21 @@
           "title": "Mode",
           "type": "string"
         },
+        "playback": {
+          "$ref": "#/$defs/ViewerPlayback",
+          "default": {
+            "listening": false,
+            "playing": false,
+            "sounds": [
+              "highway",
+              "streets",
+              "birds",
+              "insects",
+              "frogs"
+            ],
+            "voice": "female"
+          }
+        },
         "room_id": {
           "anyOf": [
             {
@@ -832,6 +1043,34 @@
       "title": "ViewerState",
       "type": "object"
     },
+    "ViewerStepPayload": {
+      "description": "Additive to v0. The phone's arrows: one hop to the next scan position ahead of, or behind,\nthe way the camera faces. Turning is a `viewer.look`. `angle_deg` (the phone's joystick) is the\nway to go, clockwise from straight ahead: 0 forward, 90 right, 180 back; it wins over\n`direction`.",
+      "properties": {
+        "angle_deg": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Angle Deg"
+        },
+        "direction": {
+          "default": "forward",
+          "enum": [
+            "forward",
+            "back"
+          ],
+          "title": "Direction",
+          "type": "string"
+        }
+      },
+      "title": "ViewerStepPayload",
+      "type": "object"
+    },
     "ViewerWalkPayload": {
       "description": "Additive to v0. Walk the camera from one room to another, sweep by sweep.",
       "properties": {
@@ -871,6 +1110,20 @@
         "duration_s"
       ],
       "title": "ViewerWalkPayload",
+      "type": "object"
+    },
+    "ViewerZoomPayload": {
+      "description": "Additive to v0. The phone's pinch: a change in zoom, positive in, negative out (1.0 = one\nwhole zoom level).",
+      "properties": {
+        "delta": {
+          "title": "Delta",
+          "type": "number"
+        }
+      },
+      "required": [
+        "delta"
+      ],
+      "title": "ViewerZoomPayload",
       "type": "object"
     },
     "VoiceTranscriptPayload": {
@@ -954,7 +1207,9 @@
     "design.showVariants": {
       "payload": "DesignShowVariantsPayload",
       "sent_by": [
-        "agent"
+        "agent",
+        "desktop",
+        "phone"
       ]
     },
     "family.answer": {
@@ -975,14 +1230,30 @@
         "agent"
       ]
     },
+    "furniture.select": {
+      "payload": "FurnitureSelectPayload",
+      "sent_by": [
+        "desktop",
+        "phone"
+      ]
+    },
     "job.progress": {
       "payload": "JobProgressPayload",
       "sent_by": [
         "server"
       ]
     },
+    "layout.changed": {
+      "payload": "LayoutChangedPayload",
+      "sent_by": [
+        "agent",
+        "desktop",
+        "phone",
+        "server"
+      ]
+    },
     "layout.confirm": {
-      "payload": "LayoutSelectPayload",
+      "payload": "LayoutConfirmPayload",
       "sent_by": [
         "desktop",
         "phone"
@@ -993,6 +1264,12 @@
       "sent_by": [
         "agent",
         "desktop",
+        "phone"
+      ]
+    },
+    "remote.view": {
+      "payload": "RemoteViewPayload",
+      "sent_by": [
         "phone"
       ]
     },
@@ -1052,6 +1329,14 @@
         "phone"
       ]
     },
+    "viewer.playback": {
+      "payload": "ViewerPlaybackPayload",
+      "sent_by": [
+        "desktop",
+        "phone",
+        "server"
+      ]
+    },
     "viewer.setMode": {
       "payload": "ViewerSetModePayload",
       "sent_by": [
@@ -1068,10 +1353,22 @@
         "phone"
       ]
     },
+    "viewer.step": {
+      "payload": "ViewerStepPayload",
+      "sent_by": [
+        "phone"
+      ]
+    },
     "viewer.walk": {
       "payload": "ViewerWalkPayload",
       "sent_by": [
         "agent"
+      ]
+    },
+    "viewer.zoom": {
+      "payload": "ViewerZoomPayload",
+      "sent_by": [
+        "phone"
       ]
     },
     "voice.transcript": {

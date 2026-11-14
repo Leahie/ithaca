@@ -249,6 +249,20 @@ export interface FurnitureSelectPayload {
   item_id?: string | null;
 }
 
+/**
+ * A stored piece standing in a house: one row of the in-house table.
+ */
+export interface HousePiece {
+  item_id: string;
+  property_id: string;
+  room_id: string;
+  position: Vec3;
+  yaw_deg: number;
+  placed_by: string;
+  updated_at: string;
+  warnings?: string[] | null;
+}
+
 export interface Household {
   household_id: string;
   name: string;
@@ -258,9 +272,13 @@ export interface Household {
   active_session_id?: string | null;
 }
 
+/**
+ * A piece in storage (docs/specs/furniture.md).
+ */
 export interface InventoryItem {
   item_id: string;
   user_id: string;
+  owner_name?: string | null;
   label: string;
   item_class: string;
   attributes: ItemAttributes;
@@ -322,21 +340,37 @@ export interface JoinResult {
 }
 
 /**
- * Additive to v0. A client edited furniture by hand (moved, turned, added or removed a piece),
- * so every other screen in the session should load the layouts and the inventory again.
+ * Additive to v0. The furniture changed: a client edited it by hand (moved, turned, added or
+ * removed a piece), or the server applied a kept layout. Every screen in the session loads the
+ * house's furniture, the layouts and the inventory again.
  */
 export interface LayoutChangedPayload {
   layout_id?: string | null;
+}
+
+/**
+ * The user kept this layout: the server applies it to the house (F8).
+ */
+export interface LayoutConfirmPayload {
+  layout_id: string;
 }
 
 export interface LayoutFeedbackRequest {
   feedback: string;
 }
 
+/**
+ * The layout on screen. A proposal still `proposed` is previewed in its room; None ends the
+ * preview, so every room shows what is really in the house.
+ */
 export interface LayoutSelectPayload {
-  layout_id: string;
+  layout_id?: string | null;
 }
 
+/**
+ * A proposal: an arrangement of one room someone suggested. Never furniture in the house
+ * until it is applied (F8).
+ */
 export interface LayoutVariant {
   layout_id: string;
   user_id: string;
@@ -348,7 +382,6 @@ export interface LayoutVariant {
   status: "proposed" | "chosen" | "rejected";
   feedback?: string | null;
   thumbnail_url?: string | null;
-  warnings?: string[] | null;
 }
 
 /**
@@ -480,31 +513,21 @@ export interface OutdoorSource {
   path?: [number, number][][];
 }
 
+/**
+ * Body of PUT /properties/{property_id}/furniture/{item_id}: put a piece at a spot, or move it.
+ */
+export interface PlacePiece {
+  x: number;
+  z: number;
+  yaw_deg?: number | null;
+  floor_id?: string | null;
+  room_id?: string | null;
+  snap?: boolean;
+}
+
 export interface Placement {
   item_id: string;
   position: Vec3;
-  yaw_deg: number;
-}
-
-/**
- * Body of POST /layouts/drop: the user pointed at a spot on the floor plan for one piece.
- */
-export interface PlacementDrop {
-  property_id: string;
-  room_id?: string | null;
-  floor_id?: string | null;
-  item_id: string;
-  x: number;
-  z: number;
-  layout_id?: string | null;
-}
-
-/**
- * Body of PUT /layouts/{layout_id}/placements/{item_id}: where the user dragged a piece.
- */
-export interface PlacementMove {
-  x: number;
-  z: number;
   yaw_deg: number;
 }
 
@@ -784,6 +807,26 @@ export interface ViewerLookPayload {
   pitch_delta_deg: number;
 }
 
+export interface ViewerPlayback {
+  playing?: boolean;
+  listening?: boolean;
+  sounds?: ("highway" | "streets" | "birds" | "insects" | "frogs" | "dogs")[];
+  voice?: "female" | "male";
+}
+
+/**
+ * Additive to v0. What the big screen is playing: the day passing, the outside sounds (and
+ * which of them), and the guide's voice. Each field is optional; one event changes only the
+ * fields it names. The desktop runs the clock while ``playing``, so a phone and a desktop never
+ * both advance time.
+ */
+export interface ViewerPlaybackPayload {
+  playing?: boolean | null;
+  listening?: boolean | null;
+  sounds?: ("highway" | "streets" | "birds" | "insects" | "frogs" | "dogs")[] | null;
+  voice?: "female" | "male" | null;
+}
+
 export interface ViewerSetModePayload {
   mode: "tour" | "sun" | "sound" | "neighborhood" | "design";
 }
@@ -803,6 +846,7 @@ export interface ViewerState {
   sound_scenario?: SoundSetScenarioPayload | null;
   sound_source?: SoundPlaceSourcePayload | null;
   shown_layout_ids?: string[];
+  playback?: ViewerPlayback;
 }
 
 /**
@@ -867,12 +911,13 @@ export interface EventPayloads {
   "viewer.look": ViewerLookPayload;
   "viewer.step": ViewerStepPayload;
   "viewer.zoom": ViewerZoomPayload;
+  "viewer.playback": ViewerPlaybackPayload;
   "layout.changed": LayoutChangedPayload;
   "furniture.select": FurnitureSelectPayload;
   "remote.view": RemoteViewPayload;
   "design.showVariants": DesignShowVariantsPayload;
   "layout.select": LayoutSelectPayload;
-  "layout.confirm": LayoutSelectPayload;
+  "layout.confirm": LayoutConfirmPayload;
   "sound.setScenario": SoundSetScenarioPayload;
   "sound.placeSource": SoundPlaceSourcePayload;
   "sound.clearSource": SoundClearSourcePayload;
@@ -893,7 +938,7 @@ export interface EventPayloads {
 }
 
 export type EventType = keyof EventPayloads;
-export const EVENT_TYPES = ["session.state", "session.joined", "session.left", "viewer.goto", "viewer.walk", "viewer.setTime", "viewer.setMode", "viewer.look", "viewer.step", "viewer.zoom", "layout.changed", "furniture.select", "remote.view", "design.showVariants", "layout.select", "layout.confirm", "sound.setScenario", "sound.placeSource", "sound.clearSource", "catalog.suggest", "catalog.picked", "capture.upload", "chat.user", "voice.transcript", "agent.token", "agent.message", "agent.action", "agent.error", "agent.turn", "job.progress", "family.note", "family.ask", "family.answer"] as const satisfies readonly EventType[];
+export const EVENT_TYPES = ["session.state", "session.joined", "session.left", "viewer.goto", "viewer.walk", "viewer.setTime", "viewer.setMode", "viewer.look", "viewer.step", "viewer.zoom", "viewer.playback", "layout.changed", "furniture.select", "remote.view", "design.showVariants", "layout.select", "layout.confirm", "sound.setScenario", "sound.placeSource", "sound.clearSource", "catalog.suggest", "catalog.picked", "capture.upload", "chat.user", "voice.transcript", "agent.token", "agent.message", "agent.action", "agent.error", "agent.turn", "job.progress", "family.note", "family.ask", "family.answer"] as const satisfies readonly EventType[];
 
 /** The typed envelope for one known event type. */
 export interface Event<T extends EventType = EventType> {

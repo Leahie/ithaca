@@ -25,5 +25,6 @@ class AgentContext:
 
     @property
     def furniture_user(self) -> str:
-        """Whose inventory and layouts the furniture tools read and write."""
+        """The house user: whose house and proposals the furniture tools read and write. New
+        pieces belong to user_id (docs/specs/furniture.md)."""
         return self.house_user_id or self.user_id

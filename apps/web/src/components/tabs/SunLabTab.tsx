@@ -1,6 +1,6 @@
 'use client';
 
-import { shownLayouts } from '@/lib/layouts';
+import { furnitureOnScreen, previewLayout } from '@/lib/layouts';
 import type { Opening, PropertyTwin } from '@ithaca/schema';
 import { PerformanceMonitor } from '@react-three/drei';
 import { Canvas } from '@react-three/fiber';
@@ -11,7 +11,7 @@ import { SunPanel, useRoomSunReport } from '@/components/sunlab/SunPanel';
 import { TimeScrubber } from '@/components/sunlab/TimeScrubber';
 import { Button, Notice, Spinner, Toggle, cn } from '@/components/ui';
 import { api } from '@/lib/api';
-import { useInventory, useLayouts } from '@/lib/data/hooks';
+import { useHouseFurniture, useInventory, useLayouts } from '@/lib/data/hooks';
 import { invalidate } from '@/lib/data/resource';
 import { defaultRoom, roomName } from '@/lib/rooms';
 import type { V3 } from '@/lib/geometry/frames';
@@ -33,6 +33,7 @@ export function SunLabTab({ twin, active }: { twin: PropertyTwin; active: boolea
   const selectedLayoutId = useSession((s) => s.viewer.selected_layout_id);
   const dispatch = useSession((s) => s.dispatch);
   const layouts = useLayouts(twin.property_id);
+  const house = useHouseFurniture(twin.property_id);
   const inventory = useInventory();
 
   const room = useMemo(() => twin.rooms.find((r) => r.room_id === roomId) ?? null, [twin, roomId]);
@@ -75,15 +76,14 @@ export function SunLabTab({ twin, active }: { twin: PropertyTwin; active: boolea
     return { ...pos, direction: compassToInterior(twin.interior_to_world, pos.azimuth_deg, pos.elevation_deg) as V3 };
   }, [datetime, twin]);
 
-  // Furniture of the chosen layout.
+  // The house's furniture (or the layout being tried in its room).
   const placements = useMemo<PlacedItem[]>(() => {
     const items = new Map((inventory.data ?? []).map((i) => [i.item_id, i]));
-    // Every room keeps its furniture: the layout on screen plus the chosen one of each other room.
-    return shownLayouts(layouts.data, selectedLayoutId).flatMap((l) => l.placements).flatMap((p) => {
+    return furnitureOnScreen(house.data, previewLayout(layouts.data, selectedLayoutId)).flatMap((p) => {
       const item = items.get(p.item_id);
       return item ? [{ item_id: p.item_id, url: item.glb_url, position: p.position, yaw_deg: p.yaw_deg }] : [];
     });
-  }, [layouts.data, inventory.data, selectedLayoutId]);
+  }, [house.data, layouts.data, inventory.data, selectedLayoutId]);
 
   // Openings: a working copy, so marks show (and let light in) before they are saved.
   const [draft, setDraft] = useState<Opening[] | null>(null);

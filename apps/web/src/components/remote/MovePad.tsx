@@ -21,14 +21,13 @@ const KNOB = 56;
 const DEADZONE = 0.35;
 
 /**
- * Game-style controls: a thumbstick walks (on the side of the hand that holds the phone's
- * dominant thumb), a drag anywhere else looks around with a trackpad's feel (quick flicks go
+ * Game-style controls: a thumbstick at the bottom middle walks, a drag anywhere else looks around with a trackpad's feel (quick flicks go
  * further, and the view glides on after the finger lifts), and a two-finger pinch zooms.
  * The stick sends `viewer.step` with the way to go (the house is walked in hops between scan
  * positions, so holding the stick over repeats the step); the drag sends `viewer.look` deltas,
  * yaw > 0 looks right, pitch > 0 looks up; the pinch sends `viewer.zoom`.
  */
-export function MovePad({ hint, side = 'right' }: { hint: string; side?: 'left' | 'right' }) {
+export function MovePad({ hint }: { hint?: string }) {
   const acc = useRef({ yaw: 0, pitch: 0, zoom: 0 });
   // Fingers on the look surface: one drags the view, two pinch to zoom.
   const fingers = useRef(new Map<number, { x: number; y: number }>());
@@ -159,12 +158,12 @@ export function MovePad({ hint, side = 'right' }: { hint: string; side?: 'left' 
         pinch.current = null;
       }}
     >
-      <p className="pointer-events-none absolute inset-x-0 top-6 text-center text-sm text-muted">{hint}</p>
+      {hint && <p className="pointer-events-none absolute inset-x-0 top-6 text-center text-sm text-muted">{hint}</p>}
       <p className="pointer-events-none absolute inset-x-0 top-1/3 text-center text-xs text-faint">drag to look around · pinch to zoom</p>
       <div
         data-testid="walk-stick"
         aria-label="Walk"
-        className={`absolute bottom-8 rounded-full border border-line-strong/50 bg-ink/80 ${side === 'left' ? 'left-6' : 'right-6'}`}
+        className="absolute bottom-8 left-1/2 -translate-x-1/2 rounded-full border border-line-strong/50 bg-ink/80"
         style={{ width: STICK, height: STICK }}
         onPointerDown={(e) => {
           e.stopPropagation();

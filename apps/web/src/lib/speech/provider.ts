@@ -1,7 +1,10 @@
 /**
- * Speech behind one interface, so Deepgram / ElevenLabs can replace the browser later.
- * The default provider uses the Web Speech API for STT and speechSynthesis for TTS.
+ * Speech behind one interface. "webspeech" (the default) uses the Web Speech API for STT and
+ * speechSynthesis for TTS; "deepgram" speaks with Deepgram's Aura voices through the API and
+ * listens with the browser.
  */
+import { config, wsOrigin } from '@/lib/config';
+
 export interface ListenHandlers {
   /** Called with the full transcript so far. `final` is true once, when listening ends. */
   onTranscript(text: string, final: boolean): void;
@@ -97,11 +100,19 @@ export class WebSpeechProvider implements SpeechProvider {
 
   speak(text: string, opts: { lang?: string; rate?: number } = {}): void {
     if (!this.ttsAvailable()) return;
-    const u = new SpeechSynthesisUtterance(text);
+    const clean = speakable(text);
+    if (!clean) return;
+    const synth = window.speechSynthesis;
+    const u = new SpeechSynthesisUtterance(clean);
     if (opts.lang) u.lang = opts.lang;
-    u.rate = opts.rate ?? 1.05;
-    window.speechSynthesis.cancel();
-    window.speechSynthesis.speak(u);
+    else {
+      const voices = synth.getVoices().filter((v) => v.lang.startsWith('en'));
+      const preferred = voiceKind() === 'male' ? /Daniel|David|Guy|Alex|Google UK English Male|Andrew|Christopher/ : /Samantha|Ava|Allison|Google US English|Jenny|Aria/;
+      u.voice = voices.find((v) => preferred.test(v.name)) ?? voices[0] ?? null;
+    }
+    u.rate = opts.rate ?? 1.04;
+    synth.cancel();
+    synth.speak(u);
   }
 
   cancelSpeech(): void {
@@ -109,10 +120,310 @@ export class WebSpeechProvider implements SpeechProvider {
   }
 }
 
-const providers = new Map<string, () => SpeechProvider>([['webspeech', () => new WebSpeechProvider()]]);
+export type VoiceKind = 'female' | 'male';
+const VOICE_KEY = 'ithaca.voice';
+
+/** The guide's voice, kept in this browser. Read it after mount: the server has no localStorage. */
+export function voiceKind(): VoiceKind {
+  try {
+    return window.localStorage.getItem(VOICE_KEY) === 'male' ? 'male' : 'female';
+  } catch {
+    return 'female';
+  }
+}
+
+export function setVoiceKind(kind: VoiceKind): void {
+  try {
+    window.localStorage.setItem(VOICE_KEY, kind);
+  } catch {
+    /* this page load only */
+  }
+}
+
+/** Markdown and symbols read badly aloud. */
+export function speakable(text: string): string {
+  return text
+    .replace(/```[\s\S]*?```/g, ' ')
+    .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')
+    .replace(/[*_`#>|]/g, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+/**
+ * Text cut into requests for the voice service: whole sentences, at most `max` characters each
+ * (Deepgram takes 2000). The first request is one sentence, so speech starts quickly.
+ */
+export function speechChunks(text: string, max = 1000): string[] {
+  const sentences = text.split(/(?<=[.!?]["')\]]*)\s+/).map((s) => s.trim()).filter(Boolean);
+  const pieces = sentences.flatMap((s) => {
+    if (s.length <= max) return [s];
+    const parts: string[] = [];
+    let cur = '';
+    for (const word of s.split(' ')) {
+      for (let w = word; w; w = w.slice(max)) {
+        const head = w.slice(0, max);
+        if (cur && cur.length + 1 + head.length > max) {
+          parts.push(cur);
+          cur = head;
+        } else cur = cur ? `${cur} ${head}` : head;
+      }
+    }
+    return cur ? [...parts, cur] : parts;
+  });
+  const out: string[] = [];
+  let cur = '';
+  for (const p of pieces) {
+    if (cur && (out.length === 0 || cur.length + 1 + p.length > max)) {
+      out.push(cur);
+      cur = p;
+    } else cur = cur ? `${cur} ${p}` : p;
+  }
+  if (cur) out.push(cur);
+  return out;
+}
+
+class VoiceUnavailable extends Error {}
+
+/** Closes the listen socket: the API has no Deepgram key. */
+const NOT_CONFIGURED = 4503;
+
+/** Microphone samples as 16-bit PCM, posted in 100 ms blocks. */
+const PCM_WORKLET = `
+class Pcm16 extends AudioWorkletProcessor {
+  constructor() { super(); this.buf = new Int16Array(Math.round(sampleRate / 10)); this.n = 0; }
+  process(inputs) {
+    const ch = inputs[0] && inputs[0][0];
+    if (ch) for (let i = 0; i < ch.length; i++) {
+      const s = Math.max(-1, Math.min(1, ch[i]));
+      this.buf[this.n++] = s < 0 ? s * 0x8000 : s * 0x7fff;
+      if (this.n === this.buf.length) { this.port.postMessage(this.buf.buffer, [this.buf.buffer]); this.buf = new Int16Array(this.buf.length); this.n = 0; }
+    }
+    return true;
+  }
+}
+registerProcessor('pcm16', Pcm16);
+`;
+
+function micError(err: unknown): string {
+  const name = err instanceof DOMException ? err.name : '';
+  if (name === 'NotAllowedError' || name === 'SecurityError') return 'Microphone access was denied.';
+  if (name === 'NotFoundError') return 'No microphone was found.';
+  return `The microphone could not be opened (${err instanceof Error ? err.message : String(err)}).`;
+}
+
+/**
+ * Deepgram through the API, so the key stays on the server: its voices from POST /speech/tts,
+ * and transcription of the microphone streamed over /ws/speech/listen. Falls back to the
+ * browser's own speech in fixture mode, when the API has no key, and when a request fails.
+ */
+export class DeepgramProvider implements SpeechProvider {
+  readonly name = 'deepgram';
+  private readonly browser = new WebSpeechProvider();
+  /** Set for good once the API says it has no voice service. */
+  private unavailable = config.useFixtures;
+  /** Set for good once the API says it has no transcription service. */
+  private sttUnavailable = config.useFixtures;
+  private seq = 0;
+  private abort: AbortController | null = null;
+  private audio: HTMLAudioElement | null = null;
+  private speaking: string | null = null;
+
+  private streams(): boolean {
+    return !this.sttUnavailable && typeof AudioWorkletNode !== 'undefined' && !!navigator.mediaDevices?.getUserMedia;
+  }
+
+  sttAvailable(): boolean {
+    return (typeof window !== 'undefined' && this.streams()) || this.browser.sttAvailable();
+  }
+
+  ttsAvailable(): boolean {
+    return typeof window !== 'undefined' && (typeof Audio !== 'undefined' || this.browser.ttsAvailable());
+  }
+
+  listen(handlers: ListenHandlers, opts?: { lang?: string }): () => void {
+    if (!this.streams()) return this.browser.listen(handlers, opts);
+    // Created here, inside the press: Safari only starts audio from a user gesture.
+    const ctx = new AudioContext();
+    let stream: MediaStream | null = null;
+    let ws: WebSocket | null = null;
+    let fallback: (() => void) | null = null;
+    let text = '';
+    let stopping = false;
+    let done = false;
+    let timer = 0;
+
+    const release = () => {
+      stream?.getTracks().forEach((t) => t.stop());
+      stream = null;
+      if (ctx.state !== 'closed') void ctx.close();
+    };
+    const finish = (final: string) => {
+      if (done) return;
+      done = true;
+      clearTimeout(timer);
+      release();
+      ws?.close();
+      handlers.onTranscript(final, true);
+    };
+    const fail = (message: string) => {
+      if (done) return;
+      done = true;
+      clearTimeout(timer);
+      release();
+      ws?.close();
+      handlers.onError(message);
+    };
+    const sendStop = () => ws?.send(JSON.stringify({ type: 'stop' }));
+
+    void (async () => {
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({ audio: { channelCount: 1, echoCancellation: true, noiseSuppression: true } });
+      } catch (err) {
+        return fail(micError(err));
+      }
+      if (stopping) return finish(''); // released before the microphone opened
+      const url = URL.createObjectURL(new Blob([PCM_WORKLET], { type: 'text/javascript' }));
+      try {
+        await ctx.resume();
+        await ctx.audioWorklet.addModule(url);
+      } finally {
+        URL.revokeObjectURL(url);
+      }
+      if (stopping || done) return finish('');
+      const node = new AudioWorkletNode(ctx, 'pcm16');
+      ctx.createMediaStreamSource(stream).connect(node);
+      node.connect(ctx.destination); // silent; keeps the node running
+
+      const socket = new WebSocket(`${wsOrigin()}/ws/speech/listen?sample_rate=${ctx.sampleRate}`);
+      ws = socket;
+      socket.binaryType = 'arraybuffer';
+      node.port.onmessage = (e: MessageEvent<ArrayBuffer>) => {
+        if (socket.readyState === WebSocket.OPEN && !stopping) socket.send(e.data);
+      };
+      socket.onopen = () => {
+        if (stopping) sendStop();
+      };
+      socket.onmessage = (e: MessageEvent<string>) => {
+        const m = JSON.parse(e.data) as { text: string; final: boolean };
+        text = m.text;
+        if (m.final) finish(m.text);
+        else if (!done) handlers.onTranscript(m.text, false);
+      };
+      socket.onclose = (e) => {
+        if (done) return;
+        if (e.code === NOT_CONFIGURED) {
+          this.sttUnavailable = true;
+          if (stopping) return finish('');
+          done = true;
+          release();
+          fallback = this.browser.listen(handlers, opts);
+        } else if (stopping) finish(text);
+        else fail('Speech recognition stopped: the connection to the server was lost.');
+      };
+    })().catch((err: unknown) => fail(`Speech recognition could not start (${err instanceof Error ? err.message : String(err)}).`));
+
+    return () => {
+      if (fallback) return fallback();
+      if (stopping) return;
+      stopping = true;
+      if (!ws) return; // still opening the microphone; that path finishes
+      release();
+      if (ws.readyState === WebSocket.OPEN) sendStop();
+      // The last words arrive within a second or so; don't wait forever for them.
+      timer = window.setTimeout(() => finish(text), 4000);
+    };
+  }
+
+  speak(text: string, opts: { lang?: string; rate?: number } = {}): void {
+    // The guide and the agent dock can both read the same reply: say it once.
+    if (this.speaking !== null && text === this.speaking) return;
+    this.cancelSpeech();
+    if (this.unavailable) return this.browser.speak(text, opts);
+    const parts = speechChunks(speakable(text));
+    if (!parts.length) return;
+    const id = this.seq;
+    this.speaking = text;
+    this.abort = new AbortController();
+    void this.play(parts, id, this.abort.signal, opts).finally(() => {
+      if (id === this.seq) this.speaking = null;
+    });
+  }
+
+  cancelSpeech(): void {
+    this.speaking = null;
+    this.seq++;
+    this.abort?.abort();
+    this.abort = null;
+    this.audio?.pause();
+    this.audio = null;
+    this.browser.cancelSpeech();
+  }
+
+  private async play(parts: string[], id: number, signal: AbortSignal, opts: { lang?: string; rate?: number }): Promise<void> {
+    // The next part is fetched while one plays, so a long reply has no gaps.
+    let next = this.fetchAudio(parts[0]!, signal);
+    for (let i = 0; i < parts.length; i++) {
+      let blob: Blob;
+      try {
+        blob = await next;
+      } catch (err) {
+        if (id !== this.seq) return;
+        if (err instanceof VoiceUnavailable) this.unavailable = true;
+        else console.warn('[speech] Deepgram failed; using the browser voice.', err);
+        return this.browser.speak(parts.slice(i).join(' '), opts);
+      }
+      if (id !== this.seq) return;
+      if (i + 1 < parts.length) {
+        next = this.fetchAudio(parts[i + 1]!, signal);
+        next.catch(() => {}); // handled when its turn comes
+      }
+      await this.playBlob(blob);
+      if (id !== this.seq) return;
+    }
+  }
+
+  private async fetchAudio(text: string, signal: AbortSignal): Promise<Blob> {
+    const res = await fetch(`${config.apiBase}/speech/tts`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ text, voice: voiceKind() }),
+      signal,
+    });
+    if (res.status === 503 || res.status === 404) throw new VoiceUnavailable(`no voice service (${res.status})`);
+    if (!res.ok) throw new Error(`text to speech failed (${res.status})`);
+    return res.blob();
+  }
+
+  /** Resolves when the part has played, or was stopped. Browsers only play audio after a click on the page. */
+  private playBlob(blob: Blob): Promise<void> {
+    return new Promise((resolve) => {
+      const url = URL.createObjectURL(blob);
+      const audio = new Audio(url);
+      let settled = false;
+      const done = () => {
+        if (settled) return;
+        settled = true;
+        URL.revokeObjectURL(url);
+        if (this.audio === audio) this.audio = null;
+        resolve();
+      };
+      audio.onended = done;
+      audio.onerror = done;
+      audio.onpause = done;
+      this.audio = audio;
+      audio.play().catch(done);
+    });
+  }
+}
+
+const providers = new Map<string, () => SpeechProvider>([
+  ['webspeech', () => new WebSpeechProvider()],
+  ['deepgram', () => new DeepgramProvider()],
+]);
 let active: SpeechProvider | null = null;
 
-/** Register another provider (e.g. Deepgram STT + ElevenLabs TTS) under a name. */
+/** Register another provider (e.g. ElevenLabs TTS) under a name. */
 export function registerSpeechProvider(name: string, factory: () => SpeechProvider): void {
   providers.set(name, factory);
   active = null;

@@ -20,7 +20,7 @@ from services.api.realtime.hub import Hub
 from services.api.integrations.config import REPO_ROOT, env
 from services.api.jobs import JobRunner
 from services.api.objects import pipeline
-from services.api.routers import furniture, households, objects, panos, properties, sessions
+from services.api.routers import furniture, households, objects, panos, properties, sessions, speech
 
 logging.basicConfig(level=logging.INFO)
 
@@ -44,11 +44,14 @@ app.include_router(properties.router, prefix="/api")
 app.include_router(panos.router, prefix="/api")
 app.include_router(furniture.router, prefix="/api")
 app.include_router(objects.router, prefix="/api")
+app.include_router(speech.router, prefix="/api")
 # The WebSocket is also served without the prefix (/ws/sessions/{sid}), which is the path in
 # WORKSTREAMS.md 2.4 and the one the web app connects to directly on port 8000.
 app.add_api_websocket_route("/ws/sessions/{session_id}", sessions.session_socket)
+app.add_api_websocket_route("/ws/speech/listen", speech.listen_socket)
 
 
 @app.get("/api/health")
 def health() -> dict:
-    return {"ok": True, "agent_provider": provider_name(), "observer": get_observer() is not None, "object_provider": pipeline.provider_name()}
+    return {"ok": True, "agent_provider": provider_name(), "observer": get_observer() is not None, "object_provider": pipeline.provider_name(),
+            "tts_provider": speech.tts_provider()}

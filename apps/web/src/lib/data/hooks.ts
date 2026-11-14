@@ -12,6 +12,10 @@ export const useLayouts = (propertyId: string | null, roomId?: string | null) =>
 
 export const useInventory = () => useResource('inventory', () => api().listInventory());
 
+/** What stands in the house now (docs/specs/furniture.md). */
+export const useHouseFurniture = (propertyId: string | null) =>
+  useResource(propertyId ? `furniture:${propertyId}` : null, () => api().listHouseFurniture(propertyId!));
+
 export const useSunReport = (propertyId: string, roomId: string | null, start: string, end: string) =>
   useResource(roomId ? `sun:${propertyId}:${roomId}:${start}:${end}` : null, () => api().getSun(propertyId, roomId!, start, end));
 

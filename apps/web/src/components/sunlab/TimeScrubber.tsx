@@ -1,20 +1,17 @@
 'use client';
 
 import type { PropertyTwin } from '@ithaca/schema';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useMemo } from 'react';
 import { Button, cn } from '@/components/ui';
 import { IconPause, IconPlay } from '@/components/ui/icons';
 import { useSession } from '@/lib/store/session';
+import { togglePlaying } from '@/lib/store/usePlayback';
 import { useThrottledDispatch } from '@/lib/store/useThrottledDispatch';
 import { sunPosition, sunTimes } from '@/lib/sun/position';
 import { formatClock, fromZonedParts, localDate, minutesOfDay, toZonedIso, withDate, withTimeOfDay, zonedParts } from '@/lib/time';
 
 const COMPASS = ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'];
 export const compassWord = (az: number) => COMPASS[Math.round(az / 45) % 8]!;
-
-/** Minutes of day that the day-loop advances per tick, and the tick period. */
-const LOOP_STEP_MIN = 8;
-const LOOP_TICK_MS = 100;
 
 /**
  * Time-of-day and date scrub. Every change is a `viewer.setTime` event (A1), the same one the
@@ -23,12 +20,10 @@ const LOOP_TICK_MS = 100;
 export function TimeScrubber({ twin, compact = false }: { twin: PropertyTwin; compact?: boolean }) {
   const datetime = useSession((s) => s.viewer.datetime);
   const setTime = useThrottledDispatch('viewer.setTime', 70);
-  const [playing, setPlaying] = useState(false);
+  const playing = useSession((s) => s.viewer.playback.playing);
   const tz = twin.timezone;
   const minutes = minutesOfDay(datetime, tz);
   const date = localDate(datetime, tz);
-  const latest = useRef(datetime);
-  latest.current = datetime;
 
   const { sunrise, sunset } = useMemo(() => {
     const noon = fromZonedParts({ ...zonedParts(new Date(datetime), tz), hour: 12, minute: 0 }, tz);
@@ -39,15 +34,6 @@ export function TimeScrubber({ twin, compact = false }: { twin: PropertyTwin; co
   }, [date, tz, twin.lat, twin.lon]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const sun = sunPosition(new Date(datetime), twin.lat, twin.lon);
-
-  useEffect(() => {
-    if (!playing) return;
-    const t = setInterval(() => {
-      const next = (minutesOfDay(latest.current, tz) + LOOP_STEP_MIN) % 1440;
-      setTime({ datetime: withTimeOfDay(latest.current, tz, next) });
-    }, LOOP_TICK_MS);
-    return () => clearInterval(t);
-  }, [playing, tz, setTime]);
 
   const year = date.slice(0, 4);
   const presets = [
@@ -64,7 +50,7 @@ export function TimeScrubber({ twin, compact = false }: { twin: PropertyTwin; co
   return (
     <div className={cn('rounded-[var(--radius-card)] border border-line bg-raised shadow-float', compact ? 'p-3' : 'px-4 py-3')} data-testid="time-scrubber">
       <div className="flex items-center gap-3">
-        <Button variant={playing ? 'primary' : 'subtle'} square aria-label={playing ? 'Pause the day loop' : 'Play a day loop'} aria-pressed={playing} onClick={() => setPlaying(!playing)}>
+        <Button variant={playing ? 'primary' : 'subtle'} square aria-label={playing ? 'Pause the day loop' : 'Play a day loop'} aria-pressed={playing} onClick={togglePlaying}>
           {playing ? <IconPause /> : <IconPlay />}
         </Button>
         <div className="min-w-0 flex-1">

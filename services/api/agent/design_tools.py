@@ -1,8 +1,9 @@
-"""Furniture tools: what the user owns, proposing layouts, showing them. Owner: B.
+"""Furniture tools: what the family owns, what stands in the house, proposing layouts, showing
+them. Owner: B. Rules: docs/specs/furniture.md.
 
 `propose_layouts` belongs to the designer subagent. It turns wishes into solved layouts
-(sim/layout_solver.py) and saves them. Coordinates exist only between the solver and the database;
-the agents handle item_ids, room_ids and layout_ids (B1).
+(sim/layout_solver.py) and saves them as proposals. Coordinates exist only between the solver and
+the database; the agents handle item_ids, room_ids and layout_ids (B1).
 """
 
 from __future__ import annotations
@@ -16,6 +17,8 @@ from packages.schema.layout import LayoutVariant, Placement
 from packages.schema.twin import Vec3
 from services.api.agent import prompts, views
 from services.api.agent.context import AgentContext
+from services.api.furniture import house
+from services.api.furniture.house import FurnitureError
 from services.api.furniture.store import furniture_store
 from services.api.sim import layout_solver
 from services.api.sim.layout_solver import Constraint
@@ -24,16 +27,29 @@ from services.api.twin.service import get_twin
 Runtime = ToolRuntime[AgentContext]
 
 
+def _changed(runtime: Runtime) -> None:
+    """Tell every screen to load the furniture again."""
+    runtime.stream_writer({"type": "layout.changed", "payload": {}})
+
+
 @tool
 def inventory_search(runtime: Runtime, query: str = "") -> str:
-    """The furniture the user owns: item_id, what it is, size and style. query filters by a word
-    in the name, kind or style ("sofa", "oak"). Leave it empty for everything."""
-    items = furniture_store().list_items(runtime.context.furniture_user)
+    """The family's furniture: item_id, what it is, whose it is, size, style, and the room it
+    stands in now in this house (if any). query filters by a word in the name, kind, style or
+    owner ("sofa", "oak", "Maya"). Leave it empty for everything."""
+    ctx = runtime.context
+    items = house.pool(ctx.furniture_user)
+    twin = get_twin(ctx.property_id)
+    names = prompts.room_display_names(twin)
+    where = {str(p.item_id): names.get(p.room_id, p.room_id) for p in furniture_store().house_pieces(ctx.furniture_user, ctx.property_id)}
     words = query.lower().split()
     rows = []
     for i in items:
         look = ", ".join(v for v in (i.attributes.style, i.attributes.color, i.attributes.material) if v)
-        text = f"{i.label} ({i.item_class}) · item_id {i.item_id} · {i.dims_m.w:.2f} m wide × {i.dims_m.d:.2f} m deep × {i.dims_m.h:.2f} m high · {look}"
+        owner = "yours" if i.user_id == ctx.user_id else f"{i.owner_name or 'the house'}'s"
+        stands = f"in {where[str(i.item_id)]}" if str(i.item_id) in where else "in storage"
+        text = (f"{i.label} ({i.item_class}) · item_id {i.item_id} · {owner} · {stands} · "
+                f"{i.dims_m.w:.2f} m wide × {i.dims_m.d:.2f} m deep × {i.dims_m.h:.2f} m high · {look}")
         if all(w in text.lower() for w in words):
             rows.append("- " + text)
     if not items:
@@ -100,13 +116,14 @@ def catalog_add(catalog_id: str, runtime: Runtime) -> str:
 
     if catalog_id not in catalog.BY_ID:
         return f"Error: unknown catalog_id {catalog_id!r}. Use a catalog_id from catalog_search."
-    store, user_id = furniture_store(), runtime.context.furniture_user
+    store, user_id = furniture_store(), runtime.context.user_id  # the new piece is the person's own (F1)
     try:
         item = pipeline.add_from_catalog(catalog_id, user_id, store)
     except Exception as e:
         return f"Error: that piece could not be added ({e})."
     if runtime.store is not None:
-        memory_files.sync_inventory(runtime.store, runtime.context.user_id, store.list_items(user_id))
+        memory_files.sync_inventory(runtime.store, user_id, store.list_items(user_id))
+    _changed(runtime)
     return (
         f"Added {item.label} ({item.item_class}), {item.dims_m.w:.2f} × {item.dims_m.d:.2f} × {item.dims_m.h:.2f} m, "
         f"item_id {item.item_id}. It is a generic stand-in, not a specific product: say so."
@@ -115,32 +132,33 @@ def catalog_add(catalog_id: str, runtime: Runtime) -> str:
 
 @tool
 def remove_from_room(item_id: str, room_id: str, runtime: Runtime) -> str:
-    """Take one of the user's pieces out of a room. The piece stays in their furniture and can be
-    placed again. Use it for "take the armchair out" or "remove the table from here"."""
+    """Take one piece out of a room of this house. The piece stays in the family's furniture and
+    can be placed again. Use it for "take the armchair out" or "remove the table from here"."""
     store, ctx = furniture_store(), runtime.context
-    in_room = [l for l in store.layouts_with_item(ctx.furniture_user, item_id) if l.room_id == room_id and l.property_id == ctx.property_id]
-    if not in_room:
-        return "That piece is not placed in that room. Check the item_id with inventory_search and the room_id in the room directory."
-    for layout in in_room:  # every saved option for the room, so it doesn't come back with "next option"
-        store.remove_placement(ctx.furniture_user, str(layout.layout_id), item_id)
-    item = store.get_item(ctx.furniture_user, item_id)
-    return f"{item.label if item else 'The piece'} is out of the room. It is still in the user's furniture."
+    piece = store.house_piece(ctx.furniture_user, ctx.property_id, item_id)
+    if piece is None or piece.room_id != room_id:
+        return "That piece is not in that room. Check with inventory_search where it stands, and the room_id in the room directory."
+    store.remove_piece(ctx.furniture_user, ctx.property_id, item_id)
+    _changed(runtime)
+    item = store.get_item(item_id)
+    return f"{item.label if item else 'The piece'} is out of the room. It is still in the family's furniture."
 
 
 @tool
 def delete_from_inventory(item_id: str, runtime: Runtime) -> str:
-    """Delete a piece from the user's furniture for good. It also leaves every room it was placed
-    in. This cannot be undone: only call it after the user has clearly said to delete that piece."""
+    """Delete one of the user's own pieces for good. It also leaves every room it stood in. This
+    cannot be undone: only call it after the user has clearly said to delete that piece."""
     from services.api.agent import memory_files
 
-    store, ctx = furniture_store(), runtime.context
-    item = store.get_item(ctx.furniture_user, item_id)
-    if item is None:
-        return f"Error: unknown item_id {item_id!r}. Use an item_id from inventory_search."
-    changed = store.delete_item_everywhere(ctx.furniture_user, item_id) or []
+    ctx = runtime.context
+    try:
+        item = house.delete_item(ctx.user_id, item_id)
+    except FurnitureError as e:
+        return f"Error: {e.detail}." if e.status != 404 else f"Error: unknown item_id {item_id!r}. Use an item_id from inventory_search."
     if runtime.store is not None:
-        memory_files.sync_inventory(runtime.store, ctx.user_id, store.list_items(ctx.furniture_user))
-    return f"Deleted {item.label} from the user's furniture" + (f" and took it out of {len(changed)} saved layout(s)." if changed else ".")
+        memory_files.sync_inventory(runtime.store, ctx.user_id, furniture_store().list_items(ctx.user_id))
+    _changed(runtime)
+    return f"Deleted {item.label} from the furniture; it is out of every room too."
 
 
 @tool
@@ -154,6 +172,7 @@ def propose_layouts(room_id: str, item_ids: list[str], wishes: list[Constraint],
     idea: a few words naming the arrangement, e.g. "Conversation corner by the window".
     wishes: each is {kind, item, target, weight}. `item` is an item_id. Kinds and their targets:
       against_wall  target "any" | "longest" | "window" (a wall with a window) | "solid" (without)
+                    | "north" | "east" | "south" | "west" (the wall on that side of the room)
       faces         target an item_id | "window" | "door" | "center"
       near          target an item_id
       in_front_of   target an item_id   (e.g. coffee table in front of the sofa)
@@ -166,7 +185,7 @@ def propose_layouts(room_id: str, item_ids: list[str], wishes: list[Constraint],
     room = next((r for r in twin.rooms if r.room_id == room_id), None)
     if room is None:
         return f"Error: unknown room_id {room_id!r}. Use a room_id from the room directory."
-    owned = {str(i.item_id): i for i in furniture_store().list_items(ctx.furniture_user)}
+    owned = {str(i.item_id): i for i in house.pool(ctx.furniture_user)}
     unknown = [i for i in item_ids if i not in owned]
     if unknown or not item_ids:
         return f"Error: unknown item_ids {unknown}. Use item_ids from inventory_search."
@@ -179,7 +198,9 @@ def propose_layouts(room_id: str, item_ids: list[str], wishes: list[Constraint],
     ]
     floor = views.floor_height(twin, room_id)
     on_real_floor = room.model_copy(update={"floor_y": floor})  # window sills are measured from here
-    result = layout_solver.solve(on_real_floor, twin.openings, items, wishes, n=max(1, min(n, 4)), walls=twin.walls, sweeps=twin.sweeps)
+    result = layout_solver.solve(
+        on_real_floor, twin.openings, items, wishes, n=max(1, min(n, 4)), walls=twin.walls, sweeps=twin.sweeps, compass=compass_axes(twin)
+    )
     name = prompts.room_display_names(twin)[room_id]
     if not result.variants:
         return f"No layout for {name}: {result.reason}. Try fewer or smaller pieces, or another room."
@@ -202,7 +223,7 @@ def propose_layouts(room_id: str, item_ids: list[str], wishes: list[Constraint],
             rationale=rationale.strip(),
             status="proposed",
         )
-        furniture_store().put_layout(layout)
+        furniture_store().put_proposal(layout)
         lines.append(
             f"- layout_id {layout.layout_id} · score {v.score:.0f}/100 · where: {where} · "
             f"met: {'; '.join(v.met) or 'none'} · not met: {'; '.join(v.unmet) or 'none'}"
@@ -229,7 +250,7 @@ def design_show_variants(layout_ids: list[str], runtime: Runtime) -> str:
     the view the user is already in; all of them become cards the user can flip through.
     layout_ids come from the designer's answer, best first."""
     store, ctx = furniture_store(), runtime.context
-    layouts = [store.get_layout(ctx.furniture_user, i) for i in layout_ids]
+    layouts = [store.get_proposal(ctx.furniture_user, i) for i in layout_ids]
     missing = [i for i, found in zip(layout_ids, layouts) if found is None]
     if missing or not layout_ids:
         return f"Error: unknown layout_ids {missing}. Use the layout_ids the designer returned."
@@ -244,12 +265,40 @@ def design_show_variants(layout_ids: list[str], runtime: Runtime) -> str:
 
 @tool
 def design_apply_layout(layout_id: str, runtime: Runtime) -> str:
-    """Place a different saved layout in the room, e.g. when the user says "show me option 2"."""
-    layout = furniture_store().get_layout(runtime.context.furniture_user, layout_id)
+    """Show a different saved layout in the room, e.g. when the user says "show me option 2".
+    It is a preview: the house keeps its furniture until the user presses Keep."""
+    layout = furniture_store().get_proposal(runtime.context.furniture_user, layout_id)
     if layout is None:
         return f"Error: unknown layout_id {layout_id!r}."
     _place_in_view(runtime, layout)
-    return f"That layout is now placed in the room: {layout.rationale}"
+    return f"That layout is now shown in the room: {layout.rationale}"
+
+
+def compass_axes(twin) -> dict[str, tuple[float, float]]:
+    """North, east, south and west as unit (x, z) directions in the interior frame."""
+    m = twin.interior_to_world  # (east, north) = [[m0, m8], [m1, m9]] @ (dx, dz)
+    det = m[0] * m[9] - m[8] * m[1]
+    north, east = (-m[8] / det, m[0] / det), (m[9] / det, -m[1] / det)
+    unit = lambda v: (v[0] / math.hypot(*v), v[1] / math.hypot(*v))  # noqa: E731
+    north, east = unit(north), unit(east)
+    return {"north": north, "east": east, "south": (-north[0], -north[1]), "west": (-east[0], -east[1])}
+
+
+def wall_sides(twin, room) -> list[tuple[str, float]]:
+    """(side, length) for each wall of a room outline, the side being which way it looks out."""
+    pts = room.polygon
+    turn = sum(a[0] * b[1] - b[0] * a[1] for a, b in zip(pts, pts[1:] + pts[:1]))  # > 0: counter-clockwise in (x, z)
+    axes = compass_axes(twin)
+    out = []
+    for a, b in zip(pts, pts[1:] + pts[:1]):
+        length = math.dist(a, b)
+        if length < 0.3:
+            continue
+        nx, nz = (b[1] - a[1]) / length, -(b[0] - a[0]) / length
+        if turn < 0:
+            nx, nz = -nx, -nz
+        out.append((max(axes, key=lambda k: axes[k][0] * nx + axes[k][1] * nz), length))
+    return out
 
 
 def _compass(twin, dx: float, dz: float) -> str:
@@ -271,7 +320,7 @@ def _where(twin, items: list[layout_solver.Item], poses: dict[str, layout_solver
 
 def describe_layout(user_id: str, property_id: str, layout_id: str) -> str | None:
     """One line about a saved layout, for telling the agent what the user picked."""
-    layout = furniture_store().get_layout(user_id, layout_id)
+    layout = furniture_store().get_proposal(user_id, layout_id)
     if layout is None:
         return None
     room = prompts.room_display_names(get_twin(property_id)).get(layout.room_id, layout.room_id)

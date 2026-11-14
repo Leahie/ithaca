@@ -144,6 +144,53 @@
       "title": "SoundSetScenarioPayload",
       "type": "object"
     },
+    "ViewerPlayback": {
+      "properties": {
+        "listening": {
+          "default": false,
+          "title": "Listening",
+          "type": "boolean"
+        },
+        "playing": {
+          "default": false,
+          "title": "Playing",
+          "type": "boolean"
+        },
+        "sounds": {
+          "default": [
+            "highway",
+            "streets",
+            "birds",
+            "insects",
+            "frogs"
+          ],
+          "items": {
+            "enum": [
+              "highway",
+              "streets",
+              "birds",
+              "insects",
+              "frogs",
+              "dogs"
+            ],
+            "type": "string"
+          },
+          "title": "Sounds",
+          "type": "array"
+        },
+        "voice": {
+          "default": "female",
+          "enum": [
+            "female",
+            "male"
+          ],
+          "title": "Voice",
+          "type": "string"
+        }
+      },
+      "title": "ViewerPlayback",
+      "type": "object"
+    },
     "ViewerState": {
       "description": "Payload of ``session.state``: what the desktop is showing. The hub keeps the latest copy\nand sends it on join (B9).",
       "properties": {
@@ -161,6 +208,21 @@
           ],
           "title": "Mode",
           "type": "string"
+        },
+        "playback": {
+          "$ref": "#/$defs/ViewerPlayback",
+          "default": {
+            "listening": false,
+            "playing": false,
+            "sounds": [
+              "highway",
+              "streets",
+              "birds",
+              "insects",
+              "frogs"
+            ],
+            "voice": "female"
+          }
         },
         "room_id": {
           "anyOf": [

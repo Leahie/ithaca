@@ -3,10 +3,9 @@
 import type { CatalogPiece } from '@ithaca/schema';
 import { useState } from 'react';
 import { api } from '@/lib/api';
-import { useLayouts, useTwin } from '@/lib/data/hooks';
+import { useHouseFurniture, useTwin } from '@/lib/data/hooks';
 import { invalidate } from '@/lib/data/resource';
 import { bounds } from '@/lib/geometry/polygon';
-import { layoutForRoom } from '@/lib/layouts';
 import { roomName } from '@/lib/rooms';
 import { useSession } from '@/lib/store/session';
 
@@ -21,14 +20,13 @@ interface Props {
 
 /**
  * Catalog pieces the agent suggested, as picture cards in the chat. A click adds the piece to the
- * user's furniture and places it in the room (next to `nearItemId` when given); the server picks
- * the nearest spot that works. The agent is told with a `catalog.picked` event.
+ * user's furniture and puts it in the room (next to `nearItemId` when that stands there); the
+ * server picks the nearest spot that works. The agent is told with a `catalog.picked` event.
  */
 export function CatalogSuggestion({ propertyId, roomId, nearItemId, pieces }: Props) {
   const twin = useTwin(propertyId);
-  const layouts = useLayouts(propertyId);
+  const house = useHouseFurniture(propertyId);
   const viewRoomId = useSession((s) => s.viewer.room_id);
-  const selectedId = useSession((s) => s.viewer.selected_layout_id);
   const dispatch = useSession((s) => s.dispatch);
   const [busy, setBusy] = useState<string | null>(null);
   const [added, setAdded] = useState<string[]>([]);
@@ -46,22 +44,18 @@ export function CatalogSuggestion({ propertyId, roomId, nearItemId, pieces }: Pr
     setError(null);
     try {
       const item = await api().addFromCatalog(piece.catalog_id);
-      const layout = layoutForRoom(layouts.data, room.room_id);
-      const beside = layout?.placements.find((p) => p.item_id === nearItemId);
+      const beside = house.data?.find((p) => p.item_id === nearItemId && p.room_id === room.room_id);
       const b = bounds(room.polygon);
-      const result = await api().dropItem({
-        property_id: propertyId,
-        item_id: item.item_id,
+      await api().placePiece(propertyId, item.item_id, {
         x: beside?.position.x ?? (b.minX + b.maxX) / 2,
         z: beside?.position.z ?? (b.minZ + b.maxZ) / 2,
-        layout_id: layout?.layout_id ?? null,
-        room_id: layout ? null : room.room_id,
-        floor_id: null,
+        room_id: room.room_id,
+        floor_id: room.floor_id,
+        snap: true,
       });
       invalidate('inventory');
-      invalidate('layouts:');
-      invalidate('layout:');
-      if (result.layout_id !== selectedId) dispatch('layout.select', { layout_id: result.layout_id });
+      invalidate(`furniture:${propertyId}`);
+      dispatch('layout.changed', { layout_id: null });
       dispatch('catalog.picked', { catalog_id: piece.catalog_id, item_id: item.item_id, room_id: room.room_id });
       setAdded((ids) => [...ids, piece.catalog_id]);
     } catch (err) {

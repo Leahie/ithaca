@@ -56,6 +56,7 @@ class Constraint(BaseModel):
     kind: Literal["against_wall", "faces", "near", "in_front_of", "beside", "away_from"]
     item: str
     # against_wall: "any" | "longest" | "window" (a wall with a window) | "solid" (a wall without)
+    #   | "north" | "east" | "south" | "west" (the wall on that side of the room; needs solve(compass=...))
     # faces: an item_id | "window" | "door" | "center"
     # near / in_front_of / beside: an item_id
     # away_from: "door" | "window"
@@ -167,6 +168,7 @@ class _Scene:
     solid_zone: object | None = None
     solid_low_zone: object | None = None
     strict: bool = False  # True: no piece may stand on a route centerline
+    compass: dict[str, tuple[float, float]] = field(default_factory=dict)  # "north" -> unit (x, z) in the interior frame
 
 
 def _passages(room: Room, outline: Polygon, walls: list[Wall]) -> list[tuple[tuple[float, float], tuple[float, float]]]:
@@ -454,6 +456,10 @@ def _walls_for(scene: _Scene, target: str) -> list[_Wall]:
         return [w for w in walls if w.has_window] or walls
     if target == "solid":
         return [w for w in walls if not w.has_window] or walls
+    if target in scene.compass and walls:
+        # The north wall is the one whose far side looks north: its normal points into the room.
+        away = lambda w: _angle_between((-w.normal[0], -w.normal[1]), scene.compass[target])  # noqa: E731
+        return [w for w in walls if away(w) <= 45] or [min(walls, key=away)]
     return walls
 
 
@@ -661,9 +667,11 @@ def solve(
     seed: int = 0,
     walls: list[Wall] | None = None,
     sweeps: list[Sweep] | None = None,
+    compass: dict[str, tuple[float, float]] | None = None,
 ) -> SolveResult:
     """Up to n valid, visibly different layouts, best first. `walls` (the twin's wall list) lets
-    the solver see open-plan edges and keep them and the walkways between them clear."""
+    the solver see open-plan edges and keep them and the walkways between them clear. `compass`
+    ("north" -> unit (x, z) in the interior frame) lets wishes name a wall by its side."""
     if not items:
         return SolveResult([], "no items to place")
     by_id = {i.item_id: i for i in items}
@@ -676,6 +684,7 @@ def solve(
         if i.item_class in WALL_PIECES and i.item_id not in walled and i.item_id not in followers
     ]
     scene = _scene(room, openings, walls, sweeps)
+    scene.compass = compass or {}
     scene.strict = True  # wall pieces on solid wall, nothing on a walking route; relaxed below if nothing fits
     labels = {i.item_id: i.label for i in items}
     total_weight = sum(c.weight for c in constraints) or 1.0

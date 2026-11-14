@@ -21,8 +21,13 @@ class ItemDims(Model):
 
 
 class InventoryItem(Model):
+    """A piece in storage (docs/specs/furniture.md)."""
+
     item_id: UUID
+    # The owner (F1).
     user_id: str
+    # The owner's name in the family, filled in when the piece is listed.
+    owner_name: str | None = None
     label: str
     # From the shared furniture class list.
     item_class: str

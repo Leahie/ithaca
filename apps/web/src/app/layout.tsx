@@ -27,7 +27,8 @@ export const viewport: Viewport = {
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
     <html lang="en" className={`${serif.variable} ${figtree.variable} ${dmMono.variable}`}>
-      <body>{children}</body>
+      {/* Extensions such as Grammarly add attributes to <body> before React hydrates. */}
+      <body suppressHydrationWarning>{children}</body>
     </html>
   );
 }

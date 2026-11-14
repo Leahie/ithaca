@@ -1,0 +1,90 @@
+{
+  "about": "Soundscape table (owner C): what makes sound around a house besides steady traffic, and when. Octave bands 63..8000 Hz as in acoustics.json. Levels are free-field dBA at 1 m from one animal or one horn. Densities are calling or singing individuals per hectare of each habitat class. All of it is typical published values and stated assumptions, not measurements at this house: tune here, the model reads nothing else.",
+
+  "seasons": {
+    "about": "Months per season and the day whose sunrise and sunset stand for it.",
+    "winter": {"months": [12, 1, 2], "date": "01-15"},
+    "spring": {"months": [3, 4, 5], "date": "04-15"},
+    "summer": {"months": [6, 7, 8], "date": "07-15"},
+    "fall": {"months": [9, 10, 11], "date": "10-15"}
+  },
+
+  "traffic_days": {
+    "about": "Weekday uses hourly_traffic_pct from traffic.json. Weekend: average Saturday/Sunday urban profile shape (FHWA Traffic Monitoring Guide), daily volume 0.85 of a weekday's. Typical values, not counts for these roads.",
+    "weekend": {
+      "factor": 0.85,
+      "pct": [2.2, 1.6, 1.2, 0.9, 0.8, 1.0, 1.6, 2.5, 3.6, 4.8, 5.8, 6.5, 6.9, 7.0, 7.0, 7.0, 6.9, 6.7, 6.2, 5.4, 4.7, 4.1, 3.5, 2.7]
+    }
+  },
+
+  "habitat": {
+    "about": "The habitat map is a grid of cell_m cells. water_edge is the strip within water_edge_m of water or a waterway; trees are mapped trees with a crown of tree_crown_m; nothing calls within quiet_m of the house walls. Cells that are none of the mapped kinds are yards and street verges.",
+    "cell_m": 8,
+    "water_edge_m": 15,
+    "tree_crown_m": 6,
+    "quiet_m": 5
+  },
+
+  "biophony": {
+    "birds": {
+      "label": "Birds",
+      "about": "Songbird song is 75-90 dB at 1 m (Brackenbury 1979; Brumm 2004); 80 dBA stands for an average singer. Territory densities: urban yards 3-8 singing birds/ha, woodland and riparian strips 10-20 (Marzluff 2001). peak_duty: share of time a bird sings at the height of the dawn chorus. season: song output relative to spring (breeding).",
+      "level_1m_dba": 80, "height_m": 6, "radius_m": 400, "peak_duty": 0.3,
+      "shape_db": [-40, -35, -25, -14, -6, 0, -3, -12],
+      "density_per_ha": {"yard": 6, "grass": 3, "park": 5, "pitch": 1, "scrub": 10, "trees": 15, "wood": 15, "wetland": 12, "water_edge": 10, "water": 1, "building": 0},
+      "season": {"winter": 0.3, "spring": 1.0, "summer": 0.6, "fall": 0.35}
+    },
+    "cicadas": {
+      "label": "Cicadas",
+      "about": "Dog-day and annual cicadas (Neotibicen, Megatibicen) sing 85-100 dB at close range; 90 dBA at 1 m. They sing from tree crowns on hot afternoons and at dusk, June to September on the Gulf Coast, and not below about 22 C (gate reaches full at 28 C).",
+      "level_1m_dba": 90, "height_m": 8, "radius_m": 300, "peak_duty": 0.25,
+      "shape_db": [-45, -40, -30, -20, -10, -3, 0, -6],
+      "density_per_ha": {"yard": 8, "grass": 1, "park": 8, "pitch": 0, "scrub": 10, "trees": 40, "wood": 40, "wetland": 10, "water_edge": 15, "water": 0, "building": 0},
+      "season": {"winter": 0.0, "spring": 0.03, "summer": 1.0, "fall": 0.2},
+      "temperature_c": [22, 28]
+    },
+    "night_insects": {
+      "label": "Crickets and katydids",
+      "about": "Field crickets and katydids call 55-70 dB at 1 m; 62 dBA. Calling stops below about 13 C and is full above 22 C. Night-long chorus, strongest late summer and fall.",
+      "level_1m_dba": 62, "height_m": 1, "radius_m": 200, "peak_duty": 0.6,
+      "shape_db": [-50, -45, -35, -25, -12, -3, 0, -3],
+      "density_per_ha": {"yard": 40, "grass": 80, "park": 70, "pitch": 20, "scrub": 80, "trees": 50, "wood": 60, "wetland": 60, "water_edge": 60, "water": 0, "building": 0},
+      "season": {"winter": 0.1, "spring": 0.5, "summer": 1.0, "fall": 0.8},
+      "temperature_c": [13, 22]
+    },
+    "frogs": {
+      "label": "Frogs and toads",
+      "about": "Gulf Coast toad and treefrog choruses: 80-90 dB at 1 m per caller; 85 dBA. Breeding choruses at still water, ditches and flooded grass on warm nights, much stronger in the two days after rain (rain: base share of a full chorus on a dry night; mm_48h of rain makes a full one). Concrete-lined flood channels breed few, so water edges get a modest density.",
+      "level_1m_dba": 85, "height_m": 0.2, "radius_m": 600, "peak_duty": 0.4,
+      "shape_db": [-35, -28, -18, -8, 0, -4, -15, -25],
+      "density_per_ha": {"yard": 0.3, "grass": 0.5, "park": 0.5, "pitch": 0, "scrub": 1, "trees": 0.3, "wood": 1, "wetland": 15, "water_edge": 6, "water": 0, "building": 0},
+      "season": {"winter": 0.1, "spring": 0.8, "summer": 1.0, "fall": 0.3},
+      "temperature_c": [14, 20],
+      "rain": {"mm_48h": 5, "base": 0.25}
+    }
+  },
+
+  "dogs": {
+    "label": "Dogs barking",
+    "about": "About 45 % of US households have a dog, 1.5 on average (AVMA 2024): 0.6 dogs per house. A barking bout is about bout_s of barking at 88 dBA at 1 m (acoustics.json 'dog'). Bouts per dog per local hour are an assumption with the usual morning and evening peaks (about 7 a day), not data.",
+    "dogs_per_house": 0.6, "level_1m_dba": 88, "height_m": 0.5, "bout_s": 4, "radius_m": 150,
+    "shape_db": [-22, -10, -3, 0, -1, -4, -10, -18],
+    "bouts_per_dog_hour": [0.05, 0.03, 0.03, 0.03, 0.05, 0.15, 0.4, 0.6, 0.45, 0.3, 0.25, 0.25, 0.25, 0.25, 0.25, 0.3, 0.4, 0.55, 0.6, 0.5, 0.4, 0.25, 0.15, 0.08]
+  },
+
+  "horns": {
+    "label": "Car horns",
+    "about": "Car horns are 93-112 dB(A) at 7 m (UN ECE R28); 105 dBA at 7 m, 0.6 s a honk. Honks per 1000 vehicle-km on signalled roads (main roads, ramps, frontage roads; not freeway lanes) is an assumption, not data: Houston honks less than Manhattan. Honks follow the hour's traffic.",
+    "level_7m_dba": 105, "duration_s": 0.6, "height_m": 0.6, "radius_m": 800,
+    "per_1000_vehicle_km": 2.0,
+    "classes": ["primary", "primary_link", "secondary", "secondary_link", "tertiary", "tertiary_link", "motorway_link", "trunk_link"],
+    "shape_db": [-25, -15, -6, 0, -1, -5, -11, -18]
+  },
+
+  "traffic_groups": {
+    "about": "Road noise from traffic.py grouped by the highest OSM class of each named road.",
+    "highway": ["motorway", "trunk", "motorway_link", "trunk_link"],
+    "arterial": ["primary", "primary_link", "secondary", "secondary_link", "tertiary", "tertiary_link"],
+    "local_streets": ["residential", "unclassified", "living_street"]
+  }
+}
