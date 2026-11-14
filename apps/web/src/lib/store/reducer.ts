@@ -30,6 +30,8 @@ export type ChatItem =
   | { kind: 'agent'; id: string; text: string; streaming: boolean; member_id: string | null }
   | { kind: 'action'; id: string; tool: string; summary: string; member_id: string | null }
   | { kind: 'error'; id: string; message: string; member_id: string | null }
+  /** Layout options the agent made, shown as small plans the user can click to put in the room. */
+  | { kind: 'layouts'; id: string; layout_ids: string[]; member_id: string | null }
   /** Catalog pieces the agent suggested, shown as picture cards the user can click to add. */
   | { kind: 'catalog'; id: string; property_id: string; room_id: string | null; near_item_id: string | null; pieces: CatalogPiece[]; member_id: string | null }
   /** A note one member's agent shared on the family board. */
@@ -120,7 +122,11 @@ export function applyEvent(state: CoreState, event: AnyEvent): CoreState {
     case 'viewer.setMode':
       return { ...state, viewer: { ...v, mode: event.payload.mode } };
     case 'design.showVariants':
-      return { ...state, viewer: { ...v, shown_layout_ids: event.payload.layout_ids } };
+      return {
+        ...state,
+        viewer: { ...v, shown_layout_ids: event.payload.layout_ids },
+        chat: event.payload.layout_ids.length ? push(state.chat, { kind: 'layouts', id: event.id, layout_ids: event.payload.layout_ids, member_id: event.member_id ?? null }) : state.chat,
+      };
     case 'layout.select':
       return { ...state, viewer: { ...v, selected_layout_id: event.payload.layout_id } };
     case 'sound.setScenario':

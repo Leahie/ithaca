@@ -113,12 +113,6 @@ def catalog_add(catalog_id: str, runtime: Runtime) -> str:
     )
 
 
-def _refresh_view(runtime: Runtime, layout_ids: list[str]) -> None:
-    """Make the app reload these layouts, so a removed piece disappears from the room."""
-    if layout_ids:
-        runtime.stream_writer({"type": "design.showVariants", "payload": {"layout_ids": layout_ids}})
-
-
 @tool
 def remove_from_room(item_id: str, room_id: str, runtime: Runtime) -> str:
     """Take one of the user's pieces out of a room. The piece stays in their furniture and can be
@@ -129,7 +123,6 @@ def remove_from_room(item_id: str, room_id: str, runtime: Runtime) -> str:
         return "That piece is not placed in that room. Check the item_id with inventory_search and the room_id in the room directory."
     for layout in in_room:  # every saved option for the room, so it doesn't come back with "next option"
         store.remove_placement(ctx.user_id, str(layout.layout_id), item_id)
-    _refresh_view(runtime, [str(l.layout_id) for l in in_room])
     item = store.get_item(ctx.user_id, item_id)
     return f"{item.label if item else 'The piece'} is out of the room. It is still in the user's furniture."
 
@@ -147,7 +140,6 @@ def delete_from_inventory(item_id: str, runtime: Runtime) -> str:
     changed = store.delete_item_everywhere(ctx.user_id, item_id) or []
     if runtime.store is not None:
         memory_files.sync_inventory(runtime.store, ctx.user_id, store.list_items(ctx.user_id))
-    _refresh_view(runtime, changed)
     return f"Deleted {item.label} from the user's furniture" + (f" and took it out of {len(changed)} saved layout(s)." if changed else ".")
 
 
@@ -244,9 +236,8 @@ def design_show_variants(layout_ids: list[str], runtime: Runtime) -> str:
     runtime.stream_writer({"type": "design.showVariants", "payload": {"layout_ids": layout_ids}})
     _place_in_view(runtime, layouts[0])
     return (
-        f"Option 1 is now placed in the room and the user is looking at it. {len(layout_ids)} option(s) are ready. "
-        "Tell them what option 1 is, and that they can ask for the next option or say what to change. "
-        "Use design_apply_layout to switch options."
+        f"Option 1 is now placed in the room and the user is looking at it. All {len(layout_ids)} option(s) are in the chat "
+        "as small plans they can click to switch. Say briefly what option 1 does; they can also tell you what to change."
     )
 
 

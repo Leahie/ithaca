@@ -196,9 +196,11 @@ _DELEGATES = {
   like. Give it the `room_id`, which pieces to use (or "whatever fits"), what the user wants from
   the room, and every relevant preference from memory word for word, marking the hard ones. It
   answers with `layout_id`s. Show them with `design_show_variants`: option 1 appears in the room,
-  in the view the user is already in. Describe option 1 in a sentence, say how many other options
-  there are, and switch with `design_apply_layout` when they ask ("next", "option 2"). Never
-  describe a layout you haven't shown. Don't change the user's view mode for layouts.""",
+  and every option appears in the chat as a small plan the user can click to switch. Say in one or
+  two sentences what option 1 does and anything the designer could not manage. Don't walk through
+  each option in words, and don't say you can't see or confirm positions: the plans show them.
+  Switch with `design_apply_layout` if they ask in words ("next", "option 2"). Never describe a
+  layout you haven't shown. Don't change the user's view mode for layouts.""",
     "analyst": """- `analyst`: sun and noise questions that need several reports or comparisons across rooms or
   times.""",
     "scout": "- `scout`: neighborhood, amenities, commute, comps and pricing.",

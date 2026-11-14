@@ -215,6 +215,10 @@ function AgentFeed({ memberId }: { memberId: string | null }) {
           <p key={c.id} className="rounded-[var(--radius-frame)] border border-line bg-raised px-3 py-2 text-sm leading-5">
             <span className="font-semibold">{nameOf(c.to_member_id) ?? 'Another member'}'s agent</span>: {c.answer ?? 'thinking…'}
           </p>
+        ) : c.kind === 'layouts' ? (
+          <p key={c.id} className="text-sm text-muted">
+            {c.layout_ids.length} layout option{c.layout_ids.length === 1 ? '' : 's'} on the big screen.
+          </p>
         ) : c.kind === 'catalog' ? (
           // Picture cards are for the big screen; the phone just says they are there.
           <p key={c.id} className="text-sm text-muted">

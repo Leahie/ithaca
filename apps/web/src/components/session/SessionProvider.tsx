@@ -1,7 +1,7 @@
 'use client';
 
 import type { ClientKind, Session } from '@ithaca/schema';
-import { useEffect, useState, type ReactNode } from 'react';
+import { useEffect, useState, type ReactNode, useRef } from 'react';
 import { api } from '@/lib/api';
 import { config } from '@/lib/config';
 import { invalidate } from '@/lib/data/resource';
@@ -74,6 +74,9 @@ interface Props {
  * Owns the session connection for a page. Desktop creates (or restores) a session; the phone
  * joins one. In fixture mode the transport is local and the desktop runs the scripted agent.
  */
+/** Agent tools after which the furniture list or the layouts on screen are out of date. */
+const FURNITURE_TOOLS = new Set(['catalog_add', 'delete_from_inventory', 'remove_from_room', 'propose_layouts', 'task']);
+
 export function SessionProvider({ client, propertyId, join, householdId = null, children }: Props) {
   const [generation, setGeneration] = useState(0);
 
@@ -116,6 +119,8 @@ export function SessionProvider({ client, propertyId, join, householdId = null, 
     };
   }, [client, propertyId, join?.sessionId, join?.token, join?.prejoined, householdId, generation]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  /** A tool that changes the user's furniture or layouts ran in the current agent turn. */
+  const furnitureTouched = useRef(false);
   // Effects of events that are not viewer state. They run for local and remote events alike (A1).
   useEffect(
     () =>
@@ -124,7 +129,17 @@ export function SessionProvider({ client, propertyId, join, householdId = null, 
           invalidate('inventory');
           invalidate('layouts:');
         } else if (event.type === 'design.showVariants') {
+          // New layouts often come with pieces the guide has just added: reload both.
+          invalidate('inventory');
           invalidate('layouts:');
+          invalidate('layout:');
+        } else if (event.type === 'agent.action' && FURNITURE_TOOLS.has(event.payload.tool)) {
+          furnitureTouched.current = true; // the tool has only been asked for; it finishes within this turn
+        } else if (event.type === 'agent.turn' && event.payload.status === 'ended' && furnitureTouched.current) {
+          furnitureTouched.current = false;
+          invalidate('inventory');
+          invalidate('layouts:');
+          invalidate('layout:');
         } else if (event.type === 'layout.select' && client === 'desktop') {
           // The desktop is the viewer authority (A2): it persists the choice, whoever made it.
           api()
