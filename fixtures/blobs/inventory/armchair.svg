@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 600" width="800" height="600">
+<rect width="800" height="600" fill="#efe9e1"/>
+<rect y="480" width="800" height="120" fill="#d9cfc2"/>
+<ellipse cx="400" cy="486" rx="178.3" ry="14" fill="#000" fill-opacity="0.14"/>
+<rect x="247.5" y="412.2" width="25.4" height="67.8" rx="6" fill="#332b26"/>
+<rect x="527.1" y="412.2" width="25.4" height="67.8" rx="6" fill="#332b26"/>
+<rect x="230.6" y="120" width="338.8" height="190.6" rx="6" fill="#d19e33"/>
+<rect x="247.5" y="412.2" width="25.4" height="67.8" rx="6" fill="#332b26"/>
+<rect x="527.1" y="412.2" width="25.4" height="67.8" rx="6" fill="#332b26"/>
+<rect x="285.6" y="268.2" width="228.7" height="42.4" rx="6" fill="#d19e33"/>
+<rect x="230.6" y="310.6" width="338.8" height="101.6" rx="6" fill="#b38529"/>
+<rect x="230.6" y="234.4" width="50.8" height="76.2" rx="6" fill="#d19e33"/>
+<rect x="518.6" y="234.4" width="50.8" height="76.2" rx="6" fill="#d19e33"/>
+<text x="24" y="40" font-family="system-ui, sans-serif" font-size="20" fill="#7a6f63">Mustard armchair (fixture image)</text>
+</svg>

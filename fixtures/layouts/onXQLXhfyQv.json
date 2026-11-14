@@ -1,0 +1,122 @@
+[
+ {
+  "layout_id": "9a7d3e10-52c4-4f6b-b8a1-3c0e5d6f7001",
+  "user_id": "demo",
+  "property_id": "onXQLXhfyQv",
+  "room_id": "tt6gm2a0463x9wmnx7rn6gugc",
+  "placements": [
+   {
+    "item_id": "6f1c2a54-8b0e-4d1a-9c3e-0a51b7d2e001",
+    "position": {
+     "x": -9.629,
+     "y": -0.129,
+     "z": -17.017
+    },
+    "yaw_deg": 0
+   },
+   {
+    "item_id": "6f1c2a54-8b0e-4d1a-9c3e-0a51b7d2e002",
+    "position": {
+     "x": -9.629,
+     "y": -0.129,
+     "z": -15.807
+    },
+    "yaw_deg": 0
+   },
+   {
+    "item_id": "6f1c2a54-8b0e-4d1a-9c3e-0a51b7d2e003",
+    "position": {
+     "x": -11.179,
+     "y": -0.129,
+     "z": -15.807
+    },
+    "yaw_deg": 90
+   }
+  ],
+  "score": 0.91,
+  "rationale": "Sofa on the 7.2 m wall; faces into the room with the table centered on it. Armchair angled toward the coffee table.",
+  "status": "proposed",
+  "feedback": null,
+  "thumbnail_url": null
+ },
+ {
+  "layout_id": "9a7d3e10-52c4-4f6b-b8a1-3c0e5d6f7002",
+  "user_id": "demo",
+  "property_id": "onXQLXhfyQv",
+  "room_id": "tt6gm2a0463x9wmnx7rn6gugc",
+  "placements": [
+   {
+    "item_id": "6f1c2a54-8b0e-4d1a-9c3e-0a51b7d2e001",
+    "position": {
+     "x": -10.4,
+     "y": -0.129,
+     "z": -13.435
+    },
+    "yaw_deg": 180
+   },
+   {
+    "item_id": "6f1c2a54-8b0e-4d1a-9c3e-0a51b7d2e002",
+    "position": {
+     "x": -10.4,
+     "y": -0.129,
+     "z": -14.645
+    },
+    "yaw_deg": 180
+   },
+   {
+    "item_id": "6f1c2a54-8b0e-4d1a-9c3e-0a51b7d2e003",
+    "position": {
+     "x": -8.85,
+     "y": -0.129,
+     "z": -14.645
+    },
+    "yaw_deg": 270
+   }
+  ],
+  "score": 0.84,
+  "rationale": "Sofa on the 5.6 m wall; opens the middle of the room for circulation. Armchair angled toward the coffee table.",
+  "status": "proposed",
+  "feedback": null,
+  "thumbnail_url": null
+ },
+ {
+  "layout_id": "9a7d3e10-52c4-4f6b-b8a1-3c0e5d6f7003",
+  "user_id": "demo",
+  "property_id": "onXQLXhfyQv",
+  "room_id": "tt6gm2a0463x9wmnx7rn6gugc",
+  "placements": [
+   {
+    "item_id": "6f1c2a54-8b0e-4d1a-9c3e-0a51b7d2e001",
+    "position": {
+     "x": -12.668,
+     "y": -0.129,
+     "z": -16.159
+    },
+    "yaw_deg": 90
+   },
+   {
+    "item_id": "6f1c2a54-8b0e-4d1a-9c3e-0a51b7d2e002",
+    "position": {
+     "x": -11.458,
+     "y": -0.129,
+     "z": -16.158
+    },
+    "yaw_deg": 90
+   },
+   {
+    "item_id": "6f1c2a54-8b0e-4d1a-9c3e-0a51b7d2e003",
+    "position": {
+     "x": -11.459,
+     "y": -0.129,
+     "z": -14.608
+    },
+    "yaw_deg": 180
+   }
+  ],
+  "score": 0.77,
+  "rationale": "Sofa on the 4.7 m wall; keeps the longest wall free. Armchair angled toward the coffee table.",
+  "status": "proposed",
+  "feedback": null,
+  "thumbnail_url": null
+ }
+]

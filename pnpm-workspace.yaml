@@ -1,0 +1,6 @@
+packages:
+  - apps/*
+  - packages/schema/ts
+allowBuilds:
+  esbuild: true
+  sharp: true

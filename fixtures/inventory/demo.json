@@ -1,0 +1,65 @@
+[
+ {
+  "item_id": "6f1c2a54-8b0e-4d1a-9c3e-0a51b7d2e001",
+  "user_id": "demo",
+  "label": "Gray three-seat sofa",
+  "item_class": "sofa",
+  "attributes": {
+   "style": "mid-century modern",
+   "color": "slate gray",
+   "material": "woven fabric"
+  },
+  "dims_m": {
+   "w": 2.1,
+   "d": 0.92,
+   "h": 0.82
+  },
+  "glb_url": "/fixtures/blobs/inventory/sofa.glb",
+  "source_image_url": "/fixtures/blobs/inventory/sofa.svg",
+  "mask_url": "/fixtures/blobs/inventory/sofa.mask.svg",
+  "price": 1299,
+  "product_url": null
+ },
+ {
+  "item_id": "6f1c2a54-8b0e-4d1a-9c3e-0a51b7d2e002",
+  "user_id": "demo",
+  "label": "Oak coffee table",
+  "item_class": "coffee_table",
+  "attributes": {
+   "style": "scandinavian",
+   "color": "natural oak",
+   "material": "solid oak"
+  },
+  "dims_m": {
+   "w": 1.1,
+   "d": 0.6,
+   "h": 0.42
+  },
+  "glb_url": "/fixtures/blobs/inventory/coffee-table.glb",
+  "source_image_url": "/fixtures/blobs/inventory/coffee-table.svg",
+  "mask_url": "/fixtures/blobs/inventory/coffee-table.mask.svg",
+  "price": 349,
+  "product_url": null
+ },
+ {
+  "item_id": "6f1c2a54-8b0e-4d1a-9c3e-0a51b7d2e003",
+  "user_id": "demo",
+  "label": "Mustard armchair",
+  "item_class": "armchair",
+  "attributes": {
+   "style": "mid-century modern",
+   "color": "mustard yellow",
+   "material": "velvet"
+  },
+  "dims_m": {
+   "w": 0.8,
+   "d": 0.85,
+   "h": 0.85
+  },
+  "glb_url": "/fixtures/blobs/inventory/armchair.glb",
+  "source_image_url": "/fixtures/blobs/inventory/armchair.svg",
+  "mask_url": "/fixtures/blobs/inventory/armchair.mask.svg",
+  "price": 529,
+  "product_url": null
+ }
+]
