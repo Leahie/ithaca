@@ -19,7 +19,7 @@ A third table, **proposals**, holds arrangements someone suggested (the designer
 |---|---|---|
 | person (`user_id`) | Whoever is acting. The desktop is `config.userId` (`demo`). A phone that joined the family is its `member_id` (`m-…`), saved on the phone; scanning the family code again on the same phone, or typing the same name on a new one, comes back as the same member. | `X-User-Id` on storage routes |
 | house user (`house_user_id`) | The big screen's user, i.e. the session's user. Every phone in the session sees and edits this one house. | `X-User-Id` on in-house and proposal routes |
-| family of a person | The person, plus, for every household they host or belong to, its host and all its members. | derived (`households.family_of`) |
+| family of a person | The person, plus the host and all members of the household they host now (the one made or opened last; a host has one per family name) and of every household they belong to. | derived (`households.family_of`) |
 
 IP addresses are not used: through the Cloudflare tunnel every phone arrives from Cloudflare's
 addresses, and phones on one Wi-Fi share one public address.
