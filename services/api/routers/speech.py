@@ -86,6 +86,7 @@ async def text_to_speech(body: SpeakRequest) -> Response:
 ENDPOINT_SILENCE_MS = 900
 UTTERANCE_END_MS = 1400
 NOTHING_HEARD_S = 8.0  # give up if the microphone opened and nobody spoke
+LONGEST_S = 25.0  # in a room that never goes quiet: send what there is
 
 
 def _deepgram_listen(sample_rate: int, key: str, auto: bool = False):
@@ -182,6 +183,9 @@ async def listen_socket(ws: WebSocket, sample_rate: int = 48000, auto: bool = Fa
                     if auto and not transcript() and time.monotonic() - opened > NOTHING_HEARD_S:
                         seen["end"] = "nothing heard"
                         break  # nobody spoke
+                    if auto and time.monotonic() - opened > LONGEST_S:
+                        seen["end"] = "time limit"
+                        break
             finally:
                 audio.cancel()
         if not gone:

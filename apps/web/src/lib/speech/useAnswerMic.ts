@@ -43,12 +43,14 @@ export function useAnswerMic({ enabled, memberId, listening, start }: { enabled:
         if (!live.current.enabled || !asksSomething(event.payload.text) || !speechProvider().canListenUntapped()) return;
         pending = event.payload.message_id;
         setWaiting(true);
-        // The big screen says when it is done; if it is silent or absent, don't wait for ever.
-        const quiet = !useSession.getState().peers.desktop;
-        timer = window.setTimeout(open, quiet ? 400 : readingMs(event.payload.text) + 4000);
+        // The big screen says when it has finished speaking, and only then does the microphone
+        // open: guessing would open it over the guide's own voice. With no big screen there is
+        // no voice to wait for. If the signal never comes, the user taps as usual.
+        if (!useSession.getState().peers.desktop) timer = window.setTimeout(open, 400);
+        else timer = window.setTimeout(drop, readingMs(event.payload.text) + 20000);
       } else if (event.type === 'voice.spoken' && pending === event.payload.message_id) {
         window.clearTimeout(timer);
-        timer = window.setTimeout(open, 350); // let the room go quiet
+        timer = window.setTimeout(open, 500); // let the room go quiet
       }
     });
     return () => {

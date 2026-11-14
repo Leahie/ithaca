@@ -215,6 +215,12 @@ export function speechChunks(text: string, max = 1000): string[] {
 
 class VoiceUnavailable extends Error {}
 
+/** The noise gate: samples are 16-bit, so full scale is 32768. A voice at the phone peaks in the thousands. */
+const GATE_MIN = 900;
+const GATE_MAX = 2600;
+/** The gate stays open this long after the last loud block, so soft ends of words get through. */
+const GATE_HOLD_MS = 450;
+
 /** How long the microphone stays open after a question, ready for the next one without a tap. */
 const KEEP_MIC_MS = 120_000;
 
@@ -426,15 +432,40 @@ export class DeepgramProvider implements SpeechProvider {
       let loudest = 0;
       let lastFrame = performance.now();
       const started = lastFrame;
+      // A gate for noisy rooms: only sound about as loud as someone talking into the phone goes
+      // through; the rest (other people, the big screen's own voice across the room) is sent as
+      // silence, so it is not written down and the end of the user's sentence is still found.
+      // The threshold follows the room: three times its background level, within limits.
+      let room = 300;
+      let openUntil = 0;
+      let held: Int16Array | null = null;
+      const send = (block: Int16Array) => {
+        if (socket.readyState === WebSocket.OPEN && !stopping) socket.send(block.buffer as ArrayBuffer);
+      };
       open.sink = (pcm) => {
         if (done) return;
         frames += 1;
-        lastFrame = performance.now();
+        const now = performance.now();
+        lastFrame = now;
         let peak = 0;
         for (let i = 0; i < pcm.length; i += 4) peak = Math.max(peak, Math.abs(pcm[i]!));
         loudest = Math.max(loudest, peak);
-        handlers.onLevel?.(Math.min(1, peak / 9000));
-        if (socket.readyState === WebSocket.OPEN && !stopping) socket.send(pcm.buffer as ArrayBuffer);
+        const gate = Math.max(GATE_MIN, Math.min(GATE_MAX, room * 3));
+        handlers.onLevel?.(peak >= gate ? Math.min(1, 0.25 + peak / 9000) : Math.min(0.12, peak / 9000));
+        if (peak >= gate) {
+          // The block just before a word starts carries its first sound: send it too.
+          if (now > openUntil && held) send(held);
+          openUntil = now + GATE_HOLD_MS;
+        } else {
+          room += (peak - room) * 0.05;
+        }
+        if (now <= openUntil) {
+          send(pcm);
+          held = null;
+        } else {
+          send(new Int16Array(pcm.length));
+          held = pcm;
+        }
       };
 
       // The microphone has to keep delivering: no blocks at all, blocks that stop coming, or
