@@ -113,7 +113,10 @@ class RoomCoefficients:
     window_sky: np.ndarray  # (W, P) lumens through each window per cd/m² of each patch
     window_area: np.ndarray  # (W,) glazed area x window factor
     window_tau0: np.ndarray  # (W,)
-    rho_floor: float  # first reflection of the sun beam, which lands mostly on the floor
+    floor_points: np.ndarray  # (F, 3) room grid on the floor, to find where the sun beam lands
+    floor_visibility: list
+    floor_cell_m2: float
+    rho_floor: float
     rho_down: float  # floor + walls below window mid-height
     rho_up: float  # ceiling + walls above
     rho_mean: float
@@ -269,11 +272,15 @@ def room_coefficients(twin: PropertyTwin, room: Room, height_m: float = 0.0, cel
     mid = float(np.clip(mid, 0.0, height))
     a_below, a_above = perimeter * mid, perimeter * (height - mid)
     a_total = 2 * a_floor + perimeter * height
+    _, _, floor_points = sun.floor_grid(room, CELL_M, 0.0)
     coefficients = RoomCoefficients(
         origin=origin, inside=inside, points=points, sky=sky, windows=windows, visibility=visibility,
         window_sky=window_sky,
         window_area=np.array([w.width * w.height * WINDOW_FACTOR for w in windows]),
         window_tau0=np.array([taus[w.opening_id] for w in windows]),
+        floor_points=floor_points,
+        floor_visibility=[sun.window_visibility(room, floor_points, w) for w in windows],
+        floor_cell_m2=CELL_M * CELL_M,
         rho_floor=rho_f,
         rho_down=(a_floor * rho_f + a_below * WALL_REFLECTANCE) / (a_floor + a_below),
         rho_up=(a_floor * CEILING_REFLECTANCE + a_above * WALL_REFLECTANCE) / (a_floor + a_above),
@@ -330,9 +337,11 @@ def _room_lux(c: RoomCoefficients, s: _Instant) -> tuple[np.ndarray, np.ndarray,
     lux = c.sky @ s.luminance
     lit = np.zeros(n, dtype=bool)
     flux_down = float(c.window_sky @ s.luminance @ np.ones(len(c.windows))) if c.windows else 0.0
-    flux_sun = 0.0
+    flux_sun = flux_sun_floor = 0.0
     sin_el = np.sin(np.radians(s.elevation))
-    for w, vis, tau0, area in zip(c.windows, c.visibility, c.window_tau0, c.window_area):
+    floor_lit = np.zeros(len(c.floor_points), dtype=bool)
+    for w, vis, floor_vis, tau0, area in zip(c.windows, c.visibility, c.floor_visibility, c.window_tau0,
+                                             c.window_area):
         cos_s = float(s.sun_dir[0] @ w.outward)
         if cos_s <= 0 or s.beam_lux <= 0:
             continue
@@ -341,8 +350,13 @@ def _room_lux(c: RoomCoefficients, s: _Instant) -> tuple[np.ndarray, np.ndarray,
         hit = sun.through_window(c.points, s.sun_dir, w, vis)[0] & ~lit
         lux[hit] += s.beam_lux * sin_el * tau
         lit |= hit
+        on_floor = sun.through_window(c.floor_points, s.sun_dir, w, floor_vis)[0] & ~floor_lit
+        flux_sun_floor += float(on_floor.sum()) * c.floor_cell_m2 * s.beam_lux * sin_el * tau
+        floor_lit |= on_floor
+    flux_sun_floor = min(flux_sun_floor, flux_sun)  # the rest of the beam lands on the walls
     flux_up = float(np.sum(c.window_area * 0.85 * c.window_tau0)) * s.albedo * s.ground_lux / 2
-    first = flux_down * c.rho_down + flux_sun * c.rho_floor + flux_up * c.rho_up
+    first = (flux_down * c.rho_down + flux_sun_floor * c.rho_floor + (flux_sun - flux_sun_floor) * WALL_REFLECTANCE
+             + flux_up * c.rho_up)
     reflected = first / (c.area_total * (1 - c.rho_mean))
     return lux + reflected, lit, reflected
 

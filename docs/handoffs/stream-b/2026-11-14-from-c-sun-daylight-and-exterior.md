@@ -55,5 +55,6 @@ added sun and daylight questions the agent can answer at the property's local ti
 
 ### Caveats the agent should say when relevant
 - No neighbors, trees or roof overhangs yet (`quality.context: none`), so sun is an upper bound.
-- No furniture. Reflected light is averaged over each room. It matched Radiance ray tracing
-  within about 5-12% in most test rooms, and is high in small rooms with a big sun patch.
+- No furniture. Reflected light is averaged over each room. Against Radiance ray tracing the
+  median spot is within 4-12% in three test cases (overcast, low morning sun, evening sun), and
+  about 50% high in a small kitchen with a big midday sun patch. Speak in levels, not exact lux.
