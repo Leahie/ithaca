@@ -18,6 +18,13 @@ class Vec3(BaseModel):
     z: float
 
 
+class Quat(BaseModel):
+    x: float
+    y: float
+    z: float
+    w: float
+
+
 class TwinSources(BaseModel):
     matterport_model_id: str
     vexcel_parcel_id: str | None = None
@@ -88,6 +95,9 @@ class Sweep(BaseModel):
     label: str | None = None
     # sweeps reachable along a clear straight line (symmetric); a viewer moves only along these
     neighbors: list[str] = Field(default_factory=list)
+    # pano frame -> interior frame; the skybox faces are GL cube faces in the pano frame, so a
+    # world direction d samples the panorama at inverse(rotation) * d
+    rotation: Quat | None = None
 
 
 class TwinAssets(BaseModel):

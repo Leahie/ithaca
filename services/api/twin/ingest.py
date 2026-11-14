@@ -25,6 +25,7 @@ from packages.schema.twin import (
     FloorOpening,
     Opening,
     PropertyTwin,
+    Quat,
     Room,
     Sweep,
     TwinAssets,
@@ -38,6 +39,7 @@ from services.api.integrations.cache import RecordReplayCache
 from services.api.integrations.config import fixtures_dir
 from services.api.integrations.matterport import MatterportClient
 from services.api.twin import annotations, frames, nav
+from services.api.twin import panos as panos_frames
 from services.api.twin import rooms as plan
 from services.api.twin.mesh import interior_glb_path
 from services.api.twin.service import twin_path
@@ -477,6 +479,7 @@ def _sweeps(panos, kept, raw_floors, elevations, neighbors: dict[str, list[str]]
             position=_vec(frames.model_to_interior((pos["x"], pos["y"], pos["z"]))),
             label=p.get("label"),
             neighbors=neighbors.get(p["id"], []),
+            rotation=_quat(panos_frames.interior_quaternion(p["rotation"])) if p.get("rotation") else None,
         ))
     out.sort(key=lambda s: s.sweep_id)
     return out
@@ -495,6 +498,10 @@ def _r(value: float, digits: int = 3) -> float:
 
 def _vec(p) -> Vec3:
     return Vec3(x=_r(p[0]), y=_r(p[1]), z=_r(p[2]))
+
+
+def _quat(q) -> Quat:
+    return Quat(x=_r(q[0], 6), y=_r(q[1], 6), z=_r(q[2], 6), w=_r(q[3], 6))
 
 
 def main() -> None:

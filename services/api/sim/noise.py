@@ -9,6 +9,8 @@ between rooms i and j (wall, doors, passages, floor/ceiling), C_out_i the same t
 With no coupling this is the classic L_rev = L_w + 10 log(4/A). Every path (through the wall,
 round through the hall, down through the floor) is in one linear solve, and the matrix is
 symmetric, so the result is reciprocal. Near a source, the direct field Q/(4 pi r^2) adds on top.
+Outdoor noise (sim/traffic.py) enters through the envelope: the level outside each outside wall
+drives that wall's S*tau, and the same solve spreads it through the house.
 Units: e and W in "level" units, 10^(L/10), so L = 10 log10(e).
 """
 
@@ -20,13 +22,23 @@ import numpy as np
 from shapely.geometry import Polygon
 
 from packages.schema.reports import (
+    NoiseHour,
+    NoiseHouse,
+    NoiseReport,
+    NoiseRoomHour,
+    NoiseScenario,
+    NoiseSource,
+    NoiseSources,
+    OutdoorSource,
     SoundDoors,
     SoundListener,
     SoundPreset,
     SoundRoom,
     SoundSource,
+    TrafficData,
 )
 from packages.schema.twin import FloorOpening, Opening, PropertyTwin, Room, Vec3, Wall
+from services.api.sim import traffic
 
 N_BANDS = 8
 SOURCE_HEIGHT_M = 1.0  # a TV, a speaker, a person talking, a crib: about 1 m off the floor
@@ -36,6 +48,7 @@ DIRECTIVITY_Q = 1.0
 LW_FROM_LP_1M_DB = 11.0  # free field point source: L_p(1 m) = L_w - 11
 MIN_FLOOR_OVERLAP_M2 = 0.5
 SABINE = 0.161  # s/m
+OPEN_WINDOW_FRACTION = 0.5  # a sash or slider opens half its area
 
 
 @dataclass(frozen=True)
@@ -101,6 +114,8 @@ class Network:
     coupling: np.ndarray  # (rooms, rooms, bands) sum S*tau between rooms, m^2
     outside: np.ndarray  # (rooms, bands) sum S*tau towards outside or unmodelled space, m^2
     volume: np.ndarray  # (rooms,) m^3
+    # the part of `outside` that is the building envelope: (wall_id or loose opening_id, room, S*tau)
+    envelope: list[tuple[str, int, np.ndarray]] = field(default_factory=list)
 
     def index(self, room_id: str) -> int:
         try:
@@ -115,12 +130,27 @@ class Network:
 
     def solve(self, power: np.ndarray) -> np.ndarray:
         """(rooms, bands) diffuse-field e_i for injected power (rooms, bands), both 10^(L/10)."""
+        return self._solve(4.0 * power)
+
+    def solve_outside(self, incident: dict[str, np.ndarray]) -> np.ndarray:
+        """(rooms, ..., bands) e_i when the outside of each envelope element hears incident[key]
+        (..., bands), 10^(L/10). Taking the incident field as diffuse, the power through S is
+        S tau e_out / 4, so the source term is S tau e_out: L_in = L_out - R + 10 lg(S/A)."""
+        shape = next(iter(incident.values())).shape if incident else (N_BANDS,)
+        rhs = np.zeros((len(self.room_ids), *shape))
+        for key, i, sti in self.envelope:
+            if key in incident:
+                rhs[i] += sti * incident[key]
+        return self._solve(rhs)
+
+    def _solve(self, rhs: np.ndarray) -> np.ndarray:
+        """Solve the power balance per band for rhs (rooms, ..., bands)."""
         n = len(self.room_ids)
-        e = np.zeros_like(power)
-        for b in range(power.shape[1]):
+        e = np.zeros_like(rhs)
+        for b in range(rhs.shape[-1]):
             m = -self.coupling[:, :, b].copy()
             m[np.arange(n), np.arange(n)] = self.absorption[:, b] + self.coupling[:, :, b].sum(axis=1) + self.outside[:, b]
-            e[:, b] = np.linalg.solve(m, 4.0 * power[:, b])
+            e[..., b] = np.linalg.solve(m, rhs[..., b].reshape(n, -1)).reshape(rhs.shape[:-1])
         return e
 
 
@@ -132,6 +162,7 @@ def network(
     include_furniture: bool = True,
     add_carpet: bool = False,
     glazing: str | None = None,
+    windows_open: bool = False,
 ) -> Network:
     rooms = twin.rooms
     ids = [r.room_id for r in rooms]
@@ -150,7 +181,10 @@ def network(
 
     def element_tau(o: Opening) -> np.ndarray:
         if o.kind in ("window", "slider") and o.glazing != "none":
-            return table.tau(f"glazing_{glazing or o.glazing}")
+            closed = table.tau(f"glazing_{glazing or o.glazing}")
+            if windows_open and o.exterior is not False:
+                return OPEN_WINDOW_FRACTION * table.tau("open") + (1.0 - OPEN_WINDOW_FRACTION) * closed
+            return closed
         if o.exterior:
             return table.tau("door_exterior_solid")
         if o.leaf is False or (o.leaf and doors == "open"):
@@ -159,6 +193,7 @@ def network(
 
     into_stairs = {o for f in twin.floor_openings for o in f.via_opening_ids}
     on_walls = set()
+    envelope = []
     for w in twin.walls:
         sides = [rid for rid in w.room_ids if rid in index]
         if not sides:
@@ -177,6 +212,8 @@ def network(
             coupling[j, i] += sti
         else:
             outside[index[sides[0]]] += sti
+            if w.exterior:
+                envelope.append((w.wall_id, index[sides[0]], sti))
         for rid in sides:
             wall_area[index[rid]] += net
             for o in holes:
@@ -195,6 +232,8 @@ def network(
             coupling[j, i] += sti
         else:
             outside[index[o.room_id]] += sti
+            if o.exterior:
+                envelope.append((o.opening_id, index[o.room_id], sti))
 
     if not twin.walls:  # no wall data: every room's perimeter is a partition to nowhere
         for r in rooms:
@@ -227,7 +266,8 @@ def network(
         if include_furniture:
             absorption[i] += floor * table.furnishing.get(r.label.lower(), table.furnishing["default"])
 
-    return Network(room_ids=ids, absorption=absorption, coupling=coupling, outside=outside, volume=volume)
+    return Network(room_ids=ids, absorption=absorption, coupling=coupling, outside=outside, volume=volume,
+                   envelope=envelope)
 
 
 # --- questions ------------------------------------------------------------------------------
@@ -295,6 +335,130 @@ def sound_field(
             rt60_s=round(float(rt60[k, 3:5].mean()), 2),
         )
     return source, rooms, heard
+
+
+# --- outdoor noise heard inside ---------------------------------------------------------------
+
+NIGHT_HOURS = [23, 0, 1, 2, 3, 4, 5, 6]
+DAY_HOURS = list(range(7, 23))
+EVENING_HOURS = [19, 20, 21, 22]
+MAX_LISTED_SOURCES = 8
+
+
+def noise_report(twin: PropertyTwin, net: Network, table: Acoustics, out: traffic.Outdoor, room_id: str,
+                 scenario: NoiseScenario, data: TrafficData, caveats: list[str]) -> NoiseReport:
+    """A room's level through the day from everything outside, what it's made of, and the level
+    just outside its most exposed wall."""
+    _room(twin, room_id)
+    k = net.index(room_id)
+    parts = _per_source(out)  # (receivers, parts, 24, bands)
+    names = [(s.name, s.kind) for s in out.sources] + [(f"Background ({out.background_label})", "background")]
+    inside = net.solve_outside({r.key: parts[i] for i, r in enumerate(out.receivers)})[k]  # (parts, 24, bands)
+    total = inside.sum(axis=0)
+    hourly_dba = _hourly_dba(total, table)
+
+    facades = [i for i, r in enumerate(out.receivers) if r.room_id == room_id]
+    outdoor_hourly, outdoor_lden, outdoor_lnight, facade = [], None, None, None
+    if facades:
+        facade = max(facades, key=lambda i: _leq(_hourly_dba(parts[i].sum(axis=0), table), range(24)))
+        outside_total = parts[facade].sum(axis=0)
+        outside_dba = _hourly_dba(outside_total, table)
+        outdoor_hourly = _hours(outside_total, outside_dba)
+        outdoor_lden = round(_lden(outside_dba), 1)
+        outdoor_lnight = round(_leq(outside_dba, NIGHT_HOURS), 1)
+
+    sources = []
+    for j, (name, kind) in enumerate(names):
+        level = _leq(_hourly_dba(inside[j], table), range(24))
+        outdoor = None if facade is None else round(_leq(_hourly_dba(parts[facade, j], table), range(24)), 1)
+        sources.append((level, NoiseSource(name=name, contribution_dba=round(max(level, 0.0), 1), kind=kind,
+                                           outdoor_dba=outdoor)))
+    sources.sort(key=lambda s: -s[0])
+    listed = [s for _, s in sources[:MAX_LISTED_SOURCES]]
+    rest = [lvl for lvl, _ in sources[MAX_LISTED_SOURCES:] if lvl > 0]
+    if rest:
+        listed.append(NoiseSource(name=f"{len(rest)} other roads and rail", kind="road",
+                                  contribution_dba=round(10.0 * np.log10(np.sum(10.0 ** (np.array(rest) / 10.0))), 1)))
+
+    rt60 = net.rt60()
+    return NoiseReport(
+        room_id=room_id, scenario=scenario, hourly=_hours(total, hourly_dba),
+        rt60_s=round(float(rt60[k, 3:5].mean()), 2), sources=listed,
+        laeq_24h_dba=round(_leq(hourly_dba, range(24)), 1),
+        laeq_day_dba=round(_leq(hourly_dba, DAY_HOURS), 1), laeq_night_dba=round(_leq(hourly_dba, NIGHT_HOURS), 1),
+        outdoor_hourly=outdoor_hourly, outdoor_lden_dba=outdoor_lden, outdoor_lnight_dba=outdoor_lnight,
+        traffic=data, caveats=caveats)
+
+
+def noise_house(twin: PropertyTwin, net: Network, table: Acoustics, out: traffic.Outdoor, hour: int,
+                scenario: NoiseScenario, data: TrafficData, caveats: list[str]) -> NoiseHouse:
+    """Every room's level from outside at one hour."""
+    if not 0 <= hour <= 23:
+        raise ValueError("hour must be 0..23 (property-local)")
+    hourly = out.hourly()[:, hour]  # (receivers, bands)
+    inside = net.solve_outside({r.key: hourly[i] for i, r in enumerate(out.receivers)})  # (rooms, bands)
+    rt60 = net.rt60()
+    loudest: dict[str, int] = {}  # room -> its most exposed receiver at this hour
+    for i, r in enumerate(out.receivers):
+        if r.room_id not in loudest or _hourly_dba(hourly[i], table) > _hourly_dba(hourly[loudest[r.room_id]], table):
+            loudest[r.room_id] = i
+    rooms = []
+    for k, rid in enumerate(net.room_ids):
+        outside = hourly[loudest[rid]] if rid in loudest else np.zeros(N_BANDS)
+        rooms.append(NoiseRoomHour(
+            room_id=rid, laeq_dba=round(max(float(_hourly_dba(inside[k], table)), 0.0), 1),
+            bands_db=_round(_level(inside[k])),
+            outdoor_laeq_dba=round(max(float(_hourly_dba(outside, table)), 0.0), 1) if rid in loudest else 0.0,
+            outdoor_bands_db=_round(_level(outside)), rt60_s=round(float(rt60[k, 3:5].mean()), 2)))
+    rooms.sort(key=lambda r: -r.laeq_dba)
+    return NoiseHouse(hour=hour, scenario=scenario, rooms=rooms, traffic=data, caveats=caveats)
+
+
+def noise_sources(table: Acoustics, out: traffic.Outdoor, data: TrafficData, caveats: list[str]) -> NoiseSources:
+    """The roads and railways around the house, with how loud each is at the most exposed wall."""
+    parts = _per_source(out)
+    listed = []
+    for j, s in enumerate(out.sources):
+        facade = max((_leq(_hourly_dba(parts[i, j], table), range(24)) for i in range(len(out.receivers))), default=0.0)
+        listed.append(OutdoorSource(
+            source_id=s.source_id, name=s.name, kind=s.kind, data=s.data,
+            aadt=None if s.aadt is None else int(s.aadt), heavy_share=s.heavy, speed_kmh=s.speed_kmh,
+            distance_m=round(float(np.hypot(*s.points.T).min()), 1) if len(s.points) else None,
+            facade_laeq_dba=round(max(facade, 0.0), 1), path=s.path_latlon))
+    listed.append(OutdoorSource(source_id="background", name=f"Background ({out.background_label})",
+                                kind="background", data="ansi_category",
+                                facade_laeq_dba=round(_leq(_hourly_dba(out.background, table), range(24)), 1)))
+    listed.sort(key=lambda s: -s.facade_laeq_dba)
+    return NoiseSources(sources=listed, traffic=data, caveats=caveats)
+
+
+def _per_source(out: traffic.Outdoor) -> np.ndarray:
+    """(receivers, sources + background, 24, bands), 10^(L/10)."""
+    weights = np.array([s.weights for s in out.sources]).reshape(len(out.sources), 24)
+    roads = out.energy[:, :, None, :] * weights[None, :, :, None]
+    background = np.broadcast_to(out.background, (len(out.receivers), 1, 24, N_BANDS))
+    return np.concatenate([roads, background], axis=1)
+
+
+def _hourly_dba(e: np.ndarray, table: Acoustics) -> np.ndarray:
+    """(..., ) A-weighted level of (..., bands) energies, unfloored so that parts add up."""
+    weighted = (np.asarray(e) * 10.0 ** (table.a_weighting / 10.0)).sum(axis=-1)
+    return 10.0 * np.log10(np.maximum(weighted, 1e-12))
+
+
+def _hours(e: np.ndarray, dba: np.ndarray) -> list[NoiseHour]:
+    return [NoiseHour(hour=h, laeq_dba=round(max(float(dba[h]), 0.0), 1), bands_db=_round(_level(e[h])))
+            for h in range(e.shape[0])]
+
+
+def _leq(dba: np.ndarray, hours) -> float:
+    hours = list(hours)
+    return float(10.0 * np.log10(np.mean(10.0 ** (np.asarray(dba)[hours] / 10.0))))
+
+
+def _lden(dba: np.ndarray) -> float:
+    penalty = np.array([10.0 if h in NIGHT_HOURS else 5.0 if h in EVENING_HOURS else 0.0 for h in range(24)])
+    return float(10.0 * np.log10(np.mean(10.0 ** ((np.asarray(dba) + penalty) / 10.0))))
 
 
 # --- helpers --------------------------------------------------------------------------------

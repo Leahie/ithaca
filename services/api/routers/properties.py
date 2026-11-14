@@ -25,8 +25,10 @@ from packages.schema.reports import (
     Comp,
     DaylightMoment,
     DaylightSpot,
+    NoiseHouse,
     NoiseReport,
     NoiseScenario,
+    NoiseSources,
     SoundCatalog,
     SoundDoors,
     SoundField,
@@ -216,14 +218,44 @@ def get_sound_field(
         return service.sound_field(pid, room_id, x, z, preset, level_dba, doors, include_furniture, listener)
 
 
-# --- noise (not built yet) and area ---------------------------------------------------------
+# --- noise from outside (traffic, rail, background) -----------------------------------------
+
+
+Glazing = Literal["single", "double", "triple"] | None
+
+
+def _scenario(glazing: Glazing, add_carpet: bool, include_furniture: bool, windows_open: bool) -> NoiseScenario:
+    return NoiseScenario(glazing=glazing, add_carpet=add_carpet, include_furniture=include_furniture,
+                         windows_open=windows_open)
 
 
 @router.get("/properties/{pid}/noise", response_model=NoiseReport)
-def get_noise(pid: str, room_id: str, glazing: Literal["single", "double", "triple"] | None = None,
-              add_carpet: bool = False, x_user_id: str = UserId) -> NoiseReport:
+def get_noise(pid: str, room_id: str, glazing: Glazing = None, add_carpet: bool = False,
+              include_furniture: bool = True, windows_open: bool = False, x_user_id: str = UserId) -> NoiseReport:
+    """A room's level from traffic, rail and background through the day (24 local hours, dBA and
+    octave bands), day/night averages, the sources it's made of, and the level just outside its
+    most exposed wall. The first call per property builds the outdoor model (a few seconds)."""
     with _errors():
-        return service.noise_report(pid, room_id, NoiseScenario(glazing=glazing, add_carpet=add_carpet))
+        return service.noise_report(pid, room_id, _scenario(glazing, add_carpet, include_furniture, windows_open))
+
+
+@router.get("/properties/{pid}/noise/house", response_model=NoiseHouse)
+def get_noise_house(pid: str, hour: int = Query(..., ge=0, le=23), glazing: Glazing = None, add_carpet: bool = False,
+                    include_furniture: bool = True, windows_open: bool = False, x_user_id: str = UserId) -> NoiseHouse:
+    """Every room's level from outside at one local hour: the floor-plan map and walking audio."""
+    with _errors():
+        return service.noise_house(pid, hour, _scenario(glazing, add_carpet, include_furniture, windows_open))
+
+
+@router.get("/properties/{pid}/noise/sources", response_model=NoiseSources)
+def get_noise_sources(pid: str, x_user_id: str = UserId) -> NoiseSources:
+    """Roads and railways around the house (traffic, speed, where the numbers came from, lat/lon
+    paths) and how loud each is outside the most exposed wall."""
+    with _errors():
+        return service.noise_sources(pid)
+
+
+# --- area -----------------------------------------------------------------------------------
 
 
 @router.get("/properties/{pid}/area", response_model=AreaProfile)

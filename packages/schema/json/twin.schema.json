@@ -307,6 +307,34 @@
       "title": "PropertyTwin",
       "type": "object"
     },
+    "Quat": {
+      "properties": {
+        "w": {
+          "title": "W",
+          "type": "number"
+        },
+        "x": {
+          "title": "X",
+          "type": "number"
+        },
+        "y": {
+          "title": "Y",
+          "type": "number"
+        },
+        "z": {
+          "title": "Z",
+          "type": "number"
+        }
+      },
+      "required": [
+        "x",
+        "y",
+        "z",
+        "w"
+      ],
+      "title": "Quat",
+      "type": "object"
+    },
     "Room": {
       "properties": {
         "area_m2": {
@@ -413,6 +441,17 @@
             }
           ],
           "title": "Room Id"
+        },
+        "rotation": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Quat"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
         },
         "sweep_id": {
           "title": "Sweep Id",

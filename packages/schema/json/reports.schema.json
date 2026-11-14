@@ -678,14 +678,134 @@
       "title": "NoiseHour",
       "type": "object"
     },
+    "NoiseHouse": {
+      "description": "Every room at one hour: the floor-plan map, and the audio as you walk around.",
+      "properties": {
+        "caveats": {
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "title": "Caveats",
+          "type": "array"
+        },
+        "hour": {
+          "title": "Hour",
+          "type": "integer"
+        },
+        "rooms": {
+          "items": {
+            "$ref": "#/$defs/NoiseRoomHour"
+          },
+          "title": "Rooms",
+          "type": "array"
+        },
+        "scenario": {
+          "$ref": "#/$defs/NoiseScenario"
+        },
+        "traffic": {
+          "enum": [
+            "aadt",
+            "class_default",
+            "none"
+          ],
+          "title": "Traffic",
+          "type": "string"
+        }
+      },
+      "required": [
+        "hour",
+        "scenario",
+        "rooms",
+        "traffic"
+      ],
+      "title": "NoiseHouse",
+      "type": "object"
+    },
     "NoiseReport": {
       "properties": {
+        "caveats": {
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "title": "Caveats",
+          "type": "array"
+        },
         "hourly": {
           "items": {
             "$ref": "#/$defs/NoiseHour"
           },
           "title": "Hourly",
           "type": "array"
+        },
+        "laeq_24h_dba": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Laeq 24H Dba"
+        },
+        "laeq_day_dba": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Laeq Day Dba"
+        },
+        "laeq_night_dba": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Laeq Night Dba"
+        },
+        "outdoor_hourly": {
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/NoiseHour"
+          },
+          "title": "Outdoor Hourly",
+          "type": "array"
+        },
+        "outdoor_lden_dba": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Outdoor Lden Dba"
+        },
+        "outdoor_lnight_dba": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Outdoor Lnight Dba"
         },
         "room_id": {
           "title": "Room Id",
@@ -704,6 +824,16 @@
           },
           "title": "Sources",
           "type": "array"
+        },
+        "traffic": {
+          "default": "none",
+          "enum": [
+            "aadt",
+            "class_default",
+            "none"
+          ],
+          "title": "Traffic",
+          "type": "string"
         }
       },
       "required": [
@@ -714,6 +844,50 @@
         "sources"
       ],
       "title": "NoiseReport",
+      "type": "object"
+    },
+    "NoiseRoomHour": {
+      "properties": {
+        "bands_db": {
+          "items": {
+            "type": "number"
+          },
+          "title": "Bands Db",
+          "type": "array"
+        },
+        "laeq_dba": {
+          "title": "Laeq Dba",
+          "type": "number"
+        },
+        "outdoor_bands_db": {
+          "items": {
+            "type": "number"
+          },
+          "title": "Outdoor Bands Db",
+          "type": "array"
+        },
+        "outdoor_laeq_dba": {
+          "title": "Outdoor Laeq Dba",
+          "type": "number"
+        },
+        "room_id": {
+          "title": "Room Id",
+          "type": "string"
+        },
+        "rt60_s": {
+          "title": "Rt60 S",
+          "type": "number"
+        }
+      },
+      "required": [
+        "room_id",
+        "laeq_dba",
+        "bands_db",
+        "outdoor_laeq_dba",
+        "outdoor_bands_db",
+        "rt60_s"
+      ],
+      "title": "NoiseRoomHour",
       "type": "object"
     },
     "NoiseScenario": {
@@ -744,6 +918,11 @@
           "default": true,
           "title": "Include Furniture",
           "type": "boolean"
+        },
+        "windows_open": {
+          "default": false,
+          "title": "Windows Open",
+          "type": "boolean"
         }
       },
       "title": "NoiseScenario",
@@ -755,9 +934,38 @@
           "title": "Contribution Dba",
           "type": "number"
         },
+        "kind": {
+          "anyOf": [
+            {
+              "enum": [
+                "road",
+                "rail",
+                "background"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Kind"
+        },
         "name": {
           "title": "Name",
           "type": "string"
+        },
+        "outdoor_dba": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Outdoor Dba"
         }
       },
       "required": [
@@ -765,6 +973,153 @@
         "contribution_dba"
       ],
       "title": "NoiseSource",
+      "type": "object"
+    },
+    "NoiseSources": {
+      "properties": {
+        "caveats": {
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "title": "Caveats",
+          "type": "array"
+        },
+        "sources": {
+          "items": {
+            "$ref": "#/$defs/OutdoorSource"
+          },
+          "title": "Sources",
+          "type": "array"
+        },
+        "traffic": {
+          "enum": [
+            "aadt",
+            "class_default",
+            "none"
+          ],
+          "title": "Traffic",
+          "type": "string"
+        }
+      },
+      "required": [
+        "sources",
+        "traffic"
+      ],
+      "title": "NoiseSources",
+      "type": "object"
+    },
+    "OutdoorSource": {
+      "properties": {
+        "aadt": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Aadt"
+        },
+        "data": {
+          "enum": [
+            "txdot_aadt",
+            "class_default",
+            "fta_default",
+            "ansi_category"
+          ],
+          "title": "Data",
+          "type": "string"
+        },
+        "distance_m": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Distance M"
+        },
+        "facade_laeq_dba": {
+          "title": "Facade Laeq Dba",
+          "type": "number"
+        },
+        "heavy_share": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Heavy Share"
+        },
+        "kind": {
+          "enum": [
+            "road",
+            "rail",
+            "background"
+          ],
+          "title": "Kind",
+          "type": "string"
+        },
+        "name": {
+          "title": "Name",
+          "type": "string"
+        },
+        "path": {
+          "default": [],
+          "items": {
+            "items": {
+              "maxItems": 2,
+              "minItems": 2,
+              "prefixItems": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "number"
+                }
+              ],
+              "type": "array"
+            },
+            "type": "array"
+          },
+          "title": "Path",
+          "type": "array"
+        },
+        "source_id": {
+          "title": "Source Id",
+          "type": "string"
+        },
+        "speed_kmh": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Speed Kmh"
+        }
+      },
+      "required": [
+        "source_id",
+        "name",
+        "kind",
+        "data",
+        "facade_laeq_dba"
+      ],
+      "title": "OutdoorSource",
       "type": "object"
     },
     "RoomDaylight": {

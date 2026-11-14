@@ -139,10 +139,17 @@ class SunReport(BaseModel):
     height_m: float = 0.0
 
 
+# Outdoor noise (traffic, rail, background) heard inside. Hours are property-local 0..23. Day is
+# 07-23 and night 23-07 (WHO); Lden weights evening (19-23) +5 dB and night +10 dB.
+
+TrafficData = Literal["aadt", "class_default", "none"]
+
+
 class NoiseScenario(BaseModel):
     glazing: Literal["single", "double", "triple"] | None = None  # None = as built
     add_carpet: bool = False
     include_furniture: bool = True
+    windows_open: bool = False  # windows and sliders open halfway
 
 
 class NoiseHour(BaseModel):
@@ -153,7 +160,9 @@ class NoiseHour(BaseModel):
 
 class NoiseSource(BaseModel):
     name: str
-    contribution_dba: float
+    contribution_dba: float  # LAeq,24h this source alone gives in the room
+    kind: Literal["road", "rail", "background"] | None = None
+    outdoor_dba: float | None = None  # LAeq,24h it gives outside the room's most exposed wall
 
 
 class NoiseReport(BaseModel):
@@ -161,7 +170,53 @@ class NoiseReport(BaseModel):
     scenario: NoiseScenario
     hourly: list[NoiseHour]  # 24 entries
     rt60_s: float
-    sources: list[NoiseSource]
+    sources: list[NoiseSource]  # loudest first
+    laeq_24h_dba: float | None = None
+    laeq_day_dba: float | None = None
+    laeq_night_dba: float | None = None
+    outdoor_hourly: list[NoiseHour] = []  # just outside the room's most exposed wall
+    outdoor_lden_dba: float | None = None
+    outdoor_lnight_dba: float | None = None
+    traffic: TrafficData = "none"  # where road volumes came from (counts or class defaults)
+    caveats: list[str] = []
+
+
+class NoiseRoomHour(BaseModel):
+    room_id: str
+    laeq_dba: float
+    bands_db: list[float]
+    outdoor_laeq_dba: float  # outside the room's most exposed wall; 0 for rooms with no outside wall
+    outdoor_bands_db: list[float]  # the same, per band (all 0 with no outside wall)
+    rt60_s: float
+
+
+class NoiseHouse(BaseModel):
+    """Every room at one hour: the floor-plan map, and the audio as you walk around."""
+
+    hour: int
+    scenario: NoiseScenario
+    rooms: list[NoiseRoomHour]  # loudest first
+    traffic: TrafficData
+    caveats: list[str] = []
+
+
+class OutdoorSource(BaseModel):
+    source_id: str
+    name: str
+    kind: Literal["road", "rail", "background"]
+    data: Literal["txdot_aadt", "class_default", "fta_default", "ansi_category"]
+    aadt: int | None = None  # vehicles/day, both directions
+    heavy_share: float | None = None  # trucks
+    speed_kmh: float | None = None
+    distance_m: float | None = None  # nearest point to the property origin
+    facade_laeq_dba: float  # LAeq,24h outside the most exposed wall, this source alone
+    path: list[list[tuple[float, float]]] = []  # (lat, lon) polylines
+
+
+class NoiseSources(BaseModel):
+    sources: list[OutdoorSource]  # loudest first
+    traffic: TrafficData
+    caveats: list[str] = []
 
 
 # Sound placed inside the house ("a TV in the den: what do I hear in the bedroom?"). Every
