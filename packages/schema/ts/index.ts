@@ -268,23 +268,60 @@ export interface NoiseHour {
   bands_db: number[];
 }
 
+/**
+ * Every room at one hour: the floor-plan map, and the audio as you walk around.
+ */
+export interface NoiseHouse {
+  hour: number;
+  scenario: NoiseScenario;
+  rooms: NoiseRoomHour[];
+  traffic: "aadt" | "class_default" | "none";
+  caveats?: string[];
+}
+
 export interface NoiseReport {
   room_id: string;
   scenario: NoiseScenario;
   hourly: NoiseHour[];
   rt60_s: number;
   sources: NoiseSource[];
+  laeq_24h_dba?: number | null;
+  laeq_day_dba?: number | null;
+  laeq_night_dba?: number | null;
+  outdoor_hourly?: NoiseHour[];
+  outdoor_lden_dba?: number | null;
+  outdoor_lnight_dba?: number | null;
+  traffic?: "aadt" | "class_default" | "none";
+  caveats?: string[];
+}
+
+export interface NoiseRoomHour {
+  room_id: string;
+  laeq_dba: number;
+  bands_db: number[];
+  outdoor_laeq_dba: number;
+  outdoor_bands_db: number[];
+  rt60_s: number;
 }
 
 export interface NoiseScenario {
   glazing?: "single" | "double" | "triple" | null;
   add_carpet?: boolean;
   include_furniture?: boolean;
+  windows_open?: boolean;
 }
 
 export interface NoiseSource {
   name: string;
   contribution_dba: number;
+  kind?: "road" | "rail" | "background" | null;
+  outdoor_dba?: number | null;
+}
+
+export interface NoiseSources {
+  sources: OutdoorSource[];
+  traffic: "aadt" | "class_default" | "none";
+  caveats?: string[];
 }
 
 export interface ObjectIngestRequest {
@@ -308,10 +345,36 @@ export interface Opening {
   leaf?: boolean | null;
 }
 
+export interface OutdoorSource {
+  source_id: string;
+  name: string;
+  kind: "road" | "rail" | "background";
+  data: "txdot_aadt" | "class_default" | "fta_default" | "ansi_category";
+  aadt?: number | null;
+  heavy_share?: number | null;
+  speed_kmh?: number | null;
+  distance_m?: number | null;
+  facade_laeq_dba: number;
+  path?: [number, number][][];
+}
+
 export interface Placement {
   item_id: string;
   position: Vec3;
   yaw_deg: number;
+}
+
+/**
+ * Body of POST /layouts/drop: the user pointed at a spot on the floor plan for one piece.
+ */
+export interface PlacementDrop {
+  property_id: string;
+  room_id?: string | null;
+  floor_id?: string | null;
+  item_id: string;
+  x: number;
+  z: number;
+  layout_id?: string | null;
 }
 
 /**
@@ -340,6 +403,13 @@ export interface PropertyTwin {
   sweeps: Sweep[];
   assets: TwinAssets;
   quality: TwinQuality;
+}
+
+export interface Quat {
+  x: number;
+  y: number;
+  z: number;
+  w: number;
 }
 
 export interface Room {
@@ -529,6 +599,7 @@ export interface Sweep {
   position: Vec3;
   label?: string | null;
   neighbors?: string[];
+  rotation?: Quat | null;
 }
 
 export interface TwinAssets {

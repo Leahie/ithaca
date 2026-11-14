@@ -14,7 +14,7 @@ from langchain.tools import ToolRuntime, tool
 
 from packages.schema.layout import LayoutVariant, Placement
 from packages.schema.twin import Vec3
-from services.api.agent import prompts
+from services.api.agent import prompts, views
 from services.api.agent.context import AgentContext
 from services.api.furniture.store import furniture_store
 from services.api.sim import layout_solver
@@ -75,7 +75,8 @@ def propose_layouts(room_id: str, item_ids: list[str], wishes: list[Constraint],
     items = [
         layout_solver.Item(k, v.label, v.item_class, v.dims_m.w, v.dims_m.d, v.dims_m.h) for k, v in owned.items() if k in item_ids
     ]
-    result = layout_solver.solve(room, twin.openings, items, wishes, n=max(1, min(n, 4)))
+    result = layout_solver.solve(room, twin.openings, items, wishes, n=max(1, min(n, 4)), walls=twin.walls)
+    floor = views.floor_height(twin, room_id)
     name = prompts.room_display_names(twin)[room_id]
     if not result.variants:
         return f"No layout for {name}: {result.reason}. Try fewer or smaller pieces, or another room."
@@ -91,7 +92,7 @@ def propose_layouts(room_id: str, item_ids: list[str], wishes: list[Constraint],
             property_id=ctx.property_id,
             room_id=room_id,
             placements=[
-                Placement(item_id=item_id, position=Vec3(x=round(p.x, 3), y=room.floor_y, z=round(p.z, 3)), yaw_deg=round(p.yaw, 1))
+                Placement(item_id=item_id, position=Vec3(x=round(p.x, 3), y=floor, z=round(p.z, 3)), yaw_deg=round(p.yaw, 1))
                 for item_id, p in v.poses.items()
             ],
             score=v.score,
@@ -108,17 +109,44 @@ def propose_layouts(room_id: str, item_ids: list[str], wishes: list[Constraint],
     return "\n".join(lines)
 
 
+def _place_in_view(runtime: Runtime, layout: LayoutVariant) -> None:
+    """Put one layout's furniture in the room, in whatever view the user is in, and take them to
+    that room. The user stays where they are: no tab switch."""
+    twin = get_twin(runtime.context.property_id)
+    runtime.stream_writer({"type": "layout.select", "payload": {"layout_id": str(layout.layout_id)}})
+    payload: dict = {"room_id": layout.room_id}
+    if view := views.best_view(twin, layout.room_id):
+        payload |= {"at_sweep_id": view.sweep_id, "look_at": view.look_at.model_dump()}
+    runtime.stream_writer({"type": "viewer.goto", "payload": payload})
+
+
 @tool
 def design_show_variants(layout_ids: list[str], runtime: Runtime) -> str:
-    """Show saved layouts to the user as cards in the design view. layout_ids come from the
-    designer's answer."""
+    """Show the designer's layouts to the user. The first one is placed in the room right away, in
+    the view the user is already in; all of them become cards the user can flip through.
+    layout_ids come from the designer's answer, best first."""
     store, ctx = furniture_store(), runtime.context
-    missing = [i for i in layout_ids if store.get_layout(ctx.user_id, i) is None]
+    layouts = [store.get_layout(ctx.user_id, i) for i in layout_ids]
+    missing = [i for i, found in zip(layout_ids, layouts) if found is None]
     if missing or not layout_ids:
         return f"Error: unknown layout_ids {missing}. Use the layout_ids the designer returned."
-    runtime.stream_writer({"type": "viewer.setMode", "payload": {"mode": "design"}})
     runtime.stream_writer({"type": "design.showVariants", "payload": {"layout_ids": layout_ids}})
-    return f"The user now sees {len(layout_ids)} layout card(s) in the design view and can pick one."
+    _place_in_view(runtime, layouts[0])
+    return (
+        f"Option 1 is now placed in the room and the user is looking at it. {len(layout_ids)} option(s) are ready. "
+        "Tell them what option 1 is, and that they can ask for the next option or say what to change. "
+        "Use design_apply_layout to switch options."
+    )
+
+
+@tool
+def design_apply_layout(layout_id: str, runtime: Runtime) -> str:
+    """Place a different saved layout in the room, e.g. when the user says "show me option 2"."""
+    layout = furniture_store().get_layout(runtime.context.user_id, layout_id)
+    if layout is None:
+        return f"Error: unknown layout_id {layout_id!r}."
+    _place_in_view(runtime, layout)
+    return f"That layout is now placed in the room: {layout.rationale}"
 
 
 def _compass(twin, dx: float, dz: float) -> str:

@@ -28,6 +28,11 @@
           "default": true,
           "title": "Include Furniture",
           "type": "boolean"
+        },
+        "windows_open": {
+          "default": false,
+          "title": "Windows Open",
+          "type": "boolean"
         }
       },
       "title": "NoiseScenario",

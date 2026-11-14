@@ -6,6 +6,7 @@ import pytest
 from langchain_core.messages import AIMessage
 from langgraph.store.memory import InMemoryStore
 
+from services.api.agent import views
 from services.api.agent.tests.test_graph import PROPERTY, ScriptedModel, call, run
 from services.api.furniture import store
 from services.api.sim import layout_solver
@@ -58,8 +59,10 @@ def test_guide_delegates_to_the_designer_and_shows_valid_layouts(furniture):
     for layout in layouts:  # B2 holds for what was saved, and pieces sit on this room's floor
         poses = {str(p.item_id): layout_solver.Pose(p.position.x, p.position.z, p.yaw_deg) for p in layout.placements}
         assert layout_solver.violations(room, twin.openings, items, poses) == []
-        assert all(p.position.y == room.floor_y for p in layout.placements)
+        assert all(p.position.y == views.floor_height(twin, LIVING_ROOM) for p in layout.placements)  # on the real floor
 
     shown = [e[1] for e in out if e[0] == "ui"]
-    assert [e["type"] for e in shown] == ["viewer.setMode", "design.showVariants"]
-    assert sorted(shown[1]["payload"]["layout_ids"]) == sorted(str(l.layout_id) for l in layouts)
+    # cards for all options, option 1 placed in the room, and the user taken there: no tab switch
+    assert [e["type"] for e in shown] == ["design.showVariants", "layout.select", "viewer.goto"]
+    assert sorted(shown[0]["payload"]["layout_ids"]) == sorted(str(l.layout_id) for l in layouts)
+    assert shown[1]["payload"]["layout_id"] == shown[0]["payload"]["layout_ids"][0] and shown[2]["payload"]["room_id"] == LIVING_ROOM

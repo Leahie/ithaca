@@ -46,6 +46,25 @@ class Route:
         return self.distance_m / WALK_SPEED_M_S
 
 
+def floor_height(twin: PropertyTwin, room_id: str) -> float:
+    """The height of a room's floor, for standing furniture on it.
+
+    Room.floor_y is too low in some rooms (by 0.3-0.4 m in this house's large Floor 1 rooms). The
+    scan camera stands on the floor at a fixed tripod height, so the sweeps give a second reading:
+    median sweep height in the room, minus the tripod height seen in the rest of the house. The
+    higher of the two is used. Rooms without a sweep keep Room.floor_y."""
+    room = _room(twin, room_id)
+    heights = {}
+    for r in twin.rooms:
+        ys = sorted(s.position.y for s in twin.sweeps if s.room_id == r.room_id)
+        if ys:
+            heights[r.room_id] = ys[len(ys) // 2] - r.floor_y
+    if room_id not in heights or len(heights) < 4:
+        return room.floor_y
+    tripod = sorted(heights.values())[len(heights) // 4]  # lower quartile: rooms whose floor_y is right
+    return round(max(room.floor_y, room.floor_y + heights[room_id] - tripod), 3)
+
+
 def _xz(s: Sweep) -> tuple[float, float]:
     return (s.position.x, s.position.z)
 

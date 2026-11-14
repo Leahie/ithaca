@@ -132,3 +132,11 @@ def test_moving_a_piece_is_saved_only_when_the_layout_stays_valid(client):
     assert nudged.status_code == 200
     saved = next(p for p in client.get(f"/api/layouts/{layout.layout_id}", headers=alice).json()["placements"] if p["item_id"] == table)
     assert saved["yaw_deg"] == round((poses[table].yaw + 180) % 360, 1)
+
+    # a pin on the floor plan: the third piece is dropped near the table and lands somewhere valid
+    chair = str(furniture.list_items("alice")[2].item_id)
+    drop = {"property_id": PROPERTY, "item_id": chair, "x": poses[table].x, "z": poses[table].z, "layout_id": str(layout.layout_id)}
+    dropped = client.post("/api/layouts/drop", headers=alice, json=drop)
+    assert dropped.status_code == 200 and len(dropped.json()["placements"]) == 3
+    fresh = client.post("/api/layouts/drop", headers=alice, json={**drop, "layout_id": None, "floor_id": room.floor_id}).json()
+    assert fresh["room_id"] == LIVING_ROOM and len(fresh["placements"]) == 1  # no layout given: the room is found from the pin

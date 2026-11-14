@@ -264,6 +264,11 @@
           "default": true,
           "title": "Include Furniture",
           "type": "boolean"
+        },
+        "windows_open": {
+          "default": false,
+          "title": "Windows Open",
+          "type": "boolean"
         }
       },
       "title": "NoiseScenario",
@@ -679,6 +684,7 @@
     "layout.select": {
       "payload": "LayoutSelectPayload",
       "sent_by": [
+        "agent",
         "desktop",
         "phone"
       ]

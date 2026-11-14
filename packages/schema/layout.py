@@ -36,3 +36,15 @@ class PlacementMove(Model):
     x: float  # interior frame, meters
     z: float
     yaw_deg: float  # I-G12
+
+
+class PlacementDrop(Model):
+    """Body of POST /layouts/drop: the user pointed at a spot on the floor plan for one piece."""
+
+    property_id: str
+    room_id: str | None = None  # None: the server finds the room under the point on floor_id
+    floor_id: str | None = None
+    item_id: str
+    x: float  # interior frame, meters
+    z: float
+    layout_id: str | None = None  # add the piece to this layout; None starts a new one for the room

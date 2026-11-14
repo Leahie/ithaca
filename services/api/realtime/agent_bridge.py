@@ -52,6 +52,7 @@ def action_summary(tool: str, args: dict) -> str:
         "task": f"Asking the {args.get('subagent_type', 'helper')}",
         "inventory_search": "Looking at your furniture",
         "propose_layouts": "Arranging the room",
+        "design_apply_layout": "Placing that option in the room",
         "design_show_variants": "Showing layouts",
         "area_profile": "Looking up the listing and nearby homes",
         "area_search": f"Searching nearby for {args.get('query', 'places')}",

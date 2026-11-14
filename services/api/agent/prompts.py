@@ -69,10 +69,12 @@ walk them there with `viewer_walk` and tell them the distance it reports.
   is what you are doing.
 - Never produce coordinates or positions. Refer to rooms by `room_id`, layouts by `layout_id`.
   Furniture positions come only from `propose_layouts`.
-- Room labels repeat (several bedrooms, bathrooms, living rooms). Always resolve a request to one
-  `room_id` with the room directory. Name rooms to the user so they can tell them apart ("the
-  upstairs bedroom, about 220 sq ft"). If a request is ambiguous, pick the most likely room and say
-  which, or ask.
+- Rooms have names like "Bedroom 3" or "Living Room 2". The user sees the same names in the app's
+  room list. The number is part of the name and says nothing about the floor: "Living Room 2" is
+  whichever room the directory calls that, and it may be on Floor 1. When the user names a room,
+  match the name exactly in the directory before anything else. When you name a room, use that
+  name, and add the floor or size when it helps ("Bedroom 3, the big one upstairs"). If a request
+  is still ambiguous, say which room you picked, or ask.
 - Datetimes you pass to tools are ISO 8601 with the property's UTC offset, in its local time (see
   "Now" below). "A December morning" means a mid-December date around 08:00 local. "Winter" means
   December 21 and "summer" means June 21 unless they say otherwise.
@@ -171,8 +173,10 @@ _DELEGATES = {
     "designer": """- `designer`: laying out a room with the user's furniture, or reworking a layout they didn't
   like. Give it the `room_id`, which pieces to use (or "whatever fits"), what the user wants from
   the room, and every relevant preference from memory word for word, marking the hard ones. It
-  answers with `layout_id`s. Show them with `design_show_variants`, then say in a sentence or two
-  how the options differ. Never describe a layout you haven't shown.""",
+  answers with `layout_id`s. Show them with `design_show_variants`: option 1 appears in the room,
+  in the view the user is already in. Describe option 1 in a sentence, say how many other options
+  there are, and switch with `design_apply_layout` when they ask ("next", "option 2"). Never
+  describe a layout you haven't shown. Don't change the user's view mode for layouts.""",
     "analyst": """- `analyst`: sun and noise questions that need several reports or comparisons across rooms or
   times.""",
     "scout": "- `scout`: neighborhood, amenities, commute, comps and pricing.",
@@ -218,6 +222,18 @@ touring. Your answer goes back to the guide.
 4. Read the result. If something important was not met, or nothing fit, change the wishes or drop
    a piece and call `propose_layouts` again. Two retries at most.
 
+## What makes a layout make sense
+- Leave the ways through the room open. Nothing stands in the line between two doors, in front of
+  a door, or across the mouth of a hallway. The solver enforces a walking path, but you choose
+  which part of the room to use: prefer a corner or a wall away from the doors.
+- Furniture forms groups with a purpose: seats around a table for talking, a desk with its chair, a
+  bed with its nightstands. Tie each piece to its group with `in_front_of`, `beside`, `near` and
+  `faces`. A piece with no wish of its own will end up somewhere arbitrary.
+- Big pieces go on walls. Small pieces go next to big ones.
+- A hallway, landing or other pass-through room gets at most one slim piece on a wall, or nothing.
+  Say so if the brief asks for more.
+- Fewer pieces placed well beats every piece squeezed in.
+
 ## Rules
 - Preferences marked hard in your brief are law. Give those wishes weight 3, and never propose a
   piece or arrangement that breaks one. If the room can't satisfy a hard preference, say that.
@@ -251,24 +267,37 @@ def _sqft_text(room: Room) -> str:
     return f"{room.area_m2 * SQFT_PER_M2:.0f} sq ft"
 
 
-def room_display_names(twin: PropertyTwin) -> dict[str, str]:
-    """room_id -> a name that is unique within the house, e.g. "Bedroom · Floor 2 · 20.6 m²".
+def room_short_names(twin: PropertyTwin) -> dict[str, str]:
+    """room_id -> the name the web app shows in its room list ("Office", "Bedroom 3").
 
-    Labels repeat, so every name carries floor and area. A numeric suffix breaks any remaining tie.
-    """
-    floors = _floor_names(twin)
-    names: dict[str, str] = {}
+    Same rule as apps/web/src/lib/rooms.ts, so the user and the agent use the same names: a label
+    used once stays as it is; a repeated one is numbered from the ground floor up and, within a
+    floor, from the largest room down."""
+    floor_index = {f.floor_id: f.index for f in twin.floors}
+    by_label: dict[str, list[Room]] = {}
     for r in twin.rooms:
-        parts = [r.label, floors.get(r.floor_id, "?")]
+        by_label.setdefault(r.label, []).append(r)
+    names: dict[str, str] = {}
+    for label, rooms in by_label.items():
+        if len(rooms) == 1:
+            names[rooms[0].room_id] = label
+            continue
+        ordered = sorted(rooms, key=lambda r: (floor_index.get(r.floor_id, 0), -(r.area_m2 or 0), r.room_id))
+        for i, r in enumerate(ordered, start=1):
+            names[r.room_id] = f"{label} {i}"
+    return names
+
+
+def room_display_names(twin: PropertyTwin) -> dict[str, str]:
+    """room_id -> full name, e.g. "Bedroom 3 · Floor 2 · 20.6 m²": the app's name, then floor and area."""
+    floors = _floor_names(twin)
+    short = room_short_names(twin)
+    names = {}
+    for r in twin.rooms:
+        parts = [short[r.room_id], floors.get(r.floor_id, "?")]
         if r.area_m2 is not None:
             parts.append(f"{r.area_m2:.1f} m²")
         names[r.room_id] = " · ".join(parts)
-    counts = Counter(names.values())
-    seen: Counter[str] = Counter()
-    for room_id, name in names.items():
-        if counts[name] > 1:
-            seen[name] += 1
-            names[room_id] = f"{name} #{seen[name]}"
     return names
 
 
@@ -311,7 +340,7 @@ def data_caveats(quality: TwinQuality) -> list[str]:
 def render_room_directory(twin: PropertyTwin) -> str:
     names = room_display_names(twin)
     floor_order = {f.floor_id: f.index for f in twin.floors}
-    lines = ["Name (label · floor · m²) · room_id · sq ft · floor material · windows"]
+    lines = ["Name (as the user sees it · floor · m²) · room_id · sq ft · floor material · windows"]
     for r in sorted(twin.rooms, key=lambda r: (floor_order.get(r.floor_id, 0), r.label, -(r.area_m2 or 0))):
         lines.append(
             f"- {names[r.room_id]} · `{r.room_id}` · {_sqft_text(r)} · "
