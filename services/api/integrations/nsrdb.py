@@ -1,6 +1,6 @@
-"""NSRDB typical-meteorological-year weather (NREL), via pvlib.
+"""NSRDB typical-meteorological-year weather (NLR, formerly NREL), via pvlib.
 
-Needs NREL_API_KEY and NREL_EMAIL (free: https://developer.nrel.gov/signup/). A typical year
+Needs NREL_API_KEY and NREL_EMAIL (free: https://developer.nlr.gov/signup/). A typical year
 never changes, so it is always recorded to fixtures (even in live mode) and replayed after that.
 """
 
