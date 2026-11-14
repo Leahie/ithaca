@@ -10,10 +10,13 @@ from fastapi import APIRouter, Body, Header, HTTPException, Request, Response
 from fastapi.responses import PlainTextResponse
 
 from packages.schema.inventory import InventoryItem
-from packages.schema.layout import LayoutVariant
+from packages.schema.layout import LayoutVariant, PlacementMove
+from packages.schema.twin import Vec3
 from packages.schema.session import LayoutFeedbackRequest
 from services.api.agent import memory_files
 from services.api.furniture.store import furniture_store
+from services.api.sim import layout_solver
+from services.api.twin.service import get_twin
 
 router = APIRouter(tags=["furniture"])
 
@@ -67,6 +70,40 @@ def select_layout(layout_id: str, x_user_id: str = Header("demo")) -> LayoutVari
 @router.post("/layouts/{layout_id}/feedback")
 def layout_feedback(layout_id: str, body: LayoutFeedbackRequest, x_user_id: str = Header("demo")) -> LayoutVariant:
     return _found(furniture_store().set_feedback(x_user_id, layout_id, body.feedback), "layout")
+
+
+@router.put("/layouts/{layout_id}/placements/{item_id}")
+def move_placement(layout_id: str, item_id: str, body: PlacementMove, x_user_id: str = Header("demo")) -> LayoutVariant:
+    """The user moved or turned one piece. Saved only if the layout is still valid (B2): inside the
+    room, no overlaps, doors, windows and the walking path clear. Otherwise 409 with the reasons,
+    and the piece should snap back."""
+    store = furniture_store()
+    layout = _found(store.get_layout(x_user_id, layout_id), "layout")
+    if all(str(p.item_id) != item_id for p in layout.placements):
+        raise HTTPException(404, "that item is not in this layout")
+    twin = get_twin(layout.property_id)
+    room = next(r for r in twin.rooms if r.room_id == layout.room_id)
+    owned = {str(i.item_id): i for i in store.list_items(x_user_id)}
+    items, poses = [], {}
+    for p in layout.placements:
+        key = str(p.item_id)
+        if key not in owned:
+            continue  # the item was deleted from the inventory; it no longer takes up space
+        o = owned[key]
+        items.append(layout_solver.Item(key, o.label, o.item_class, o.dims_m.w, o.dims_m.d, o.dims_m.h))
+        poses[key] = layout_solver.Pose(body.x, body.z, body.yaw_deg % 360) if key == item_id else layout_solver.Pose(p.position.x, p.position.z, p.yaw_deg)
+    problems = layout_solver.violations(room, twin.openings, items, poses)
+    if problems:
+        raise HTTPException(409, {"error": "invalid_placement", "violations": problems})
+    placements = [
+        p.model_copy(update={"position": Vec3(x=round(body.x, 3), y=room.floor_y, z=round(body.z, 3)), "yaw_deg": round(body.yaw_deg % 360, 1)})
+        if str(p.item_id) == item_id
+        else p
+        for p in layout.placements
+    ]
+    moved = layout.model_copy(update={"placements": placements})
+    store.put_layout(moved)
+    return moved
 
 
 # --- memory (the /me page) ----------------------------------------------------------------------

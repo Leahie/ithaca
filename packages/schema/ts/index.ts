@@ -314,6 +314,15 @@ export interface Placement {
   yaw_deg: number;
 }
 
+/**
+ * Body of PUT /layouts/{layout_id}/placements/{item_id}: where the user dragged a piece.
+ */
+export interface PlacementMove {
+  x: number;
+  z: number;
+  yaw_deg: number;
+}
+
 export interface PropertyTwin {
   property_id: string;
   version: number;
@@ -519,6 +528,7 @@ export interface Sweep {
   room_id: string | null;
   position: Vec3;
   label?: string | null;
+  neighbors?: string[];
 }
 
 export interface TwinAssets {

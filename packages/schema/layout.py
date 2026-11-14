@@ -28,3 +28,11 @@ class LayoutVariant(Model):
     feedback: str | None = None
     # None until the render job finishes.
     thumbnail_url: str | None = None
+
+
+class PlacementMove(Model):
+    """Body of PUT /layouts/{layout_id}/placements/{item_id}: where the user dragged a piece."""
+
+    x: float  # interior frame, meters
+    z: float
+    yaw_deg: float  # I-G12
