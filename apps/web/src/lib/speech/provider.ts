@@ -9,6 +9,8 @@ export interface ListenHandlers {
   /** Called with the full transcript so far. `final` is true once, when listening ends. */
   onTranscript(text: string, final: boolean): void;
   onError(message: string): void;
+  /** The microphone is open and sound is arriving: 0 (silence) to 1 (loud), about ten times a second. */
+  onLevel?(level: number): void;
 }
 
 export interface ListenOptions {
@@ -261,8 +263,12 @@ export class DeepgramProvider implements SpeechProvider {
 
   listen(handlers: ListenHandlers, opts?: ListenOptions): () => void {
     if (!this.streams()) return this.browser.listen(handlers, opts);
-    // Created here, inside the press: Safari only starts audio from a user gesture.
-    const ctx = new AudioContext();
+    // The audio context is made after the microphone opens, not here in the tap. On an iPhone a
+    // context that exists before the microphone is granted is interrupted when the audio route
+    // switches to recording, and then delivers silence; one made while capturing starts running.
+    let ctx: AudioContext | null = null;
+    let frames = 0;
+    let watchdog = 0;
     let stream: MediaStream | null = null;
     let ws: WebSocket | null = null;
     let fallback: (() => void) | null = null;
@@ -274,7 +280,8 @@ export class DeepgramProvider implements SpeechProvider {
     const release = () => {
       stream?.getTracks().forEach((t) => t.stop());
       stream = null;
-      if (ctx.state !== 'closed') void ctx.close();
+      clearTimeout(watchdog);
+      if (ctx && ctx.state !== 'closed') void ctx.close();
     };
     const finish = (final: string) => {
       if (done) return;
@@ -301,22 +308,36 @@ export class DeepgramProvider implements SpeechProvider {
         return fail(micError(err));
       }
       if (stopping) return finish(''); // released before the microphone opened
+      const audio = new AudioContext();
+      ctx = audio;
       const url = URL.createObjectURL(new Blob([PCM_WORKLET], { type: 'text/javascript' }));
       try {
-        await ctx.resume();
-        await ctx.audioWorklet.addModule(url);
+        // resume() can hang on a phone; the watchdog below catches a context that never runs.
+        await Promise.race([audio.resume(), new Promise((r) => setTimeout(r, 800))]);
+        await audio.audioWorklet.addModule(url);
       } finally {
         URL.revokeObjectURL(url);
       }
       if (stopping || done) return finish('');
-      const node = new AudioWorkletNode(ctx, 'pcm16');
-      ctx.createMediaStreamSource(stream).connect(node);
-      node.connect(ctx.destination); // silent; keeps the node running
+      const node = new AudioWorkletNode(audio, 'pcm16');
+      audio.createMediaStreamSource(stream).connect(node);
+      node.connect(audio.destination); // silent; keeps the node running
+      // No sound at all within three seconds means the microphone is not really delivering.
+      watchdog = window.setTimeout(() => {
+        if (!frames && !done) fail(`The microphone opened but no sound arrived (audio is ${audio.state}). Tap the mic to try again.`);
+      }, 3000);
 
-      const socket = new WebSocket(`${wsOrigin()}/ws/speech/listen?sample_rate=${ctx.sampleRate}${opts?.auto ? '&auto=1' : ''}`);
+      const socket = new WebSocket(`${wsOrigin()}/ws/speech/listen?sample_rate=${audio.sampleRate}${opts?.auto ? '&auto=1' : ''}`);
       ws = socket;
       socket.binaryType = 'arraybuffer';
       node.port.onmessage = (e: MessageEvent<ArrayBuffer>) => {
+        frames += 1;
+        if (handlers.onLevel) {
+          const pcm = new Int16Array(e.data);
+          let peak = 0;
+          for (let i = 0; i < pcm.length; i += 8) peak = Math.max(peak, Math.abs(pcm[i]!));
+          handlers.onLevel(Math.min(1, peak / 12000));
+        }
         if (socket.readyState === WebSocket.OPEN && !stopping) socket.send(e.data);
       };
       socket.onopen = () => {

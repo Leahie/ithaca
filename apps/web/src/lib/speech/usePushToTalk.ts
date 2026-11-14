@@ -13,6 +13,8 @@ export function usePushToTalk() {
   const [listening, setListening] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [supported, setSupported] = useState(false);
+  /** How loud the microphone hears things now, 0 to 1; null until sound arrives. */
+  const [level, setLevel] = useState<number | null>(null);
   const stopRef = useRef<(() => void) | null>(null);
   const lastSent = useRef(0);
 
@@ -23,6 +25,7 @@ export function usePushToTalk() {
   const start = useCallback((auto = false) => {
     if (stopRef.current) return;
     setError(null);
+    setLevel(null);
     setListening(true);
     speechProvider().cancelSpeech();
     stopRef.current = speechProvider().listen({
@@ -39,6 +42,7 @@ export function usePushToTalk() {
           dispatch('voice.transcript', { text, final: false });
         }
       },
+      onLevel: setLevel,
       onError(message) {
         stopRef.current = null;
         setListening(false);
@@ -54,5 +58,5 @@ export function usePushToTalk() {
 
   useEffect(() => () => stopRef.current?.(), []);
 
-  return { supported, listening, error, start, stop, toggle };
+  return { supported, listening, error, level, start, stop, toggle };
 }
