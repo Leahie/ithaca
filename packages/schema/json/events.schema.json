@@ -303,9 +303,55 @@
       "title": "SoundSetScenarioPayload",
       "type": "object"
     },
-    "ViewerGotoPayload": {
-      "description": "Exactly one of room_id / sweep_id.",
+    "Vec3": {
       "properties": {
+        "x": {
+          "title": "X",
+          "type": "number"
+        },
+        "y": {
+          "title": "Y",
+          "type": "number"
+        },
+        "z": {
+          "title": "Z",
+          "type": "number"
+        }
+      },
+      "required": [
+        "x",
+        "y",
+        "z"
+      ],
+      "title": "Vec3",
+      "type": "object"
+    },
+    "ViewerGotoPayload": {
+      "description": "Exactly one of room_id / sweep_id. With room_id, `at_sweep_id` and `look_at` (both additive\nto v0) say where to stand and what to face for the best view of the room.",
+      "properties": {
+        "at_sweep_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "At Sweep Id"
+        },
+        "look_at": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Vec3"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
         "room_id": {
           "anyOf": [
             {
@@ -440,6 +486,47 @@
         "datetime"
       ],
       "title": "ViewerState",
+      "type": "object"
+    },
+    "ViewerWalkPayload": {
+      "description": "Additive to v0. Walk the camera from one room to another, sweep by sweep.",
+      "properties": {
+        "distance_m": {
+          "title": "Distance M",
+          "type": "number"
+        },
+        "duration_s": {
+          "title": "Duration S",
+          "type": "number"
+        },
+        "from_room_id": {
+          "title": "From Room Id",
+          "type": "string"
+        },
+        "look_at": {
+          "$ref": "#/$defs/Vec3"
+        },
+        "sweep_ids": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Sweep Ids",
+          "type": "array"
+        },
+        "to_room_id": {
+          "title": "To Room Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "from_room_id",
+        "to_room_id",
+        "sweep_ids",
+        "look_at",
+        "distance_m",
+        "duration_s"
+      ],
+      "title": "ViewerWalkPayload",
       "type": "object"
     },
     "VoiceTranscriptPayload": {
@@ -580,6 +667,12 @@
         "agent",
         "desktop",
         "phone"
+      ]
+    },
+    "viewer.walk": {
+      "payload": "ViewerWalkPayload",
+      "sent_by": [
+        "agent"
       ]
     },
     "voice.transcript": {

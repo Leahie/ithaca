@@ -14,6 +14,7 @@ from pydantic import model_validator
 
 from .common import Model
 from .session import ClientKind, SoundSetScenarioPayload, ViewerMode, ViewerState
+from .twin import Vec3
 
 EVENT_VERSION = 1
 
@@ -39,16 +40,30 @@ class SessionPresencePayload(Model):
 
 
 class ViewerGotoPayload(Model):
-    """Exactly one of room_id / sweep_id."""
+    """Exactly one of room_id / sweep_id. With room_id, `at_sweep_id` and `look_at` (both additive
+    to v0) say where to stand and what to face for the best view of the room."""
 
     room_id: str | None = None
     sweep_id: str | None = None
+    at_sweep_id: str | None = None
+    look_at: Vec3 | None = None  # interior frame
 
     @model_validator(mode="after")
     def _exactly_one(self):
         if (self.room_id is None) == (self.sweep_id is None):
             raise ValueError("exactly one of room_id, sweep_id")
         return self
+
+
+class ViewerWalkPayload(Model):
+    """Additive to v0. Walk the camera from one room to another, sweep by sweep."""
+
+    from_room_id: str
+    to_room_id: str
+    sweep_ids: list[str]  # in order; the first is in from_room_id, the last in to_room_id
+    look_at: Vec3  # what to face on arrival, interior frame
+    distance_m: float
+    duration_s: float  # at a walking pace; a guide for the animation, not a requirement
 
 
 class ViewerSetTimePayload(Model):
@@ -124,6 +139,7 @@ EVENTS: dict[str, tuple[type[Model], frozenset[str]]] = {
     "session.joined": (SessionPresencePayload, frozenset({"server"})),
     "session.left": (SessionPresencePayload, frozenset({"server"})),
     "viewer.goto": (ViewerGotoPayload, frozenset({"agent", "phone", "desktop"})),
+    "viewer.walk": (ViewerWalkPayload, frozenset({"agent"})),
     "viewer.setTime": (ViewerSetTimePayload, frozenset({"agent", "phone", "desktop"})),
     "viewer.setMode": (ViewerSetModePayload, frozenset({"agent", "phone", "desktop"})),
     "viewer.look": (ViewerLookPayload, frozenset({"phone"})),
@@ -147,6 +163,7 @@ EVENT_PAYLOADS: dict[str, type[Model]] = {t: model for t, (model, _) in EVENTS.i
 # Agent UI tools use snake_case names; each maps to one event.
 UI_TOOL_EVENTS: dict[str, str] = {
     "viewer_goto": "viewer.goto",
+    "viewer_walk": "viewer.walk",
     "viewer_set_time": "viewer.setTime",
     "viewer_set_mode": "viewer.setMode",
     "design_show_variants": "design.showVariants",

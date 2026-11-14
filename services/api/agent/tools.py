@@ -13,7 +13,7 @@ from typing import Literal
 
 from langchain.tools import ToolRuntime, tool
 
-from services.api.agent import prompts
+from services.api.agent import prompts, views
 from services.api.agent.context import AgentContext
 from services.api.integrations.config import IntegrationNotConfigured
 from services.api.twin import service
@@ -211,12 +211,58 @@ def daylight_at(
 
 @tool
 def viewer_goto(room_id: str, runtime: Runtime) -> str:
-    """Move the user's view into a room. room_id must come from the room directory."""
+    """Move the user's view into a room, standing where the room shows best. room_id must come
+    from the room directory."""
     twin = get_twin(runtime.context.property_id)
-    if not any(r.room_id == room_id for r in twin.rooms):
-        return f"Error: unknown room_id {room_id!r}. Use a room_id from the room directory."
-    _emit(runtime, "viewer.goto", {"room_id": room_id})
+    if error := _room_or_error(twin, room_id):
+        return error
+    payload: dict = {"room_id": room_id}
+    if view := views.best_view(twin, room_id):
+        payload |= {"at_sweep_id": view.sweep_id, "look_at": view.look_at.model_dump()}
+    _emit(runtime, "viewer.goto", payload)
     return f"The user is now looking at {prompts.room_display_names(twin)[room_id]}."
+
+
+@tool
+def viewer_walk(from_room_id: str, to_room_id: str, runtime: Runtime) -> str:
+    """Walk the user's view from one room to another, the way a person would go, and report the
+    distance. Use it for questions like "what's the walk from the bedroom to the bathroom?" or
+    "how far is the kitchen from the garage door?". Both ids must come from the room directory."""
+    twin = get_twin(runtime.context.property_id)
+    for rid in (from_room_id, to_room_id):
+        if error := _room_or_error(twin, rid):
+            return error
+    names = prompts.room_display_names(twin)
+    if from_room_id == to_room_id:
+        return "Error: from_room_id and to_room_id are the same room."
+    path = views.route(twin, from_room_id, to_room_id)
+    if path is None:
+        return (
+            f"The scan has no walkable path recorded between {names[from_room_id]} and {names[to_room_id]}. "
+            "Say you can't trace that walk, and offer to show each room instead."
+        )
+    _emit(
+        runtime,
+        "viewer.walk",
+        {
+            "from_room_id": from_room_id,
+            "to_room_id": to_room_id,
+            "sweep_ids": path.sweep_ids,
+            "look_at": path.look_at.model_dump(),
+            "distance_m": round(path.distance_m, 1),
+            "duration_s": round(path.seconds, 1),
+        },
+    )
+    through = [names[r] for r in path.room_ids[1:-1]]
+    text = (
+        f"The user is watching the walk from {names[from_room_id]} to {names[to_room_id]}: "
+        f"{path.distance_m:.1f} m, about {path.seconds:.0f} seconds at a normal pace"
+    )
+    text += f", through {', '.join(through)}" if through else ", directly next door"
+    text += f", with {'stairs' if path.floor_changes else 'no stairs'}."
+    if path.unmapped_steps:
+        text += " Part of the route crosses between rooms where the scan recorded no door, so it is approximate."
+    return text
 
 
 @tool
@@ -246,4 +292,4 @@ def viewer_set_time(datetime_iso: str, runtime: Runtime) -> str:
 
 PROPERTY_TOOLS = [list_rooms, get_room_geometry]
 SUN_TOOLS = [sun_by_room, sun_report, daylight_at]
-UI_TOOLS = [viewer_goto, viewer_set_mode, viewer_set_time]
+UI_TOOLS = [viewer_goto, viewer_walk, viewer_set_mode, viewer_set_time]

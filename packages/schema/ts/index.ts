@@ -438,11 +438,14 @@ export interface Vec3 {
 }
 
 /**
- * Exactly one of room_id / sweep_id.
+ * Exactly one of room_id / sweep_id. With room_id, `at_sweep_id` and `look_at` (both additive
+ * to v0) say where to stand and what to face for the best view of the room.
  */
 export interface ViewerGotoPayload {
   room_id?: string | null;
   sweep_id?: string | null;
+  at_sweep_id?: string | null;
+  look_at?: Vec3 | null;
 }
 
 export interface ViewerLookPayload {
@@ -470,6 +473,18 @@ export interface ViewerState {
   shown_layout_ids?: string[];
 }
 
+/**
+ * Additive to v0. Walk the camera from one room to another, sweep by sweep.
+ */
+export interface ViewerWalkPayload {
+  from_room_id: string;
+  to_room_id: string;
+  sweep_ids: string[];
+  look_at: Vec3;
+  distance_m: number;
+  duration_s: number;
+}
+
 export interface VoiceTranscriptPayload {
   text: string;
   final: boolean;
@@ -481,6 +496,7 @@ export interface EventPayloads {
   "session.joined": SessionPresencePayload;
   "session.left": SessionPresencePayload;
   "viewer.goto": ViewerGotoPayload;
+  "viewer.walk": ViewerWalkPayload;
   "viewer.setTime": ViewerSetTimePayload;
   "viewer.setMode": ViewerSetModePayload;
   "viewer.look": ViewerLookPayload;
@@ -499,7 +515,7 @@ export interface EventPayloads {
 }
 
 export type EventType = keyof EventPayloads;
-export const EVENT_TYPES = ["session.state", "session.joined", "session.left", "viewer.goto", "viewer.setTime", "viewer.setMode", "viewer.look", "design.showVariants", "layout.select", "sound.setScenario", "capture.upload", "chat.user", "voice.transcript", "agent.token", "agent.message", "agent.action", "agent.error", "agent.turn", "job.progress"] as const satisfies readonly EventType[];
+export const EVENT_TYPES = ["session.state", "session.joined", "session.left", "viewer.goto", "viewer.walk", "viewer.setTime", "viewer.setMode", "viewer.look", "design.showVariants", "layout.select", "sound.setScenario", "capture.upload", "chat.user", "voice.transcript", "agent.token", "agent.message", "agent.action", "agent.error", "agent.turn", "job.progress"] as const satisfies readonly EventType[];
 
 /** The typed envelope for one known event type. */
 export interface Event<T extends EventType = EventType> {
@@ -518,6 +534,7 @@ export type AnyEvent = { [T in EventType]: Event<T> }[EventType];
 /** Agent UI tool name -> the event it emits. */
 export const UI_TOOL_EVENTS = {
   "viewer_goto": "viewer.goto",
+  "viewer_walk": "viewer.walk",
   "viewer_set_time": "viewer.setTime",
   "viewer_set_mode": "viewer.setMode",
   "design_show_variants": "design.showVariants",

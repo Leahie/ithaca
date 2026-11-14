@@ -81,5 +81,6 @@ def test_ui_tool_emits_event_only_for_real_rooms():
         script=[call("viewer_goto", room_id="made-up"), call("viewer_goto", room_id=room_id), AIMessage(content="[silent]")]
     )
     out = run(model, InMemoryStore(), user="alice", thread="t1")
-    assert [e for e in out if e[0] == "ui"] == [("ui", {"type": "viewer.goto", "payload": {"room_id": room_id}})]
+    (ui,) = [e[1] for e in out if e[0] == "ui"]  # one event: the made-up room never reached the UI
+    assert ui["type"] == "viewer.goto" and ui["payload"]["room_id"] == room_id and "look_at" in ui["payload"]
     assert not [e for e in out if e[0] in ("token", "message")]  # "[silent]" is dropped

@@ -6,6 +6,7 @@ build the agent dock, action chips and viewer reactions with no API key. Known p
     "take me to the kitchen"  (any room label works)  -> viewer.goto
     "show me December morning"                         -> viewer.setMode sun + viewer.setTime
     "show layouts"                                     -> viewer.setMode design + design.showVariants
+    "show me the walk to the bathroom"                 -> viewer.walk (a bedroom to its bathroom)
 """
 
 from __future__ import annotations
@@ -17,7 +18,7 @@ from datetime import datetime
 from typing import Any
 from zoneinfo import ZoneInfo
 
-from services.api.agent import prompts
+from services.api.agent import prompts, views
 from services.api.agent.context import AgentContext
 from services.api.integrations.config import fixtures_dir
 from services.api.twin.service import get_twin
@@ -71,13 +72,31 @@ def stream_turn_scripted(text: str, context: AgentContext, thread_id: str) -> It
         yield from _say("Here are three ways to arrange the room. Pick one, or tell me what to change.")
         return
 
+    if "walk" in said:
+        # the east bedroom upstairs to its bathroom if they exist, else the first two rooms that connect
+        pairs = [(a, b) for a in twin.rooms for b in twin.rooms if a.label == "Bedroom" and b.label == "Bathroom"]
+        found = next(((a, b, r) for a, b in pairs if (r := views.route(twin, a.room_id, b.room_id)) and len(r.room_ids) == 2), None)
+        if found:
+            a, b, r = found
+            payload = {
+                "from_room_id": a.room_id, "to_room_id": b.room_id, "sweep_ids": r.sweep_ids,
+                "look_at": r.look_at.model_dump(), "distance_m": round(r.distance_m, 1), "duration_s": round(r.seconds, 1),
+            }
+            yield ("action", "viewer_walk", {"from_room_id": a.room_id, "to_room_id": b.room_id})
+            yield ("ui", {"type": "viewer.walk", "payload": payload})
+            yield from _say(f"From this bedroom to its bathroom is {r.distance_m:.1f} meters, about {r.seconds:.0f} seconds.")
+            return
+
     # "take me to the <room label>": the largest room whose label is mentioned
     question = said.rsplit("/>", 1)[-1]  # ignore the <viewer .../> line the hub adds
     rooms = [r for r in twin.rooms if r.label.lower() in question]
     if rooms:
         room = max(rooms, key=lambda r: r.area_m2 or 0)
+        payload = {"room_id": room.room_id}
+        if view := views.best_view(twin, room.room_id):
+            payload |= {"at_sweep_id": view.sweep_id, "look_at": view.look_at.model_dump()}
         yield ("action", "viewer_goto", {"room_id": room.room_id})
-        yield ("ui", {"type": "viewer.goto", "payload": {"room_id": room.room_id}})
+        yield ("ui", {"type": "viewer.goto", "payload": payload})
         yield from _say(f"Let me take you to the {room.label.lower()}. This is {prompts.room_display_names(twin)[room.room_id]}.")
         return
 

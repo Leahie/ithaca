@@ -57,6 +57,8 @@ def _apply(state: ViewerState, event: EventEnvelope) -> None:
     p = event.payload
     if event.type == "viewer.goto" and p.get("room_id"):
         state.room_id = p["room_id"]
+    elif event.type == "viewer.walk":
+        state.room_id = p["to_room_id"]
     elif event.type == "viewer.setTime":
         state.datetime = p["datetime"]
     elif event.type == "viewer.setMode":

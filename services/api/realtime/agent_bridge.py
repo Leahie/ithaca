@@ -48,6 +48,7 @@ def action_summary(tool: str, args: dict) -> str:
         return f"Updated memory: {path.removeprefix('/memories/')}"
     return {
         "viewer_goto": "Moving the view",
+        "viewer_walk": "Walking you there",
         "viewer_set_mode": f"Switching to the {args.get('mode', '')} view",
         "viewer_set_time": "Setting the time of day",
         "sun_by_room": "Checking where the sun falls",
@@ -93,6 +94,9 @@ class AgentBridge:
             if changed and by_user:
                 self._signal(room)
                 self._start(room, event_message("room_entered"), proactive=True)
+        elif event.type == "viewer.walk":
+            self._last_room[sid] = p["to_room_id"]
+            log_.enter_room(p["to_room_id"], by_user=False)
         elif event.type == "viewer.setMode":
             log_.set_view(p["mode"])
         elif event.type == "viewer.setTime" and by_user:
@@ -127,6 +131,8 @@ class AgentBridge:
         except Exception:
             log.exception("observer run failed")  # the tour goes on without it
             return
+        else:
+            log.info("observer ran for session %s: %s", sid, f"note: {note}" if note else "nothing to tell the guide")
         finally:
             self._observing.discard(sid)
         if note and deliver:
