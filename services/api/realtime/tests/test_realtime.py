@@ -84,3 +84,14 @@ def test_websocket_turn_with_scripted_agent(monkeypatch):
     assert goto["source"] == "agent" and goto["payload"]["room_id"]
     assert types.index("viewer.goto") < types.index("agent.message")  # the view moves before the text ends
     assert "agent.token" in types and "agent.action" in types
+
+
+def test_sessions_survive_a_server_restart(tmp_path):
+    first = Hub(persist=tmp_path / "sessions.sqlite")
+    session = first.create_session("demo", PROPERTY)
+    phone_token = first.redeem_pair_token(session.session_id, session.pair_token)
+
+    restarted = Hub(persist=tmp_path / "sessions.sqlite")  # what --reload does on every code change
+    assert restarted.authorize(session.session_id, "desktop", session.pair_token)  # the open tab reconnects
+    assert restarted.authorize(session.session_id, "phone", phone_token)
+    assert restarted.rooms[session.session_id].user_id == "demo"
