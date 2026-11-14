@@ -9,6 +9,8 @@ import logging
 from fastapi import APIRouter, Header, HTTPException, Request, WebSocket, WebSocketDisconnect
 from packages.schema.events import parse_client_event
 from packages.schema.session import ClientKind, CreateSessionRequest, JoinRequest, JoinResult, Session
+from services.api.agent import memory_files
+from services.api.furniture.store import furniture_store
 from services.api.integrations.config import env, fixtures_dir
 from services.api.realtime.households import households
 from services.api.realtime.hub import Hub
@@ -43,6 +45,8 @@ def create_session(
     if household_id and households().get(household_id) is None:
         raise HTTPException(404, "unknown household")
     hub: Hub = request.app.state.hub
+    # the agent reads inventory.md from memory: make sure it matches the database before the first turn (B3)
+    memory_files.sync_inventory(request.app.state.memory_store, x_user_id, furniture_store().list_items(x_user_id))
     session = hub.create_session(user_id=x_user_id, property_id=property_id, timezone_name=twin.timezone, household_id=household_id)
     if household_id:
         # The family's phones join whatever house the desktop has open now.

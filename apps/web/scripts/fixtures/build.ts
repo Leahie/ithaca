@@ -525,7 +525,7 @@ function main(): void {
     for (const glazing of [null, 'single', 'double', 'triple'] as const) {
       for (const add_carpet of [false, true]) {
         for (const include_furniture of [true, false]) {
-          const scenario = { glazing, add_carpet, include_furniture };
+          const scenario = { glazing, add_carpet, include_furniture, windows_open: false };
           noise[noiseKey(scenario)] = buildNoiseReport(room, windows, scenario);
         }
       }

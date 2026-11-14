@@ -18,16 +18,19 @@ API process; the methods stay the same.
 from __future__ import annotations
 
 import asyncio
+import json
 import logging
 import secrets
+import sqlite3
 import uuid
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
+from pathlib import Path
 from zoneinfo import ZoneInfo
 
 from packages.schema.events import EventEnvelope, make_event
-from packages.schema.session import ClientKind, Session, SoundSetScenarioPayload, ViewerState
+from packages.schema.session import ClientKind, Session, SoundPlaceSourcePayload, SoundSetScenarioPayload, ViewerState
 
 log = logging.getLogger(__name__)
 
@@ -77,14 +80,50 @@ def _apply(state: ViewerState, event: EventEnvelope) -> None:
         state.mode = p["mode"]
     elif event.type == "sound.setScenario":
         state.sound_scenario = SoundSetScenarioPayload.model_validate(p)
+    elif event.type == "sound.placeSource":
+        state.sound_source = SoundPlaceSourcePayload.model_validate(p)
+    elif event.type == "sound.clearSource":
+        state.sound_source = None
     elif event.type == "design.showVariants":
         state.shown_layout_ids = p["layout_ids"]
 
 
 class Hub:
-    def __init__(self) -> None:
+    def __init__(self, persist: Path | None = None) -> None:
+        """persist: a SQLite file that remembers which sessions exist and their tokens, so a server
+        restart (every code change, with --reload) doesn't strand open browser tabs. The viewer
+        state and connections are not kept: clients rebuild from session.state when they reconnect."""
         self.rooms: dict[str, SessionRoom] = {}
         self._listeners: list[Callable[[SessionRoom, EventEnvelope], None]] = []
+        self._db = None
+        if persist is not None:
+            persist.parent.mkdir(parents=True, exist_ok=True)
+            self._db = sqlite3.connect(persist, check_same_thread=False, isolation_level=None)
+            self._db.execute("CREATE TABLE IF NOT EXISTS sessions (session_id TEXT PRIMARY KEY, created REAL, body TEXT)")
+            self._db.execute("DELETE FROM sessions WHERE created < julianday('now') - 2")  # two days is plenty
+            for (body,) in self._db.execute("SELECT body FROM sessions"):
+                saved = json.loads(body)
+                room = SessionRoom(
+                    session_id=saved["session_id"], user_id=saved["user_id"], property_id=saved["property_id"],
+                    state=ViewerState(mode="tour", datetime=saved["datetime"]),
+                    household_id=saved.get("household_id"),
+                )
+                room.client_tokens = saved["client_tokens"]
+                room.member_tokens = saved.get("member_tokens", {})
+                room.issued_pair_tokens = set(saved["issued"])
+                room.joined_pair_tokens = set(saved["joined"])
+                self.rooms[room.session_id] = room
+
+    def _save(self, room: SessionRoom) -> None:
+        if self._db is None:
+            return
+        body = json.dumps({
+            "session_id": room.session_id, "user_id": room.user_id, "property_id": room.property_id,
+            "datetime": room.state.datetime, "client_tokens": room.client_tokens,
+            "issued": sorted(room.issued_pair_tokens), "joined": sorted(room.joined_pair_tokens),
+            "household_id": room.household_id, "member_tokens": room.member_tokens,
+        })
+        self._db.execute("INSERT OR REPLACE INTO sessions VALUES (?, julianday('now'), ?)", (room.session_id, body))
 
     # --- sessions and pairing (B10) -------------------------------------------------------------
 
@@ -111,6 +150,7 @@ class Hub:
         token = secrets.token_urlsafe(16)
         room.pair_tokens[token] = expires
         room.issued_pair_tokens.add(token)
+        self._save(room)
         return Session(session_id=session_id, pair_token=token, expires_at=expires)
 
     def redeem_pair_token(self, session_id: str, pair_token: str, now: datetime | None = None) -> str | None:
@@ -123,6 +163,7 @@ class Hub:
         client_token = secrets.token_urlsafe(24)
         room.client_tokens[client_token] = "phone"
         room.joined_pair_tokens.add(pair_token)
+        self._save(room)
         return client_token
 
     def mint_member_token(self, session_id: str, member_id: str) -> str:
@@ -133,6 +174,7 @@ class Hub:
         client_token = secrets.token_urlsafe(24)
         room.client_tokens[client_token] = "phone"
         room.member_tokens[client_token] = member_id
+        self._save(room)
         return client_token
 
     def member_for(self, session_id: str, token: str) -> str | None:

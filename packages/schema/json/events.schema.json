@@ -370,6 +370,11 @@
           "default": true,
           "title": "Include Furniture",
           "type": "boolean"
+        },
+        "windows_open": {
+          "default": false,
+          "title": "Windows Open",
+          "type": "boolean"
         }
       },
       "title": "NoiseScenario",
@@ -414,6 +419,65 @@
         "client"
       ],
       "title": "SessionPresencePayload",
+      "type": "object"
+    },
+    "SoundClearSourcePayload": {
+      "description": "Additive to v0. Removes the placed sound.",
+      "properties": {},
+      "title": "SoundClearSourcePayload",
+      "type": "object"
+    },
+    "SoundPlaceSourcePayload": {
+      "description": "A sound placed in the house (C's sound_field computes what each room hears). Additive to v0.",
+      "properties": {
+        "level_dba": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Level Dba"
+        },
+        "preset_id": {
+          "title": "Preset Id",
+          "type": "string"
+        },
+        "room_id": {
+          "title": "Room Id",
+          "type": "string"
+        },
+        "upload_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Upload Id"
+        },
+        "x": {
+          "title": "X",
+          "type": "number"
+        },
+        "z": {
+          "title": "Z",
+          "type": "number"
+        }
+      },
+      "required": [
+        "room_id",
+        "x",
+        "z",
+        "preset_id"
+      ],
+      "title": "SoundPlaceSourcePayload",
       "type": "object"
     },
     "SoundSetScenarioPayload": {
@@ -609,6 +673,17 @@
             }
           ],
           "default": null
+        },
+        "sound_source": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/SoundPlaceSourcePayload"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
         }
       },
       "required": [
@@ -757,6 +832,7 @@
     "layout.select": {
       "payload": "LayoutSelectPayload",
       "sent_by": [
+        "agent",
         "desktop",
         "phone"
       ]
@@ -777,6 +853,22 @@
       "payload": "ViewerState",
       "sent_by": [
         "server"
+      ]
+    },
+    "sound.clearSource": {
+      "payload": "SoundClearSourcePayload",
+      "sent_by": [
+        "agent",
+        "desktop",
+        "phone"
+      ]
+    },
+    "sound.placeSource": {
+      "payload": "SoundPlaceSourcePayload",
+      "sent_by": [
+        "agent",
+        "desktop",
+        "phone"
       ]
     },
     "sound.setScenario": {

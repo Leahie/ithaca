@@ -53,7 +53,12 @@ def provider_name() -> str:
 
 @lru_cache(maxsize=1)
 def _storage():
-    return open_dev_storage()
+    return open_dev_storage(in_memory=env("AGENT_STORAGE") == "memory")
+
+
+def memory_store():
+    """The store that holds every user's memory files."""
+    return _storage()[0]
 
 
 @lru_cache(maxsize=16)

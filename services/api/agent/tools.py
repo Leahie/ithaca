@@ -206,6 +206,94 @@ def daylight_at(
     return "\n".join(lines)
 
 
+# --- neighborhood and price (C's area profile) --------------------------------------------------
+
+
+def _not_ready(e: IntegrationNotConfigured) -> str:
+    return f"Not available for this property yet ({e}). Say you can't look that up yet."
+
+
+@tool
+def area_profile(runtime: Runtime) -> str:
+    """This home's listing facts (price, size, year built), how its price compares with similar
+    homes nearby, and the nearest grocery, school, park and transit. Start here for any question
+    about price, value or the neighborhood."""
+    try:
+        profile = service.area_profile(runtime.context.property_id)
+    except IntegrationNotConfigured as e:
+        return _not_ready(e)
+    caveats = "".join(f"\n- {c}" for c in profile.caveats)
+    return profile.markdown + (f"\n\n### Caveats (tell the user when they matter){caveats}" if caveats else "")
+
+
+@tool
+def area_search(query: str, runtime: Runtime) -> str:
+    """Places near the home, nearest first. query is everyday words or a name: "coffee", "bus",
+    "gym", "pharmacy", "Kroger". Distances are straight lines."""
+    try:
+        places = service.area_search(runtime.context.property_id, query, limit=6)
+    except IntegrationNotConfigured as e:
+        return _not_ready(e)
+    if not places:
+        return f"Nothing matching {query!r} within 2 km in the map data. That doesn't prove there is none."
+    return "\n".join(
+        f"- {p.name} ({p.category}): {p.distance_m:.0f} m, about {p.distance_m * 1.3 / 80:.0f} min walk" for p in places
+    )
+
+
+# --- sound inside the house (C's room-to-room acoustics) ----------------------------------------
+
+SoundName = Literal["conversation", "tv", "music", "baby", "dog", "vacuum"]
+
+
+def _loudness_word(dba: float) -> str:
+    for limit, word in ((25, "inaudible"), (35, "faint"), (45, "clearly audible"), (55, "noticeable, like talk in the next room"), (65, "loud")):
+        if dba < limit:
+            return word
+    return "very loud"
+
+
+def _room_center(twin, room_id: str) -> tuple[float, float]:
+    from shapely.geometry import Polygon
+
+    return Polygon(next(r.polygon for r in twin.rooms if r.room_id == room_id)).representative_point().coords[0]
+
+
+@tool
+def sound_heard_from(
+    source_room_id: str,
+    sound: SoundName,
+    runtime: Runtime,
+    listener_room_id: str | None = None,
+    doors: Literal["closed", "open"] = "closed",
+) -> str:
+    """How loud a sound made in one room is in the other rooms, e.g. "can I hear the TV in the
+    living room from the bedroom?" or "a baby crying in this room: who hears it?".
+
+    listener_room_id: the room you care about. Leave it out for the six loudest rooms.
+    """
+    twin = get_twin(runtime.context.property_id)
+    for rid in (source_room_id, listener_room_id):
+        if rid is not None and (error := _room_or_error(twin, rid)):
+            return error
+    try:
+        x, z = _room_center(twin, source_room_id)
+        field = service.sound_field(twin.property_id, source_room_id, x, z, preset_id=sound, doors=doors)
+    except IntegrationNotConfigured as e:
+        return _not_ready(e)
+    except (KeyError, ValueError) as e:
+        return f"Error: {e}"
+    names = prompts.room_display_names(twin)
+    rooms = [r for r in field.rooms if r.room_id != source_room_id]
+    if listener_room_id is not None:
+        rooms = [r for r in rooms if r.room_id == listener_room_id]
+    lines = [f"{sound} in the middle of {names[source_room_id]}, doors {doors}:"]
+    lines += [f"- {names[r.room_id]}: {r.laeq_dba:.0f} dBA, {_loudness_word(r.laeq_dba)}" for r in rooms[:6]]
+    if len(lines) == 1:
+        lines.append("- No level computed for that room: it isn't connected to the source in the scan.")
+    return "\n".join(lines)
+
+
 # --- UI tools (WORKSTREAMS 2.3: one tool -> one event) ----------------------------------------
 
 
@@ -290,6 +378,21 @@ def viewer_set_time(datetime_iso: str, runtime: Runtime) -> str:
     return f"The sun view now shows {dt.strftime('%B %d, %H:%M')} local time."
 
 
+@tool
+def sound_place_source(room_id: str, sound: SoundName, runtime: Runtime) -> str:
+    """Put a sound in the middle of a room and switch the user's screen to the sound view, so they
+    hear what it is like from wherever they are standing in the tour."""
+    twin = get_twin(runtime.context.property_id)
+    if error := _room_or_error(twin, room_id):
+        return error
+    x, z = _room_center(twin, room_id)
+    _emit(runtime, "viewer.setMode", {"mode": "sound"})
+    _emit(runtime, "sound.placeSource", {"room_id": room_id, "x": round(x, 3), "z": round(z, 3), "preset_id": sound})
+    return f"A {sound} sound is now playing from {prompts.room_display_names(twin)[room_id]}. The user hears it from the room they are in."
+
+
 PROPERTY_TOOLS = [list_rooms, get_room_geometry]
 SUN_TOOLS = [sun_by_room, sun_report, daylight_at]
-UI_TOOLS = [viewer_goto, viewer_walk, viewer_set_mode, viewer_set_time]
+AREA_TOOLS = [area_profile, area_search]
+SOUND_TOOLS = [sound_heard_from]
+UI_TOOLS = [viewer_goto, viewer_walk, viewer_set_mode, viewer_set_time, sound_place_source]

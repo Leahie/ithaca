@@ -17,24 +17,29 @@ from pathlib import Path
 from typing import Any
 
 import numpy as np
+from shapely.geometry import Polygon
 from timezonefinder import TimezoneFinder
 
 from packages.schema.twin import (
     Floor,
+    FloorOpening,
     Opening,
     PropertyTwin,
+    Quat,
     Room,
     Sweep,
     TwinAssets,
     TwinQuality,
     TwinSources,
     Vec3,
+    Wall,
 )
 from services.api.integrations import costar
 from services.api.integrations.cache import RecordReplayCache
 from services.api.integrations.config import fixtures_dir
 from services.api.integrations.matterport import MatterportClient
-from services.api.twin import annotations, frames
+from services.api.twin import annotations, frames, nav
+from services.api.twin import panos as panos_frames
 from services.api.twin import rooms as plan
 from services.api.twin.mesh import interior_glb_path
 from services.api.twin.service import twin_path
@@ -65,6 +70,13 @@ FLOOR_MATERIAL_BY_LABEL = {
     "closet": "carpet",
 }
 DEFAULT_FLOOR_MATERIAL = "hardwood"
+# Matterport measures wall thickness. Here every outside window and door sits in a 0.16 m wall and
+# every interior doorway in a 0.11-0.14 m one: framed outside wall vs. stud partition.
+EXTERIOR_WALL_MIN_THICKNESS_M = 0.15
+DEFAULT_WALL_THICKNESS_M = 0.12
+EXTERIOR_ASSEMBLY = "exterior_brick_veneer_frame"
+INTERIOR_ASSEMBLY = "interior_stud_gypsum"
+MIN_FLOOR_OPENING_OVERLAP_M2 = 0.5
 
 
 def build_twin(
@@ -89,7 +101,8 @@ def build_twin(
         for e in f.get("edges") or []:
             ends = [v["id"] for v in e.get("vertices") or []]
             if len(ends) == 2:
-                edges[e["id"]] = {"ends": ends, "floor_id": f["id"], "openings": e.get("openings") or []}
+                edges[e["id"]] = {"ends": ends, "floor_id": f["id"], "openings": e.get("openings") or [],
+                                  "thickness": e.get("thickness")}
 
     kept = _room_outlines(m.get("rooms") or [], edges, vertices)
     every_room = _room_outlines(m.get("rooms") or [], edges, vertices, keep_all=True)
@@ -110,6 +123,8 @@ def build_twin(
         opening_quality = "annotated"
     else:
         opening_quality = "detected" if any(e["openings"] for e in edges.values()) else "none"
+    walls = _walls(edges, vertices, kept, every_room, {o.opening_id for o in openings})
+    floor_openings = _floor_openings(kept, every_room, rooms, openings, edges, floor_index)
 
     return PropertyTwin(
         property_id=property_id,
@@ -126,13 +141,16 @@ def build_twin(
         floors=floors,
         rooms=rooms,
         openings=openings,
-        sweeps=_sweeps(panos, kept, raw_floors, elevations),
+        walls=walls,
+        floor_openings=floor_openings,
+        sweeps=_sweeps(panos, kept, raw_floors, elevations, nav.load_neighbors(property_id)),
         assets=_assets(property_id),
         quality=TwinQuality(
             alignment=alignment,
             openings=opening_quality,
             context="none",
             traffic="none",
+            walls="inferred" if walls else "none",
         ),
     )
 
@@ -333,9 +351,102 @@ def _openings(raw_floors, edges, vertices, kept, elevations, heading, every_room
                     facade_azimuth_deg=_r(frames.compass_azimuth_deg(east, north), 2),
                     glazing="none" if kind == "door" else WINDOW_GLAZING,
                     other_room_id=other,
-                    exterior=False if other else _leads_outside(center, outward, f["id"], every_room),
+                    exterior=(exterior := False if other else _leads_outside(center, outward, f["id"], every_room)),
+                    leaf=_door_leaf(op, kind, exterior),
                 ))
     out.sort(key=lambda o: o.opening_id)
+    return out
+
+
+def _door_leaf(op: dict, kind: str, exterior: bool) -> bool | None:
+    """Matterport labels hinged doors "door-pivot". Its "door-unknown" openings here are archways
+    and passages (living-kitchen, hall), except on outside walls, where a door is assumed."""
+    if kind != "door":
+        return None
+    label = (op.get("label") or "").lower()
+    if "pivot" in label or "hinge" in label:
+        return True
+    return None if exterior else False
+
+
+# --- walls ---------------------------------------------------------------------------------
+
+
+def _walls(edges, vertices, kept, every_room, opening_ids: set[str]) -> list[Wall]:
+    """Every wall edge that bounds a kept room. Matterport gives thickness but no material, so the
+    assembly is inferred: thick walls are framed outside walls, thin ones interior partitions."""
+    rooms_by_edge: dict[str, list[str]] = {}
+    for k in kept:
+        for e in k["edges"]:
+            rooms_by_edge.setdefault(e, []).append(k["raw"]["id"])
+    out = []
+    for edge_id, room_ids in rooms_by_edge.items():
+        edge = edges[edge_id]
+        a_id, b_id = edge["ends"]
+        if a_id not in vertices or b_id not in vertices:
+            continue
+        a, b = np.array(vertices[a_id]), np.array(vertices[b_id])
+        length = float(np.linalg.norm(b - a))
+        if length < 1e-6:
+            continue
+        thickness = edge["thickness"] or DEFAULT_WALL_THICKNESS_M
+        exterior = False
+        if len(room_ids) == 1:
+            u = (b - a) / length
+            left = np.array([-u[1], u[0]])
+            mid = (a + b) / 2
+            outward = left if _room_at(tuple(mid - left * OPENING_SIDE_PROBE_M), edge["floor_id"], kept) else -left
+            exterior = _leads_outside(mid, outward, edge["floor_id"], every_room)
+        ends = tuple((_r(x), _r(z)) for x, z in (frames.model_xy_to_interior_xz(*p) for p in (a, b)))
+        out.append(Wall(
+            wall_id=edge_id,
+            floor_id=edge["floor_id"],
+            ends=ends,
+            thickness_m=_r(thickness),
+            room_ids=sorted(room_ids),
+            exterior=exterior,
+            assembly=EXTERIOR_ASSEMBLY if thickness >= EXTERIOR_WALL_MIN_THICKNESS_M else INTERIOR_ASSEMBLY,
+            opening_ids=sorted(op["id"] for op in edge["openings"] if op["id"] in opening_ids),
+        ))
+    out.sort(key=lambda w: w.wall_id)
+    return out
+
+
+def _floor_openings(kept, every_room, rooms: list[Room], openings: list[Opening], edges, floor_index) -> list[FloorOpening]:
+    """Hidden "Void" spaces that a room opens onto through a passage and that overlap a room on the
+    next floor: stairwells and open-to-below areas. Voids with no passage (duct chases) are skipped."""
+    kept_ids = {k["raw"]["id"] for k in kept}
+    passages = {o.opening_id: o for o in openings if o.kind == "door" and o.leaf is False}
+    room_polygons = {r.room_id: Polygon(r.polygon) for r in rooms}
+    out = []
+    for v in every_room:
+        if v["raw"]["id"] in kept_ids:
+            continue
+        via = sorted(
+            op["id"] for e in v["edges"] if e in edges for op in edges[e]["openings"] if op["id"] in passages
+        )
+        if not via:
+            continue
+        polygon = [(_r(x), _r(z)) for x, z in (frames.model_xy_to_interior_xz(*p) for p in v["outline"])]
+        shape = Polygon(polygon)
+        level = floor_index.get(v["floor_id"], 0)
+        other = sorted(
+            r.room_id for r in rooms
+            if abs(floor_index.get(r.floor_id, 0) - level) == 1
+            and room_polygons[r.room_id].intersection(shape).area >= MIN_FLOOR_OPENING_OVERLAP_M2
+        )
+        if not other:
+            continue
+        out.append(FloorOpening(
+            floor_opening_id=v["raw"]["id"],
+            floor_id=v["floor_id"],
+            polygon=frames.ccw_from_above(polygon),
+            area_m2=_r(shape.area, 2),
+            room_ids=sorted({passages[o].room_id for o in via}),
+            via_opening_ids=via,
+            other_floor_room_ids=other,
+        ))
+    out.sort(key=lambda f: f.floor_opening_id)
     return out
 
 
@@ -351,7 +462,7 @@ def _opening_kind(op: dict) -> str | None:
 # --- sweeps --------------------------------------------------------------------------------
 
 
-def _sweeps(panos, kept, raw_floors, elevations) -> list[Sweep]:
+def _sweeps(panos, kept, raw_floors, elevations, neighbors: dict[str, list[str]]) -> list[Sweep]:
     kept_ids = {k["raw"]["id"] for k in kept}
     out = []
     for p in panos:
@@ -367,6 +478,8 @@ def _sweeps(panos, kept, raw_floors, elevations) -> list[Sweep]:
             room_id=room_id,
             position=_vec(frames.model_to_interior((pos["x"], pos["y"], pos["z"]))),
             label=p.get("label"),
+            neighbors=neighbors.get(p["id"], []),
+            rotation=_quat(panos_frames.interior_quaternion(p["rotation"])) if p.get("rotation") else None,
         ))
     out.sort(key=lambda s: s.sweep_id)
     return out
@@ -385,6 +498,10 @@ def _r(value: float, digits: int = 3) -> float:
 
 def _vec(p) -> Vec3:
     return Vec3(x=_r(p[0]), y=_r(p[1]), z=_r(p[2]))
+
+
+def _quat(q) -> Quat:
+    return Quat(x=_r(q[0], 6), y=_r(q[1], 6), z=_r(q[2], 6), w=_r(q[3], 6))
 
 
 def main() -> None:

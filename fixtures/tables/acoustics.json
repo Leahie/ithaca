@@ -1,0 +1,52 @@
+{
+  "about": "Shared acoustics table (owner C). Octave bands in Hz; every list has one value per band. Typical published values for North American light-frame houses, not measurements of this house: transmission loss from NRC Canada IR-761 (gypsum board walls) and IR-832-style glazing data, absorption from standard tables (Long, Architectural Acoustics; Egan, Architectural Acoustics). 63 Hz values are extrapolated.",
+  "bands_hz": [63, 125, 250, 500, 1000, 2000, 4000, 8000],
+  "a_weighting_db": [-26.2, -16.1, -8.6, -3.2, 0.0, 1.2, 1.0, -1.1],
+
+  "transmission_loss_db": {
+    "exterior_brick_veneer_frame": {"label": "brick veneer, 2x4 wood frame, batt insulation, 1/2 in. gypsum (about STC 55)", "tl": [30, 38, 44, 50, 56, 60, 62, 64]},
+    "interior_stud_gypsum": {"label": "2x4 wood studs, one layer 1/2 in. gypsum each side, no insulation (about STC 34)", "tl": [12, 17, 26, 34, 40, 38, 43, 47]},
+    "floor_ceiling_wood_joist": {"label": "wood joists, plywood subfloor, 1/2 in. gypsum ceiling (about STC 38)", "tl": [16, 22, 30, 37, 43, 47, 50, 52]},
+    "glazing_single": {"label": "single pane 3 mm in a frame (about STC 26)", "tl": [14, 18, 21, 25, 29, 32, 27, 32]},
+    "glazing_double": {"label": "double pane 3-12-3 mm sealed unit (about STC 29)", "tl": [16, 20, 19, 27, 35, 38, 33, 38]},
+    "glazing_triple": {"label": "triple pane or laminated double unit (about STC 34)", "tl": [18, 23, 26, 32, 38, 41, 39, 43]},
+    "door_interior_hollow": {"label": "hollow-core interior door, closed, with undercut (about STC 18)", "tl": [10, 12, 14, 16, 18, 19, 20, 20]},
+    "door_exterior_solid": {"label": "solid-core exterior door, weatherstripped (about STC 27)", "tl": [16, 20, 23, 26, 28, 30, 32, 32]},
+    "open": {"label": "open door or passage", "tl": [0, 0, 0, 0, 0, 0, 0, 0]}
+  },
+
+  "absorption": {
+    "gypsum": {"label": "painted gypsum board on studs (walls, ceilings)", "alpha": [0.30, 0.29, 0.10, 0.05, 0.04, 0.07, 0.09, 0.09]},
+    "carpet": {"label": "carpet on pad", "alpha": [0.02, 0.08, 0.24, 0.57, 0.69, 0.71, 0.73, 0.73]},
+    "hardwood": {"label": "wood floor on joists", "alpha": [0.15, 0.15, 0.11, 0.10, 0.07, 0.06, 0.07, 0.07]},
+    "tile": {"label": "ceramic tile on slab", "alpha": [0.01, 0.01, 0.01, 0.015, 0.02, 0.02, 0.02, 0.02]},
+    "glass": {"label": "window glass", "alpha": [0.35, 0.35, 0.25, 0.18, 0.12, 0.07, 0.04, 0.04]},
+    "door": {"label": "wood door", "alpha": [0.15, 0.14, 0.10, 0.06, 0.08, 0.10, 0.10, 0.10]}
+  },
+  "air_absorption_4m_per_m": [0.0, 0.0, 0.0004, 0.0013, 0.0034, 0.0089, 0.030, 0.108],
+
+  "furnishing_m2_per_floor_m2": {
+    "about": "Equivalent absorption of typical furnishings (sofas, beds, curtains, shelves) per m2 of floor, by room label. 'include_furniture=false' drops it.",
+    "bedroom": [0.04, 0.10, 0.18, 0.26, 0.30, 0.32, 0.32, 0.32],
+    "living room": [0.04, 0.08, 0.15, 0.22, 0.26, 0.28, 0.28, 0.28],
+    "office": [0.03, 0.06, 0.10, 0.14, 0.17, 0.18, 0.18, 0.18],
+    "dining room": [0.02, 0.04, 0.07, 0.10, 0.12, 0.13, 0.13, 0.13],
+    "closet": [0.08, 0.20, 0.35, 0.50, 0.60, 0.60, 0.60, 0.60],
+    "kitchen": [0.01, 0.02, 0.03, 0.04, 0.05, 0.05, 0.05, 0.05],
+    "bathroom": [0.01, 0.02, 0.03, 0.04, 0.05, 0.05, 0.05, 0.05],
+    "laundry": [0.01, 0.02, 0.03, 0.04, 0.05, 0.05, 0.05, 0.05],
+    "default": [0.02, 0.04, 0.07, 0.10, 0.12, 0.13, 0.13, 0.13]
+  },
+
+  "sound_presets": {
+    "about": "Free-field level at 1 m (dBA) and spectrum shape (dB per band, unweighted, relative; scaled so the A-weighted sum equals level_dba). 'recording' is for the user's own clip: flat-ish shape, loudness picked by the user.",
+    "conversation": {"label": "Conversation", "level_dba": 60, "shape_db": [-20, -6, 0, 2, -2, -7, -13, -20]},
+    "tv": {"label": "TV", "level_dba": 70, "shape_db": [-8, -2, 1, 2, 0, -3, -7, -13]},
+    "music": {"label": "Loud music", "level_dba": 85, "shape_db": [6, 6, 3, 0, -2, -4, -7, -12]},
+    "baby": {"label": "Baby crying", "level_dba": 80, "shape_db": [-30, -20, -8, -2, 0, -1, -7, -15]},
+    "dog": {"label": "Dog barking", "level_dba": 88, "shape_db": [-22, -10, -3, 0, -1, -4, -10, -18]},
+    "vacuum": {"label": "Vacuum cleaner", "level_dba": 75, "shape_db": [-14, -9, -6, -3, 0, 0, -2, -7]},
+    "recording": {"label": "Your recording", "level_dba": 70, "shape_db": [-6, -3, -1, 0, 0, -2, -5, -10]}
+  },
+  "loudness_choices_dba": {"quiet": 50, "talking": 60, "tv": 70, "loud": 80, "very loud": 90}
+}

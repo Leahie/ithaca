@@ -1,0 +1,86 @@
+{
+  "about": "Outdoor noise table (owner C): road emission, traffic defaults, propagation constants, residual background and rail. Octave bands 63..8000 Hz as in acoustics.json.",
+
+  "cnossos_road": {
+    "about": "CNOSSOS-EU road source model, Directive 2002/49/EC Annex II as amended by Delegated Directive (EU) 2021/1226, Table F-1. Rows A_R, B_R (rolling), A_P, B_P (propulsion), dB re 1 pW per vehicle at v_ref, reference surface, 20 C. Category 1 light, 2 medium heavy, 3 heavy. Transcribed from the roadnoise 0.1.1 package (machine-checked against EUR-Lex).",
+    "v_ref_kmh": 70,
+    "v_min_kmh": 20,
+    "1": {"AR": [83.1, 89.2, 87.7, 93.1, 100.1, 96.7, 86.8, 76.2], "BR": [30.0, 41.5, 38.9, 25.7, 32.5, 37.2, 39.0, 40.0],
+          "AP": [97.9, 92.5, 90.7, 87.2, 84.7, 88.0, 84.4, 77.1], "BP": [-1.3, 7.2, 7.7, 8.0, 8.0, 8.0, 8.0, 8.0]},
+    "2": {"AR": [88.7, 93.2, 95.7, 100.9, 101.7, 95.1, 87.8, 83.6], "BR": [30.0, 35.8, 32.6, 23.8, 30.1, 36.2, 38.3, 40.1],
+          "AP": [105.5, 100.2, 100.5, 98.7, 101.0, 97.8, 91.2, 85.0], "BP": [-1.9, 4.7, 6.4, 6.5, 6.5, 6.5, 6.5, 6.5]},
+    "3": {"AR": [91.7, 96.2, 98.2, 104.9, 105.1, 98.5, 91.1, 85.6], "BR": [30.0, 33.5, 31.3, 25.4, 31.8, 37.1, 38.6, 40.6],
+          "AP": [108.8, 104.2, 103.5, 102.9, 102.6, 98.5, 93.8, 87.5], "BP": [0.0, 3.0, 4.6, 5.0, 5.0, 5.0, 5.0, 5.0]}
+  },
+
+  "road_classes": {
+    "about": "Defaults by OSM highway class for US urban roads when there is no count (C3). aadt: vehicles/day, both directions; heavy: share of trucks (half medium, half heavy); speed: mph when the way has no maxspeed tag.",
+    "motorway": {"aadt": 100000, "heavy": 0.08, "speed_mph": 65},
+    "motorway_link": {"aadt": 12000, "heavy": 0.06, "speed_mph": 45},
+    "trunk": {"aadt": 40000, "heavy": 0.05, "speed_mph": 50},
+    "trunk_link": {"aadt": 10000, "heavy": 0.05, "speed_mph": 40},
+    "primary": {"aadt": 25000, "heavy": 0.04, "speed_mph": 40},
+    "primary_link": {"aadt": 8000, "heavy": 0.04, "speed_mph": 35},
+    "secondary": {"aadt": 15000, "heavy": 0.03, "speed_mph": 35},
+    "secondary_link": {"aadt": 5000, "heavy": 0.03, "speed_mph": 30},
+    "tertiary": {"aadt": 6000, "heavy": 0.02, "speed_mph": 30},
+    "tertiary_link": {"aadt": 3000, "heavy": 0.02, "speed_mph": 30},
+    "unclassified": {"aadt": 2000, "heavy": 0.02, "speed_mph": 30},
+    "residential": {"aadt": 800, "heavy": 0.01, "speed_mph": 25},
+    "living_street": {"aadt": 200, "heavy": 0.0, "speed_mph": 15}
+  },
+
+  "hourly_traffic_pct": {
+    "about": "Share of daily traffic in each local hour 0..23, typical US urban weekday (shape of the FHWA Traffic Monitoring Guide urban profiles). Normalised to 100 when loaded.",
+    "pct": [1.0, 0.6, 0.5, 0.4, 0.6, 1.4, 3.6, 6.4, 6.6, 5.3, 5.0, 5.4, 5.8, 5.8, 6.1, 6.9, 7.5, 7.7, 6.4, 4.8, 3.8, 3.2, 2.5, 1.7]
+  },
+
+  "propagation": {
+    "about": "ISO 9613-2 screening method. atmosphere: Table 2 at 20 C / 70 % RH, dB/km. Ground: porous (lawns), alternative A-weighted method eq. (10) with D_Omega. Barriers: single edge D_z = 10 lg(3 + 20 z / lambda), at most 20 dB, replacing the ground term. Housing: Annex A.3, 0.1 dB per metre of path through houses times the built-up fraction, at most 10 dB, after the first metres of road corridor. Buildings without a height tag are one-storey Houston houses.",
+    "atmosphere_db_per_km": [0.1, 0.3, 1.1, 2.8, 5.0, 9.0, 22.9, 76.6],
+    "ground": "porous",
+    "source_height_m": 0.05,
+    "window_height_m": 1.5,
+    "barrier_max_db": 20.0,
+    "housing_density": 0.2,
+    "housing_corridor_m": 20.0,
+    "housing_max_db": 10.0,
+    "building_height_m": 5.0,
+    "storey_height_m": 3.0,
+    "segment_m": [[100, 5], [400, 10], [1e9, 25]]
+  },
+
+  "background": {
+    "about": "Residual sound that isn't a modelled road or railway (distant city, AC condensers, insects, birds): ANSI/ASA S12.9-2013 Part 3 Table 2 typical day (07-22) and night (22-07) levels by neighbourhood category. Spectrum shape is a typical urban residual (dB, unweighted, relative).",
+    "category": "quiet suburban residential",
+    "categories": {
+      "very noisy urban residential": {"day": 66, "night": 58},
+      "noisy urban residential": {"day": 61, "night": 54},
+      "urban and noisy suburban residential": {"day": 55, "night": 49},
+      "quiet urban and normal suburban residential": {"day": 50, "night": 44},
+      "quiet suburban residential": {"day": 45, "night": 39},
+      "very quiet suburban and rural residential": {"day": 40, "night": 34}
+    },
+    "shape_db": [8, 6, 3, 0, -3, -7, -12, -18]
+  },
+
+  "rail": {
+    "about": "FTA Transit Noise and Vibration Impact Assessment Manual (2018) general assessment for freight: SEL at 50 ft of a diesel locomotive (92 dBA at 50 mph, -10 lg(S/50)) and of each rail car (82 dBA at 50 mph, +20 lg(S/50)); Leq(1h) = SEL + 10 lg(trains per hour) - 35.6. Train counts are defaults, not data for this line; horn noise at grade crossings is not included.",
+    "trains_day": 8,
+    "trains_night": 4,
+    "locomotives": 2,
+    "cars": 60,
+    "speed_mph": 30,
+    "locomotive_sel_dba": 92,
+    "car_sel_dba": 82,
+    "shape_db": [4, 4, 2, 0, -2, -5, -10, -17]
+  },
+
+  "guidelines": {
+    "about": "WHO Environmental Noise Guidelines for the European Region (2018): road traffic Lden 53 dB, Lnight (23-07) 45 dB outside the most exposed facade. WHO Guidelines for Community Noise (1999): bedrooms LAeq 30 dB at night, living rooms 35 dB by day (07-23).",
+    "outdoor_lden_dba": 53,
+    "outdoor_lnight_dba": 45,
+    "bedroom_night_dba": 30,
+    "living_day_dba": 35
+  }
+}

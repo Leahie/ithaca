@@ -1,0 +1,279 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>Walk mode: scan photos projected on the mesh</title>
+<!-- Reference for A's Sun Lab: served by the C dev app at /dev/walk.html?sweep=<id> (or ?room=<id>). -->
+
+<style>
+  html, body { margin: 0; height: 100%; background: #000; color: #ddd; font: 13px system-ui, sans-serif; overflow: hidden; }
+  #hud { position: absolute; top: 10px; left: 10px; background: rgba(0,0,0,.6); padding: 6px 10px; border-radius: 4px; line-height: 1.5; }
+  #sun { position: absolute; bottom: 12px; left: 50%; transform: translateX(-50%); background: rgba(0,0,0,.6); padding: 8px 14px; border-radius: 6px; }
+  #sun input[type=range] { width: 360px; vertical-align: middle; }
+</style>
+<script type="importmap">
+{ "imports": {
+  "three": "https://unpkg.com/three@0.170.0/build/three.module.js",
+  "three/addons/": "https://unpkg.com/three@0.170.0/examples/jsm/"
+} }
+</script>
+</head>
+<body>
+<div id="hud">loading...</div>
+<div id="sun"><label><input type="checkbox" id="sunOn" checked> sun</label>
+  <input type="date" id="day"> <input type="range" id="hour" min="6" max="19.5" step="0.25" value="15"> <span id="when"></span></div>
+<script type="module">
+import * as THREE from "three";
+import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
+import { MeshoptDecoder } from "three/addons/libs/meshopt_decoder.module.js";
+
+const params = new URLSearchParams(location.search);
+const API = params.get("api") ?? location.origin;
+const PID = params.get("pid") ?? "onXQLXhfyQv";
+const hud = document.getElementById("hud");
+addEventListener("error", (e) => { hud.textContent = "error: " + e.message; });
+addEventListener("unhandledrejection", (e) => { hud.textContent = "error: " + (e.reason?.stack ?? e.reason); });
+const FACES = ["px", "nx", "py", "ny", "pz", "nz"];
+
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setPixelRatio(devicePixelRatio);
+renderer.setSize(innerWidth, innerHeight);
+document.body.appendChild(renderer.domElement);
+const scene = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera(75, innerWidth / innerHeight, 0.02, 200);
+camera.rotation.order = "YXZ";
+
+// The whole lookup: world point -> direction from the eye -> pano frame -> GL cube face.
+const material = new THREE.ShaderMaterial({
+  uniforms: {
+    panoA: { value: null }, eyeA: { value: new THREE.Vector3() }, toPanoA: { value: new THREE.Matrix3() },
+    panoB: { value: null }, eyeB: { value: new THREE.Vector3() }, toPanoB: { value: new THREE.Matrix3() },
+    mixB: { value: 0 },
+    sunDepth: { value: null }, sunMatrix: { value: new THREE.Matrix4() }, sunDir: { value: new THREE.Vector3(0, 1, 0) },
+    skyLevel: { value: 1 }, sunGain: { value: 0 }, texel: { value: 1 / 4096 },
+  },
+  vertexShader: `
+    varying vec3 vWorld;
+    void main() {
+      vec4 w = modelMatrix * vec4(position, 1.0);
+      vWorld = w.xyz;
+      gl_Position = projectionMatrix * viewMatrix * w;
+    }`,
+  fragmentShader: `
+    uniform samplerCube panoA, panoB;
+    uniform vec3 eyeA, eyeB;
+    uniform mat3 toPanoA, toPanoB;
+    uniform float mixB;
+    uniform sampler2D sunDepth;
+    uniform mat4 sunMatrix;
+    uniform vec3 sunDir;
+    uniform float skyLevel, sunGain, texel;
+    varying vec3 vWorld;
+
+    float sunlit(vec3 n) {
+      vec4 s = sunMatrix * vec4(vWorld + n * 0.02, 1.0);
+      vec3 c = s.xyz / s.w * 0.5 + 0.5;
+      if (any(lessThan(c, vec3(0.0))) || any(greaterThan(c, vec3(1.0)))) return 0.0;
+      float lit = 0.0;
+      for (int x = -1; x <= 1; x++)
+        for (int y = -1; y <= 1; y++)
+          lit += c.z - 0.0008 <= texture2D(sunDepth, c.xy + vec2(x, y) * texel).r ? 1.0 : 0.0;
+      return lit / 9.0;
+    }
+
+    void main() {
+      vec4 a = textureCube(panoA, toPanoA * (vWorld - eyeA));
+      vec4 b = textureCube(panoB, toPanoB * (vWorld - eyeB));
+      vec4 photo = mix(a, b, mixB);
+      vec3 n = normalize(cross(dFdx(vWorld), dFdy(vWorld)));
+      if (dot(n, eyeA - vWorld) < 0.0) n = -n;
+      float direct = sunGain > 0.0 ? sunlit(n) * max(dot(n, sunDir), 0.0) : 0.0;
+      gl_FragColor = vec4(photo.rgb * (skyLevel + sunGain * direct * vec3(1.0, 0.9, 0.72)), 1.0);
+      #include <colorspace_fragment>
+    }`,
+  side: THREE.DoubleSide,
+});
+
+const cubeLoader = new THREE.CubeTextureLoader();
+const cache = new Map();
+function pano(sweep, res) {
+  const key = `${sweep.sweep_id}/${res}`;
+  if (!cache.has(key)) {
+    cache.set(key, new Promise((resolve) => {
+      const tex = cubeLoader.load(FACES.map((f) => `${API}/api/properties/${PID}/sweeps/${sweep.sweep_id}/skybox/${f}?res=${res}`), () => resolve(tex));
+      tex.colorSpace = THREE.SRGBColorSpace;
+      tex.generateMipmaps = true;
+      tex.minFilter = THREE.LinearMipmapLinearFilter;
+    }));
+  }
+  return cache.get(key);
+}
+const eyeOf = (s) => new THREE.Vector3(s.position.x, s.position.y, s.position.z);
+// inverse(rotation) as a mat3 (rotation: pano frame -> interior frame)
+const toPano = (s) => new THREE.Matrix3().setFromMatrix4(
+  new THREE.Matrix4().makeRotationFromQuaternion(new THREE.Quaternion(s.rotation.x, s.rotation.y, s.rotation.z, s.rotation.w).invert()));
+
+hud.textContent = "loading the twin...";
+const twin = await (await fetch(`${API}/api/properties/${PID}/twin`)).json();
+const byId = new Map(twin.sweeps.map((s) => [s.sweep_id, s]));
+const loader = new GLTFLoader().setMeshoptDecoder(MeshoptDecoder);
+hud.textContent = "loading the mesh...";
+const gltf = await loader.loadAsync(twin.assets.interior_glb);
+hud.textContent = "loading the panorama...";
+gltf.scene.traverse((o) => { if (o.isMesh) o.material = material; });
+scene.add(gltf.scene);
+// Wherever the mesh has no surface (through windows, holes) the photo still shows: a far sphere
+// around the eye with the same material. Seen from the eye the lookup is exact at any distance.
+const backdrop = new THREE.Mesh(new THREE.SphereGeometry(150, 48, 24), material);
+backdrop.renderOrder = -1;
+scene.add(backdrop);
+
+// floor discs under the sweeps you can walk to
+const discGeo = new THREE.RingGeometry(0.12, 0.17, 32).rotateX(-Math.PI / 2);
+const discMat = new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.8, depthTest: false });
+const discs = new THREE.Group();
+scene.add(discs);
+
+let current = null, moving = false;
+const startRoom = params.get("room");
+const start = params.get("sweep") ? byId.get(params.get("sweep"))
+  : twin.sweeps.find((s) => s.room_id === startRoom) ?? twin.sweeps.find((s) => s.room_id);
+
+async function standOn(s, animate) {
+  const tex = await pano(s, "2k");
+  const u = material.uniforms;
+  if (animate && current) {
+    u.panoB.value = tex; u.eyeB.value.copy(eyeOf(s)); u.toPanoB.value.copy(toPano(s));
+    moving = true;
+    const from = camera.position.clone(), to = eyeOf(s), t0 = performance.now();
+    await new Promise((done) => {
+      (function step() {
+        const k = Math.min(1, (performance.now() - t0) / 600);
+        const e = k * k * (3 - 2 * k);
+        camera.position.lerpVectors(from, to, e);
+        backdrop.position.copy(camera.position);
+        u.mixB.value = e;
+        k < 1 ? requestAnimationFrame(step) : done();
+      })();
+    });
+    moving = false;
+  }
+  u.panoA.value = tex; u.eyeA.value.copy(eyeOf(s)); u.toPanoA.value.copy(toPano(s)); u.mixB.value = 0;
+  camera.position.copy(eyeOf(s));
+  backdrop.position.copy(camera.position);
+  current = s;
+  discs.clear();
+  for (const id of s.neighbors) {
+    const n = byId.get(id);
+    const d = new THREE.Mesh(discGeo, discMat);
+    d.position.set(n.position.x, n.position.y - 1.45, n.position.z);
+    d.userData.sweep = n;
+    discs.add(d);
+    pano(n, "2k");  // prefetch where you might go next
+  }
+  const room = twin.rooms.find((r) => r.room_id === s.room_id);
+  hud.innerHTML = `${room ? room.label : "outside rooms"} &middot; sweep ${s.sweep_id.slice(0, 8)} &middot; ${s.neighbors.length} links<br>drag: look around &middot; click the floor: walk (only along links) &middot; arrow up: step forward`;
+}
+
+// look around in place
+let drag = null;
+renderer.domElement.addEventListener("pointerdown", (e) => { drag = { x: e.clientX, y: e.clientY, moved: 0 }; });
+addEventListener("pointermove", (e) => {
+  if (!drag) return;
+  const dx = e.clientX - drag.x, dy = e.clientY - drag.y;
+  drag.moved += Math.abs(dx) + Math.abs(dy);
+  drag.x = e.clientX; drag.y = e.clientY;
+  camera.rotation.y += dx * 0.004;
+  camera.rotation.x = THREE.MathUtils.clamp(camera.rotation.x + dy * 0.004, -1.4, 1.4);
+});
+addEventListener("pointerup", (e) => {
+  const click = drag && drag.moved < 4;
+  drag = null;
+  if (!click || moving || !current) return;
+  const ray = new THREE.Raycaster();
+  ray.setFromCamera(new THREE.Vector2((e.clientX / innerWidth) * 2 - 1, -(e.clientY / innerHeight) * 2 + 1), camera);
+  const hit = ray.intersectObject(gltf.scene, true)[0];
+  if (!hit) return;
+  const best = current.neighbors.map((id) => byId.get(id))
+    .reduce((b, s) => (!b || eyeOf(s).distanceTo(hit.point) < eyeOf(b).distanceTo(hit.point) ? s : b), null);
+  if (best) standOn(best, true);
+});
+addEventListener("keydown", (e) => {
+  if (e.key !== "ArrowUp" || moving || !current) return;
+  const look = new THREE.Vector3(0, 0, -1).applyEuler(camera.rotation).setY(0).normalize();
+  let best = null, bestDot = Math.cos(Math.PI / 4);
+  for (const id of current.neighbors) {
+    const s = byId.get(id);
+    const dir = eyeOf(s).sub(eyeOf(current)).setY(0).normalize();
+    const dot = dir.dot(look);
+    if (dot > bestDot) { best = s; bestDot = dot; }
+  }
+  if (best) standOn(best, true);
+});
+addEventListener("resize", () => {
+  renderer.setSize(innerWidth, innerHeight);
+  camera.aspect = innerWidth / innerHeight;
+  camera.updateProjectionMatrix();
+});
+
+// Sun: a depth map of the mesh seen from the sun (a hand-rolled shadow map), refreshed per time.
+const SHADOW_PX = 4096;
+const sunTarget = new THREE.WebGLRenderTarget(SHADOW_PX, SHADOW_PX, { depthTexture: new THREE.DepthTexture(SHADOW_PX, SHADOW_PX, THREE.FloatType) });
+const house = new THREE.Box3().setFromObject(gltf.scene);
+const houseCenter = house.getCenter(new THREE.Vector3());
+const houseRadius = house.getSize(new THREE.Vector3()).length() / 2;
+const sunCam = new THREE.OrthographicCamera(-houseRadius, houseRadius, houseRadius, -houseRadius, 0.1, houseRadius * 4);
+const depthOnly = new THREE.MeshDepthMaterial({ side: THREE.DoubleSide });
+
+function renderSunDepth(dir) {
+  sunCam.position.copy(houseCenter).addScaledVector(dir, houseRadius * 2);
+  sunCam.up.set(0, 1, 0);
+  if (Math.abs(dir.y) > 0.99) sunCam.up.set(0, 0, 1);
+  sunCam.lookAt(houseCenter);
+  sunCam.updateMatrixWorld();
+  sunCam.updateProjectionMatrix();
+  discs.visible = false;
+  backdrop.visible = false;
+  scene.overrideMaterial = depthOnly;
+  renderer.setRenderTarget(sunTarget);
+  renderer.clear();
+  renderer.render(scene, sunCam);
+  renderer.setRenderTarget(null);
+  scene.overrideMaterial = null;
+  discs.visible = true;
+  backdrop.visible = true;
+  const u = material.uniforms;
+  u.sunDepth.value = sunTarget.depthTexture;
+  u.sunMatrix.value.multiplyMatrices(sunCam.projectionMatrix, sunCam.matrixWorldInverse);
+  u.sunDir.value.copy(dir);
+}
+
+const dayInput = document.getElementById("day"), hourInput = document.getElementById("hour"), sunOn = document.getElementById("sunOn");
+dayInput.value = new Date().toISOString().slice(0, 10);
+let sunRequest = 0;
+async function updateSun() {
+  const h = Number(hourInput.value);
+  const hh = String(Math.floor(h)).padStart(2, "0"), mm = String(Math.round((h % 1) * 60)).padStart(2, "0");
+  const when = `${dayInput.value}T${hh}:${mm}:00`;
+  const id = ++sunRequest;
+  const s = await (await fetch(`${API}/api/properties/${PID}/sun/at?when=${when}`)).json();
+  if (id !== sunRequest) return;
+  const u = material.uniforms;
+  // sky brightness relative to the scan's (the photos already hold daytime light)
+  u.skyLevel.value = s.sun_up ? THREE.MathUtils.clamp(0.55 + s.elevation_deg / 40, 0.55, 1.0) : 0.18;
+  u.sunGain.value = s.sun_up && sunOn.checked ? 0.9 : 0;
+  if (s.sun_up) renderSunDepth(new THREE.Vector3(s.direction_interior.x, s.direction_interior.y, s.direction_interior.z).normalize());
+  document.getElementById("when").textContent = `${hh}:${mm}  sun ${s.elevation_deg.toFixed(0)}° up, azimuth ${s.azimuth_deg.toFixed(0)}°`;
+}
+hourInput.addEventListener("input", updateSun);
+dayInput.addEventListener("change", updateSun);
+sunOn.addEventListener("change", updateSun);
+
+await standOn(start, false);
+await updateSun();
+window.viewer = { camera, standOn, byId, twin, updateSun, mesh: gltf.scene };
+addEventListener("keydown", (e) => { if (e.key === "m" || e.key === "M") gltf.scene.visible = !gltf.scene.visible; });
+renderer.setAnimationLoop(() => renderer.render(scene, camera));
+</script>
+</body>
+</html>

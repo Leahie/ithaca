@@ -13,7 +13,7 @@ from typing import Any, Literal
 from pydantic import model_validator
 
 from .common import Model
-from .session import ClientKind, SoundSetScenarioPayload, ViewerMode, ViewerState
+from .session import ClientKind, SoundPlaceSourcePayload, SoundSetScenarioPayload, ViewerMode, ViewerState
 from .twin import Vec3
 
 EVENT_VERSION = 1
@@ -120,6 +120,10 @@ class LayoutSelectPayload(Model):
     layout_id: str
 
 
+class SoundClearSourcePayload(Model):
+    """Additive to v0. Removes the placed sound."""
+
+
 class CaptureUploadPayload(Model):
     upload_id: str
 
@@ -177,8 +181,10 @@ EVENTS: dict[str, tuple[type[Model], frozenset[str]]] = {
     "viewer.setMode": (ViewerSetModePayload, frozenset({"agent", "phone", "desktop"})),
     "viewer.look": (ViewerLookPayload, frozenset({"phone"})),
     "design.showVariants": (DesignShowVariantsPayload, frozenset({"agent"})),
-    "layout.select": (LayoutSelectPayload, frozenset({"phone", "desktop"})),
+    "layout.select": (LayoutSelectPayload, frozenset({"agent", "phone", "desktop"})),
     "sound.setScenario": (SoundSetScenarioPayload, frozenset({"agent", "phone", "desktop"})),
+    "sound.placeSource": (SoundPlaceSourcePayload, frozenset({"agent", "phone", "desktop"})),
+    "sound.clearSource": (SoundClearSourcePayload, frozenset({"agent", "phone", "desktop"})),
     "capture.upload": (CaptureUploadPayload, frozenset({"phone", "desktop"})),
     "chat.user": (ChatUserPayload, frozenset({"desktop", "phone"})),
     "voice.transcript": (VoiceTranscriptPayload, frozenset({"desktop", "phone"})),
@@ -204,6 +210,7 @@ UI_TOOL_EVENTS: dict[str, str] = {
     "viewer_set_mode": "viewer.setMode",
     "design_show_variants": "design.showVariants",
     "sound_set_scenario": "sound.setScenario",
+    "sound_place_source": "sound.placeSource",
 }
 
 

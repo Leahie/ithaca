@@ -104,12 +104,78 @@ def test_daylight_spot(client, sunny_room):
     assert max(body["lux"]) > 50
 
 
-def test_not_built_features_say_so(client, sunny_room):
+def test_noise_report_from_recorded_roads(client, sunny_room, monkeypatch):
+    monkeypatch.setenv("INTEGRATION_MODE", "replay")
     room_id, _, _ = sunny_room
-    for path, params in ((f"{BASE}/noise", {"room_id": room_id}), (f"{BASE}/area", {})):
-        r = client.get(path, params=params)
-        assert r.status_code == 503
-        assert r.json()["detail"]["error"] == "not_configured"
+    r = client.get(f"{BASE}/noise", params={"room_id": room_id})
+    assert r.status_code == 200
+    body = r.json()
+    assert len(body["hourly"]) == 24 and all(len(h["bands_db"]) == 8 for h in body["hourly"])
+    assert body["traffic"] == "aadt" and body["sources"] and body["caveats"]
+    assert body["laeq_night_dba"] < body["laeq_day_dba"] < body["outdoor_lden_dba"]
+
+    opened = client.get(f"{BASE}/noise", params={"room_id": room_id, "windows_open": True}).json()
+    assert opened["laeq_24h_dba"] > body["laeq_24h_dba"] + 10
+    assert client.get(f"{BASE}/noise", params={"room_id": "nope"}).status_code == 404
+    assert client.get(f"{BASE}/noise", params={"room_id": room_id, "glazing": "quad"}).status_code == 422
+
+
+def test_noise_house_and_sources(client, monkeypatch):
+    monkeypatch.setenv("INTEGRATION_MODE", "replay")
+    r = client.get(f"{BASE}/noise/house", params={"hour": 17})
+    assert r.status_code == 200
+    rooms = r.json()["rooms"]
+    assert len(rooms) == len(service.get_twin(PID).rooms)
+    assert rooms[0]["laeq_dba"] >= rooms[-1]["laeq_dba"]
+    assert client.get(f"{BASE}/noise/house", params={"hour": 24}).status_code == 422
+
+    sources = client.get(f"{BASE}/noise/sources").json()["sources"]
+    by_name = {s["name"]: s for s in sources}
+    assert by_name["South Braeswood Boulevard"]["data"] == "txdot_aadt"
+    assert by_name["South Braeswood Boulevard"]["aadt"] == 19208
+    assert any(s["kind"] == "background" for s in sources)
+
+
+def test_area(client, monkeypatch):
+    monkeypatch.setenv("INTEGRATION_MODE", "replay")
+    r = client.get(f"{BASE}/area")
+    assert r.status_code == 200
+    body = r.json()
+    assert body["listing"]["price"] == 1_995_000 and body["comps"] and body["amenities"]
+    r = client.get(f"{BASE}/area/search", params={"q": "coffee", "limit": 2})
+    assert r.status_code == 200 and 0 < len(r.json()) <= 2
+    assert client.get(f"{BASE}/area/comps").json() == body["comps"]
+
+
+def test_sound_presets(client):
+    r = client.get(f"{BASE}/sound/presets")
+    assert r.status_code == 200
+    body = r.json()
+    assert {"tv", "baby", "recording"} <= {p["preset_id"] for p in body["presets"]}
+    assert all(len(p["bands_db"]) == 8 for p in body["presets"])
+    assert body["loudness_dba"]["talking"] == 60
+
+
+def test_sound_field_every_room_and_listener(client, sunny_room):
+    room_id, x, z = sunny_room
+    params = {"room_id": room_id, "x": x, "z": z, "preset": "baby"}
+    r = client.get(f"{BASE}/sound/field", params=params)
+    assert r.status_code == 200
+    body = r.json()
+    assert len(body["rooms"]) == len(service.get_twin(PID).rooms)
+    assert body["rooms"][0]["room_id"] == room_id  # loudest first
+    assert body["source"]["level_dba"] == 80 and body["listener"] is None
+
+    near = client.get(f"{BASE}/sound/field", params={**params, "listener_room_id": room_id,
+                                                      "listener_x": x, "listener_z": z}).json()["listener"]
+    assert near["distance_m"] is not None and near["laeq_dba"] > body["rooms"][0]["laeq_dba"]
+
+    louder = client.get(f"{BASE}/sound/field", params={**params, "level_dba": 90}).json()
+    assert louder["rooms"][0]["laeq_dba"] == pytest.approx(body["rooms"][0]["laeq_dba"] + 10, abs=0.15)
+
+    assert client.get(f"{BASE}/sound/field", params={**params, "preset": "lawnmower"}).status_code == 404
+    assert client.get(f"{BASE}/sound/field", params={**params, "x": x + 500}).status_code == 422
+    assert client.get(f"{BASE}/sound/field", params={**params, "listener_x": 1.0}).status_code == 422
 
 
 def test_put_openings_saves_annotation_and_bumps_version(client, tmp_path, monkeypatch):

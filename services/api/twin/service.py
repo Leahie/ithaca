@@ -4,6 +4,7 @@ integrations/* directly. get_twin serves the twin that ingestion wrote.
 
 from __future__ import annotations
 
+import json
 import threading
 from datetime import date, datetime
 from functools import lru_cache
@@ -20,18 +21,26 @@ from packages.schema.reports import (
     Comp,
     DaylightMoment,
     DaylightSpot,
+    NoiseHouse,
     NoiseReport,
     NoiseScenario,
+    NoiseSources,
     SkySource,
+    SoundDoors,
+    SoundField,
+    SoundPreset,
     SunMoment,
     SunReport,
     SunRoomDay,
     SunSpot,
+    TrafficData,
 )
 from packages.schema.twin import PropertyTwin
-from services.api.integrations import nsrdb
+from services.api.integrations import costar, nsrdb, osm, roads
+from services.api.integrations.cache import FixtureMissing
 from services.api.integrations.config import IntegrationNotConfigured, fixtures_dir
-from services.api.sim import daylight, sun
+from services.api.sim import daylight, noise, sun, traffic
+from services.api.twin import area
 
 
 class TwinNotFound(LookupError):
@@ -97,8 +106,8 @@ _warm_lock = threading.Lock()
 
 
 def warm(property_id: str, heights: tuple[float, ...] = (0.0, sun.SEATED_M)) -> None:
-    """Set up every room's sun and daylight geometry in a background thread, so the first question
-    at these heights is fast. Safe to call often: it runs once per twin version."""
+    """Set up every room's sun and daylight geometry, then the outdoor noise model, in a background
+    thread, so the first question is fast. Safe to call often: it runs once per twin version."""
     twin = get_twin(property_id)
     with _warm_lock:
         if (property_id, twin.version) in _warmed:
@@ -111,6 +120,7 @@ def warm(property_id: str, heights: tuple[float, ...] = (0.0, sun.SEATED_M)) -> 
                 if sun.room_windows(twin, room.room_id):
                     sun.room_rays(twin, room, height_m=h)
                     daylight.room_coefficients(twin, room, h)
+        _outdoor(property_id, twin.version)
 
     threading.Thread(target=run, daemon=True, name=f"warm-{property_id}").start()
 
@@ -123,23 +133,173 @@ def _check_spot(property_id: str, room_id: str, x: float, z: float) -> None:
         raise ValueError(f"({x}, {z}) is not inside room {room_id}")
 
 
-# Not built yet. They raise IntegrationNotConfigured (I-G21) so agent tools can say so.
+# Sound: a sound placed inside the house, and noise from outside it.
 
 
-def noise_report(property_id: str, room_id: str, scenario: NoiseScenario) -> NoiseReport:
-    raise IntegrationNotConfigured("noise", "the noise engine (services/api/sim/noise.py, not built yet)")
+def sound_presets() -> list[SoundPreset]:
+    """Sounds a user can place (level at 1 m and spectrum), plus loudness choices for own recordings."""
+    return list(acoustics().presets.values())
+
+
+def sound_field(property_id: str, room_id: str, x: float, z: float, preset_id: str = "tv",
+                level_dba: float | None = None, doors: SoundDoors = "closed", include_furniture: bool = True,
+                listener: tuple[str, float, float] | None = None) -> SoundField:
+    """A sound placed at (x, z) in a room: what every room hears, and optionally one listener spot
+    (room_id, x, z) with the direct sound added when it is in the source's room."""
+    _check_spot(property_id, room_id, x, z)
+    if listener is not None:
+        _check_spot(property_id, *listener)
+    return _sound_field(property_id, get_twin(property_id).version, room_id, x, z, preset_id, level_dba,
+                        doors, include_furniture, listener)
+
+
+@lru_cache(maxsize=1)
+def acoustics() -> noise.Acoustics:
+    path = fixtures_dir() / "tables" / "acoustics.json"
+    return noise.load_acoustics(json.loads(path.read_text(encoding="utf-8")))
+
+
+@lru_cache(maxsize=64)
+def _sound_network(property_id, version, doors, include_furniture, add_carpet=False, glazing=None,
+                   windows_open=False) -> noise.Network:
+    return noise.network(get_twin(property_id), acoustics(), doors=doors, include_furniture=include_furniture,
+                         add_carpet=add_carpet, glazing=glazing, windows_open=windows_open)
+
+
+@lru_cache(maxsize=1024)
+def _sound_field(property_id, version, room_id, x, z, preset_id, level_dba, doors, include_furniture,
+                 listener) -> SoundField:
+    twin, table = get_twin(property_id), acoustics()
+    preset = noise.scaled_preset(table, preset_id, level_dba)
+    net = _sound_network(property_id, version, doors, include_furniture)
+    source, rooms, heard = noise.sound_field(twin, net, table, preset, room_id, x, z, listener)
+    return SoundField(source=source, doors=doors, include_furniture=include_furniture, rooms=rooms, listener=heard)
+
+
+def noise_report(property_id: str, room_id: str, scenario: NoiseScenario | None = None) -> NoiseReport:
+    """How loud a room is through the day from traffic, rail and background outside: 24 hourly
+    levels (dBA and octave bands), day/night averages, what it's made of, and the level just
+    outside its most exposed wall. scenario: glazing, carpet, furniture, windows open."""
+    scenario = scenario or NoiseScenario()
+    twin = get_twin(property_id)
+    out, data, caveats = _outdoor(property_id, twin.version)
+    net = _scenario_network(property_id, twin.version, scenario)
+    return noise.noise_report(twin, net, acoustics(), out, room_id, scenario, data, list(caveats))
+
+
+def noise_house(property_id: str, hour: int, scenario: NoiseScenario | None = None) -> NoiseHouse:
+    """Every room's level from outside at one local hour (for the floor-plan map and walking audio)."""
+    scenario = scenario or NoiseScenario()
+    twin = get_twin(property_id)
+    out, data, caveats = _outdoor(property_id, twin.version)
+    net = _scenario_network(property_id, twin.version, scenario)
+    return noise.noise_house(twin, net, acoustics(), out, hour, scenario, data, list(caveats))
+
+
+def noise_sources(property_id: str) -> NoiseSources:
+    """The roads and railways around the house, their traffic, and how loud each is at the house."""
+    twin = get_twin(property_id)
+    out, data, caveats = _outdoor(property_id, twin.version)
+    return noise.noise_sources(acoustics(), out, data, list(caveats))
+
+
+@lru_cache(maxsize=1)
+def traffic_tables() -> traffic.TrafficTables:
+    path = fixtures_dir() / "tables" / "traffic.json"
+    return traffic.load_traffic(json.loads(path.read_text(encoding="utf-8")), acoustics().a_weighting)
+
+
+def _scenario_network(property_id: str, version: int, scenario: NoiseScenario) -> noise.Network:
+    return _sound_network(property_id, version, "closed", scenario.include_furniture, scenario.add_carpet,
+                          scenario.glazing, scenario.windows_open)
+
+
+_outdoor_lock = threading.Lock()
+
+
+def _outdoor(property_id: str, version: int) -> tuple[traffic.Outdoor, TrafficData, tuple[str, ...]]:
+    with _outdoor_lock:  # one build per version, even when warm() and a request race
+        return _outdoor_cached(property_id, version)
+
+
+@lru_cache(maxsize=8)
+def _outdoor_cached(property_id: str, version: int) -> tuple[traffic.Outdoor, TrafficData, tuple[str, ...]]:
+    twin, t = get_twin(property_id), traffic_tables()
+    caveats = []
+    surroundings, stations = None, []
+    try:
+        surroundings = roads.surroundings(twin.lat, twin.lon)
+    except (IntegrationNotConfigured, RuntimeError) as e:
+        caveats.append(f"No road or building data ({e}); only background noise is modelled.")
+    if surroundings is not None:
+        try:
+            stations = roads.aadt_counts(twin.lat, twin.lon, twin.address)
+        except (IntegrationNotConfigured, RuntimeError) as e:
+            caveats.append(f"No traffic counts ({e}); road volumes are class defaults.")
+    sources = []
+    if surroundings is not None:
+        sources = traffic.road_sources(t, surroundings, stations, twin.lat, twin.lon)
+        sources += traffic.rail_sources(t, surroundings, twin.lat, twin.lon)
+    out = traffic.outdoor(twin, t, sources, surroundings)
+    roads_used = [s for s in sources if s.kind == "road"]
+    counted = [s.name for s in roads_used if s.data == "txdot_aadt"]
+    data: TrafficData = "aadt" if counted else "class_default" if roads_used else "none"
+    if counted:
+        caveats.append(f"Traffic counts (TxDOT AADT) for {', '.join(sorted(counted))}; other roads use "
+                       "typical volumes for their class. Hours follow a typical weekday.")
+    elif roads_used:
+        caveats.append("No traffic counts here: road volumes are typical for each road class.")
+    if any(s.kind == "rail" for s in sources):
+        trains = int(t.rail["trains_day"] + t.rail["trains_night"])
+        caveats.append(f"Rail uses default freight traffic ({trains} trains a day), not counts; horns at "
+                       "crossings are not included.")
+    caveats.append(f"Background ({t.background_category}) stands for unmodelled sound: distant city, AC "
+                   "units, insects. Aircraft are not modelled.")
+    caveats.append("Neighbouring buildings come from OpenStreetMap, which misses some houses; a built-up "
+                   "allowance covers the rest. Expect about +/-3 dB.")
+    return out, data, tuple(caveats)
 
 
 def area_profile(property_id: str) -> AreaProfile:
-    raise IntegrationNotConfigured("area", "the CoStar area profile (not built yet)")
+    """The home's own listing, comparable homes and nearby amenities, with a markdown summary.
+    Missing sources don't fail it: the gaps are listed in `caveats` (C3)."""
+    return _area_profile(property_id, get_twin(property_id).version)
 
 
 def area_search(property_id: str, query: str, limit: int = 10) -> list[Amenity]:
-    raise IntegrationNotConfigured("area", "the amenity search (not built yet)")
+    """Amenities near the home matching a free-text query ("coffee", "bus stop", "H-E-B"), nearest first."""
+    twin = get_twin(property_id)
+    _, _, pois, _ = _area_inputs(property_id, twin.version)
+    return area.search(area.amenities(twin, pois or []), query, limit)
 
 
 def get_comps(property_id: str) -> list[Comp]:
-    raise IntegrationNotConfigured("costar", "the CoStar comps lookup (not built yet)")
+    """Comparable homes nearby, most comparable first."""
+    return area_profile(property_id).comps
+
+
+@lru_cache(maxsize=32)
+def _area_profile(property_id: str, version: int) -> AreaProfile:
+    subject, nearby, pois, caveats = _area_inputs(property_id, version)
+    return area.build_profile(get_twin(property_id), subject, nearby, pois, list(caveats))
+
+
+@lru_cache(maxsize=32)
+def _area_inputs(property_id: str, version: int) -> tuple[dict | None, list | None, list | None, tuple[str, ...]]:
+    twin = get_twin(property_id)
+    caveats = []
+    subject = nearby = pois = None
+    listing_id = twin.sources.costar_listing_id
+    try:
+        subject = costar.home_listing(listing_id) if listing_id else None
+        nearby = costar.nearby_listings(twin.lat, twin.lon, area.COMP_RADIUS_M)
+    except (IntegrationNotConfigured, FixtureMissing) as e:
+        caveats.append(f"No CoStar listing data: {e}.")
+    try:
+        pois = osm.points_of_interest(twin.lat, twin.lon, area.AMENITY_RADIUS_M)
+    except (IntegrationNotConfigured, RuntimeError) as e:
+        caveats.append(f"No amenity data: {e}.")
+    return subject, nearby, pois, tuple(caveats)
 
 
 def weather(property_id: str, times: pd.DatetimeIndex, sky: SkySource) -> daylight.Weather:

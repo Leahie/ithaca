@@ -45,7 +45,9 @@ models in `packages/schema/{twin,reports}.py`; the OpenAPI schema at `/openapi.j
 | `GET /daylight/at?when[&sky=clear][&height_m=0][&room_id][&grids=true]` | `DaylightMoment` | lux per room, `grid` per room |
 | `GET /daylight/spot?room_id&x&z&date[&sky=clear][&height_m=1.1]` | `DaylightSpot` | 15-min lux series for one spot |
 | `GET /noise?room_id[&glazing][&add_carpet]` | `NoiseReport` | 503 not configured (not built yet) |
-| `GET /area` | `AreaProfile` | 503 not configured (not built yet) |
+| `GET /area` | `AreaProfile` | listing facts, comps, amenities, markdown (see below) |
+| `GET /area/search?q[&limit=10]` | `Amenity[]` | free text: "coffee", "bus", "Kroger" |
+| `GET /area/comps` | `Comp[]` | same as `AreaProfile.comps` |
 | `POST /ingest` | `{job_id}` | rebuild the twin; poll `GET /ingest/{job_id}` |
 
 Assets: `GET /api/assets/{key}` serves files under `fixtures/blobs/` (Range requests work, so
@@ -75,6 +77,21 @@ C checks: unique `opening_id`, known `room_id` / `other_room_id`, 4 corners in o
 (bottom-start, bottom-end, top-end, top-start), `facade_azimuth_deg` in [0, 360). On success
 the twin's `version` goes up by one and `quality.openings` becomes `"annotated"`; re-fetch the twin.
 Sun and daylight answers follow the new openings immediately. Annotations survive re-ingestion.
+
+### Area profile (Neighborhood tab)
+Added later the same day; schema changes are additive (re-run your TS codegen from
+`packages/schema/json/reports.schema.json`).
+- `listing` (`ListingFacts`): the home's own CoStar listing (price, status, days on market, sq ft,
+  beds, baths, year, lot, HOA, neighborhood, subdivision, `highlights`). Null if not linked.
+- `comps` (`Comp[]`): the 8 most comparable homes within 5 km, best first, each with `lat`/`lon`
+  for the map, `status` (`active`/`pending`/`sold`), `price_per_sqft`, and `price_kind`. Show
+  `last_asking` as "last asking price": Texas doesn't disclose sale prices.
+- `amenities` (`Amenity[]`): OpenStreetMap places within 2 km, the nearest 5 per `category`
+  (grocery, school, park, playground, transit, pharmacy, health, cafe, restaurant, fitness,
+  library, shopping, worship). `distance_m` is straight-line.
+- `markdown`: a ready summary (facts, price vs comps table, nearest of each kind with walking
+  minutes). Fine to render as-is in a side panel.
+- `caveats`: show them as small print. Missing sources appear here, never as an error.
 
 ### Speed (this laptop, after the twin is fetched)
 `twin` 30 ms · `sun/at` 20-160 ms · `daylight/at` 130-380 ms (first `typical` call per day

@@ -19,8 +19,8 @@ For this house: 2 floors, 24 rooms, 96 sweeps (84 inside a room, 12 outdoor scan
 REST is live: twin, `PUT /openings`, `SunReport`, sun and daylight moments, and asset serving.
 See `docs/handoffs/stream-a/2026-11-14-from-c-rest-endpoints.md` (run with
 `uvicorn services.api.twin.app:app --port 8000` until B mounts the router). Not ready yet:
-`context_glb` (neighbors and trees for shadows), `ortho` and `obliques`, `NoiseReport` and
-`AreaProfile` (both return 503 "not configured").
+`context_glb` (neighbors and trees for shadows), `ortho` and `obliques`, `NoiseReport` (503 "not
+configured"). `AreaProfile` (listing, comps, amenities) is live.
 
 ## 2. Frames and units
 

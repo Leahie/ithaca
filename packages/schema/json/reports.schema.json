@@ -10,6 +10,18 @@
           "title": "Distance M",
           "type": "number"
         },
+        "kind": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Kind"
+        },
         "lat": {
           "title": "Lat",
           "type": "number"
@@ -52,12 +64,31 @@
           "title": "Amenities",
           "type": "array"
         },
+        "caveats": {
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "title": "Caveats",
+          "type": "array"
+        },
         "comps": {
           "items": {
             "$ref": "#/$defs/Comp"
           },
           "title": "Comps",
           "type": "array"
+        },
+        "listing": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ListingFacts"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
         },
         "markdown": {
           "title": "Markdown",
@@ -78,6 +109,18 @@
           "title": "Address",
           "type": "string"
         },
+        "baths": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Baths"
+        },
         "beds": {
           "anyOf": [
             {
@@ -94,9 +137,74 @@
           "title": "Distance M",
           "type": "number"
         },
+        "lat": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Lat"
+        },
+        "listing_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Listing Id"
+        },
+        "lon": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Lon"
+        },
         "price": {
           "title": "Price",
           "type": "integer"
+        },
+        "price_kind": {
+          "anyOf": [
+            {
+              "enum": [
+                "sale",
+                "asking",
+                "last_asking"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Price Kind"
+        },
+        "price_per_sqft": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Price Per Sqft"
         },
         "sold_date": {
           "anyOf": [
@@ -122,6 +230,35 @@
           ],
           "default": null,
           "title": "Sqft"
+        },
+        "status": {
+          "anyOf": [
+            {
+              "enum": [
+                "active",
+                "pending",
+                "sold"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Status"
+        },
+        "year_built": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Year Built"
         }
       },
       "required": [
@@ -267,6 +404,208 @@
       "title": "DaylightSpot",
       "type": "object"
     },
+    "ListingFacts": {
+      "description": "The property's own listing (CoStar residential listings).",
+      "properties": {
+        "baths": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Baths"
+        },
+        "beds": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Beds"
+        },
+        "days_on_market": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Days On Market"
+        },
+        "highlights": {
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "title": "Highlights",
+          "type": "array"
+        },
+        "hoa_monthly": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Hoa Monthly"
+        },
+        "list_date": {
+          "anyOf": [
+            {
+              "format": "date",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "List Date"
+        },
+        "listing_id": {
+          "title": "Listing Id",
+          "type": "string"
+        },
+        "lot_acres": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Lot Acres"
+        },
+        "neighborhood": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Neighborhood"
+        },
+        "price": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Price"
+        },
+        "price_kind": {
+          "anyOf": [
+            {
+              "enum": [
+                "sale",
+                "asking",
+                "last_asking"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Price Kind"
+        },
+        "sqft": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Sqft"
+        },
+        "status": {
+          "anyOf": [
+            {
+              "enum": [
+                "active",
+                "pending",
+                "sold"
+              ],
+              "type": "string"
+            },
+            {
+              "const": "off_market",
+              "type": "string"
+            }
+          ],
+          "title": "Status"
+        },
+        "subdivision": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Subdivision"
+        },
+        "year_built": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Year Built"
+        },
+        "zip": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Zip"
+        }
+      },
+      "required": [
+        "listing_id",
+        "status"
+      ],
+      "title": "ListingFacts",
+      "type": "object"
+    },
     "LuxGrid": {
       "properties": {
         "cell_m": {
@@ -339,14 +678,134 @@
       "title": "NoiseHour",
       "type": "object"
     },
+    "NoiseHouse": {
+      "description": "Every room at one hour: the floor-plan map, and the audio as you walk around.",
+      "properties": {
+        "caveats": {
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "title": "Caveats",
+          "type": "array"
+        },
+        "hour": {
+          "title": "Hour",
+          "type": "integer"
+        },
+        "rooms": {
+          "items": {
+            "$ref": "#/$defs/NoiseRoomHour"
+          },
+          "title": "Rooms",
+          "type": "array"
+        },
+        "scenario": {
+          "$ref": "#/$defs/NoiseScenario"
+        },
+        "traffic": {
+          "enum": [
+            "aadt",
+            "class_default",
+            "none"
+          ],
+          "title": "Traffic",
+          "type": "string"
+        }
+      },
+      "required": [
+        "hour",
+        "scenario",
+        "rooms",
+        "traffic"
+      ],
+      "title": "NoiseHouse",
+      "type": "object"
+    },
     "NoiseReport": {
       "properties": {
+        "caveats": {
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "title": "Caveats",
+          "type": "array"
+        },
         "hourly": {
           "items": {
             "$ref": "#/$defs/NoiseHour"
           },
           "title": "Hourly",
           "type": "array"
+        },
+        "laeq_24h_dba": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Laeq 24H Dba"
+        },
+        "laeq_day_dba": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Laeq Day Dba"
+        },
+        "laeq_night_dba": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Laeq Night Dba"
+        },
+        "outdoor_hourly": {
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/NoiseHour"
+          },
+          "title": "Outdoor Hourly",
+          "type": "array"
+        },
+        "outdoor_lden_dba": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Outdoor Lden Dba"
+        },
+        "outdoor_lnight_dba": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Outdoor Lnight Dba"
         },
         "room_id": {
           "title": "Room Id",
@@ -365,6 +824,16 @@
           },
           "title": "Sources",
           "type": "array"
+        },
+        "traffic": {
+          "default": "none",
+          "enum": [
+            "aadt",
+            "class_default",
+            "none"
+          ],
+          "title": "Traffic",
+          "type": "string"
         }
       },
       "required": [
@@ -375,6 +844,50 @@
         "sources"
       ],
       "title": "NoiseReport",
+      "type": "object"
+    },
+    "NoiseRoomHour": {
+      "properties": {
+        "bands_db": {
+          "items": {
+            "type": "number"
+          },
+          "title": "Bands Db",
+          "type": "array"
+        },
+        "laeq_dba": {
+          "title": "Laeq Dba",
+          "type": "number"
+        },
+        "outdoor_bands_db": {
+          "items": {
+            "type": "number"
+          },
+          "title": "Outdoor Bands Db",
+          "type": "array"
+        },
+        "outdoor_laeq_dba": {
+          "title": "Outdoor Laeq Dba",
+          "type": "number"
+        },
+        "room_id": {
+          "title": "Room Id",
+          "type": "string"
+        },
+        "rt60_s": {
+          "title": "Rt60 S",
+          "type": "number"
+        }
+      },
+      "required": [
+        "room_id",
+        "laeq_dba",
+        "bands_db",
+        "outdoor_laeq_dba",
+        "outdoor_bands_db",
+        "rt60_s"
+      ],
+      "title": "NoiseRoomHour",
       "type": "object"
     },
     "NoiseScenario": {
@@ -405,6 +918,11 @@
           "default": true,
           "title": "Include Furniture",
           "type": "boolean"
+        },
+        "windows_open": {
+          "default": false,
+          "title": "Windows Open",
+          "type": "boolean"
         }
       },
       "title": "NoiseScenario",
@@ -416,9 +934,38 @@
           "title": "Contribution Dba",
           "type": "number"
         },
+        "kind": {
+          "anyOf": [
+            {
+              "enum": [
+                "road",
+                "rail",
+                "background"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Kind"
+        },
         "name": {
           "title": "Name",
           "type": "string"
+        },
+        "outdoor_dba": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Outdoor Dba"
         }
       },
       "required": [
@@ -426,6 +973,153 @@
         "contribution_dba"
       ],
       "title": "NoiseSource",
+      "type": "object"
+    },
+    "NoiseSources": {
+      "properties": {
+        "caveats": {
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "title": "Caveats",
+          "type": "array"
+        },
+        "sources": {
+          "items": {
+            "$ref": "#/$defs/OutdoorSource"
+          },
+          "title": "Sources",
+          "type": "array"
+        },
+        "traffic": {
+          "enum": [
+            "aadt",
+            "class_default",
+            "none"
+          ],
+          "title": "Traffic",
+          "type": "string"
+        }
+      },
+      "required": [
+        "sources",
+        "traffic"
+      ],
+      "title": "NoiseSources",
+      "type": "object"
+    },
+    "OutdoorSource": {
+      "properties": {
+        "aadt": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Aadt"
+        },
+        "data": {
+          "enum": [
+            "txdot_aadt",
+            "class_default",
+            "fta_default",
+            "ansi_category"
+          ],
+          "title": "Data",
+          "type": "string"
+        },
+        "distance_m": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Distance M"
+        },
+        "facade_laeq_dba": {
+          "title": "Facade Laeq Dba",
+          "type": "number"
+        },
+        "heavy_share": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Heavy Share"
+        },
+        "kind": {
+          "enum": [
+            "road",
+            "rail",
+            "background"
+          ],
+          "title": "Kind",
+          "type": "string"
+        },
+        "name": {
+          "title": "Name",
+          "type": "string"
+        },
+        "path": {
+          "default": [],
+          "items": {
+            "items": {
+              "maxItems": 2,
+              "minItems": 2,
+              "prefixItems": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "number"
+                }
+              ],
+              "type": "array"
+            },
+            "type": "array"
+          },
+          "title": "Path",
+          "type": "array"
+        },
+        "source_id": {
+          "title": "Source Id",
+          "type": "string"
+        },
+        "speed_kmh": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Speed Kmh"
+        }
+      },
+      "required": [
+        "source_id",
+        "name",
+        "kind",
+        "data",
+        "facade_laeq_dba"
+      ],
+      "title": "OutdoorSource",
       "type": "object"
     },
     "RoomDaylight": {
@@ -487,6 +1181,248 @@
         "level"
       ],
       "title": "RoomDaylight",
+      "type": "object"
+    },
+    "SoundCatalog": {
+      "properties": {
+        "loudness_dba": {
+          "additionalProperties": {
+            "type": "number"
+          },
+          "title": "Loudness Dba",
+          "type": "object"
+        },
+        "presets": {
+          "items": {
+            "$ref": "#/$defs/SoundPreset"
+          },
+          "title": "Presets",
+          "type": "array"
+        }
+      },
+      "required": [
+        "presets",
+        "loudness_dba"
+      ],
+      "title": "SoundCatalog",
+      "type": "object"
+    },
+    "SoundField": {
+      "properties": {
+        "doors": {
+          "enum": [
+            "closed",
+            "open"
+          ],
+          "title": "Doors",
+          "type": "string"
+        },
+        "include_furniture": {
+          "title": "Include Furniture",
+          "type": "boolean"
+        },
+        "listener": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/SoundListener"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "rooms": {
+          "items": {
+            "$ref": "#/$defs/SoundRoom"
+          },
+          "title": "Rooms",
+          "type": "array"
+        },
+        "source": {
+          "$ref": "#/$defs/SoundSource"
+        }
+      },
+      "required": [
+        "source",
+        "doors",
+        "include_furniture",
+        "rooms"
+      ],
+      "title": "SoundField",
+      "type": "object"
+    },
+    "SoundListener": {
+      "properties": {
+        "bands_db": {
+          "items": {
+            "type": "number"
+          },
+          "title": "Bands Db",
+          "type": "array"
+        },
+        "direct_fraction": {
+          "title": "Direct Fraction",
+          "type": "number"
+        },
+        "distance_m": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Distance M"
+        },
+        "gain_db": {
+          "items": {
+            "type": "number"
+          },
+          "title": "Gain Db",
+          "type": "array"
+        },
+        "laeq_dba": {
+          "title": "Laeq Dba",
+          "type": "number"
+        },
+        "position": {
+          "$ref": "#/$defs/Vec3"
+        },
+        "room_id": {
+          "title": "Room Id",
+          "type": "string"
+        },
+        "rt60_s": {
+          "title": "Rt60 S",
+          "type": "number"
+        }
+      },
+      "required": [
+        "room_id",
+        "position",
+        "distance_m",
+        "laeq_dba",
+        "bands_db",
+        "gain_db",
+        "direct_fraction",
+        "rt60_s"
+      ],
+      "title": "SoundListener",
+      "type": "object"
+    },
+    "SoundPreset": {
+      "properties": {
+        "bands_db": {
+          "items": {
+            "type": "number"
+          },
+          "title": "Bands Db",
+          "type": "array"
+        },
+        "label": {
+          "title": "Label",
+          "type": "string"
+        },
+        "level_dba": {
+          "title": "Level Dba",
+          "type": "number"
+        },
+        "preset_id": {
+          "title": "Preset Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "preset_id",
+        "label",
+        "level_dba",
+        "bands_db"
+      ],
+      "title": "SoundPreset",
+      "type": "object"
+    },
+    "SoundRoom": {
+      "properties": {
+        "bands_db": {
+          "items": {
+            "type": "number"
+          },
+          "title": "Bands Db",
+          "type": "array"
+        },
+        "gain_db": {
+          "items": {
+            "type": "number"
+          },
+          "title": "Gain Db",
+          "type": "array"
+        },
+        "laeq_dba": {
+          "title": "Laeq Dba",
+          "type": "number"
+        },
+        "room_id": {
+          "title": "Room Id",
+          "type": "string"
+        },
+        "rt60_bands_s": {
+          "items": {
+            "type": "number"
+          },
+          "title": "Rt60 Bands S",
+          "type": "array"
+        },
+        "rt60_s": {
+          "title": "Rt60 S",
+          "type": "number"
+        }
+      },
+      "required": [
+        "room_id",
+        "laeq_dba",
+        "bands_db",
+        "gain_db",
+        "rt60_s",
+        "rt60_bands_s"
+      ],
+      "title": "SoundRoom",
+      "type": "object"
+    },
+    "SoundSource": {
+      "properties": {
+        "bands_db": {
+          "items": {
+            "type": "number"
+          },
+          "title": "Bands Db",
+          "type": "array"
+        },
+        "level_dba": {
+          "title": "Level Dba",
+          "type": "number"
+        },
+        "position": {
+          "$ref": "#/$defs/Vec3"
+        },
+        "preset_id": {
+          "title": "Preset Id",
+          "type": "string"
+        },
+        "room_id": {
+          "title": "Room Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "room_id",
+        "position",
+        "preset_id",
+        "level_dba",
+        "bands_db"
+      ],
+      "title": "SoundSource",
       "type": "object"
     },
     "SunDay": {
