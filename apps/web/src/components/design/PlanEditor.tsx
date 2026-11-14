@@ -43,9 +43,11 @@ export function PlanEditor({ room, openings, layout, items, className }: Props) 
   const [note, setNote] = useState<{ tone: 'warn' | 'error'; text: string } | null>(null);
   const saved = useRef<Record<string, Pose>>({});
 
-  // The stored layout is the truth whenever nothing is being dragged.
+  // The stored layout is the truth when nothing is being dragged and no change is on its way to
+  // the server. (A reply to an earlier turn must not undo the turns made since.)
+  const pending = useRef(0);
   useEffect(() => {
-    if (drag) return;
+    if (drag || pending.current > 0) return;
     const next: Record<string, Pose> = {};
     for (const p of layout.placements) next[p.item_id] = { x: p.position.x, z: p.position.z, yaw: p.yaw_deg };
     saved.current = next;
@@ -76,13 +78,18 @@ export function PlanEditor({ room, openings, layout, items, className }: Props) 
     async (id: string, pose: Pose) => {
       const before = saved.current[id];
       if (before && Math.abs(before.x - pose.x) < 1e-3 && Math.abs(before.z - pose.z) < 1e-3 && Math.abs(before.yaw - pose.yaw) < 0.05) return;
+      pending.current += 1;
       try {
         const result = await api().movePlacement(layout.layout_id, id, { x: pose.x, z: pose.z, yaw_deg: norm(pose.yaw) });
         saved.current = { ...saved.current, [id]: pose };
         setNote(result.warnings?.length ? { tone: 'warn', text: result.warnings[0]! } : null);
-        invalidate('layouts:'); // the 3D views redraw from the stored layout
-        invalidate('layout:');
+        pending.current -= 1;
+        if (pending.current === 0) {
+          invalidate('layouts:'); // the 3D views redraw from the stored layout
+          invalidate('layout:');
+        }
       } catch (err) {
+        pending.current -= 1;
         // The only refusal is leaving the room: put the piece back where it was.
         if (before) setPoses((all) => ({ ...all, [id]: before }));
         const text = err instanceof Error ? err.message : String(err);
@@ -120,6 +127,7 @@ export function PlanEditor({ room, openings, layout, items, className }: Props) 
     if (!pose) return;
     const next = f(pose);
     setPoses((all) => ({ ...all, [id]: next }));
+    svg.current?.focus({ preventScroll: true }); // keep the keys on the plan for the next turn
     void commit(id, next);
   };
 

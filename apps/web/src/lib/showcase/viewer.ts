@@ -58,6 +58,7 @@ async function mountEmbed(host: HTMLElement, modelId: string): Promise<{ element
 
 async function mountBundle(host: HTMLElement, modelId: string): Promise<{ element: HTMLElement; connected: Promise<MpSdk> }> {
   installSplatShim(); // before the bundle makes its first request
+  quietTeardownError();
   await import('@matterport/webcomponent'); // registers <matterport-viewer>; touches `window`
   // Built by hand: the viewer reads its config from attributes, and React 19 would set them as
   // properties on a custom element (the model id then arrives empty).
@@ -66,6 +67,22 @@ async function mountBundle(host: HTMLElement, modelId: string): Promise<{ elemen
   for (const [k, v] of Object.entries(attrs)) node.setAttribute(k, v);
   host.appendChild(node);
   return { element: node, connected: node.sdkPromise };
+}
+
+let teardownQuieted = false;
+/**
+ * The Matterport bundle rejects a promise inside its own code whenever the viewer is taken down
+ * ("No Data was registered to the Module", from its autotours module's dispose). Nothing of ours
+ * is awaiting it and the viewer is gone by then, so it is noise, but Next's dev overlay reports
+ * every unhandled rejection as an error. Only that one message is swallowed.
+ */
+function quietTeardownError(): void {
+  if (teardownQuieted || typeof window === 'undefined') return;
+  teardownQuieted = true;
+  window.addEventListener('unhandledrejection', (event) => {
+    const message = event.reason instanceof Error ? event.reason.message : String(event.reason ?? '');
+    if (message.includes('No Data was registered to the Module')) event.preventDefault();
+  });
 }
 
 export function mountShowcase(host: HTMLElement, modelId: string, kind: ViewerKind = config.matterportViewer): ShowcaseHandle {

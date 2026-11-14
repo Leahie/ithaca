@@ -1,7 +1,7 @@
 'use client';
 
-import type { InventoryItem, PropertyTwin } from '@ithaca/schema';
-import { useMemo } from 'react';
+import type { InventoryItem, LayoutVariant, PropertyTwin } from '@ithaca/schema';
+import { useMemo, useRef } from 'react';
 import { PlanEditor } from '@/components/design/PlanEditor';
 import { api } from '@/lib/api';
 import { useInventory, useLayouts } from '@/lib/data/hooks';
@@ -20,7 +20,12 @@ export function ArrangePanel({ twin, onClose }: { twin: PropertyTwin; onClose():
   const listed = layouts.data?.find((l) => l.layout_id === layoutId);
   // A layout the agent just made may not be in the list yet: ask for it by id.
   const single = useResource(layoutId && layouts.data && !listed ? `layout:${layoutId}` : null, () => api().getLayout(layoutId!));
-  const layout = listed ?? single.data;
+  // Every change reloads the layout list, and for a moment there is no data. Keep showing the last
+  // layout meanwhile, so the editor stays mounted and the piece being turned stays selected.
+  const last = useRef<LayoutVariant | undefined>(undefined);
+  const fresh = listed ?? single.data;
+  if (fresh) last.current = fresh;
+  const layout = fresh ?? (last.current?.layout_id === layoutId ? last.current : undefined);
   const items = useMemo(() => new Map<string, InventoryItem>((inventory.data ?? []).map((i) => [i.item_id, i])), [inventory.data]);
   const room = layout ? twin.rooms.find((r) => r.room_id === layout.room_id) : undefined;
   const openings = useMemo(() => (room ? twin.openings.filter((o) => o.room_id === room.room_id || o.other_room_id === room.room_id) : []), [twin.openings, room]);
