@@ -53,7 +53,7 @@ query TwinInputs($id: ID!) { model(id: $id) {
     dimensions(units: metric) { areaFloor width depth height }
     dimensionEstimates(units: metric) { area height lowerElevation }
   }
-  panoLocations { id label placement position { x y z } anchor { floor { id } room { id } } }
+  panoLocations { id label placement position { x y z } rotation { x y z w } anchor { floor { id } room { id } } }
 } }
 """
 
@@ -63,6 +63,11 @@ query TwinInputs($id: ID!) { model(id: $id) {
 MATTERPAK_QUERY = """
 query MatterPak($id: ID!) { model(id: $id) {
   bundle(id: "mp:matterpak") { availability processing { status } assets { filename status url } }
+} }
+"""
+SKYBOX_QUERY = """
+query Skyboxes($id: ID!, $res: String!) { model(id: $id) {
+  panoLocations { id skybox(resolution: $res) { children } }
 } }
 """
 
@@ -104,6 +109,12 @@ class MatterportClient:
             f"no MatterPak for {model_id} (availability: {bundle.get('availability')}, "
             f"processing: {(bundle.get('processing') or {}).get('status')})"
         )
+
+    def skybox_urls(self, model_id: str, resolution: str) -> dict[str, list[str]]:
+        """Each sweep's six skybox face links. Never cached: the links expire."""
+        body = self._post({"query": " ".join(SKYBOX_QUERY.split()), "variables": {"id": model_id, "res": resolution}})
+        panos = ((body["data"] or {}).get("model") or {}).get("panoLocations") or []
+        return {p["id"]: (p.get("skybox") or {}).get("children") or [] for p in panos}
 
     def _post(self, request: dict) -> dict:
         if not (self.api_key and self.api_token):
