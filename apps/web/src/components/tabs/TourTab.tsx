@@ -508,44 +508,80 @@ export function TourTab({ twin, active }: { twin: PropertyTwin; active: boolean 
     });
   }, [layouts.data, inventory.data, selectedLayoutId]);
 
+  // One scene object per piece, kept between changes: a piece that only moved or turned is
+  // re-posed where it stands, a new one is loaded, one that left is taken out. Nothing else is
+  // touched, so the rest of the room does not blink while one piece is edited.
+  const pieces = useRef(new Map<string, { url: string; object: MpSdk.Scene.IObject; node: MpSdk.Scene.INode }>());
+  const sceneLights = useRef<MpSdk.Scene.IObject | null>(null);
+  const placeRun = useRef(0);
   useEffect(() => {
     if (!sdk || !canPlaceObjects) return;
-    let cancelled = false;
-    let stop: (() => void) | null = null;
-    exposeForTests('tourPlacedItemIds', []);
-    if (!placements.length) {
-      setPlaced({ count: 0, error: null });
-      return;
+    const run = ++placeRun.current;
+    const have = pieces.current;
+    const want = new Map(placements.map((p) => [p.item_id, p]));
+    for (const [id, piece] of [...have]) {
+      if (want.get(id)?.url === piece.url) continue;
+      piece.object.stop();
+      have.delete(id);
     }
+    const pose = (node: MpSdk.Scene.INode, p: (typeof placements)[number]) => {
+      // A5: the stored pose, as it is. Interior frame == Showcase frame (I-G9); yaw is about +Y (I-G12).
+      node.position.set(p.position.x, p.position.y, p.position.z);
+      const half = (p.yaw_deg * Math.PI) / 360;
+      node.quaternion.set(0, Math.sin(half), 0, Math.cos(half));
+    };
     void (async () => {
       try {
-        const [object] = await sdk.Scene.createObjects(1);
-        if (!object) throw new Error('Scene.createObjects returned nothing');
-        if (cancelled) return object.stop();
-        const lights = object.addNode();
-        lights.addComponent('mp.ambientLight', { intensity: 1.1 });
-        lights.addComponent('mp.directionalLight', { intensity: 1.4, position: { x: 2, y: 6, z: 3 }, target: { x: 0, y: 0, z: 0 } });
+        if (placements.length && !sceneLights.current) {
+          const [object] = await sdk.Scene.createObjects(1);
+          if (!object) throw new Error('Scene.createObjects returned nothing');
+          if (sceneLights.current) object.stop();
+          else {
+            const lights = object.addNode();
+            lights.addComponent('mp.ambientLight', { intensity: 1.1 });
+            lights.addComponent('mp.directionalLight', { intensity: 1.4, position: { x: 2, y: 6, z: 3 }, target: { x: 0, y: 0, z: 0 } });
+            object.start();
+            sceneLights.current = object;
+          }
+        }
         for (const p of placements) {
+          if (placeRun.current !== run) return; // a newer change takes over from here
+          const piece = have.get(p.item_id);
+          if (piece) {
+            pose(piece.node, p);
+            continue;
+          }
+          const [object] = await sdk.Scene.createObjects(1);
+          if (!object) throw new Error('Scene.createObjects returned nothing');
+          if (placeRun.current !== run || have.has(p.item_id)) {
+            object.stop();
+            if (placeRun.current !== run) return;
+            continue;
+          }
           const node = object.addNode();
           node.addComponent('mp.gltfLoader', { url: p.url, colliderEnabled: false });
-          // A5: the stored pose, as it is. Interior frame == Showcase frame (I-G9); yaw is about +Y (I-G12).
-          node.position.set(p.position.x, p.position.y, p.position.z);
-          const half = (p.yaw_deg * Math.PI) / 360;
-          node.quaternion.set(0, Math.sin(half), 0, Math.cos(half));
+          pose(node, p);
+          object.start();
+          have.set(p.item_id, { url: p.url, object, node });
         }
-        object.start();
-        stop = () => object.stop();
         setPlaced({ count: placements.length, error: null });
         exposeForTests('tourPlacedItemIds', placements.map((p) => p.item_id));
       } catch (err) {
-        if (!cancelled) setPlaced({ count: 0, error: err instanceof Error ? err.message : String(err) });
+        if (placeRun.current === run) setPlaced({ count: have.size, error: err instanceof Error ? err.message : String(err) });
       }
     })();
-    return () => {
-      cancelled = true;
-      stop?.();
-    };
   }, [sdk, placements]);
+  // The viewer going away takes every piece with it.
+  useEffect(() => {
+    const have = pieces.current;
+    return () => {
+      placeRun.current += 1;
+      for (const piece of have.values()) piece.object.stop();
+      have.clear();
+      sceneLights.current?.stop();
+      sceneLights.current = null;
+    };
+  }, [sdk]);
 
   // A tour that never becomes interactive must say so, not sit there looking broken.
   const [slow, setSlow] = useState(false);

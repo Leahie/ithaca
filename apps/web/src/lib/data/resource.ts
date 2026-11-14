@@ -4,7 +4,8 @@ import { useCallback, useEffect, useState } from 'react';
 
 /**
  * A small keyed async cache. `useResource(key, loader)` loads once per key and shares the
- * result; `invalidate(prefix)` drops matching keys and makes mounted users reload.
+ * result; `invalidate(prefix)` drops matching keys and makes mounted users reload. While a
+ * reload is on its way the previous value is still returned.
  */
 interface Entry {
   promise: Promise<unknown>;
@@ -16,8 +17,15 @@ interface Entry {
 const cache = new Map<string, Entry>();
 const listeners = new Set<() => void>();
 
+/** The last loaded value per key, shown while a reload is on its way, so nothing blinks empty. */
+const stale = new Map<string, unknown>();
+
 export function invalidate(prefix: string): void {
-  for (const key of [...cache.keys()]) if (key.startsWith(prefix)) cache.delete(key);
+  for (const [key, entry] of [...cache.entries()]) {
+    if (!key.startsWith(prefix)) continue;
+    if (entry.done && !entry.error) stale.set(key, entry.data);
+    cache.delete(key);
+  }
   listeners.forEach((l) => l());
 }
 
@@ -71,5 +79,6 @@ export function useResource<T>(key: string | null, loader: () => Promise<T>): Re
     if (key) invalidate(key);
   }, [key]);
 
-  return { data: entry?.data as T | undefined, error: entry?.error, loading: !!key && !entry?.done, reload };
+  const data = entry?.done ? entry.data : key ? stale.get(key) : undefined;
+  return { data: data as T | undefined, error: entry?.error, loading: !!key && !entry?.done, reload };
 }

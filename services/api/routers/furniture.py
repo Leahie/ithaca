@@ -132,7 +132,8 @@ def remove_placement(layout_id: str, item_id: str, x_user_id: str = Header("demo
 def drop_item(body: PlacementDrop, x_user_id: str = Header("demo")) -> LayoutVariant:
     """The user pointed at a spot (a pin on the floor plan) for one of their pieces. The piece is
     put at the closest spot near there that breaks no rule, backed against the wall if the pin is
-    by one. With `layout_id` it joins or moves within that layout; without, a new layout starts."""
+    by one. With `layout_id` it joins or moves within that layout; without, it joins the room's own
+    layout (the chosen one, else the newest), and only a room with none starts a new layout."""
     store = furniture_store()
     twin = get_twin(body.property_id)
     owned = store.get_item(x_user_id, body.item_id)
@@ -146,6 +147,11 @@ def drop_item(body: PlacementDrop, x_user_id: str = Header("demo")) -> LayoutVar
         if not under:
             raise HTTPException(422, "that spot is not inside a room")
         room_id = min(under, key=lambda r: r.area_m2 or 0).room_id
+    if layout is None:
+        # the room's own layout, if it has one: a piece added by hand joins the furniture already
+        # there (the chosen layout, else the newest) and never starts a second, emptier one
+        in_room = store.list_layouts(x_user_id, body.property_id, room_id)
+        layout = next((l for l in in_room if l.status == "chosen"), in_room[0] if in_room else None)
     if layout is None:
         layout = LayoutVariant(
             layout_id=uuid.uuid4(), user_id=x_user_id, property_id=body.property_id, room_id=room_id,

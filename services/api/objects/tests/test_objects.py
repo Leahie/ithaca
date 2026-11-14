@@ -140,7 +140,8 @@ def test_moving_a_piece_is_saved_only_when_the_layout_stays_valid(client):
     dropped = client.post("/api/layouts/drop", headers=alice, json=drop)
     assert dropped.status_code == 200 and len(dropped.json()["placements"]) == 3
     fresh = client.post("/api/layouts/drop", headers=alice, json={**drop, "layout_id": None, "floor_id": room.floor_id}).json()
-    assert fresh["room_id"] == LIVING_ROOM and len(fresh["placements"]) == 1  # no layout given: the room is found from the pin
+    # no layout given: the room is found from the pin, and the piece joins that room's own layout
+    assert fresh["room_id"] == LIVING_ROOM and fresh["layout_id"] == str(layout.layout_id) and len(fresh["placements"]) == 3
 
 
 def test_catalog_piece_is_added_at_its_own_size(client, monkeypatch, tmp_path):
