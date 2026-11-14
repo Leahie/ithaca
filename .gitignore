@@ -18,3 +18,4 @@ playwright-report/
 .DS_Store
 # Matterport bundle assets are copied from node_modules at install time
 apps/web/public/matterport-assets/
+apps/web/public/mediapipe/

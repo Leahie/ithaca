@@ -2,12 +2,12 @@
  * Runtime config from the environment. A missing key disables a feature; it never stops
  * startup (I-G21). The Showcase SDK key is the only secret the frontend holds (I-G22).
  */
-/** Parts of the app that can be switched on. The default is the tour alone. */
-export const FEATURES = ['tour', 'sun', 'sound', 'neighborhood', 'design', 'agent', 'phone', 'me'] as const;
+/** Parts of the app that can be switched on. The default is the tour, the Sun Lab and hand control. */
+export const FEATURES = ['tour', 'sun', 'sound', 'neighborhood', 'design', 'agent', 'phone', 'me', 'hands'] as const;
 export type Feature = (typeof FEATURES)[number];
 
 function parseFeatures(raw: string | undefined): ReadonlySet<Feature> {
-  const wanted = (raw ?? 'tour').split(',').map((s) => s.trim().toLowerCase()).filter(Boolean);
+  const wanted = (raw ?? 'tour,sun,hands').split(',').map((s) => s.trim().toLowerCase()).filter(Boolean);
   if (wanted.includes('all')) return new Set(FEATURES);
   const set = new Set(FEATURES.filter((f) => wanted.includes(f)));
   // At least one view must exist.
@@ -18,7 +18,8 @@ function parseFeatures(raw: string | undefined): ReadonlySet<Feature> {
 export const config = {
   /**
    * What the house page shows: any of tour, sun, sound, neighborhood, design (views), agent
-   * (chat dock), phone (pairing), me (link to /me); or "all". Default: "tour".
+   * (chat dock), phone (pairing), me (link to /me), hands (drag and zoom the view with your hands,
+   * through the webcam); or "all". Default: "tour,sun,hands".
    */
   features: parseFeatures(process.env.NEXT_PUBLIC_FEATURES),
   /** "embed" (hosted viewer, has the outside view) or "bundle" (can place 3D objects). */
@@ -30,6 +31,8 @@ export const config = {
   /** WebSocket origin, e.g. ws://192.168.1.20:8000. Empty = same host as the page, port 8000. */
   wsBase: (process.env.NEXT_PUBLIC_WS_BASE ?? '').replace(/\/$/, ''),
   matterportSdkKey: process.env.NEXT_PUBLIC_MATTERPORT_SDK_KEY ?? '',
+  /** MediaPipe hand landmarker model. Loaded when hand control is first turned on. */
+  handModelUrl: process.env.NEXT_PUBLIC_HAND_MODEL_URL || 'https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task',
   /** I-G19: the property id comes from config, never from code. */
   defaultPropertyId: process.env.NEXT_PUBLIC_DEFAULT_PROPERTY_ID ?? '',
   /** I-G18: v1 has one user, sent as X-User-Id. */

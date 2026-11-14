@@ -1,4 +1,5 @@
-// Copies the Matterport Bundle SDK assets next to the app (public/matterport-assets, gitignored).
+// Copies the Matterport Bundle SDK assets next to the app (public/matterport-assets, gitignored),
+// and MediaPipe's wasm for hand tracking (public/mediapipe).
 // The <matterport-viewer> web component loads them from there (asset-base="matterport-assets").
 import { cp, access } from 'node:fs/promises';
 import { createRequire } from 'node:module';
@@ -18,4 +19,14 @@ try {
 } catch (err) {
   // I-G21: a missing piece disables the Tour tab, it does not break install.
   console.warn(`matterport assets not copied (${err.message}); the Tour tab will be unavailable`);
+}
+
+try {
+  // MediaPipe's wasm for hand tracking, served from public/mediapipe/wasm (gitignored).
+  const pkg = path.dirname(require.resolve('@mediapipe/tasks-vision'));
+  await cp(path.join(pkg, 'wasm'), path.join(here, '..', 'public', 'mediapipe', 'wasm'), { recursive: true });
+  console.log('mediapipe wasm copied to public/mediapipe/wasm');
+} catch (err) {
+  // A missing piece disables hand control, it does not break install.
+  console.warn(`mediapipe wasm not copied (${err.message}); hand control will be unavailable`);
 }

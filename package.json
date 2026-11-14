@@ -6,7 +6,6 @@
     "dev": "pnpm --filter @ithaca/web dev",
     "build": "pnpm --filter @ithaca/web build",
     "test": "pnpm --filter @ithaca/web test",
-    "e2e": "pnpm --filter @ithaca/web e2e",
     "typecheck": "pnpm --filter @ithaca/web typecheck",
     "schema:codegen": "pnpm --filter @ithaca/schema codegen",
     "schema:check": "pnpm --filter @ithaca/schema check"
