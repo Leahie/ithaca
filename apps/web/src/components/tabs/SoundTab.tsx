@@ -308,7 +308,7 @@ export function SoundTab({ twin }: { twin: PropertyTwin }) {
                   ))}
                 </ul>
                 {twin.quality.traffic !== 'aadt' && (
-                  <p className="mt-4 text-xs leading-5 text-sun">
+                  <p className="mt-4 text-xs leading-5 text-sun-deep">
                     {twin.quality.traffic === 'none' ? 'No traffic data for this address.' : 'Traffic volumes are defaults for the road class, not counts for this street.'} Treat the levels as estimates.
                   </p>
                 )}

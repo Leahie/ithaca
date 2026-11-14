@@ -99,7 +99,7 @@ export function AgentDock() {
               setSpeak(!speak);
             }}
             aria-pressed={speak}
-            className={cn('rounded px-1.5 py-0.5 text-[11px]', speak ? 'bg-sun/15 text-sun' : 'text-faint hover:text-muted')}
+            className={cn('rounded px-1.5 py-0.5 text-[11px]', speak ? 'bg-sun/15 text-sun-deep' : 'text-faint hover:text-muted')}
           >
             {speak ? 'Voice replies on' : 'Voice replies off'}
           </button>

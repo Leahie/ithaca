@@ -7,7 +7,9 @@ import type { HandView } from '@/lib/hands/engine';
 import { handEngine, onHandTick, useHands } from '@/lib/hands/store';
 
 /** The user's left hand is sky blue and the right coral, as in HoloTouch. */
-const COLOR = { L: '#6fb6e8', R: '#ef8a6f' } as const;
+const COLOR = { L: '#4aa8ff', R: '#ff6b5c' } as const;
+const CREAM = '#fbf3e4';
+const INK = '#1e1b2e';
 
 /** Bones of the 21-point MediaPipe hand. */
 const BONES: [number, number][] = [
@@ -31,8 +33,9 @@ export function HandsButton() {
       aria-pressed={on}
       title={status === 'error' ? (error ?? undefined) : on ? 'Stop hand control and turn the camera off' : 'Control the view with your hands, through the camera'}
       className={cn(
-        'inline-flex h-9 items-center gap-1.5 rounded-md px-3 text-sm transition-colors',
-        on ? 'bg-sky/15 text-sky hover:bg-sky/25' : status === 'error' ? 'text-danger hover:bg-raised' : 'text-muted hover:bg-raised hover:text-text',
+        'inline-flex h-10 items-center gap-1.5 rounded-full px-3.5 font-display font-semibold transition-colors',
+        // Switched on is mint, as everywhere in the language.
+        on ? 'bg-leaf text-main hover:bg-leaf/85' : status === 'error' ? 'text-danger hover:bg-ink' : 'text-muted hover:bg-ink hover:text-text',
       )}
     >
       <IconHand />
@@ -66,8 +69,8 @@ function drawCursors(canvas: HTMLCanvasElement, hands: HandView[], zooming: bool
   if (zooming && hands.length === 2) {
     const [a, b] = hands.map(at) as [[number, number], [number, number]];
     ctx.setLineDash([6, 6]);
-    ctx.strokeStyle = 'rgba(236,231,223,0.55)';
-    ctx.lineWidth = 1.5;
+    ctx.strokeStyle = CREAM;
+    ctx.lineWidth = 2;
     ctx.beginPath();
     ctx.moveTo(a[0], a[1]);
     ctx.lineTo(b[0], b[1]);
@@ -78,32 +81,57 @@ function drawCursors(canvas: HTMLCanvasElement, hands: HandView[], zooming: bool
   for (const hand of hands) {
     const [x, y] = at(hand);
     const color = COLOR[hand.side];
-    const r = hand.pinching ? 11 : 26 - 12 * hand.strength;
+    // Ready 28 px radius (56 px ring), closing toward holding at 24 (48 px).
+    const r = hand.pinching ? 24 : 28 - 4 * hand.strength;
     ctx.globalAlpha = hand.stale ? 0.4 : 1;
-    // Ink halo first, so the ring reads over light and dark scenes alike.
-    ctx.lineWidth = 6;
-    ctx.strokeStyle = 'rgba(14,13,11,0.45)';
-    ctx.beginPath();
-    ctx.arc(x, y, r, 0, Math.PI * 2);
-    ctx.stroke();
-    ctx.lineWidth = 2.5;
-    ctx.strokeStyle = color;
-    ctx.setLineDash(hand.stale ? [4, 4] : []);
-    ctx.beginPath();
-    ctx.arc(x, y, r, 0, Math.PI * 2);
-    ctx.stroke();
+    // The keyline: an ink hairline outside a cream line, then the ring in the hand's colour. It
+    // reads over a bright exterior and a dark hallway alike.
+    ring(ctx, x, y, r, 10.5, 'rgba(30,27,46,0.8)');
+    ring(ctx, x, y, r, 8, CREAM);
+    ctx.setLineDash(hand.stale ? [5, 5] : []);
+    ring(ctx, x, y, r, 4, color);
     ctx.setLineDash([]);
-    if (hand.pinching) {
+    // The dot is the measured pinch: it grows as the fingers close and is full while holding.
+    const dot = hand.pinching ? 13 : 7 * hand.strength;
+    if (dot > 0.5) {
       ctx.fillStyle = color;
       ctx.beginPath();
-      ctx.arc(x, y, 4.5, 0, Math.PI * 2);
+      ctx.arc(x, y, dot, 0, Math.PI * 2);
       ctx.fill();
     }
-    ctx.font = '600 10px ui-sans-serif, system-ui, sans-serif';
+    // The tag: the hand's letter on its own side, Fredoka 16 px, ink on the hand's colour.
+    const tx = hand.side === 'L' ? x - r - 6 : x + r + 6;
+    const ty = y - r + 2;
+    ctx.fillStyle = CREAM;
+    ctx.beginPath();
+    ctx.arc(tx, ty, 15, 0, Math.PI * 2);
+    ctx.fill();
     ctx.fillStyle = color;
-    ctx.fillText(hand.side, x + r + 5, y - r + 4);
+    ctx.beginPath();
+    ctx.arc(tx, ty, 13, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = INK;
+    ctx.font = `500 16px ${displayFamily()}`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(hand.side, tx, ty + 1);
     ctx.globalAlpha = 1;
   }
+}
+
+/** Canvas fonts cannot read CSS variables: resolve the Fredoka family next/font named. */
+let family: string | null = null;
+function displayFamily(): string {
+  family ??= `${getComputedStyle(document.documentElement).getPropertyValue('--font-fredoka').trim() || 'Fredoka'}, ui-rounded, system-ui, sans-serif`;
+  return family;
+}
+
+function ring(ctx: CanvasRenderingContext2D, x: number, y: number, r: number, width: number, color: string) {
+  ctx.lineWidth = width;
+  ctx.strokeStyle = color;
+  ctx.beginPath();
+  ctx.arc(x, y, r, 0, Math.PI * 2);
+  ctx.stroke();
 }
 
 /** The tracked hands drawn over the camera picture. */
@@ -125,7 +153,7 @@ function drawSkeletons(canvas: HTMLCanvasElement, hands: HandView[]) {
       ctx.lineTo(p[b]!.x * w, p[b]!.y * h);
     }
     ctx.stroke();
-    ctx.fillStyle = hand.pinching ? '#ece7df' : COLOR[hand.side];
+    ctx.fillStyle = hand.pinching ? CREAM : COLOR[hand.side];
     for (const i of [4, 8]) {
       ctx.beginPath();
       ctx.arc(p[i]!.x * w, p[i]!.y * h, hand.pinching ? 3.5 : 2.5, 0, Math.PI * 2);
@@ -180,24 +208,24 @@ export function HandsOverlay() {
   return (
     <>
       <canvas ref={cursors} className="pointer-events-none absolute inset-0 z-30 h-full w-full" aria-hidden />
-      <div className="absolute bottom-3 left-3 z-30 w-60 overflow-hidden rounded-lg border border-line bg-ink/90 shadow-lg" data-testid="hands-preview">
+      <div className="absolute bottom-3 left-3 z-30 w-64 overflow-hidden rounded-[var(--radius-frame)] border border-line bg-surface shadow-float" data-testid="hands-preview">
         {status === 'error' ? (
-          <div className="space-y-2 p-3 text-xs">
-            <p className="font-medium text-danger">Hand control could not start</p>
-            <p className="text-muted">{error}</p>
-            <button type="button" onClick={stop} className="text-muted underline hover:text-text">
+          <div className="space-y-2 p-4 text-sm">
+            <p className="font-semibold text-danger">Hand control could not start</p>
+            <p className="text-[13.5px] text-muted">{error}</p>
+            <button type="button" onClick={stop} className="min-h-11 font-display font-semibold text-text underline">
               Dismiss
             </button>
           </div>
         ) : (
           <>
-            <div ref={preview} className="relative aspect-video w-full bg-black">
+            <div ref={preview} className="relative aspect-video w-full bg-[#26232f]">
               <canvas ref={skeletons} className="absolute inset-0 h-full w-full" aria-hidden />
-              {status === 'starting' && <span className="absolute inset-0 grid place-items-center text-xs text-muted">Starting the camera…</span>}
+              {status === 'starting' && <span className="absolute inset-0 grid place-items-center font-display text-base font-medium text-cream/80">Starting the camera…</span>}
             </div>
-            <div className="flex items-center justify-between gap-2 px-2.5 py-1.5 text-[11px] text-muted">
-              <span ref={hint}>{status === 'starting' ? 'Loading hand tracking…' : ''}</span>
-              <button type="button" onClick={stop} className="shrink-0 hover:text-text" aria-label="Turn hand control off">
+            <div className="flex items-center justify-between gap-2 py-1 pr-1 pl-3 font-display text-base font-medium text-text">
+              <span ref={hint} className="leading-5">{status === 'starting' ? 'Loading hand tracking…' : ''}</span>
+              <button type="button" onClick={stop} className="h-11 min-w-11 shrink-0 rounded-full px-3 font-semibold text-muted hover:bg-ink hover:text-text" aria-label="Turn hand control off">
                 Off
               </button>
             </div>

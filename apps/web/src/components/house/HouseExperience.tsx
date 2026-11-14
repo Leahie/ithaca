@@ -16,6 +16,7 @@ import { useSession } from '@/lib/store/session';
 import { sunPosition } from '@/lib/sun/position';
 import { fromZonedParts, toZonedIso, zonedParts } from '@/lib/time';
 import { AgentDock } from './AgentDock';
+import { HouseLoader } from './HouseLoader';
 import { PairingButton } from './PairingButton';
 import { RoomRail } from './RoomRail';
 
@@ -24,7 +25,8 @@ const loading = () => (
     <Spinner label="Loading view…" />
   </ViewState>
 );
-const TourTab = dynamic(() => import('@/components/tabs/TourTab').then((m) => m.TourTab), { ssr: false, loading });
+// The tour's code loads behind the same screen the tour then shows while it starts.
+const TourTab = dynamic(() => import('@/components/tabs/TourTab').then((m) => m.TourTab), { ssr: false, loading: () => <HouseLoader label="Starting the tour…" /> });
 const SunLabTab = dynamic(() => import('@/components/tabs/SunLabTab').then((m) => m.SunLabTab), { ssr: false, loading });
 const SoundTab = dynamic(() => import('@/components/tabs/SoundTab').then((m) => m.SoundTab), { ssr: false, loading });
 const NeighborhoodTab = dynamic(() => import('@/components/tabs/NeighborhoodTab').then((m) => m.NeighborhoodTab), { ssr: false, loading });
@@ -116,20 +118,14 @@ function House({ propertyId }: { propertyId: string }) {
       </ViewState>
     );
   }
-  if (!twin.data) {
-    return (
-      <ViewState>
-        <Spinner label="Loading the home…" />
-      </ViewState>
-    );
-  }
+  if (!twin.data) return <HouseLoader label="Loading the home…" className="h-dvh" />;
   const t = twin.data;
 
   return (
     <div className="flex h-dvh flex-col" data-testid="house" data-mode={mode} data-features={[...config.features].join(' ')}>
-      <header className="flex h-13 shrink-0 items-center gap-4 border-b border-line bg-surface px-4">
-        <Link href="/" className="flex items-center gap-2 text-sm font-semibold tracking-wide">
-          <span className="h-2.5 w-2.5 rounded-full bg-sun" />
+      <header className="flex h-16 shrink-0 items-center gap-4 border-b border-line bg-surface px-4">
+        <Link href="/" className="flex items-center gap-2 font-display text-lg font-semibold">
+          <span className="h-3 w-3 rounded-full bg-sun shadow-[0_0_0_1.5px_var(--color-main)]" />
           Ithaca
         </Link>
         <div className="hidden min-w-0 items-center gap-2 lg:flex">
@@ -138,7 +134,7 @@ function House({ propertyId }: { propertyId: string }) {
           {config.useFixtures && <Badge tone="sky" title="NEXT_PUBLIC_USE_FIXTURES=1: data comes from the fixtures folder and the agent is scripted.">Fixture mode</Badge>}
         </div>
         {VIEWS.length > 1 ? (
-          <nav aria-label="Views" className="mx-auto flex rounded-lg border border-line bg-ink p-0.5" role="tablist">
+          <nav aria-label="Views" className="mx-auto flex gap-1 rounded-full bg-ink p-1" role="tablist">
             {VIEWS.map(({ mode: m, label, icon: Icon }) => (
               <button
                 key={m}
@@ -148,8 +144,8 @@ function House({ propertyId }: { propertyId: string }) {
                 data-tab={m}
                 onClick={() => dispatch('viewer.setMode', { mode: m })}
                 className={cn(
-                  'flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm transition-colors',
-                  m === mode ? 'bg-raised text-text shadow-[inset_0_0_0_1px_var(--color-line-strong)]' : 'text-muted hover:text-text',
+                  'flex h-10 items-center gap-2 rounded-full px-4 font-display text-base font-semibold transition-colors',
+                  m === mode ? 'bg-raised text-text shadow-[0_2px_0_var(--color-line)]' : 'text-muted hover:text-text',
                 )}
               >
                 <Icon />
@@ -164,13 +160,13 @@ function House({ propertyId }: { propertyId: string }) {
           {has('hands') && <HandsButton />}
           {has('phone') && <PairingButton propertyId={propertyId} />}
           {has('me') && (
-            <Link href="/me" className="inline-flex h-9 items-center gap-1.5 rounded-md px-3 text-sm text-muted hover:bg-raised hover:text-text">
+            <Link href="/me" className="inline-flex h-10 items-center gap-1.5 rounded-full px-3.5 font-display font-semibold text-muted hover:bg-ink hover:text-text">
               <IconUser />
               <span className="hidden xl:inline">Me</span>
             </Link>
           )}
           {has('agent') && (
-            <button type="button" onClick={() => setDockOpen(!dockOpen)} aria-pressed={dockOpen} className="inline-flex h-9 items-center rounded-md px-3 text-sm text-muted hover:bg-raised hover:text-text">
+            <button type="button" onClick={() => setDockOpen(!dockOpen)} aria-pressed={dockOpen} className="inline-flex h-10 items-center rounded-full px-3.5 font-display font-semibold text-muted hover:bg-ink hover:text-text">
               {dockOpen ? 'Hide agent' : 'Agent'}
             </button>
           )}
@@ -201,7 +197,7 @@ function House({ propertyId }: { propertyId: string }) {
             </div>
           )}
           {(mode === 'sound' || mode === 'neighborhood' || mode === 'design') && (
-            <div className="absolute inset-0 z-10 bg-ink">
+            <div className="absolute inset-0 z-10 bg-surface">
               {mode === 'sound' && <SoundTab twin={t} />}
               {mode === 'neighborhood' && <NeighborhoodTab twin={t} />}
               {mode === 'design' && <DesignTab twin={t} />}

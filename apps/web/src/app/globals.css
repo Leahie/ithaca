@@ -1,21 +1,42 @@
 @import 'tailwindcss';
 
+/* Ithaca design language (HoloTouch's cream and ink). The colour names are the app's long-standing
+   roles; their values follow the design system:
+   surface = cream ground, raised = paper, ink = sunk wells and tracks, main = the one solid control.
+   Accents each have one job: sky the left hand, coral the right, sun (butter) the sun and anything
+   filling up, leaf (mint) running or done, lilac somewhere further to go. A `-deep` twin is the
+   accent as text on cream. Text on an accent fill is `main`, never white. */
 @theme {
-  --color-ink: #0e0d0b;
-  --color-surface: #171512;
-  --color-raised: #201d19;
-  --color-line: #2f2b25;
-  --color-line-strong: #453f36;
-  --color-text: #ece7df;
-  --color-muted: #a59c8f;
-  --color-faint: #756d62;
-  --color-sun: #f2b84b;
-  --color-sun-deep: #c98a1b;
-  --color-sky: #6fb6e8;
-  --color-leaf: #6fbf8a;
-  --color-danger: #e5705f;
-  --font-sans: ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', sans-serif;
-  --font-mono: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+  --color-surface: #fbf3e4;
+  --color-raised: #fffcf5;
+  --color-ink: #f2e6cf;
+  --color-line: #e6d8bd;
+  --color-line-strong: #9a8f78;
+  --color-text: #1e1b2e;
+  --color-muted: #5a5470;
+  --color-faint: #6b6582;
+  --color-main: #1e1b2e;
+  --color-on-main: #fbf3e4;
+  --color-ledge: #0e0c18;
+  --color-cream: #fbf3e4;
+  --color-sun: #ffd35a;
+  --color-sun-deep: #7a5600;
+  --color-sky: #4aa8ff;
+  --color-sky-deep: #1a5fbf;
+  --color-coral: #ff6b5c;
+  --color-leaf: #3dd6a3;
+  --color-leaf-deep: #0b7353;
+  --color-lilac: #b69cff;
+  --color-lilac-deep: #6341c9;
+  --color-danger: #b93425;
+  --font-sans: var(--font-figtree), 'Figtree Fallback', system-ui, sans-serif;
+  --font-display: var(--font-fredoka), 'Fredoka Fallback', ui-rounded, system-ui, sans-serif;
+  --font-mono: var(--font-dm-mono), ui-monospace, monospace;
+  --radius-card: 22px;
+  --radius-frame: 16px;
+  --shadow-float: 0 8px 18px #1e1b2e47;
+  --shadow-ledge: 0 4px 0 #0e0c18;
+  --shadow-keyline: 0 0 0 2px #fbf3e4, 0 0 0 3.5px #1e1b2ecc;
 }
 
 html,
@@ -24,7 +45,7 @@ body {
 }
 
 body {
-  background: var(--color-ink);
+  background: var(--color-surface);
   color: var(--color-text);
   font-family: var(--font-sans);
   -webkit-font-smoothing: antialiased;
@@ -37,12 +58,12 @@ body {
 }
 
 :focus-visible {
-  outline: 2px solid var(--color-sun);
+  outline: 2px solid var(--color-text);
   outline-offset: 2px;
 }
 
 input[type='range'] {
-  accent-color: var(--color-sun);
+  accent-color: var(--color-main);
 }
 
 matterport-viewer {
@@ -59,8 +80,68 @@ matterport-viewer {
 .streaming-caret::after {
   content: '▍';
   margin-left: 1px;
-  color: var(--color-sun);
+  color: var(--color-sun-deep);
   animation: caret 1s steps(1) infinite;
+}
+
+/* HouseLoader: the outline draws itself, the sun rises behind it, a bar sweeps under the label. */
+.house-loader-outline {
+  fill: none;
+  stroke: var(--color-text);
+  stroke-width: 2.5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-dasharray: 1;
+  animation: house-draw 2.4s cubic-bezier(0.65, 0, 0.35, 1) infinite;
+}
+.house-loader-ground {
+  stroke: var(--color-line-strong);
+  stroke-width: 2;
+  stroke-linecap: round;
+}
+.house-loader-sun {
+  fill: var(--color-sun);
+  animation: house-sun 2.4s ease-in-out infinite;
+}
+.house-loader-bar::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  width: 40%;
+  border-radius: inherit;
+  background: var(--color-sun);
+  animation: house-bar 1.4s ease-in-out infinite;
+}
+@keyframes house-draw {
+  0% {
+    stroke-dashoffset: 1;
+  }
+  55%,
+  80% {
+    stroke-dashoffset: 0;
+  }
+  100% {
+    stroke-dashoffset: -1;
+  }
+}
+@keyframes house-sun {
+  0%,
+  100% {
+    transform: translateY(14px);
+    opacity: 0.35;
+  }
+  50% {
+    transform: translateY(-6px);
+    opacity: 1;
+  }
+}
+@keyframes house-bar {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(250%);
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {

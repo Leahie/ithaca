@@ -3,20 +3,21 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 
 /**
- * Shared chart chrome. Colors are validated against the app's dark surface (#171512) with the
- * dataviz palette checker: categorical slot 1 blue, slot 2 orange, and amber for sun hours.
+ * Shared chart chrome, on the design language's cream surface (#fbf3e4). Categorical slot 1 is a
+ * deep blue and slot 2 a burnt orange (they differ in lightness, not hue alone); amber is sun
+ * hours. Gridlines are the hairline `line`, text is ink and its soft twin.
  */
 export const CHART = {
-  series1: '#3987e5',
-  series1Dim: '#1c5cab',
-  series2: '#d95926',
-  sun: '#c98500',
-  grid: '#2c2a26',
-  axis: '#3d3933',
-  ink: '#ece7df',
-  ink2: '#c3bcb0',
-  muted: '#8f887c',
-  surface: '#171512',
+  series1: '#1a5fbf',
+  series1Dim: '#8fbfee',
+  series2: '#c4501f',
+  sun: '#b07800',
+  grid: '#e6d8bd',
+  axis: '#9a8f78',
+  ink: '#1e1b2e',
+  ink2: '#3a3552',
+  muted: '#5a5470',
+  surface: '#fbf3e4',
 } as const;
 
 /** Sun-hours heat ramp: one hue, dark to bright, so "no sun" recedes into the dark surface. */

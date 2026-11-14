@@ -29,7 +29,7 @@ export function PairingButton({ propertyId }: { propertyId: string }) {
 
   return (
     <div className="relative">
-      <Button variant="ghost" onClick={() => setOpen(!open)} aria-expanded={open} aria-label="Pair a phone" className={cn(phoneOn && 'text-leaf')}>
+      <Button variant="ghost" onClick={() => setOpen(!open)} aria-expanded={open} aria-label="Pair a phone" className={cn(phoneOn && 'text-leaf-deep')}>
         <IconPhone />
         <span className="hidden xl:inline">{phoneOn ? 'Phone connected' : 'Pair phone'}</span>
       </Button>
@@ -52,11 +52,11 @@ export function PairingButton({ propertyId }: { propertyId: string }) {
                 <QRCodeSVG value={url} size={200} marginSize={0} data-testid="pair-qr" />
               </div>
               <p className="mt-3 text-xs leading-5 text-muted">Scan with your phone camera. The phone becomes a remote: scrub the sun, jump rooms, talk to the agent, capture furniture.</p>
-              <a href={url} target="_blank" rel="noreferrer" data-testid="pair-link" className="mt-2 block truncate font-mono text-[11px] text-sky hover:underline">
+              <a href={url} target="_blank" rel="noreferrer" data-testid="pair-link" className="mt-2 block truncate font-mono text-[11px] text-sky-deep hover:underline">
                 {url}
               </a>
               {isLocalhost && (
-                <p className="mt-2 text-[11px] leading-4 text-sun">
+                <p className="mt-2 text-[11px] leading-4 text-sun-deep">
                   This link points at localhost. A real phone needs your LAN address: set NEXT_PUBLIC_PUBLIC_ORIGIN, and HTTPS for the microphone and gyroscope.
                 </p>
               )}

@@ -6,9 +6,11 @@ import { roomArea, roomName, roomsOnFloor } from '@/lib/rooms';
 import { useSession } from '@/lib/store/session';
 import { useTour } from '@/lib/store/tour';
 
-const ITEM = 'flex w-full items-baseline justify-between gap-2 px-3 py-1.5 text-left text-[13px] transition-colors';
-const ON = 'bg-sun/10 text-sun shadow-[inset_2px_0_0_var(--color-sun)]';
-const OFF = 'text-muted hover:bg-raised hover:text-text';
+// Rows are 44 px pills. Where you are is `main` (ink), never an accent: it is not news.
+const ITEM = 'flex min-h-11 w-full items-center justify-between gap-2 rounded-full px-3 text-left text-[15px] transition-colors';
+const ON = 'bg-main font-semibold text-on-main';
+const OFF = 'text-text hover:bg-ink';
+const LABEL = 'px-3 pb-1 text-[11px] font-semibold tracking-[0.08em] text-muted uppercase';
 
 /**
  * Where you can go. A room is a `viewer.goto`, the same event the agent and the phone send
@@ -24,19 +26,23 @@ export function RoomRail({ twin, tour = false }: { twin: PropertyTwin; tour?: bo
   const indoors = !tour || place !== 'outside';
 
   return (
-    <nav aria-label="Rooms" className="h-full w-[188px] shrink-0 overflow-y-auto border-r border-line bg-surface py-2">
+    <nav aria-label="Rooms" className="flex h-full w-[220px] shrink-0 flex-col gap-4 overflow-y-auto border-r border-line bg-surface px-2 py-3">
       {tour && (
-        <div className="mb-2">
-          <div className="px-3 py-1.5 text-[10px] font-semibold tracking-wider text-faint uppercase">The house</div>
+        <div className="flex flex-col gap-0.5">
+          <div className={LABEL}>The house</div>
+          {/* Outside opens further, onto the whole house: lilac. */}
           <button type="button" data-place="outside" aria-current={place === 'outside'} onClick={goOutside} className={cn(ITEM, place === 'outside' ? ON : OFF)}>
-            <span>Outside</span>
-            <span className="shrink-0 text-[10px] text-faint">drag to orbit</span>
+            <span className="flex items-center gap-2">
+              <i aria-hidden className="h-2.5 w-2.5 rounded-full bg-lilac shadow-[0_0_0_1.5px_var(--color-main)]" />
+              Outside
+            </span>
+            <span className={cn('shrink-0 text-[13px]', place === 'outside' ? 'text-on-main/75' : 'text-lilac-deep')}>drag to orbit</span>
           </button>
         </div>
       )}
       {floors.map((floor) => (
-        <div key={floor.floor_id} className="mb-2">
-          <div className="px-3 py-1.5 text-[10px] font-semibold tracking-wider text-faint uppercase">{floor.label ?? `Floor ${floor.index + 1}`}</div>
+        <div key={floor.floor_id} className="flex flex-col gap-0.5">
+          <div className={LABEL}>{floor.label ?? `Floor ${floor.index + 1}`}</div>
           {roomsOnFloor(twin, floor.floor_id).map((room) => {
             const current = indoors && room.room_id === roomId;
             return (
@@ -51,7 +57,7 @@ export function RoomRail({ twin, tour = false }: { twin: PropertyTwin; tour?: bo
               >
                 <span className="truncate">{roomName(twin, room.room_id)}</span>
                 {/* Rooms that share a label are told apart by size as well as by number. */}
-                <span className="shrink-0 text-[10px] text-faint tabular-nums">{roomArea(room).toFixed(0)} m²</span>
+                <span className={cn('shrink-0 font-mono text-[13px] tabular-nums', current ? 'text-on-main/75' : 'text-muted')}>{roomArea(room).toFixed(0)} m²</span>
               </button>
             );
           })}

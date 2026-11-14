@@ -52,7 +52,7 @@ function Rooms({ twin }: { twin: PropertyTwin }) {
                     data-room-id={r.room_id}
                     aria-pressed={r.room_id === roomId}
                     onClick={() => dispatch('viewer.goto', { room_id: r.room_id })}
-                    className={cn('min-h-10 rounded-lg border px-3 text-sm', r.room_id === roomId ? 'border-sun bg-sun/15 text-sun' : 'border-line text-muted active:bg-raised')}
+                    className={cn('min-h-10 rounded-lg border px-3 text-sm', r.room_id === roomId ? 'border-sun bg-sun/15 text-sun-deep' : 'border-line text-muted active:bg-raised')}
                   >
                     {roomName(twin, r.room_id)}
                   </button>
@@ -260,7 +260,7 @@ function Remote({ propertyId }: { propertyId: string }) {
               data-tab={m}
               aria-pressed={m === mode}
               onClick={() => dispatch('viewer.setMode', { mode: m })}
-              className={cn('flex flex-col items-center gap-1 rounded-lg py-2 text-[11px]', m === mode ? 'bg-raised text-sun' : 'text-muted')}
+              className={cn('flex flex-col items-center gap-1 rounded-lg py-2 text-[11px]', m === mode ? 'bg-raised text-sun-deep' : 'text-muted')}
             >
               <Icon width={18} height={18} />
               {label}
