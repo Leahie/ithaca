@@ -329,32 +329,44 @@ export function TourTab({ twin, active }: { twin: PropertyTwin; active: boolean 
     });
   }, [sdk, runQueued, sweepPosition]);
 
-  // viewer.look (the phone's look pad, gyroscope and turn arrows). The viewer takes one camera
-  // call at a time and drops the rest, so turns gather while a call is out and go in the next
-  // one, at a speed that finishes each batch before the next one arrives.
+  // viewer.look and viewer.zoom (the phone's drag and pinch). The viewer takes one camera call at
+  // a time and drops the rest, so movement gathers while a call is out and goes in the next one,
+  // at a speed that finishes each batch before the next one arrives.
   useEffect(() => {
     if (!sdk) return;
     let yaw = 0;
     let pitch = 0;
+    let zoom = 0;
     let busy = false;
     let live = true;
     const flush = () => {
       if (busy || !live) return;
       const size = Math.hypot(yaw, pitch);
-      if (size < 0.05) return;
+      let call: Promise<unknown> | null = null;
+      if (size >= 0.05) {
+        // Fast enough that a batch is done before the next one arrives (the phone sends every 20 ms).
+        call = sdk.Camera.rotate(yaw, pitch, { speed: Math.max(240, size / 0.03) });
+        yaw = pitch = 0;
+      } else if (Math.abs(zoom) >= 0.01) {
+        // Inside only: the viewer has no zoom in the outside (dollhouse) view.
+        call = sdk.Camera.zoomBy(zoom);
+        zoom = 0;
+      }
+      if (!call) return;
       busy = true;
-      // Fast enough that a batch is done before the next one arrives (the phone sends every 20 ms).
-      const call = sdk.Camera.rotate(yaw, pitch, { speed: Math.max(240, size / 0.03) });
-      yaw = pitch = 0;
       call.catch(() => {}).finally(() => {
         busy = false;
         flush();
       });
     };
     const off = onSessionEvent((event) => {
-      if (event.type !== 'viewer.look' || useSession.getState().viewer.mode !== 'tour') return;
-      yaw += event.payload.yaw_delta_deg;
-      pitch += event.payload.pitch_delta_deg;
+      if (useSession.getState().viewer.mode !== 'tour') return;
+      if (event.type === 'viewer.look') {
+        yaw += event.payload.yaw_delta_deg;
+        pitch += event.payload.pitch_delta_deg;
+      } else if (event.type === 'viewer.zoom') {
+        zoom += event.payload.delta;
+      } else return;
       flush();
     });
     return () => {

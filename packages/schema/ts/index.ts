@@ -812,6 +812,14 @@ export interface ViewerWalkPayload {
   duration_s: number;
 }
 
+/**
+ * Additive to v0. The phone's pinch: a change in zoom, positive in, negative out (1.0 = one
+ * whole zoom level).
+ */
+export interface ViewerZoomPayload {
+  delta: number;
+}
+
 export interface VoiceTranscriptPayload {
   text: string;
   final: boolean;
@@ -842,6 +850,7 @@ export interface EventPayloads {
   "viewer.setMode": ViewerSetModePayload;
   "viewer.look": ViewerLookPayload;
   "viewer.step": ViewerStepPayload;
+  "viewer.zoom": ViewerZoomPayload;
   "remote.view": RemoteViewPayload;
   "design.showVariants": DesignShowVariantsPayload;
   "layout.select": LayoutSelectPayload;
@@ -866,7 +875,7 @@ export interface EventPayloads {
 }
 
 export type EventType = keyof EventPayloads;
-export const EVENT_TYPES = ["session.state", "session.joined", "session.left", "viewer.goto", "viewer.walk", "viewer.setTime", "viewer.setMode", "viewer.look", "viewer.step", "remote.view", "design.showVariants", "layout.select", "layout.confirm", "sound.setScenario", "sound.placeSource", "sound.clearSource", "catalog.suggest", "catalog.picked", "capture.upload", "chat.user", "voice.transcript", "agent.token", "agent.message", "agent.action", "agent.error", "agent.turn", "job.progress", "family.note", "family.ask", "family.answer"] as const satisfies readonly EventType[];
+export const EVENT_TYPES = ["session.state", "session.joined", "session.left", "viewer.goto", "viewer.walk", "viewer.setTime", "viewer.setMode", "viewer.look", "viewer.step", "viewer.zoom", "remote.view", "design.showVariants", "layout.select", "layout.confirm", "sound.setScenario", "sound.placeSource", "sound.clearSource", "catalog.suggest", "catalog.picked", "capture.upload", "chat.user", "voice.transcript", "agent.token", "agent.message", "agent.action", "agent.error", "agent.turn", "job.progress", "family.note", "family.ask", "family.answer"] as const satisfies readonly EventType[];
 
 /** The typed envelope for one known event type. */
 export interface Event<T extends EventType = EventType> {

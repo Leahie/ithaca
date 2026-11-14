@@ -123,6 +123,13 @@ class ViewerStepPayload(Model):
     angle_deg: float | None = None
 
 
+class ViewerZoomPayload(Model):
+    """Additive to v0. The phone's pinch: a change in zoom, positive in, negative out (1.0 = one
+    whole zoom level)."""
+
+    delta: float
+
+
 class RemoteViewPayload(Model):
     """Additive to v0. Which screen the phone remote is on, so the big screen can follow it
     (it shows the floor plan while the phone is choosing a room)."""
@@ -217,6 +224,7 @@ EVENTS: dict[str, tuple[type[Model], frozenset[str]]] = {
     "viewer.setMode": (ViewerSetModePayload, frozenset({"agent", "phone", "desktop"})),
     "viewer.look": (ViewerLookPayload, frozenset({"phone"})),
     "viewer.step": (ViewerStepPayload, frozenset({"phone"})),
+    "viewer.zoom": (ViewerZoomPayload, frozenset({"phone"})),
     "remote.view": (RemoteViewPayload, frozenset({"phone"})),
     "design.showVariants": (DesignShowVariantsPayload, frozenset({"agent"})),
     "layout.select": (LayoutSelectPayload, frozenset({"agent", "phone", "desktop"})),

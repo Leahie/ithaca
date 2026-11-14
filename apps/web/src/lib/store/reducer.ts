@@ -205,6 +205,7 @@ export function applyEvent(state: CoreState, event: AnyEvent): CoreState {
     case 'catalog.picked': // the user's click; the agent is told by the server
     case 'layout.confirm': // "keep this layout": the agent records it; the view already shows it
     case 'viewer.step': // a camera move, like viewer.look
+    case 'viewer.zoom':
     case 'viewer.look':
     case 'capture.upload':
     case 'sound.placeSource': // TODO(A): C's place-a-sound demo (docs/handoffs/stream-a)
