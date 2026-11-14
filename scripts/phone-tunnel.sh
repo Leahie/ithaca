@@ -34,6 +34,7 @@ cleanup() {
 cloudflared tunnel --url "http://localhost:$PORT" >"$LOG" 2>&1 &
 pid=$!
 trap cleanup EXIT
+trap 'exit 130' INT TERM
 url=""
 for _ in $(seq 1 40); do
   url="$(grep -oE 'https://[a-z0-9-]+\.trycloudflare\.com' "$LOG" | head -1 || true)"
