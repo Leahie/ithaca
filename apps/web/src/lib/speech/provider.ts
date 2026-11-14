@@ -382,6 +382,8 @@ export class DeepgramProvider implements SpeechProvider {
         if (socket.readyState === WebSocket.OPEN && !stopping) socket.send(e.data);
       };
       socket.onopen = () => {
+        // What this browser says about its microphone, for the server's speech log.
+        socket.send(JSON.stringify({ type: 'diag', facts: `attempt ${attempt}, ${facts()}, ${navigator.userAgent.slice(0, 120)}` }));
         if (stopping) sendStop();
       };
       socket.onmessage = (e: MessageEvent<string>) => {

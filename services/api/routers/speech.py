@@ -12,6 +12,7 @@ closes with code 4503, and the web app uses the browser's own speech.
 
 from __future__ import annotations
 
+import array
 import asyncio
 import json
 import logging
@@ -26,7 +27,7 @@ from fastapi.responses import Response
 from pydantic import BaseModel, Field
 from websockets.asyncio.client import connect
 
-from services.api.integrations.config import env
+from services.api.integrations.config import REPO_ROOT, env
 from services.api.routers.speech_text import for_speech
 
 log = logging.getLogger(__name__)
@@ -104,6 +105,7 @@ def _deepgram_listen(sample_rate: int, key: str, auto: bool = False):
 
 async def listen_socket(ws: WebSocket, sample_rate: int = 48000, auto: bool = False) -> None:
     await ws.accept()
+    started = time.monotonic()
     key = env("DEEPGRAM_API_KEY")
     if not key:
         await ws.close(code=NOT_CONFIGURED, reason="speech to text is not configured: set DEEPGRAM_API_KEY")
@@ -111,6 +113,10 @@ async def listen_socket(ws: WebSocket, sample_rate: int = 48000, auto: bool = Fa
     if not 8000 <= sample_rate <= 96000:
         await ws.close(code=1003, reason="sample_rate must be 8000-96000")
         return
+
+    # What happened on this socket, one line when it ends (data/agent/speech.log): how much audio
+    # arrived, how loud it was, what Deepgram sent, and what the browser said about its microphone.
+    seen = {"rate": sample_rate, "auto": auto, "frames": 0, "bytes": 0, "peak": 0, "dg": {}, "client": None, "end": "?"}
 
     finals: list[str] = []
     interim = ""
@@ -132,9 +138,20 @@ async def listen_socket(ws: WebSocket, sample_rate: int = 48000, auto: bool = Fa
                             gone = True
                             break
                         if msg.get("bytes"):
-                            await dg.send(msg["bytes"])
-                        elif msg.get("text") and json.loads(msg["text"]).get("type") == "stop":
-                            break
+                            data = msg["bytes"]
+                            seen["frames"] += 1
+                            seen["bytes"] += len(data)
+                            if seen["frames"] % 5 == 1 and len(data) >= 2:
+                                pcm = array.array("h", data[: len(data) // 2 * 2])
+                                seen["peak"] = max(seen["peak"], max(abs(v) for v in pcm[::16]))
+                            await dg.send(data)
+                        elif msg.get("text"):
+                            said = json.loads(msg["text"])
+                            if said.get("type") == "diag":
+                                seen["client"] = said.get("facts")
+                            elif said.get("type") == "stop":
+                                seen["end"] = "browser said stop"
+                                break
                 finally:
                     # Deepgram sends what it still holds, then closes, which ends the loop below.
                     with suppress(Exception):
@@ -144,7 +161,9 @@ async def listen_socket(ws: WebSocket, sample_rate: int = 48000, auto: bool = Fa
             try:
                 async for raw in dg:
                     data = json.loads(raw)
+                    seen["dg"][data.get("type", "?")] = seen["dg"].get(data.get("type", "?"), 0) + 1
                     if auto and data.get("type") == "UtteranceEnd" and transcript():
+                        seen["end"] = "utterance end"
                         break  # they stopped talking
                     if data.get("type") != "Results":
                         continue
@@ -158,8 +177,10 @@ async def listen_socket(ws: WebSocket, sample_rate: int = 48000, auto: bool = Fa
                     if not gone:
                         await ws.send_json({"text": transcript(), "final": False})
                     if auto and data.get("speech_final") and transcript():
+                        seen["end"] = "pause after speech"
                         break  # a pause after speech: that was the whole question
                     if auto and not transcript() and time.monotonic() - opened > NOTHING_HEARD_S:
+                        seen["end"] = "nothing heard"
                         break  # nobody spoke
             finally:
                 audio.cancel()
@@ -167,8 +188,17 @@ async def listen_socket(ws: WebSocket, sample_rate: int = 48000, auto: bool = Fa
             await ws.send_json({"text": transcript(), "final": True})
             await ws.close()
     except WebSocketDisconnect:
-        pass
+        seen["end"] = "browser left"
     except Exception as err:  # Deepgram refused or dropped the stream
+        seen["end"] = f"failed: {type(err).__name__}: {err}"[:200]
         log.warning("speech to text failed: %s", err)
         with suppress(Exception):
             await ws.close(code=1011, reason=f"speech to text failed: {err}"[:120])
+    finally:
+        seen["heard"] = transcript()
+        seen["seconds"] = round(time.monotonic() - started, 1)
+        with suppress(Exception):
+            path = REPO_ROOT / "data" / "agent" / "speech.log"
+            path.parent.mkdir(parents=True, exist_ok=True)
+            with path.open("a", encoding="utf-8") as f:
+                f.write(time.strftime("%H:%M:%S ") + json.dumps(seen) + "\n")
