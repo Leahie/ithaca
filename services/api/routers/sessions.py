@@ -87,6 +87,11 @@ async def session_socket(ws: WebSocket, session_id: str, client: ClientKind, tok
         # A desktop that reuses a saved session never calls POST /sessions again, and households
         # made before hosts existed have none: without a host the phones can't place their pieces.
         households().set_host(room.household_id, room.user_id)
+        if client == "desktop":
+            # The family's phones join the session the big screen is really on. A reloaded page
+            # reuses its saved session without POST /sessions, and that may not be the one the
+            # household was last pointed at (two were made at once on a first load).
+            households().set_active_session(room.household_id, session_id)
     member = households().member(room.household_id, member_id) if member_id and room.household_id else None
     conn = hub.connect(session_id, client, member_id=member_id, name=member.name if member else None)
 
