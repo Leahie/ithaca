@@ -1,0 +1,9 @@
+data
+out/
+
+.env
+.env.local
+.env.*.local
+
+__pycache__/
+.pytest_cache/
