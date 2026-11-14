@@ -127,6 +127,13 @@ TEXTURE_PX = 1024
 
 
 def thumbnail_url(piece_id: str) -> str:
+    """A picture of the model itself, drawn from the same three-quarter view for every piece
+    (fixtures/blobs/catalog/, served by the web app). The dataset's own product photos are often
+    close-ups or room scenes, which crop badly in a small card; photo_url has those."""
+    return f"/fixtures/blobs/catalog/{piece_id}.jpg"
+
+
+def photo_url(piece_id: str) -> str:
     return f"{BUCKET}/images/small/{_FILES[piece_id][1]}"
 
 
