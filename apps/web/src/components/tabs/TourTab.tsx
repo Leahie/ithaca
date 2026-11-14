@@ -1,5 +1,6 @@
 'use client';
 
+import { HousePlan } from '@/components/house/HousePlan';
 import { shownLayouts } from '@/lib/layouts';
 import type { InventoryItem, LayoutVariant, PropertyTwin } from '@ithaca/schema';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -475,6 +476,11 @@ export function TourTab({ twin, active }: { twin: PropertyTwin; active: boolean 
             The Matterport viewer has been loading for over 30 seconds. Reload the page. If it keeps happening, this model may use a feature the bundled viewer cannot load; the Sun Lab still shows the scanned
             interior.
           </Notice>
+        </div>
+      )}
+      {sdk && revealed && (
+        <div className="pointer-events-none absolute top-3 left-3 z-10">
+          <HousePlan twin={twin} />
         </div>
       )}
       <div className="pointer-events-none absolute top-3 right-3 flex flex-wrap justify-end gap-1.5">

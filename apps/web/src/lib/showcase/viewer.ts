@@ -27,7 +27,9 @@ export interface ShowcaseHandle {
 }
 
 /** URL parameters for the viewer: start at once, and leave out chrome this app replaces. */
-const PARAMS = { qs: '1', play: '1', brand: '0', title: '0', help: '0', search: '0' } as const;
+// `fp: 0` removes the viewer's own floor-plan view: its room labels come from the model and are
+// wrong for this house. The app draws its own plan (components/house/HousePlan.tsx).
+const PARAMS = { qs: '1', play: '1', brand: '0', title: '0', help: '0', search: '0', fp: '0' } as const;
 
 function whenPlaying(sdk: MpSdk): Promise<MpSdk> {
   return new Promise((resolve) => {
