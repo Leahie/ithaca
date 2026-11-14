@@ -51,6 +51,7 @@ class Opening(BaseModel):
     glazing: Literal["none", "single", "double", "triple"]
     stc: int | None = None
     other_room_id: str | None = None  # the room on the far side of an interior door
+    exterior: bool | None = None  # leads outside; False = interior (maybe unlabeled space); None = unknown
 
 
 class Sweep(BaseModel):
