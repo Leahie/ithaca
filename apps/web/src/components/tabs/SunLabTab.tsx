@@ -17,6 +17,7 @@ import type { V3 } from '@/lib/geometry/frames';
 import { compassToInterior } from '@/lib/geometry/frames';
 import { useSession } from '@/lib/store/session';
 import { openingFromCorners } from '@/lib/sunlab/annotate';
+import { panosAvailable } from '@/lib/sunlab/pano';
 import { sunPosition } from '@/lib/sun/position';
 
 /**
@@ -41,6 +42,12 @@ export function SunLabTab({ twin, active }: { twin: PropertyTwin; active: boolea
   const [panelOpen, setPanelOpen] = useState(false);
   const [heatmapOn, setHeatmapOn] = useState(false);
   const [showOpenings, setShowOpenings] = useState(false);
+  // Inside a room: walk mode (scan photos projected from scan points) or the mesh's own textures.
+  const [walkMode, setWalkMode] = useState(true);
+  // Walk mode: Matterport's furniture-free scan photos instead of the furnished ones.
+  const [defurnished, setDefurnished] = useState(false);
+  const [photoLoading, setPhotoLoading] = useState(false);
+  const walkable = !!twin.assets.interior_glb && panosAvailable(twin);
 
   // Start indoors: with no room chosen yet, go to the main room. A viewer.goto like any other (A1).
   useEffect(() => {
@@ -141,7 +148,7 @@ export function SunLabTab({ twin, active }: { twin: PropertyTwin; active: boolea
       <Canvas
         shadows
         frameloop={active ? 'always' : 'never'}
-        dpr={[1, 1.75]}
+        dpr={[1, 2]}
         camera={{ fov: 58, near: 0.08, far: 900, position: [-40, 30, 30] }}
         className={cn(tool && 'cursor-crosshair')}
       >
@@ -155,6 +162,9 @@ export function SunLabTab({ twin, active }: { twin: PropertyTwin; active: boolea
           onWallClick={tool ? onWallClick : null}
           pendingCorner={corner?.point ?? null}
           view={view}
+          walkMode={walkMode}
+          defurnished={defurnished}
+          onPhotoLoading={setPhotoLoading}
           onAssetError={setAssetError}
           onReady={onReady}
         />
@@ -197,6 +207,27 @@ export function SunLabTab({ twin, active }: { twin: PropertyTwin; active: boolea
         >
           {room ? `Inside ${roomName(twin, room.room_id)}` : 'Go inside'}
         </Button>
+        {walkable && view.kind === 'room' && (
+          <Button
+            size="sm"
+            variant="subtle"
+            title={walkMode ? 'Orbit the 3D mesh with its own textures' : 'Stand on scan points with the 4k scan photos'}
+            onClick={() => setWalkMode(!walkMode)}
+          >
+            {walkMode ? 'Mesh view' : 'Walk mode'}
+          </Button>
+        )}
+        {walkable && walkMode && view.kind === 'room' && (
+          <Button
+            size="sm"
+            variant={defurnished ? 'primary' : 'subtle'}
+            aria-pressed={defurnished}
+            title="Show the scan photos with the furniture painted out (Matterport's defurnished view)"
+            onClick={() => setDefurnished(!defurnished)}
+          >
+            {photoLoading ? 'Loading photo…' : 'No furniture'}
+          </Button>
+        )}
       </div>
 
       <div className="absolute top-3 right-3 bottom-3 flex flex-col items-end gap-2">

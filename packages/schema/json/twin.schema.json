@@ -511,6 +511,33 @@
           ],
           "default": null,
           "title": "Ortho"
+        },
+        "splat": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Splat"
+        },
+        "splat_to_interior": {
+          "anyOf": [
+            {
+              "items": {
+                "type": "number"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Splat To Interior"
         }
       },
       "title": "TwinAssets",

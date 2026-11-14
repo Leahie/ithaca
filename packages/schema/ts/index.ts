@@ -715,6 +715,8 @@ export interface TwinAssets {
   context_glb?: string | null;
   ortho?: string | null;
   obliques?: string[];
+  splat?: string | null;
+  splat_to_interior?: number[] | null;
 }
 
 export interface TwinQuality {

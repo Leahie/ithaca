@@ -72,6 +72,9 @@ query Skyboxes($id: ID!, $res: String!) { model(id: $id) {
 """
 
 
+VIEWS_QUERY = "query Views($id: ID!) { model(id: $id) { views { id type } } }"
+
+
 class MatterportClient:
     def __init__(
         self,
@@ -97,6 +100,16 @@ class MatterportClient:
         if not model:
             raise MatterportError(f"model {model_id} not found or not visible to this key")
         return model
+
+    def view_id(self, model_id: str, view_type: str) -> str:
+        """The id of one of the model's views (e.g. matterport.model.defurnished); queries take it as a model id.
+        A live call like skybox_urls (only the skybox route needs it, and that needs the keys anyway)."""
+        body = self._post({"query": VIEWS_QUERY, "variables": {"id": model_id}})
+        views = ((body.get("data") or {}).get("model") or {}).get("views") or []
+        for v in views:
+            if v.get("type") == view_type:
+                return v["id"]
+        raise MatterportError(f"model {model_id} has no {view_type} view")
 
     def matterpak_url(self, model_id: str) -> str:
         """A fresh signed link to the MatterPak zip. Never cached: the link expires."""

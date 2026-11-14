@@ -105,6 +105,10 @@ class TwinAssets(BaseModel):
     context_glb: str | None = None
     ortho: str | None = None
     obliques: list[str] = Field(default_factory=list)
+    # aerial Gaussian splat (3DGS .ply, served as is) and the 4x4 similarity taking its
+    # coordinates to the interior frame, column-major (twin/splat.py)
+    splat: str | None = None
+    splat_to_interior: list[float] | None = None
 
 
 class TwinQuality(BaseModel):

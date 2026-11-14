@@ -1,10 +1,11 @@
 'use client';
 
-import type { Opening, PropertyTwin, Room, SunHeatmap, Vec3 } from '@ithaca/schema';
+import type { Opening, PropertyTwin, Room, SunHeatmap, Sweep, Vec3 } from '@ithaca/schema';
 import { CameraControls, useGLTF } from '@react-three/drei';
 import { useFrame, useThree, type ThreeEvent } from '@react-three/fiber';
-import { Component, Suspense, createContext, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { Component, Suspense, createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type MutableRefObject, type ReactNode } from 'react';
 import {
+  BackSide,
   BufferAttribute,
   BufferGeometry,
   Color,
@@ -14,8 +15,11 @@ import {
   LinearFilter,
   MeshStandardMaterial,
   RGBAFormat,
+  RingGeometry,
   SRGBColorSpace,
+  ShaderMaterial,
   Vector3,
+  type CubeTexture,
   type Mesh,
   type Object3D,
   type PerspectiveCamera,
@@ -26,7 +30,9 @@ import type { V3 } from '@/lib/geometry/frames';
 import { bounds, centroid, pointInPolygon } from '@/lib/geometry/polygon';
 import { onHandNav } from '@/lib/hands/engine';
 import { onSessionEvent, useSession } from '@/lib/store/session';
+import { BACKDROP_FRAGMENT, BACKDROP_VERTEX, PanoCache, addPanoProjection, createPanoUniforms, panosAvailable, sweepEye, toPano, type PanoUniforms } from '@/lib/sunlab/pano';
 import { createPortalDepthMaterial, createPortalUniforms, passesLight, setPortals, type PortalUniforms } from '@/lib/sunlab/portals';
+import { Splat } from './Splat';
 import { floorGeometry, wallGeometry } from '@/lib/three/roomShell';
 
 const DEG = Math.PI / 180;
@@ -62,6 +68,12 @@ export interface SceneProps {
   /** First corner of the opening being drawn. */
   pendingCorner: V3 | null;
   view: SunLabView;
+  /** Inside a room: stand on scan points with the scan photos projected (true), or orbit the mesh with its own textures (false). */
+  walkMode: boolean;
+  /** Walk mode shows Matterport's furniture-free photos (the mesh, and its shadows, keep the furniture). */
+  defurnished: boolean;
+  /** True while the photo for a new `defurnished` setting is loading. */
+  onPhotoLoading?(loading: boolean): void;
   onAssetError(message: string): void;
   onReady(): void;
 }
@@ -82,18 +94,27 @@ const glowMaterials = new Set<MeshStandardMaterial>();
 const GLOW_DAY = 0.16;
 const GLOW_NIGHT = 0.07;
 
+/**
+ * Walk mode: brightness of the scan photos relative to the day of the scan (they already hold
+ * daylight), and the strength of the simulated sun on top of them (photo * I / pi * n.l).
+ */
+export const skyLevel = (elevationDeg: number) => 0.18 + (0.55 - 0.18) * smoothstep(-6, 2, elevationDeg) + 0.45 * smoothstep(2, 20, elevationDeg);
+const WALK_SUN = 2.8;
+
 const NIGHT = new Color('#0a0e18');
 const DUSK = new Color('#d98a5a');
 const DAY = new Color('#a9c9e6');
 const SUN_LOW = new Color('#ffb070');
 const SUN_HIGH = new Color('#fff3e0');
 
-function SunRig({ sun, children }: { sun: SunState; children: ReactNode }) {
+function SunRig({ sun, walking, children }: { sun: SunState; walking: boolean; children: ReactNode }) {
   const camera = useThree((s) => s.camera) as PerspectiveCamera;
   const scene = useThree((s) => s.scene);
   const size = useThree((s) => s.size);
   const sunRef = useRef(sun);
   sunRef.current = sun;
+  const walkingRef = useRef(walking);
+  walkingRef.current = walking;
 
   // Created in an effect, not in useMemo: the CSM adds its lights to the scene, and a render
   // that React throws away (StrictMode) would leave a second set of lights behind.
@@ -105,7 +126,7 @@ function SunRig({ sun, children }: { sun: SunState; children: ReactNode }) {
       cascades: 3,
       maxFar: 160,
       mode: 'practical',
-      shadowMapSize: 2048,
+      shadowMapSize: 4096,
       shadowBias: -0.00025,
       lightIntensity: 1,
       lightNear: 1,
@@ -141,11 +162,11 @@ function SunRig({ sun, children }: { sun: SunState; children: ReactNode }) {
     csm.lightDirection.set(-direction[0], -Math.max(0.02, direction[1]), -direction[2]).normalize();
     sunColor.copy(SUN_LOW).lerp(SUN_HIGH, smoothstep(2, 30, el));
     for (const light of csm.lights) {
-      light.intensity = 4.2 * up;
+      light.intensity = (walkingRef.current ? WALK_SUN : 4.2) * up;
       light.color.copy(sunColor);
       light.castShadow = up > 0;
     }
-    const glow = GLOW_NIGHT + (GLOW_DAY - GLOW_NIGHT) * smoothstep(-6, 12, el);
+    const glow = walkingRef.current ? skyLevel(el) : GLOW_NIGHT + (GLOW_DAY - GLOW_NIGHT) * smoothstep(-6, 12, el);
     for (const m of glowMaterials) m.emissiveIntensity = glow;
     background.copy(NIGHT).lerp(DUSK, smoothstep(-8, 1, el) * (1 - smoothstep(4, 18, el)) * 0.7).lerp(DAY, smoothstep(-2, 16, el));
     csm.update();
@@ -168,7 +189,8 @@ function SunRig({ sun, children }: { sun: SunState; children: ReactNode }) {
 // ---------------------------------------------------------------------------------------------
 
 /** Clone a loaded glTF scene with lit, shadowed materials that are registered with the CSM. */
-function useLitScene(source: Object3D, csm: CSM, opts: { portalUniforms?: PortalUniforms; roughness?: number } = {}): Object3D {
+function useLitScene(source: Object3D, csm: CSM, opts: { portalUniforms?: PortalUniforms; roughness?: number; pano?: PanoUniforms } = {}): Object3D {
+  const anisotropy = useThree((s) => s.gl.capabilities.getMaxAnisotropy());
   const scene = useMemo(() => {
     const root = source.clone(true);
     const depth = opts.portalUniforms ? createPortalDepthMaterial(opts.portalUniforms) : undefined;
@@ -182,6 +204,8 @@ function useLitScene(source: Object3D, csm: CSM, opts: { portalUniforms?: Portal
       let material = src && lit.get(src.uuid);
       if (!material) {
         const map = src?.map ?? null;
+        // Full-resolution scan atlases: sharp at grazing angles too (floors, ceilings).
+        if (map) map.anisotropy = anisotropy;
         material = new MeshStandardMaterial({
           // A photo texture is the surface color: any base color factor on the scan would only
           // darken it. Untextured meshes keep their own color.
@@ -199,6 +223,7 @@ function useLitScene(source: Object3D, csm: CSM, opts: { portalUniforms?: Portal
           shadowSide: DoubleSide,
         });
         csm.setupMaterial(material);
+        if (opts.pano) addPanoProjection(material, opts.pano);
         if (map) glowMaterials.add(material);
         if (src) lit.set(src.uuid, material);
       }
@@ -208,7 +233,7 @@ function useLitScene(source: Object3D, csm: CSM, opts: { portalUniforms?: Portal
       if (depth) mesh.customDepthMaterial = depth;
     });
     return root;
-  }, [source, csm, opts.portalUniforms, opts.roughness]);
+  }, [source, csm, opts.portalUniforms, opts.roughness, opts.pano, anisotropy]);
 
   // Stop driving the glow of materials that are no longer shown.
   useEffect(
@@ -223,19 +248,98 @@ function useLitScene(source: Object3D, csm: CSM, opts: { portalUniforms?: Portal
   return scene;
 }
 
-function Interior({ url, portalUniforms, onWallClick, onReady }: { url: string; portalUniforms: PortalUniforms; onWallClick: SceneProps['onWallClick']; onReady(): void }) {
+function Interior({
+  url,
+  portalUniforms,
+  pano,
+  onWallClick,
+  onWalkClick,
+  onReady,
+}: {
+  url: string;
+  portalUniforms: PortalUniforms;
+  pano?: PanoUniforms;
+  onWallClick: SceneProps['onWallClick'];
+  onWalkClick: ((point: Vector3) => void) | null;
+  onReady(): void;
+}) {
   const csm = useContext(CsmContext)!;
   const gltf = useGLTF(url);
-  const scene = useLitScene(gltf.scene, csm, { portalUniforms, roughness: 0.95 });
+  const scene = useLitScene(gltf.scene, csm, { portalUniforms, roughness: 0.95, pano });
   useEffect(() => onReady(), [onReady, scene]);
 
   const click = (e: ThreeEvent<MouseEvent>) => {
-    if (!onWallClick || e.delta > 4 || !e.face) return; // a drag is a camera move, not a click
+    if (e.delta > 4 || !e.face) return; // a drag is a camera move, not a click
     e.stopPropagation();
-    const n = e.face.normal.clone().transformDirection(e.object.matrixWorld);
-    onWallClick([e.point.x, e.point.y, e.point.z], [n.x, n.y, n.z]);
+    if (onWallClick) {
+      const n = e.face.normal.clone().transformDirection(e.object.matrixWorld);
+      onWallClick([e.point.x, e.point.y, e.point.z], [n.x, n.y, n.z]);
+    } else onWalkClick?.(e.point.clone());
   };
-  return <primitive object={scene} onClick={onWallClick ? click : undefined} />;
+  return <primitive object={scene} onClick={onWallClick || onWalkClick ? click : undefined} />;
+}
+
+/** Walk mode: the scan photo on a far sphere around the eye, for what the mesh does not cover. */
+function Backdrop({ pano, sun }: { pano: PanoUniforms; sun: SunState }) {
+  const material = useMemo(
+    () =>
+      new ShaderMaterial({
+        uniforms: { panoA: pano.panoA, panoB: pano.panoB, eyeA: pano.eyeA, eyeB: pano.eyeB, toPanoA: pano.toPanoA, toPanoB: pano.toPanoB, panoMix: pano.panoMix, skyLevel: { value: 1 } },
+        vertexShader: BACKDROP_VERTEX,
+        fragmentShader: BACKDROP_FRAGMENT,
+        side: BackSide,
+        depthWrite: false,
+      }),
+    [pano],
+  );
+  useEffect(() => () => material.dispose(), [material]);
+  const ref = useRef<Mesh>(null);
+  useFrame(({ camera }) => {
+    const m = ref.current;
+    if (!m) return;
+    m.position.copy(camera.position);
+    m.visible = pano.panoOn.value > 0.5;
+    material.uniforms.skyLevel!.value = skyLevel(sun.elevation_deg);
+  });
+  return (
+    <mesh ref={ref} material={material} renderOrder={-1} frustumCulled={false}>
+      <sphereGeometry args={[150, 96, 48]} />
+    </mesh>
+  );
+}
+
+/** Rings on the floor under the scan points you can walk to from here. */
+function WalkRings({ twin, here, onPick }: { twin: PropertyTwin; here: Sweep; onPick(s: Sweep): void }) {
+  const geometry = useMemo(() => new RingGeometry(0.13, 0.19, 40).rotateX(-Math.PI / 2), []);
+  useEffect(() => () => geometry.dispose(), [geometry]);
+  const targets = useMemo(() => {
+    const byId = new Map(twin.sweeps.map((s) => [s.sweep_id, s]));
+    return (here.neighbors ?? []).flatMap((id) => {
+      const s = byId.get(id);
+      if (!s) return [];
+      const floor = twin.rooms.find((r) => r.room_id === s.room_id)?.floor_y ?? s.position.y - 1.5;
+      return [{ sweep: s, position: [s.position.x, floor + 0.03, s.position.z] as [number, number, number] }];
+    });
+  }, [twin, here]);
+  return (
+    <>
+      {targets.map((t) => (
+        <mesh
+          key={t.sweep.sweep_id}
+          geometry={geometry}
+          position={t.position}
+          renderOrder={3}
+          onClick={(e) => {
+            if (e.delta > 4) return;
+            e.stopPropagation();
+            onPick(t.sweep);
+          }}
+        >
+          <meshBasicMaterial color="#ffffff" transparent opacity={0.75} depthTest={false} toneMapped={false} />
+        </mesh>
+      ))}
+    </>
+  );
 }
 
 /**
@@ -426,7 +530,7 @@ const openingArea = (o: Opening) => {
  * the room and the floor in front of the window, where the sun lands. A room without windows
  * uses the scan position nearest its middle and looks at the middle.
  */
-function roomCamera(room: Room, openings: Opening[], sweeps: PropertyTwin['sweeps']): { position: Vector3; target: Vector3; reach: number } {
+function roomCamera(room: Room, openings: Opening[], sweeps: PropertyTwin['sweeps']): { position: Vector3; target: Vector3; reach: number; sweep?: Sweep } {
   const [cx, cz] = centroid(room.polygon);
   const middle = new Vector3(cx, room.floor_y + 0.9, cz);
   const windows = openings.filter((o) => o.room_id === room.room_id && passesLight(o) && o.polygon.length >= 4).sort((a, b) => openingArea(b) - openingArea(a));
@@ -455,7 +559,7 @@ function roomCamera(room: Room, openings: Opening[], sweeps: PropertyTwin['sweep
   if (eye) {
     // Too close to the target to see anything: look across the room instead.
     if (Math.hypot(target.x - eye.x, target.z - eye.z) < 1) target = middle;
-    return { position: eye, target, reach: Math.max(1.5, eye.distanceTo(target)) };
+    return { position: eye, target, reach: Math.max(1.5, eye.distanceTo(target)), sweep: chosen };
   }
 
   // No scan position in this room: stand back from the middle, away from the window.
@@ -477,20 +581,208 @@ function roomCamera(room: Room, openings: Opening[], sweeps: PropertyTwin['sweep
 /** Radians a hand drag across the whole view orbits the camera. */
 const HAND_ORBIT_PER_VIEW = 200 * DEG;
 
-function CameraRig({ twin, openings, view }: { twin: PropertyTwin; openings: Opening[]; view: SunLabView }) {
+/** Walk mode: the orbit target sits this far in front of the eye, so orbiting is looking around. */
+const WALK_EPS = 0.01;
+/** Seconds to slide from one scan point to the next while the two photos blend. */
+const WALK_MOVE_S = 0.7;
+// camera-controls ACTION values (the class is not a direct dependency here).
+const ACT = { NONE: 0, ROTATE: 1, TRUCK: 2, DOLLY: 16, ZOOM: 32, TOUCH_ROTATE: 64, TOUCH_TRUCK: 128, TOUCH_ZOOM: 2048, TOUCH_DOLLY_TRUCK: 4096 } as const;
+
+/** Moves in walk mode: toward a clicked point (the nearest linked scan point), or to a scan point. */
+export interface Walker {
+  toward(point: Vector3): void;
+  to(sweep: Sweep): void;
+}
+
+function configureControls(c: CameraControls, walk: boolean): void {
+  const set = (o: object, values: Record<string, number>) => Object.assign(o, values);
+  if (walk) {
+    set(c.mouseButtons, { left: ACT.ROTATE, middle: ACT.NONE, right: ACT.NONE, wheel: ACT.ZOOM });
+    set(c.touches, { one: ACT.TOUCH_ROTATE, two: ACT.TOUCH_ZOOM, three: ACT.NONE });
+    // Drag the world, as in a panorama viewer.
+    c.azimuthRotateSpeed = -0.35;
+    c.polarRotateSpeed = -0.35;
+    c.minPolarAngle = 0.03 * Math.PI;
+    c.maxPolarAngle = 0.97 * Math.PI;
+    c.minDistance = 0;
+    c.maxDistance = Infinity;
+    c.minZoom = 1;
+    c.maxZoom = 5;
+  } else {
+    set(c.mouseButtons, { left: ACT.ROTATE, middle: ACT.DOLLY, right: ACT.TRUCK, wheel: ACT.DOLLY });
+    set(c.touches, { one: ACT.TOUCH_ROTATE, two: ACT.TOUCH_DOLLY_TRUCK, three: ACT.TOUCH_TRUCK });
+    c.azimuthRotateSpeed = 1;
+    c.polarRotateSpeed = 1;
+    c.minPolarAngle = 0;
+    c.maxPolarAngle = Math.PI * 0.53;
+    void c.zoomTo(1, false);
+  }
+}
+
+function CameraRig({
+  twin,
+  openings,
+  view,
+  walking,
+  defurnished,
+  pano,
+  walker,
+  onArrive,
+  onPhotoLoading,
+  onAssetError,
+}: {
+  twin: PropertyTwin;
+  openings: Opening[];
+  view: SunLabView;
+  walking: boolean;
+  defurnished: boolean;
+  pano: PanoUniforms;
+  onPhotoLoading?(loading: boolean): void;
+  walker: MutableRefObject<Walker | null>;
+  onArrive(sweep: Sweep | null): void;
+  onAssetError(message: string): void;
+}) {
   const controls = useRef<CameraControls>(null);
   const first = useRef(true);
   const house = useMemo(() => houseBounds(twin), [twin]);
   const openingsRef = useRef(openings);
   openingsRef.current = openings;
+  const walkingRef = useRef(walking);
+  walkingRef.current = walking;
+  const errorRef = useRef(onAssetError);
+  errorRef.current = onAssetError;
+  const arriveRef = useRef(onArrive);
+  arriveRef.current = onArrive;
+  const loadingRef = useRef(onPhotoLoading);
+  loadingRef.current = onPhotoLoading;
 
+  // --- walk mode: stand on scan points, look around, slide between them --------------------
+  const gl = useThree((s) => s.gl);
+  const cache = useMemo(() => new PanoCache(twin.property_id, gl.capabilities.getMaxAnisotropy()), [twin.property_id, gl]);
+  useEffect(() => () => cache.dispose(), [cache]);
+  const byId = useMemo(() => new Map(twin.sweeps.map((s) => [s.sweep_id, s])), [twin.sweeps]);
+  const here = useRef<Sweep | null>(null);
+  const move = useRef<{ from: Vector3; to: Vector3; start: number; sweep: Sweep } | null>(null);
+  const request = useRef(0);
+
+  const setCurrent = useCallback(
+    (sweep: Sweep, tex: CubeTexture | null) => {
+      pano.panoA.value = tex;
+      pano.eyeA.value.copy(sweepEye(sweep));
+      pano.toPanoA.value.copy(toPano(sweep));
+      pano.panoMix.value = 0;
+      pano.panoOn.value = tex ? 1 : 0;
+      here.current = sweep;
+      arriveRef.current(sweep);
+      for (const id of sweep.neighbors ?? []) cache.prefetch(id);
+    },
+    [pano, cache],
+  );
+
+  const stand = useCallback(
+    async (sweep: Sweep, opts: { look?: Vector3; animate: boolean }) => {
+      const c = controls.current;
+      if (!c || move.current) return;
+      const id = ++request.current;
+      let tex: CubeTexture | null = null;
+      try {
+        tex = await cache.get(sweep.sweep_id);
+      } catch (err) {
+        errorRef.current(`The scan photo could not be loaded (${err instanceof Error ? err.message : String(err)}); showing the mesh textures.`);
+      }
+      if (id !== request.current || !walkingRef.current) return;
+      const eye = sweepEye(sweep);
+      if (opts.animate && tex && here.current && pano.panoOn.value > 0.5) {
+        pano.panoB.value = tex;
+        pano.eyeB.value.copy(eye);
+        pano.toPanoB.value.copy(toPano(sweep));
+        pano.panoMix.value = 0;
+        move.current = { from: c.getPosition(new Vector3()), to: eye, start: performance.now(), sweep };
+        return;
+      }
+      const dir = opts.look ? opts.look.clone().sub(eye) : c.getTarget(new Vector3()).sub(c.getPosition(new Vector3()));
+      if (dir.lengthSq() < 1e-10) dir.set(0, 0, -1);
+      dir.normalize().multiplyScalar(WALK_EPS);
+      void c.setLookAt(eye.x, eye.y, eye.z, eye.x + dir.x, eye.y + dir.y, eye.z + dir.z, false);
+      setCurrent(sweep, tex);
+    },
+    [cache, pano, setCurrent],
+  );
+
+  // Furnished <-> defurnished: swap the photo where the camera stands, without moving it. A move in
+  // progress finishes on the photo it started with; the next one loads the new kind.
+  useEffect(() => {
+    if (cache.defurnished === defurnished) return;
+    cache.defurnished = defurnished;
+    const sweep = here.current;
+    if (!sweep || move.current) return;
+    const id = ++request.current;
+    loadingRef.current?.(true);
+    cache
+      .get(sweep.sweep_id)
+      .then(
+        (tex) => {
+          if (id === request.current && here.current === sweep && !move.current) setCurrent(sweep, tex);
+        },
+        (err) => errorRef.current(`The ${defurnished ? 'furniture-free ' : ''}scan photo could not be loaded (${err instanceof Error ? err.message : String(err)}).`),
+      )
+      .finally(() => {
+        if (id === request.current) loadingRef.current?.(false);
+      });
+  }, [defurnished, cache, setCurrent]);
+
+  useEffect(() => {
+    walker.current = {
+      to: (sweep) => void stand(sweep, { animate: true }),
+      toward: (point) => {
+        const from = here.current;
+        if (!from) return;
+        let options = (from.neighbors ?? []).flatMap((id) => byId.get(id) ?? []);
+        if (!options.length) options = twin.sweeps.filter((s) => s !== from && s.floor_id === from.floor_id && sweepEye(s).distanceTo(sweepEye(from)) < 6);
+        const best = options.sort((a, b) => sweepEye(a).distanceTo(point) - sweepEye(b).distanceTo(point))[0];
+        if (best) void stand(best, { animate: true });
+      },
+    };
+    return () => {
+      walker.current = null;
+    };
+  }, [walker, stand, byId, twin.sweeps]);
+
+  useFrame(() => {
+    const m = move.current;
+    const c = controls.current;
+    if (!m || !c) return;
+    const k = Math.min(1, (performance.now() - m.start) / (WALK_MOVE_S * 1000));
+    const e = smoothstep(0, 1, k);
+    const p = m.from.clone().lerp(m.to, e);
+    const fwd = c.getTarget(new Vector3()).sub(c.getPosition(new Vector3())).normalize().multiplyScalar(WALK_EPS);
+    void c.setLookAt(p.x, p.y, p.z, p.x + fwd.x, p.y + fwd.y, p.z + fwd.z, false);
+    pano.panoMix.value = e;
+    if (k >= 1) {
+      move.current = null;
+      setCurrent(m.sweep, pano.panoB.value);
+    }
+  });
+
+  // --- where the camera goes for each view --------------------------------------------------
   useEffect(() => {
     const c = controls.current;
     if (!c) return;
     const animate = !first.current;
     first.current = false;
-    if (view.kind === 'room') {
-      const cam = roomCamera(view.room, openingsRef.current, twin.sweeps);
+    const cam = view.kind === 'room' ? roomCamera(view.room, openingsRef.current, twin.sweeps) : null;
+    const walkHere = walking && cam?.sweep;
+    configureControls(c, !!walkHere);
+    if (!walkHere) {
+      request.current++;
+      move.current = null;
+      pano.panoOn.value = 0;
+      here.current = null;
+      arriveRef.current(null);
+    }
+    if (cam && walkHere && cam.sweep) {
+      void stand(cam.sweep, { look: cam.target, animate: false });
+    } else if (cam) {
       c.minDistance = 0.4;
       c.maxDistance = Math.max(1.5, cam.reach * 1.5);
       void c.setLookAt(cam.position.x, cam.position.y, cam.position.z, cam.target.x, cam.target.y, cam.target.z, animate);
@@ -500,7 +792,7 @@ function CameraRig({ twin, openings, view }: { twin: PropertyTwin; openings: Ope
       c.maxDistance = 260;
       void c.setLookAt(house.center.x - r * 0.9, house.center.y + r * 1.25, house.center.z + r * 1.15, house.center.x, house.center.y, house.center.z, animate);
     }
-  }, [view, house, twin.sweeps]);
+  }, [view, house, twin.sweeps, walking, stand, pano]);
 
   // viewer.look from the phone joystick / gyroscope.
   useEffect(
@@ -513,20 +805,23 @@ function CameraRig({ twin, openings, view }: { twin: PropertyTwin; openings: Ope
     [],
   );
 
-  // Hand control: a pinch-drag orbits as a mouse drag does, both hands pinching dolly in and out.
+  // Hand control: a pinch-drag orbits as a mouse drag does, both hands pinching dolly in and out
+  // (zoom in walk mode, where the camera stays on the scan point).
   // The engine sends small steps every display frame, so they are applied at once, not eased.
   useEffect(
     () =>
       onHandNav((nav) => {
         const c = controls.current;
         if (!c || useSession.getState().viewer.mode !== 'sun') return;
-        if (nav.type === 'drag') void c.rotate(-nav.du * HAND_ORBIT_PER_VIEW, -nav.dv * HAND_ORBIT_PER_VIEW * 0.6, false);
+        const walk = here.current !== null;
+        if (nav.type === 'drag') void c.rotate(-nav.du * HAND_ORBIT_PER_VIEW * (walk ? -1 : 1), -nav.dv * HAND_ORBIT_PER_VIEW * 0.6 * (walk ? -1 : 1), false);
+        else if (walk) void c.zoomTo(Math.min(5, Math.max(1, (c.camera as PerspectiveCamera).zoom * nav.factor)), false);
         else void c.dollyTo(c.distance / nav.factor, false);
       }),
     [],
   );
 
-  return <CameraControls ref={controls} makeDefault smoothTime={0.45} maxPolarAngle={Math.PI * 0.53} />;
+  return <CameraControls ref={controls} makeDefault smoothTime={0.45} />;
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -546,25 +841,54 @@ class AssetBoundary extends Component<{ label: string; onError(message: string):
   }
 }
 
-export function Scene({ twin, openings, sun, placements, heatmap, showOpenings, onWallClick, pendingCorner, view, onAssetError, onReady }: SceneProps) {
+export function Scene({ twin, openings, sun, placements, heatmap, showOpenings, onWallClick, pendingCorner, view, walkMode, defurnished, onPhotoLoading, onAssetError, onReady }: SceneProps) {
   const portalUniforms = useMemo(createPortalUniforms, []);
   useEffect(() => {
     setPortals(portalUniforms, openings);
   }, [portalUniforms, openings]);
 
+  // Walk mode (inside a room): the camera stands on a scan point and the scan's 4k photo is
+  // projected onto the mesh; outside, the mesh shows its own full-resolution textures.
+  const pano = useMemo(createPanoUniforms, []);
+  const walkable = !!twin.assets.interior_glb && panosAvailable(twin);
+  const walking = walkable && walkMode && view.kind === 'room';
+  const walker = useRef<Walker | null>(null);
+  const [here, setHere] = useState<Sweep | null>(null);
+  const onWalkClick = useCallback((point: Vector3) => walker.current?.toward(point), []);
+
+  const splat = twin.assets.splat && twin.assets.splat_to_interior?.length === 16 ? { url: twin.assets.splat, matrix: twin.assets.splat_to_interior } : null;
+  // The splat's colors hold the capture day's light: dim them with the simulated daylight.
+  const daylight = 0.1 + 0.9 * smoothstep(-6, 14, sun.elevation_deg);
+  // The splat is the outside: never drawn while the camera is in a room (inside its outline,
+  // between its floor and ceiling, with a little margin for the walls).
+  const insideHouse = useCallback(
+    (p: Vector3) => twin.rooms.some((r) => p.y > r.floor_y - 0.3 && p.y < r.floor_y + r.height_m + 0.5 && pointInPolygon([p.x, p.z], r.polygon)),
+    [twin.rooms],
+  );
+
   return (
-    <SunRig sun={sun}>
-      <CameraRig twin={twin} openings={openings} view={view} />
+    <SunRig sun={sun} walking={walking && here !== null}>
+      <CameraRig twin={twin} openings={openings} view={view} walking={walking} defurnished={defurnished} pano={pano} walker={walker} onArrive={setHere} onPhotoLoading={onPhotoLoading} onAssetError={onAssetError} />
       {twin.assets.interior_glb ? (
         <AssetBoundary label="The interior mesh" onError={onAssetError}>
           <Suspense fallback={null}>
-            <Interior url={twin.assets.interior_glb} portalUniforms={portalUniforms} onWallClick={onWallClick} onReady={onReady} />
+            <Interior
+              url={twin.assets.interior_glb}
+              portalUniforms={portalUniforms}
+              pano={walkable ? pano : undefined}
+              onWallClick={onWallClick}
+              onWalkClick={walking ? onWalkClick : null}
+              onReady={onReady}
+            />
           </Suspense>
         </AssetBoundary>
       ) : (
         <RoomShells twin={twin} portalUniforms={portalUniforms} onWallClick={onWallClick} onReady={onReady} />
       )}
-      {!twin.assets.context_glb && <Ground twin={twin} />}
+      {walking && <Backdrop pano={pano} sun={sun} />}
+      {walking && here && !onWallClick && <WalkRings twin={twin} here={here} onPick={(s) => walker.current?.to(s)} />}
+      {splat && <Splat url={splat.url} matrix={splat.matrix} visible={view.kind === 'overview'} inside={insideHouse} daylight={daylight} onError={onAssetError} />}
+      {!twin.assets.context_glb && !splat && <Ground twin={twin} />}
       {twin.assets.context_glb && (
         <AssetBoundary label="The surroundings mesh" onError={onAssetError}>
           <Suspense fallback={null}>
