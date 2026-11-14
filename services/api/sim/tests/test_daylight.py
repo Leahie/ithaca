@@ -51,6 +51,12 @@ def test_winter_noon_sun_through_a_south_window():
     assert room.level in {"bright", "very_bright", "moderate"}
 
 
+def test_weak_beam_is_light_but_not_sunshine():
+    twin = box_twin(180)
+    hazy = dl.daylight_at(twin, weather(twin, "2026-12-21T12:15", 60.0, 150.0), height_m=0.0).rooms[0]
+    assert hazy.sun_area_m2 == 0.0 and hazy.max_lux > 0
+
+
 def test_night_is_dark():
     twin = box_twin(180)
     m = dl.daylight_at(twin, weather(twin, "2026-03-20T23:00", 0.0, 0.0))

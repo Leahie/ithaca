@@ -48,6 +48,7 @@ WALL_REFLECTANCE = 0.6  # light painted walls
 CEILING_REFLECTANCE = 0.8
 GROUND_REFLECTANCE = 0.2
 SUB = 4  # sub-rays per patch side
+SUNSHINE_DNI_W_M2 = 120.0  # WMO: below this the beam still counts as light, but it isn't "sun"
 
 # Perez et al. 1993 coefficients, rows = 8 clearness bins (the same table as Radiance's gendaylit).
 PEREZ_EPS_EDGES = [1.065, 1.230, 1.500, 1.950, 2.800, 4.500, 6.200]
@@ -354,6 +355,8 @@ def _room_lux(c: RoomCoefficients, s: _Instant) -> tuple[np.ndarray, np.ndarray,
         flux_sun_floor += float(on_floor.sum()) * c.floor_cell_m2 * s.beam_lux * sin_el * tau
         floor_lit |= on_floor
     flux_sun_floor = min(flux_sun_floor, flux_sun)  # the rest of the beam lands on the walls
+    if s.dni < SUNSHINE_DNI_W_M2:
+        lit[:] = False
     flux_up = float(np.sum(c.window_area * 0.85 * c.window_tau0)) * s.albedo * s.ground_lux / 2
     first = (flux_down * c.rho_down + flux_sun_floor * c.rho_floor + (flux_sun - flux_sun_floor) * WALL_REFLECTANCE
              + flux_up * c.rho_up)
