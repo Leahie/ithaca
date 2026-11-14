@@ -5,6 +5,7 @@ import type {
   JoinHouseholdResult,
   JobRef,
   LayoutVariant,
+  PlacementMove,
   NoiseReport,
   NoiseScenario,
   Ok,
@@ -65,6 +66,12 @@ export interface ApiClient {
   getLayout(layoutId: string): Promise<LayoutVariant>;
   selectLayout(layoutId: string): Promise<LayoutVariant>;
   layoutFeedback(layoutId: string, feedback: string): Promise<LayoutVariant>;
+  /**
+   * The user moved or turned one piece by hand. Saved at any spot and angle inside the room;
+   * `warnings` on the result lists what a designer would flag. Rejects (409) only if the piece's
+   * center leaves the room.
+   */
+  movePlacement(layoutId: string, itemId: string, pose: PlacementMove): Promise<LayoutVariant>;
   listMemory(): Promise<string[]>;
   getMemory(path: string): Promise<string>;
   putMemory(path: string, text: string): Promise<void>;

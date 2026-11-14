@@ -124,14 +124,15 @@ def test_moving_a_piece_is_saved_only_when_the_layout_stays_valid(client):
     sofa, table = (str(i.item_id) for i in owned)
     url = f"/api/layouts/{layout.layout_id}/placements/{table}"
 
+    # the user's hand wins: any spot and any angle inside the room is saved, with warnings, not refusals
     onto_sofa = client.put(url, headers=alice, json={"x": poses[sofa].x, "z": poses[sofa].z, "yaw_deg": 0})
-    assert onto_sofa.status_code == 409 and any("overlap" in v for v in onto_sofa.json()["detail"]["violations"])
-    assert client.put(url, headers=alice, json={"x": 500, "z": 500, "yaw_deg": 0}).status_code == 409  # outside the room
+    assert onto_sofa.status_code == 200 and any("overlap" in w for w in onto_sofa.json()["warnings"])
+    assert client.put(url, headers=alice, json={"x": 500, "z": 500, "yaw_deg": 0}).status_code == 409  # except leaving the room
 
-    nudged = client.put(url, headers=alice, json={"x": poses[table].x, "z": poses[table].z, "yaw_deg": poses[table].yaw + 180})
-    assert nudged.status_code == 200
+    turned = client.put(url, headers=alice, json={"x": poses[table].x, "z": poses[table].z, "yaw_deg": 37.5})
+    assert turned.status_code == 200
     saved = next(p for p in client.get(f"/api/layouts/{layout.layout_id}", headers=alice).json()["placements"] if p["item_id"] == table)
-    assert saved["yaw_deg"] == round((poses[table].yaw + 180) % 360, 1)
+    assert saved["yaw_deg"] == 37.5  # any angle, not only along the walls
 
     # a pin on the floor plan: the third piece is dropped near the table and lands somewhere valid
     chair = str(furniture.list_items("alice")[2].item_id)

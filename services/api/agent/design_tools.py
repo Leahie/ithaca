@@ -75,8 +75,9 @@ def propose_layouts(room_id: str, item_ids: list[str], wishes: list[Constraint],
     items = [
         layout_solver.Item(k, v.label, v.item_class, v.dims_m.w, v.dims_m.d, v.dims_m.h) for k, v in owned.items() if k in item_ids
     ]
-    result = layout_solver.solve(room, twin.openings, items, wishes, n=max(1, min(n, 4)), walls=twin.walls)
     floor = views.floor_height(twin, room_id)
+    on_real_floor = room.model_copy(update={"floor_y": floor})  # window sills are measured from here
+    result = layout_solver.solve(on_real_floor, twin.openings, items, wishes, n=max(1, min(n, 4)), walls=twin.walls, sweeps=twin.sweeps)
     name = prompts.room_display_names(twin)[room_id]
     if not result.variants:
         return f"No layout for {name}: {result.reason}. Try fewer or smaller pieces, or another room."

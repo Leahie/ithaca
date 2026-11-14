@@ -72,6 +72,7 @@ export function createHttpApi(): ApiClient {
     getLayout: (id) => request(`/layouts/${enc(id)}`),
     selectLayout: (id) => request(`/layouts/${enc(id)}/select`, { method: 'POST' }),
     layoutFeedback: (id, feedback) => request(`/layouts/${enc(id)}/feedback`, { method: 'POST', body: JSON.stringify({ feedback }) }),
+    movePlacement: (id, itemId, pose) => request(`/layouts/${enc(id)}/placements/${enc(itemId)}`, { method: 'PUT', body: JSON.stringify(pose) }),
     listMemory: () => request('/memory'),
     getMemory: (p) => request(`/memory/${memoryPath(p)}`, {}, 'text'),
     putMemory: (p, text) => request(`/memory/${memoryPath(p)}`, { method: 'PUT', body: text, headers: { 'content-type': 'text/plain; charset=utf-8' } }, 'none'),

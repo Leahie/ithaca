@@ -80,6 +80,7 @@ def _room_state(user_id: str, layout: LayoutVariant):
     """The room, and the solver's view of the pieces a layout already holds."""
     twin = get_twin(layout.property_id)
     room = next(r for r in twin.rooms if r.room_id == layout.room_id)
+    room = room.model_copy(update={"floor_y": views.floor_height(twin, room.room_id)})  # sills from the real floor
     owned = {str(i.item_id): i for i in furniture_store().list_items(user_id)}
     items, poses = [], {}
     for p in layout.placements:
@@ -94,29 +95,31 @@ def _room_state(user_id: str, layout: LayoutVariant):
 def _placed(twin, room, item_id: str, pose: layout_solver.Pose) -> Placement:
     return Placement(
         item_id=item_id,
-        position=Vec3(x=round(pose.x, 3), y=views.floor_height(twin, room.room_id), z=round(pose.z, 3)),
+        position=Vec3(x=round(pose.x, 3), y=room.floor_y, z=round(pose.z, 3)),
         yaw_deg=round(pose.yaw % 360, 1),
     )
 
 
 @router.put("/layouts/{layout_id}/placements/{item_id}")
 def move_placement(layout_id: str, item_id: str, body: PlacementMove, x_user_id: str = Header("demo")) -> LayoutVariant:
-    """The user moved or turned one piece. Saved only if the layout is still valid (B2): inside the
-    room, no overlaps, doors, windows and the walking path clear. Otherwise 409 with the reasons,
-    and the piece should snap back."""
+    """The user moved or turned one piece by hand. Their call: any spot and any angle is saved as
+    long as the piece's center stays inside its room. Anything a designer would flag (an overlap, a
+    blocked door or path, a corner through a wall) comes back in `warnings`, for the UI to show
+    without getting in the way. 409 only when the piece's center would leave the room."""
     store = furniture_store()
     layout = _found(store.get_layout(x_user_id, layout_id), "layout")
     if all(str(p.item_id) != item_id for p in layout.placements):
         raise HTTPException(404, "that item is not in this layout")
     twin, room, _owned, items, poses = _room_state(x_user_id, layout)
     pose = layout_solver.Pose(body.x, body.z, body.yaw_deg % 360)
-    problems = layout_solver.violations(room, twin.openings, items, {**poses, item_id: pose}, walls=twin.walls)
-    if problems:
-        raise HTTPException(409, {"error": "invalid_placement", "violations": problems})
+    problems = layout_solver.violations(room, twin.openings, items, {**poses, item_id: pose}, walls=twin.walls, sweeps=twin.sweeps)
+    if not Polygon(room.polygon).contains(Point(body.x, body.z)):  # its center left the room
+        label = next((i.label for i in items if i.item_id == item_id), "That piece")
+        raise HTTPException(409, {"error": "outside_room", "violations": [f"{label} has to stay inside the room"]})
     placements = [_placed(twin, room, item_id, pose) if str(p.item_id) == item_id else p for p in layout.placements]
     moved = layout.model_copy(update={"placements": placements})
     store.put_layout(moved)
-    return moved
+    return moved.model_copy(update={"warnings": problems or None})
 
 
 @router.post("/layouts/drop")
@@ -146,7 +149,7 @@ def drop_item(body: PlacementDrop, x_user_id: str = Header("demo")) -> LayoutVar
     poses.pop(body.item_id, None)
     items = [i for i in items if i.item_id != body.item_id]
     items.append(layout_solver.Item(body.item_id, owned.label, owned.item_class, owned.dims_m.w, owned.dims_m.d, owned.dims_m.h))
-    pose = layout_solver.nearest_valid_pose(room, twin.openings, items, poses, body.item_id, body.x, body.z, walls=twin.walls)
+    pose = layout_solver.nearest_valid_pose(room, twin.openings, items, poses, body.item_id, body.x, body.z, walls=twin.walls, sweeps=twin.sweeps)
     if pose is None:
         raise HTTPException(409, {"error": "no_room", "violations": [f"{owned.label} doesn't fit anywhere within 2 m of that spot"]})
     placements = [p for p in layout.placements if str(p.item_id) != body.item_id] + [_placed(twin, room, body.item_id, pose)]
