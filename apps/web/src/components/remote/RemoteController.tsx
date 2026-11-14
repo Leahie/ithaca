@@ -14,7 +14,7 @@ import { usePushToTalk } from '@/lib/speech/usePushToTalk';
 import { useFamily, useMemberName } from '@/lib/store/family';
 import { useSession } from '@/lib/store/session';
 import { RoomIcon } from '@/components/ui/RoomIcon';
-import { ArrangePanel } from '@/components/house/ArrangePanel';
+import { ArrangePanel, offerPlacement } from '@/components/house/ArrangePanel';
 import { LightPanel } from './LightPanel';
 import { MovePad } from './MovePad';
 
@@ -83,9 +83,28 @@ function Variants({ twin }: { twin: PropertyTwin }) {
   );
 }
 
-function Capture() {
+function Capture({ twin }: { twin: PropertyTwin }) {
   const input = useRef<HTMLInputElement>(null);
   const { upload, busy, error, rows, dismiss } = useObjectUpload();
+  const roomId = useSession((s) => s.viewer.room_id);
+  const [note, setNote] = useState<string | null>(null);
+  // A photo that has become a piece is offered straight away: where could it go in this room?
+  const offeredJobs = useRef(new Set<string>());
+  useEffect(() => {
+    for (const r of rows) {
+      const itemId = r.progress?.status === 'done' ? r.progress.result_ref?.split(',')[0] : undefined;
+      if (!itemId || offeredJobs.current.has(r.job_id)) continue;
+      offeredJobs.current.add(r.job_id);
+      if (!roomId) {
+        setNote('Added to your furniture. Walk into a room to place it.');
+        continue;
+      }
+      offerPlacement(twin.property_id, roomId, itemId).then(
+        (n) => setNote(n > 1 ? `${n} places it fits in ${roomName(twin, roomId)} are on the big screen. Pick one above.` : `Placed in ${roomName(twin, roomId)}.`),
+        (err: unknown) => setNote(err instanceof Error ? err.message : String(err)),
+      );
+    }
+  }, [rows, roomId, twin]);
   return (
     <div className="space-y-3">
       <input
@@ -106,6 +125,7 @@ function Capture() {
       </Button>
       {error && <p className="text-xs text-danger">{error}</p>}
       <JobRows rows={rows} dismiss={dismiss} />
+      {note && <p role="status" className="text-sm text-leaf-deep">{note}</p>}
     </div>
   );
 }
@@ -247,6 +267,7 @@ function Remote({ propertyId }: { propertyId: string }) {
   const ptt = usePushToTalk();
   const [text, setText] = useState('');
   const [view, setView] = useState<RemoteView>('move');
+  const choosing = useSession((s) => s.viewer.shown_layout_ids.length > 0 && !s.viewer.shown_layout_ids.includes(s.viewer.selected_layout_id ?? ''));
   // Handedness: the walking stick sits under the dominant thumb, the talk button on the other side.
   const [hand, setHand] = useState<'left' | 'right'>('right');
   const [settings, setSettings] = useState(false);
@@ -363,14 +384,22 @@ function Remote({ propertyId }: { propertyId: string }) {
         {twin.data && view === 'rooms' && <RoomBlocks twin={twin.data} onPicked={() => setView('move')} />}
         {twin.data && view === 'furniture' && (
           <>
+            {/* Options waiting for a choice come first; otherwise the room's plan does. */}
+            {choosing && (
+              <Card title="Where should it go?" testId="remote-layouts">
+                <Variants twin={twin.data} />
+              </Card>
+            )}
             {/* The room you are standing in, from above: drag, turn, add and remove pieces. */}
             <ArrangePanel twin={twin.data} inline />
-            <Card title="Layout options from the guide" testId="remote-layouts">
-              <Variants twin={twin.data} />
-            </Card>
             <Card title="Add a piece from a photo">
-              <Capture />
+              <Capture twin={twin.data} />
             </Card>
+            {!choosing && (
+              <Card title="Layout options" testId="remote-layouts">
+                <Variants twin={twin.data} />
+              </Card>
+            )}
           </>
         )}
         {twin.data && view === 'light' && (

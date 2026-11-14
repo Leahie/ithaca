@@ -241,6 +241,14 @@ export interface FloorOpening {
   other_floor_room_ids: string[];
 }
 
+/**
+ * Additive to v0. The piece selected in a plan editor (None: nothing), so the 3D view can
+ * point it out.
+ */
+export interface FurnitureSelectPayload {
+  item_id?: string | null;
+}
+
 export interface Household {
   household_id: string;
   name: string;
@@ -860,6 +868,7 @@ export interface EventPayloads {
   "viewer.step": ViewerStepPayload;
   "viewer.zoom": ViewerZoomPayload;
   "layout.changed": LayoutChangedPayload;
+  "furniture.select": FurnitureSelectPayload;
   "remote.view": RemoteViewPayload;
   "design.showVariants": DesignShowVariantsPayload;
   "layout.select": LayoutSelectPayload;
@@ -884,7 +893,7 @@ export interface EventPayloads {
 }
 
 export type EventType = keyof EventPayloads;
-export const EVENT_TYPES = ["session.state", "session.joined", "session.left", "viewer.goto", "viewer.walk", "viewer.setTime", "viewer.setMode", "viewer.look", "viewer.step", "viewer.zoom", "layout.changed", "remote.view", "design.showVariants", "layout.select", "layout.confirm", "sound.setScenario", "sound.placeSource", "sound.clearSource", "catalog.suggest", "catalog.picked", "capture.upload", "chat.user", "voice.transcript", "agent.token", "agent.message", "agent.action", "agent.error", "agent.turn", "job.progress", "family.note", "family.ask", "family.answer"] as const satisfies readonly EventType[];
+export const EVENT_TYPES = ["session.state", "session.joined", "session.left", "viewer.goto", "viewer.walk", "viewer.setTime", "viewer.setMode", "viewer.look", "viewer.step", "viewer.zoom", "layout.changed", "furniture.select", "remote.view", "design.showVariants", "layout.select", "layout.confirm", "sound.setScenario", "sound.placeSource", "sound.clearSource", "catalog.suggest", "catalog.picked", "capture.upload", "chat.user", "voice.transcript", "agent.token", "agent.message", "agent.action", "agent.error", "agent.turn", "job.progress", "family.note", "family.ask", "family.answer"] as const satisfies readonly EventType[];
 
 /** The typed envelope for one known event type. */
 export interface Event<T extends EventType = EventType> {

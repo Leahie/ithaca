@@ -571,6 +571,37 @@ export function TourTab({ twin, active }: { twin: PropertyTwin; active: boolean 
       }
     })();
   }, [sdk, placements]);
+  // furniture.select: the piece selected on the phone's plan swells and settles, over and over,
+  // so it can be found in the room. Leaving the phone's furniture screen ends it.
+  useEffect(() => {
+    if (!sdk) return;
+    let id: string | null = null;
+    const settle = () => {
+      const node = id ? pieces.current.get(id)?.node : undefined;
+      node?.scale.set(1, 1, 1);
+    };
+    const beat = setInterval(() => {
+      const node = id ? pieces.current.get(id)?.node : undefined;
+      if (!node) return;
+      const k = 1 + 0.045 * (0.5 + 0.5 * Math.sin(performance.now() / 260));
+      node.scale.set(k, k, k);
+    }, 40);
+    const off = onSessionEvent((event) => {
+      if (event.type === 'furniture.select') {
+        settle();
+        id = event.payload.item_id ?? null;
+      } else if (event.type === 'remote.view' && event.payload.view !== 'furniture') {
+        settle();
+        id = null;
+      }
+    });
+    return () => {
+      clearInterval(beat);
+      settle();
+      off();
+    };
+  }, [sdk]);
+
   // The viewer going away takes every piece with it.
   useEffect(() => {
     const have = pieces.current;

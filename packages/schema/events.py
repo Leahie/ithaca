@@ -137,6 +137,13 @@ class LayoutChangedPayload(Model):
     layout_id: str | None = None
 
 
+class FurnitureSelectPayload(Model):
+    """Additive to v0. The piece selected in a plan editor (None: nothing), so the 3D view can
+    point it out."""
+
+    item_id: str | None = None
+
+
 class RemoteViewPayload(Model):
     """Additive to v0. Which screen the phone remote is on, so the big screen can follow it
     (it shows the floor plan while the phone is choosing a room)."""
@@ -233,8 +240,10 @@ EVENTS: dict[str, tuple[type[Model], frozenset[str]]] = {
     "viewer.step": (ViewerStepPayload, frozenset({"phone"})),
     "viewer.zoom": (ViewerZoomPayload, frozenset({"phone"})),
     "layout.changed": (LayoutChangedPayload, frozenset({"phone", "desktop"})),
+    "furniture.select": (FurnitureSelectPayload, frozenset({"phone", "desktop"})),
     "remote.view": (RemoteViewPayload, frozenset({"phone"})),
-    "design.showVariants": (DesignShowVariantsPayload, frozenset({"agent"})),
+    # the agent's layouts, or the placement options a phone or the desktop asked the server for
+    "design.showVariants": (DesignShowVariantsPayload, frozenset({"agent", "phone", "desktop"})),
     "layout.select": (LayoutSelectPayload, frozenset({"agent", "phone", "desktop"})),
     # Additive to v0. layout.select only previews an option in the room; layout.confirm is the user
     # saying "keep this one", and is what the agent records.

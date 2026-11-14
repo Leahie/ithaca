@@ -1,7 +1,9 @@
 'use client';
 
-import { useEffect, useState, type ReactNode } from 'react';
+import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import type { PropertyTwin } from '@ithaca/schema';
+import { PlanPreview } from '@/components/design/PlanPreview';
+import { useInventory, useLayouts } from '@/lib/data/hooks';
 import { roomName } from '@/lib/rooms';
 import { canSpeak, useSpeakGuide } from '@/lib/speech/useSpeakGuide';
 import { useSession } from '@/lib/store/session';
@@ -40,6 +42,14 @@ export function CleanOverlay({ twin, pairing, onShowControls }: { twin: Property
     return () => clearTimeout(t);
   }, [text]);
 
+  // Placement options waiting for a choice (made on the phone) are drawn over the house.
+  const shown = useSession((s) => s.viewer.shown_layout_ids);
+  const selectedLayout = useSession((s) => s.viewer.selected_layout_id);
+  const layouts = useLayouts(twin.property_id);
+  const inventory = useInventory();
+  const items = useMemo(() => new Map((inventory.data ?? []).map((i) => [i.item_id, i])), [inventory.data]);
+  const options = shown.includes(selectedLayout ?? '') ? [] : (layouts.data ?? []).filter((l) => shown.includes(l.layout_id)).slice(0, 3);
+
   const caption = interim ? `“${interim.text || 'Listening…'}”` : visible ? text : '';
   return (
     <div className="pointer-events-none absolute inset-0 z-20" data-testid="clean-overlay">
@@ -56,6 +66,26 @@ export function CleanOverlay({ twin, pairing, onShowControls }: { twin: Property
         {pairing}
       </div>
       <div className={`absolute bottom-3 left-3 px-3.5 py-1.5 text-sm tabular-nums ${GLASS}`}><span className="font-display font-semibold">{roomName(twin, roomId)}</span> · {formatClock(minutesOfDay(datetime, twin.timezone))}</div>
+      {options.length > 1 && (
+        <div className="absolute inset-x-0 top-20 flex justify-center px-6" data-testid="clean-options">
+          <div className="rounded-3xl border border-white/30 bg-black/45 p-4 text-white shadow-lg backdrop-blur-md">
+            <div className="mb-3 text-center text-sm">{options.length} places it fits in {roomName(twin, options[0]!.room_id)} · choose on your phone</div>
+            <div className="flex gap-3">
+              {options.map((l, i) => {
+                const room = twin.rooms.find((r) => r.room_id === l.room_id);
+                return (
+                  <figure key={l.layout_id} className="w-[min(220px,24vw)]">
+                    <div className="aspect-[4/3] overflow-hidden rounded-xl bg-white/90">
+                      {room && <PlanPreview room={room} openings={twin.openings.filter((o) => o.room_id === room.room_id)} placements={l.placements} items={items} labels={false} className="h-full w-full p-2" />}
+                    </div>
+                    <figcaption className="mt-1.5 text-center text-xs text-white/85">{l.rationale || `Option ${'ABC'[i]}`}</figcaption>
+                  </figure>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      )}
       {caption && (
         <div aria-live="polite" className="absolute inset-x-0 bottom-3 flex justify-center px-40">
           <p className="line-clamp-2 max-w-[560px] rounded-xl border border-white/20 bg-black/40 px-3.5 py-1.5 text-center text-[13px] leading-5 text-white/95 backdrop-blur-md">{caption}</p>

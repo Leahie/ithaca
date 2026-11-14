@@ -207,6 +207,7 @@ export function applyEvent(state: CoreState, event: AnyEvent): CoreState {
     case 'viewer.step': // a camera move, like viewer.look
     case 'viewer.zoom':
     case 'layout.changed': // other screens reload the layouts (SessionProvider)
+    case 'furniture.select': // the tour points the piece out
     case 'viewer.look':
     case 'capture.upload':
     case 'sound.placeSource': // TODO(A): C's place-a-sound demo (docs/handoffs/stream-a)

@@ -6,12 +6,14 @@ GET /layouts/{id} exists, GET /memory is a list of relative paths, memory bodies
 
 from __future__ import annotations
 
+import math
 import uuid
 
 from shapely.geometry import Point, Polygon
 
 from fastapi import APIRouter, Body, Header, HTTPException, Request, Response
 from fastapi.responses import PlainTextResponse
+from pydantic import BaseModel
 
 from packages.schema.inventory import InventoryItem
 from packages.schema.layout import LayoutVariant, Placement, PlacementDrop, PlacementMove
@@ -168,6 +170,75 @@ def drop_item(body: PlacementDrop, x_user_id: str = Header("demo")) -> LayoutVar
     dropped = layout.model_copy(update={"placements": placements})
     store.put_layout(dropped)
     return dropped
+
+
+class PlacementOptions(BaseModel):
+    """Body of POST /layouts/options: where could this piece go in this room?"""
+
+    property_id: str
+    room_id: str
+    item_id: str
+
+
+@router.post("/layouts/options")
+def placement_options(body: PlacementOptions, x_user_id: str = Header("demo")) -> list[LayoutVariant]:
+    """Up to three ways to add one piece to a room, as proposed layouts: the room's own furniture
+    stays where it is and the piece stands at a different valid spot in each. No model call: spots
+    come from the solver, tried around the room's corners, walls and middle, and the three kept
+    are the ones furthest apart. The user picks one (layout.select) or none."""
+    store = furniture_store()
+    twin = get_twin(body.property_id)
+    owned = store.get_item(x_user_id, body.item_id)
+    if owned is None:
+        raise HTTPException(404, "no such item")
+    if not any(r.room_id == body.room_id for r in twin.rooms):
+        raise HTTPException(404, "no such room")
+    in_room = store.list_layouts(x_user_id, body.property_id, body.room_id)
+    base = next((l for l in in_room if l.status == "chosen"), in_room[0] if in_room else None) or LayoutVariant(
+        layout_id=uuid.uuid4(), user_id=x_user_id, property_id=body.property_id, room_id=body.room_id,
+        placements=[], score=0, rationale="", status="proposed")
+    twin, room, _owned, items, poses = _room_state(x_user_id, base)
+    poses.pop(body.item_id, None)
+    items = [i for i in items if i.item_id != body.item_id]
+    items.append(layout_solver.Item(body.item_id, owned.label, owned.item_class, owned.dims_m.w, owned.dims_m.d, owned.dims_m.h))
+
+    shape = Polygon(room.polygon)
+    cx, cz = shape.centroid.x, shape.centroid.y
+    corners = list(room.polygon)
+    pins = [(cx, cz)]
+    for (x, z), (nx, nz) in zip(corners, corners[1:] + corners[:1]):
+        for px, pz in ((x, z), ((x + nx) / 2, (z + nz) / 2)):  # each corner and each wall's middle,
+            d = math.hypot(cx - px, cz - pz) or 1.0  # pulled a little way into the room
+            pins.append((px + (cx - px) / d * min(0.7, d), pz + (cz - pz) / d * min(0.7, d)))
+    found: list[layout_solver.Pose] = []
+    for px, pz in pins:
+        pose = layout_solver.nearest_valid_pose(room, twin.openings, items, poses, body.item_id, px, pz, walls=twin.walls, sweeps=twin.sweeps)
+        if pose is not None and all(math.hypot(pose.x - f.x, pose.z - f.z) > 0.9 for f in found):
+            found.append(pose)
+    if not found:
+        raise HTTPException(409, {"error": "no_room", "violations": [f"{owned.label} doesn't fit anywhere in this room"]})
+    picked = [found[0]]
+    while len(picked) < min(3, len(found)):  # furthest from the ones already picked
+        picked.append(max((f for f in found if f not in picked), key=lambda f: min(math.hypot(f.x - q.x, f.z - q.z) for q in picked)))
+
+    def side(pose: layout_solver.Pose) -> str:  # -Z is north in the interior frame
+        dx, dz = pose.x - cx, pose.z - cz
+        if math.hypot(dx, dz) < 0.8:
+            return "in the middle of the room"
+        if abs(dx) > abs(dz):
+            return "on the east side" if dx > 0 else "on the west side"
+        return "on the south side" if dz > 0 else "on the north side"
+
+    kept = [p for p in base.placements if str(p.item_id) != body.item_id]
+    options = []
+    for n, pose in enumerate(picked):
+        option = LayoutVariant(
+            layout_id=uuid.uuid4(), user_id=x_user_id, property_id=body.property_id, room_id=body.room_id,
+            placements=kept + [_placed(twin, room, body.item_id, pose)], score=0,
+            rationale=f"Option {'ABC'[n]}: {owned.label} {side(pose)}.", status="proposed")
+        store.put_layout(option)
+        options.append(option)
+    return options
 
 
 # --- memory (the /me page) ----------------------------------------------------------------------

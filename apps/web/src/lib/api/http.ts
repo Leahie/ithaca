@@ -75,6 +75,7 @@ export function createHttpApi(): ApiClient {
     movePlacement: (id, itemId, pose) => request(`/layouts/${enc(id)}/placements/${enc(itemId)}`, { method: 'PUT', body: JSON.stringify(pose) }),
     removePlacement: (id, itemId) => request(`/layouts/${enc(id)}/placements/${enc(itemId)}`, { method: 'DELETE' }),
     dropItem: (drop) => request('/layouts/drop', { method: 'POST', body: JSON.stringify(drop) }),
+    placementOptions: (ask) => request('/layouts/options', { method: 'POST', body: JSON.stringify(ask) }),
     listCatalog: () => request('/catalog'),
     addFromCatalog: (catalogId) => request(`/catalog/${enc(catalogId)}/add`, { method: 'POST' }),
     listMemory: () => request('/memory'),

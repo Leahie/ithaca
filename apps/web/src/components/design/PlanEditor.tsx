@@ -7,7 +7,8 @@ import { invalidate } from '@/lib/data/resource';
 import { dispatch } from '@/lib/store/session';
 import { bounds, footprint, frontDirection } from '@/lib/geometry/polygon';
 
-const ITEM_COLORS = ['#8e98a6', '#b98d5c', '#c79a33', '#7fa58a', '#a58ab8', '#b07a7a'];
+const ITEM_COLORS = ['#b9c7d6', '#e2c39b', '#f0d58a', '#b5dcc4', '#d3c2e6', '#e6b9b4'];
+const SELECTED = '#0a6b47';
 const NUDGE_M = 0.05;
 const TURN_DEG = 15;
 
@@ -25,6 +26,8 @@ interface Props {
   className?: string;
   /** Shows a "Look at it" button for the selected piece (the phone turns the big screen to it). */
   onLookAt?(itemId: string, at: { x: number; z: number }): void;
+  /** Told whenever the selected piece changes (null: none). */
+  onSelect?(itemId: string | null): void;
 }
 
 type Drag = { kind: 'move'; id: string; dx: number; dz: number } | { kind: 'turn'; id: string };
@@ -39,13 +42,19 @@ const norm = (deg: number) => ((deg % 360) + 360) % 360;
  * keeps it and may answer with warnings (an overlap, a blocked door), which are shown but never
  * block. Seen from above: +X is right and +Z is down the page, as in PlanPreview.
  */
-export function PlanEditor({ room, openings, layout, items, className, onLookAt }: Props) {
+export function PlanEditor({ room, openings, layout, items, className, onLookAt, onSelect }: Props) {
   const svg = useRef<SVGSVGElement>(null);
   const [poses, setPoses] = useState<Record<string, Pose>>({});
   const [selected, setSelected] = useState<string | null>(null);
   const [drag, setDrag] = useState<Drag | null>(null);
   const [note, setNote] = useState<{ tone: 'warn' | 'error'; text: string } | null>(null);
   const saved = useRef<Record<string, Pose>>({});
+  const report = useRef(onSelect);
+  report.current = onSelect;
+  useEffect(() => {
+    report.current?.(selected);
+    return () => report.current?.(null);
+  }, [selected]);
 
   // The stored layout is the truth when nothing is being dragged and no change is on its way to
   // the server. (A reply to an earlier turn must not undo the turns made since.)
@@ -181,7 +190,7 @@ export function PlanEditor({ room, openings, layout, items, className, onLookAt 
       <svg
         ref={svg}
         viewBox={`0 0 ${w.toFixed(3)} ${h.toFixed(3)}`}
-        className="block w-full touch-none select-none rounded-xl bg-ink outline-none focus-visible:ring-2 focus-visible:ring-sun"
+        className="block w-full touch-none select-none rounded-xl bg-ink outline-none focus-visible:ring-2 focus-visible:ring-leaf-deep"
         style={{ aspectRatio: `${w} / ${h}`, maxHeight: '46vh' }}
         role="application"
         aria-label={`Plan of ${room.label}. Drag a piece to move it; drag its round handle to turn it.`}
@@ -194,11 +203,11 @@ export function PlanEditor({ room, openings, layout, items, className, onLookAt 
           if (e.target === e.currentTarget) setSelected(null);
         }}
       >
-        <polygon points={pts(room.polygon)} fill="#26221c" stroke="#8f887c" strokeWidth={0.07} strokeLinejoin="round" pointerEvents="none" />
+        <polygon points={pts(room.polygon)} fill="#ffffff" stroke="#06261f" strokeWidth={0.09} strokeLinejoin="round" pointerEvents="none" />
         {openings.map((o) => {
           const [p0, p1] = o.polygon;
           if (!p0 || !p1) return null;
-          return <line key={o.opening_id} x1={sx(p0.x)} y1={sz(p0.z)} x2={sx(p1.x)} y2={sz(p1.z)} stroke={o.kind === 'door' ? '#f2b84b' : '#6fb6e8'} strokeWidth={0.13} strokeLinecap="round" pointerEvents="none" />;
+          return <line key={o.opening_id} x1={sx(p0.x)} y1={sz(p0.z)} x2={sx(p1.x)} y2={sz(p1.z)} stroke={o.kind === 'door' ? '#f1c84b' : '#4aa8ff'} strokeWidth={0.15} strokeLinecap="round" pointerEvents="none" />;
         })}
         {ordered.map((p, i) => {
           const item = items.get(p.item_id)!;
@@ -215,8 +224,8 @@ export function PlanEditor({ room, openings, layout, items, className, onLookAt 
                 points={pts(footprint(pose.x, pose.z, item.dims_m.w, item.dims_m.d, pose.yaw))}
                 fill={ITEM_COLORS[i % ITEM_COLORS.length]}
                 fillOpacity={0.92}
-                stroke={active ? '#ffd27a' : '#171512'}
-                strokeWidth={active ? 0.07 : 0.04}
+                stroke={active ? SELECTED : '#06261f'}
+                strokeWidth={active ? 0.09 : 0.03}
                 strokeLinejoin="round"
                 style={{ cursor: drag?.kind === 'move' && drag.id === p.item_id ? 'grabbing' : 'grab' }}
                 onPointerDown={(e) => {
@@ -229,19 +238,19 @@ export function PlanEditor({ room, openings, layout, items, className, onLookAt 
                 }}
               />
               {/* A tick on the front edge shows which way the piece faces. */}
-              <line x1={cx + fx * reach * 0.55} y1={cz + fz * reach * 0.55} x2={cx + fx * reach} y2={cz + fz * reach} stroke="#171512" strokeWidth={0.07} strokeLinecap="round" pointerEvents="none" />
-              <text x={cx} y={cz} textAnchor="middle" dominantBaseline="central" fontSize={0.2} fill="#171512" fontWeight={600} pointerEvents="none">
+              <line x1={cx + fx * reach * 0.55} y1={cz + fz * reach * 0.55} x2={cx + fx * reach} y2={cz + fz * reach} stroke="#06261f" strokeWidth={0.07} strokeLinecap="round" pointerEvents="none" />
+              <text x={cx} y={cz} textAnchor="middle" dominantBaseline="central" fontSize={0.2} fill="#06261f" fontWeight={600} pointerEvents="none">
                 {item.item_class.replace(/_/g, ' ')}
               </text>
               {active && (
                 <>
-                  <line x1={cx + fx * reach} y1={cz + fz * reach} x2={cx + fx * handle} y2={cz + fz * handle} stroke="#ffd27a" strokeWidth={0.04} pointerEvents="none" />
+                  <line x1={cx + fx * reach} y1={cz + fz * reach} x2={cx + fx * handle} y2={cz + fz * handle} stroke={SELECTED} strokeWidth={0.05} pointerEvents="none" />
                   <circle
                     cx={cx + fx * handle}
                     cy={cz + fz * handle}
-                    r={0.16}
-                    fill="#ffd27a"
-                    stroke="#171512"
+                    r={0.2}
+                    fill="#2bdc86"
+                    stroke="#06261f"
                     strokeWidth={0.04}
                     style={{ cursor: 'crosshair' }}
                     onPointerDown={(e) => {
@@ -257,6 +266,18 @@ export function PlanEditor({ room, openings, layout, items, className, onLookAt 
         })}
       </svg>
 
+      {/* Every piece in the room, to tap: small ones are hard to hit on the plan. */}
+      {ordered.length > 0 && (
+        <div className="mt-2 flex flex-wrap gap-1.5 text-sm" data-testid="plan-pieces">
+          {ordered.map((p, i) => (
+            <button key={p.item_id} type="button" aria-pressed={p.item_id === selected} onClick={() => setSelected(p.item_id === selected ? null : p.item_id)}
+              className={p.item_id === selected ? 'rounded-full bg-main px-3 py-1 font-semibold text-on-main' : 'rounded-full border border-line bg-raised px-3 py-1'}>
+              <i aria-hidden className="mr-1.5 inline-block h-2.5 w-2.5 rounded-sm align-middle" style={{ background: ITEM_COLORS[i % ITEM_COLORS.length] }} />
+              {items.get(p.item_id)!.label}
+            </button>
+          ))}
+        </div>
+      )}
       <div className="mt-2 flex min-h-9 flex-wrap items-center gap-1.5 text-sm">
         {selectedItem && selectedPose ? (
           <>

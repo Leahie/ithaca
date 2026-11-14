@@ -11,7 +11,25 @@ import { bounds } from '@/lib/geometry/polygon';
 import { layoutForRoom } from '@/lib/layouts';
 import { roomName } from '@/lib/rooms';
 import { floorSweeps } from '@/lib/showcase/rooms';
-import { useSession } from '@/lib/store/session';
+import { dispatch as sessionDispatch, useSession } from '@/lib/store/session';
+
+/**
+ * "Where could it go?" Asks the server for up to three spots for a piece in a room and shows them
+ * as layout options on every screen (the big screen draws them; the phone lists them to pick).
+ * One spot only: it is simply placed. Returns how many options there were.
+ */
+export async function offerPlacement(propertyId: string, roomId: string, itemId: string): Promise<number> {
+  const options = await api().placementOptions({ property_id: propertyId, room_id: roomId, item_id: itemId });
+  invalidate('layouts:');
+  invalidate('layout:');
+  if (options.length === 1) {
+    sessionDispatch('layout.select', { layout_id: options[0]!.layout_id });
+    sessionDispatch('layout.changed', { layout_id: options[0]!.layout_id });
+  } else if (options.length > 1) {
+    sessionDispatch('design.showVariants', { layout_ids: options.map((o) => o.layout_id) });
+  }
+  return options.length;
+}
 
 /**
  * Floating panel over the 3D views: the furniture of the layout on screen, as a plan the user
@@ -52,6 +70,7 @@ export function ArrangePanel({ twin, onClose, inline = false }: { twin: Property
   const [browsing, setBrowsing] = useState(false);
   const [placeError, setPlaceError] = useState<string | null>(null);
   const [deleting, setDeleting] = useState<string | null>(null);
+  const [offered, setOffered] = useState<string | null>(null);
 
   /** Delete a piece from the user's furniture for good (it also leaves any room it stood in). */
   const discard = async (item: InventoryItem) => {
@@ -75,6 +94,19 @@ export function ArrangePanel({ twin, onClose, inline = false }: { twin: Property
   const place = async (item: InventoryItem) => {
     if (!targetRoom) {
       setPlaceError('Walk into a room first, then add the piece.');
+      return;
+    }
+    setPlaceError(null);
+    if (inline) {
+      // On the phone: show where it could go, on the big screen, and let the user pick.
+      try {
+        const n = await offerPlacement(twin.property_id, targetRoom.room_id, item.item_id);
+        setBrowsing(false);
+        setOffered(n > 1 ? `${n} places for the ${item.label} are on the big screen. Pick one above.` : null);
+      } catch (err) {
+        const text = err instanceof Error ? err.message : String(err);
+        setPlaceError(/"violations":\s*\["([^"]+)"/.exec(text)?.[1] ?? text);
+      }
       return;
     }
     setPlaceError(null);
@@ -131,7 +163,7 @@ export function ArrangePanel({ twin, onClose, inline = false }: { twin: Property
       {browsing ? (
         <CatalogBrowser onAdded={place} />
       ) : layout && room ? (
-        <PlanEditor room={room} openings={openings} layout={layout} items={items} onLookAt={inline ? lookAt : undefined} />
+        <PlanEditor room={room} openings={openings} layout={layout} items={items} onLookAt={inline ? lookAt : undefined} onSelect={inline ? (id) => dispatch('furniture.select', { item_id: id }) : undefined} />
       ) : (
         <p className="text-sm text-muted">{layouts.data ? 'Nothing is placed in this room yet. Add furniture, or ask the guide to set it up.' : 'Loading…'}</p>
       )}
@@ -163,6 +195,7 @@ export function ArrangePanel({ twin, onClose, inline = false }: { twin: Property
           )}
         </div>
       )}
+      {offered && !placeError && <p role="status" className="mt-1 text-sm text-leaf-deep">{offered}</p>}
       {placeError && <p role="alert" className="mt-1 text-sm text-danger">{placeError}</p>}
     </section>
   );

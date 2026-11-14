@@ -81,6 +81,8 @@ export interface ApiClient {
   /** Take one piece out of a layout. It stays in the inventory. */
   removePlacement(layoutId: string, itemId: string): Promise<LayoutVariant>;
   dropItem(drop: PlacementDrop): Promise<LayoutVariant>;
+  /** Up to three proposed layouts that add one owned piece to a room, each at a different spot. */
+  placementOptions(ask: { property_id: string; room_id: string; item_id: string }): Promise<LayoutVariant[]>;
   /** Ready-made furniture that can be added without a photo. */
   listCatalog(): Promise<CatalogPiece[]>;
   addFromCatalog(catalogId: string): Promise<InventoryItem>;

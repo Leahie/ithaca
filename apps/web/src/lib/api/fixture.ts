@@ -309,6 +309,9 @@ export function createFixtureApi(): ApiClient {
     async dropItem() {
       throw new ApiError('Placing a piece needs the API (fixture mode is on).', 501, true);
     },
+    async placementOptions() {
+      throw new ApiError('Placing a piece needs the API (fixture mode is on).', 501, true);
+    },
     async listCatalog() {
       return [];
     },

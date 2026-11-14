@@ -142,6 +142,10 @@ def test_moving_a_piece_is_saved_only_when_the_layout_stays_valid(client):
     fresh = client.post("/api/layouts/drop", headers=alice, json={**drop, "layout_id": None, "floor_id": room.floor_id}).json()
     # no layout given: the room is found from the pin, and the piece joins that room's own layout
     assert fresh["room_id"] == LIVING_ROOM and fresh["layout_id"] == str(layout.layout_id) and len(fresh["placements"]) == 3
+    # "where could it go?": up to three proposed layouts, the room's other pieces untouched, the piece somewhere new in each
+    options = client.post("/api/layouts/options", headers=alice, json={"property_id": PROPERTY, "room_id": LIVING_ROOM, "item_id": chair}).json()
+    spots = {(p["position"]["x"], p["position"]["z"]) for o in options for p in o["placements"] if p["item_id"] == chair}
+    assert 1 <= len(options) <= 3 and len(spots) == len(options) and all(len(o["placements"]) == 3 and o["status"] == "proposed" for o in options)
 
 
 def test_catalog_piece_is_added_at_its_own_size(client, monkeypatch, tmp_path):
