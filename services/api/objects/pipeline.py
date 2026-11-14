@@ -3,6 +3,8 @@
     read the image (vision LLM) -> for each piece: cut it out (segmentation) -> build a 3D model ->
     size and orient it -> save the item
 
+A video of a room goes the same way, from the still frame that shows each piece best.
+
 One bad piece doesn't sink the others: each piece either becomes a valid item or is reported with
 the reason (B6). `progress(pct, note)` is called along the way.
 """
@@ -11,15 +13,16 @@ from __future__ import annotations
 
 import uuid
 from collections.abc import Callable
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field
 
 from packages.schema.inventory import InventoryItem, ItemAttributes, ItemDims
 from services.api.furniture.store import FurnitureStore
-from services.api.integrations.config import env
+from services.api.integrations.config import IntegrationNotConfigured, env
 from services.api.objects import files
-from services.api.objects.classes import FURNITURE_CLASSES
+from services.api.objects.classes import FURNITURE_CLASSES, TYPICAL_SIZE_M
 from services.api.objects.normalize import NormalizeError, normalize_glb
-from services.api.objects.providers.base import Describer, ImageTo3D, Segmenter
+from services.api.objects.providers.base import Describer, FramePiece, ImageTo3D, Piece, RoomDescriber, Segment, Segmenter
 
 
 @dataclass
@@ -48,6 +51,27 @@ def provider_name() -> str:
     return name if name in ("fal", "catalog", "stub") else ("fal" if env("FAL_KEY") else "catalog")
 
 
+def segmenter_name() -> str:
+    """fal = SAM 3 on fal.ai; local = on this machine (providers/local.py); whole = no cutting,
+    the piece is the whole image. Unset: fal when the provider is fal, else whole."""
+    name = env("OBJECT_SEGMENTER").lower()
+    return name if name in ("fal", "local", "whole") else ("fal" if provider_name() == "fal" else "whole")
+
+
+def default_segmenter() -> Segmenter:
+    if segmenter_name() == "fal":
+        from services.api.objects.providers.fal import FalSegmenter
+
+        return FalSegmenter()
+    if segmenter_name() == "local":
+        from services.api.objects.providers.local import LocalSegmenter
+
+        return LocalSegmenter()
+    from services.api.objects.providers.stub import WholeImageSegmenter
+
+    return WholeImageSegmenter()
+
+
 def default_providers() -> Providers:
     from services.api.objects.providers import stub
 
@@ -59,14 +83,114 @@ def default_providers() -> Providers:
     else:
         describer = stub.FilenameDescriber()
     if provider_name() == "fal":
-        from services.api.objects.providers.fal import FalImageTo3D, FalSegmenter
+        from services.api.objects.providers.fal import FalImageTo3D
 
-        return Providers(describer, FalSegmenter(), FalImageTo3D())
+        return Providers(describer, default_segmenter(), FalImageTo3D())
     if provider_name() == "catalog":
         from services.api.objects.providers.catalog import CatalogTo3D
 
-        return Providers(describer, stub.WholeImageSegmenter(), CatalogTo3D())
+        return Providers(describer, default_segmenter(), CatalogTo3D())
     return Providers(describer, stub.WholeImageSegmenter(), stub.BoxTo3D())
+
+
+@dataclass
+class CutPiece:
+    piece: FramePiece
+    segment: Segment
+
+
+def cut_from_frames(
+    frames: list[bytes],
+    describer: RoomDescriber,
+    segmenter: Segmenter,
+    progress: Callable[[float, str], None] = lambda pct, note: None,
+) -> tuple[list[CutPiece], list[str]]:
+    """Find the furniture in JPEG frames of one room (a single photo is one frame) and cut each
+    piece out of the frame that shows it best. Returns (cut pieces, "label: reason" for the rest)."""
+    progress(5, "Looking for furniture")
+    pieces = describer.read_frames(frames).pieces[:8]
+    cuts: list[CutPiece] = []
+    skipped: list[str] = []
+    for n, piece in enumerate(pieces):
+        progress(15 + 85 * n / len(pieces), f"Cutting out the {piece.label}")
+        try:
+            segment = segmenter.segment(frames[piece.frame], "image/jpeg", piece.segment_prompt, piece.box)
+        except Exception as e:  # one piece failing must not lose the others
+            skipped.append(f"{piece.label}: {e}")
+            continue
+        if segment is None:
+            skipped.append(f"{piece.label}: it could not be found in frame {piece.frame}")
+        else:
+            cuts.append(CutPiece(piece, segment))
+    progress(100, "Done")
+    return cuts, skipped
+
+
+@dataclass
+class _Job:
+    piece: Piece
+    image: bytes  # the photo or video frame the piece is cut from
+    mime_type: str
+    source_url: str
+
+
+def _size(piece: Piece, item_class: str, estimate: tuple[float, float, float] | None) -> tuple[float | None, float | None, float | None]:
+    """(w, d, h) to size the model to. Dimensions printed in the image come first. Without any,
+    the 3D model's own estimate is used when it is believable for the class: within 2x of the
+    typical size (a bed estimated 0.9 m long is not). Otherwise the sizing step falls back to
+    the typical size. "other" has no meaningful typical size, so its estimate always stands."""
+    printed = (piece.width_m, piece.depth_m, piece.height_m)
+    if any(printed) or estimate is None:
+        return printed
+    typical = max(TYPICAL_SIZE_M[item_class])
+    return estimate if item_class == "other" or typical / 2 <= max(estimate) <= typical * 2 else printed
+
+
+def _build(job: _Job, item_class: str, providers: Providers) -> tuple[Segment, bytes, tuple[float, float, float]]:
+    """One piece: cut it out, build its 3D model, size it. Raises with the reason if a step fails."""
+    segment = providers.segmenter.segment(job.image, job.mime_type, job.piece.segment_prompt, job.piece.box)
+    if segment is None:
+        raise NormalizeError("it could not be found in the image")
+    model = providers.to_3d.generate(job.image, segment, job.piece)
+    glb, dims = normalize_glb(model.glb, item_class, _size(job.piece, item_class, model.size_m))
+    return segment, glb, dims
+
+
+def _ingest(kind: str, jobs: list[_Job], user_id: str, store: FurnitureStore, providers: Providers, progress: Callable[[float, str], None]) -> IngestResult:
+    """Build every piece and save the ones that come out valid. The pieces are built side by side:
+    each is mostly waiting on a model service, so a room takes about as long as one piece."""
+    result = IngestResult(kind=kind)
+    classes = [job.piece.item_class if job.piece.item_class in FURNITURE_CLASSES else "other" for job in jobs]
+    progress(10, f"Cutting out and building {len(jobs)} piece(s)" if jobs else "No furniture found")
+    with ThreadPoolExecutor(max_workers=6, thread_name_prefix="piece") as pool:
+        builds = [pool.submit(_build, job, item_class, providers) for job, item_class in zip(jobs, classes)]
+        for n, (job, item_class, build) in enumerate(zip(jobs, classes, builds)):
+            piece = job.piece
+            try:
+                segment, glb, (w, d, h) = build.result()
+            except Exception as e:  # one piece failing must not lose the others
+                result.skipped.append(f"{piece.label}: {e}")
+                continue
+            finally:
+                progress(10 + 85 * (n + 1) / len(jobs), f"Finished the {piece.label}")
+            item_id = uuid.uuid4()
+            item = InventoryItem(
+                item_id=item_id,
+                user_id=user_id,
+                label=piece.label,
+                item_class=item_class,
+                attributes=ItemAttributes(style=piece.style, color=piece.color, material=piece.material),
+                dims_m=ItemDims(w=w, d=d, h=h),
+                glb_url=files.save(f"items/{item_id}.glb", glb),
+                source_image_url=job.source_url,
+                mask_url=files.save(f"items/{item_id}.mask.png", segment.mask_png),
+                price=piece.price,
+                product_url=None,
+            )
+            store.put_item(item)
+            result.items.append(item)
+    progress(100, "Done")
+    return result
 
 
 def ingest_image(
@@ -81,42 +205,32 @@ def ingest_image(
 ) -> IngestResult:
     progress(5, "Reading the image")
     reading = providers.describer.read(image, mime_type, filename)
-    result = IngestResult(kind=reading.kind)
-    pieces = reading.pieces[:4]
-    for n, piece in enumerate(pieces):
-        base = 10 + 85 * n / len(pieces)
-        step = 85 / len(pieces)
-        item_class = piece.item_class if piece.item_class in FURNITURE_CLASSES else "other"
-        try:
-            progress(base, f"Cutting out the {piece.label}")
-            segment = providers.segmenter.segment(image, mime_type, piece.segment_prompt)
-            if segment is None:
-                raise NormalizeError("it could not be found in the image")
-            progress(base + step * 0.25, f"Building a 3D model of the {piece.label}")
-            raw_glb = providers.to_3d.generate(segment.cutout_png, piece)
-            progress(base + step * 0.85, f"Sizing the {piece.label}")
-            glb, (w, d, h) = normalize_glb(raw_glb, item_class, (piece.width_m, piece.depth_m, piece.height_m))
-        except Exception as e:  # one piece failing must not lose the others
-            result.skipped.append(f"{piece.label}: {e}")
-            continue
-        item_id = uuid.uuid4()
-        item = InventoryItem(
-            item_id=item_id,
-            user_id=user_id,
-            label=piece.label,
-            item_class=item_class,
-            attributes=ItemAttributes(style=piece.style, color=piece.color, material=piece.material),
-            dims_m=ItemDims(w=w, d=d, h=h),
-            glb_url=files.save(f"items/{item_id}.glb", glb),
-            source_image_url=source_url,
-            mask_url=files.save(f"items/{item_id}.mask.png", segment.mask_png),
-            price=piece.price,
-            product_url=None,
-        )
-        store.put_item(item)
-        result.items.append(item)
-    progress(100, "Done")
-    return result
+    jobs = [_Job(piece, image, mime_type, source_url) for piece in reading.pieces[:4]]
+    return _ingest(reading.kind, jobs, user_id, store, providers, progress)
+
+
+def save_frames(frames: list[bytes], user_id: str) -> list[str]:
+    """Store video stills so each item can point at the frame it came from. Returns their URLs."""
+    folder = f"frames/{user_id}/{uuid.uuid4().hex}"
+    return [files.save(f"{folder}/{n:02d}.jpg", frame) for n, frame in enumerate(frames)]
+
+
+def ingest_frames(
+    frames: list[bytes],
+    source_urls: list[str],
+    user_id: str,
+    store: FurnitureStore,
+    providers: Providers,
+    progress: Callable[[float, str], None] = lambda pct, note: None,
+) -> IngestResult:
+    """A room video -> inventory items. `frames` are JPEG stills of one room (video.sharp_frames)
+    and `source_urls` their stored URLs; each piece is built from the frame that shows it best."""
+    if not hasattr(providers.describer, "read_frames"):
+        raise IntegrationNotConfigured("reading a room video", "ANTHROPIC_API_KEY or OPENROUTER_API_KEY")
+    progress(5, "Looking for furniture")
+    pieces = providers.describer.read_frames(frames).pieces[:8]
+    jobs = [_Job(piece, frames[piece.frame], "image/jpeg", source_urls[piece.frame]) for piece in pieces]
+    return _ingest("room_video", jobs, user_id, store, providers, progress)
 
 
 def import_glb(

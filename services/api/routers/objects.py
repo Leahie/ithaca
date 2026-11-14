@@ -13,7 +13,7 @@ from packages.schema.inventory import CatalogAddRequest, CatalogPiece, Inventory
 from packages.schema.session import JobRef, ObjectIngestRequest, UploadResult
 from services.api.agent import memory_files
 from services.api.furniture.store import furniture_store
-from services.api.objects import files, pipeline
+from services.api.objects import files, pipeline, video
 from services.api.objects.normalize import NormalizeError
 from services.api.objects.providers import catalog
 from services.api.runner_hooks import object_ready
@@ -21,17 +21,23 @@ from services.api.runner_hooks import object_ready
 router = APIRouter(tags=["objects"])
 
 MAX_UPLOAD_BYTES = 15 * 1024 * 1024
+MAX_VIDEO_BYTES = 200 * 1024 * 1024
 IMAGE_TYPES = {"image/png": ".png", "image/jpeg": ".jpg", "image/webp": ".webp"}
+VIDEO_TYPES = {"video/mp4": ".mp4", "video/quicktime": ".mov", "video/webm": ".webm"}  # a walk through a room
+VIDEO_FRAMES = 8
 
 
 @router.post("/uploads")
 async def upload(file: UploadFile, x_user_id: str = Header("demo")) -> UploadResult:
-    suffix = IMAGE_TYPES.get(file.content_type or "")
+    kind = file.content_type or ""
+    suffix = IMAGE_TYPES.get(kind) or VIDEO_TYPES.get(kind)
     if suffix is None:
-        raise HTTPException(415, "upload a PNG, JPEG or WebP image")
+        raise HTTPException(415, "upload a PNG, JPEG or WebP image, or an MP4, MOV or WebM video of a room")
     data = await file.read()
-    if len(data) > MAX_UPLOAD_BYTES:
+    if kind in IMAGE_TYPES and len(data) > MAX_UPLOAD_BYTES:
         raise HTTPException(413, "the image is larger than 15 MB")
+    if len(data) > MAX_VIDEO_BYTES:
+        raise HTTPException(413, "the video is larger than 200 MB")
     upload_id = uuid.uuid4().hex
     name = Path(file.filename or "upload").stem[:60].replace("/", "_") or "upload"
     url = files.save(f"uploads/{x_user_id}/{upload_id}__{name}{suffix}", data)
@@ -45,7 +51,8 @@ def _find_upload(user_id: str, upload_id: str) -> Path | None:
 
 @router.post("/objects/ingest")
 def ingest(body: ObjectIngestRequest, request: Request, x_user_id: str = Header("demo")) -> JobRef:
-    """Turn an uploaded image into inventory items. Returns at once; follow `job.progress`."""
+    """Turn an uploaded image, or a video of a room, into inventory items. Returns at once;
+    follow `job.progress`."""
     path = _find_upload(x_user_id, body.upload_id)
     if path is None:
         raise HTTPException(404, "no such upload")
@@ -55,7 +62,11 @@ def ingest(body: ObjectIngestRequest, request: Request, x_user_id: str = Header(
     source_url = f"/api/files/uploads/{x_user_id}/{path.name}"
 
     def work(progress):
-        result = pipeline.ingest_image(path.read_bytes(), mime, path.name.split("__", 1)[-1], source_url, x_user_id, store, providers, progress)
+        if path.suffix in video.VIDEO_SUFFIXES:
+            frames = video.sharp_frames(path, VIDEO_FRAMES)
+            result = pipeline.ingest_frames(frames, pipeline.save_frames(frames, x_user_id), x_user_id, store, providers, progress)
+        else:
+            result = pipeline.ingest_image(path.read_bytes(), mime, path.name.split("__", 1)[-1], source_url, x_user_id, store, providers, progress)
         memory_files.sync_inventory(memory, x_user_id, store.list_items(x_user_id))
         return result
 

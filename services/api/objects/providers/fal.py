@@ -1,7 +1,8 @@
-"""fal.ai providers: SAM 3 for segmentation, TRELLIS 2 or SAM 3D Objects for image-to-3D.
+"""fal.ai providers: SAM 3 for segmentation, SAM 3D Objects or TRELLIS 2 for image-to-3D.
 
-Request and response fields follow fal's model pages (fal-ai/sam-3/image, fal-ai/trellis-2,
-fal-ai/sam-3/3d-objects) as read on 2026-11-14. Nothing here has been run against the live API yet.
+Request and response fields follow fal's API pages (fal-ai/sam-3/image, fal-ai/sam-3/3d-objects,
+fal-ai/trellis-2). SAM 3 and SAM 3D Objects were run against the live API on 2026-11-14: about 2 s
+and 30 s a piece. The TRELLIS 2 branch has not been run.
 """
 
 from __future__ import annotations
@@ -9,10 +10,11 @@ from __future__ import annotations
 import io
 
 import httpx
+import trimesh
 from PIL import Image
 
 from services.api.integrations.config import IntegrationNotConfigured, env
-from services.api.objects.providers.base import Piece, Segment
+from services.api.objects.providers.base import Model3D, Piece, Segment, cut_out, pick
 
 
 def _client():
@@ -30,47 +32,70 @@ def _download(url: str) -> bytes:
 
 
 class FalSegmenter:
-    """SAM 3 with a text prompt. Returns the best mask, or None when it finds nothing."""
+    """SAM 3 with a text prompt. Returns None when it finds nothing (near the hint, if given)."""
 
-    def segment(self, image: bytes, mime_type: str, prompt: str) -> Segment | None:
+    def segment(self, image: bytes, mime_type: str, prompt: str, near: list[float] | None = None) -> Segment | None:
         fal = _client()
         result = fal.subscribe(
             "fal-ai/sam-3/image",
-            arguments={"image_url": fal.upload(image, mime_type), "prompt": prompt, "apply_mask": False, "output_format": "png"},
+            arguments={
+                "image_url": fal.upload(image, mime_type),
+                "prompt": prompt,
+                "apply_mask": False,
+                "output_format": "png",
+                "return_multiple_masks": True,  # one mask per thing the prompt matches
+                "max_masks": 5,
+                "include_scores": True,
+                "include_boxes": True,
+            },
         )
         masks = result.get("masks") or []
-        if not masks:
+        scores, boxes = result.get("scores") or [], result.get("boxes") or []
+        if len(scores) == len(boxes) == len(masks):
+            # fal's boxes are [center x, center y, width, height] as fractions of the image
+            best = pick([(score, [cx - w / 2, cy - h / 2, cx + w / 2, cy + h / 2]) for score, (cx, cy, w, h) in zip(scores, boxes)], near)
+        else:
+            best = 0 if masks else None
+        if best is None:
             return None
-        picture = Image.open(io.BytesIO(image)).convert("RGBA")
-        mask = Image.open(io.BytesIO(_download(masks[0]["url"]))).convert("L").resize(picture.size)
-        box = mask.getbbox()
-        if box is None:
-            return None
-        picture.putalpha(mask)
-        mask_png, cutout_png = io.BytesIO(), io.BytesIO()
-        mask.save(mask_png, "PNG")
-        picture.crop(box).save(cutout_png, "PNG")
-        return Segment(mask_png.getvalue(), cutout_png.getvalue())
+        return cut_out(image, Image.open(io.BytesIO(_download(masks[best]["url"]))))
 
 
 class FalImageTo3D:
-    """OBJECT_3D_MODEL=trellis (default) | sam3d.
+    """OBJECT_3D_MODEL=sam3d (default) | trellis.
 
-    TRELLIS 2 returns an upright object from a single cut-out image (about $0.30 each).
-    SAM 3D Objects is cheaper but reconstructs the object as posed in the photo.
+    SAM 3D Objects (about $0.02) sees the whole photo and the mask, so it fills in what other
+    things hide, and it estimates the real size. Its model is upright with the front toward +Z.
+    TRELLIS 2 (about $0.30) sees only the cut-out, so it needs a piece that is fully visible.
     """
 
-    def generate(self, cutout_png: bytes, piece: Piece) -> bytes:
+    def generate(self, image: bytes, segment: Segment, piece: Piece) -> Model3D:
         fal = _client()
-        image_url = fal.upload(cutout_png, "image/png")
-        if env("OBJECT_3D_MODEL", "trellis").lower() == "sam3d":
-            result = fal.subscribe("fal-ai/sam-3/3d-objects", arguments={"image_url": image_url, "prompt": piece.segment_prompt, "export_textured_glb": True})
-        else:
+        if env("OBJECT_3D_MODEL", "sam3d").lower() == "trellis":
             result = fal.subscribe(
                 "fal-ai/trellis-2",
-                arguments={"image_url": image_url, "resolution": 1024, "decimation_target": 40000, "texture_size": 1024},
+                arguments={"image_url": fal.upload(segment.cutout_png, "image/png"), "resolution": 1024, "decimation_target": 40000, "texture_size": 1024},
             )
-        glb = result.get("model_glb")
-        if not glb:
+        else:
+            mime_type = Image.open(io.BytesIO(image)).get_format_mimetype() or "image/jpeg"
+            result = fal.subscribe(
+                "fal-ai/sam-3/3d-objects",
+                arguments={"image_url": fal.upload(image, mime_type), "mask_urls": [fal.upload(segment.mask_png, "image/png")], "export_textured_glb": True},
+            )
+        file = result.get("model_glb")
+        if not file:
             raise RuntimeError("the 3D model service returned no GLB file")
-        return _download(glb["url"])
+        glb = _download(file["url"])
+        return Model3D(glb, _real_size(glb, result.get("metadata")))
+
+
+def _real_size(glb: bytes, metadata: list[dict] | None) -> tuple[float, float, float] | None:
+    """(w, d, h) in meters from SAM 3D Objects: its model fits a unit box, and `scale` is the factor
+    to the size it estimated from the photo. None for models that give no scale."""
+    try:
+        scale = [float(s) for s in metadata[0]["scale"][0]]
+        x, y, z = trimesh.load(io.BytesIO(glb), file_type="glb", force="scene").extents
+        size = (float(x) * scale[0], float(z) * scale[2], float(y) * scale[1])  # glTF is Y up
+    except Exception:
+        return None
+    return size if all(0.01 < side < 20 for side in size) else None

@@ -60,7 +60,7 @@ class TwoPieceDescriber:
 
 
 class PickySegmenter(stub.WholeImageSegmenter):
-    def segment(self, image, mime_type, prompt):
+    def segment(self, image, mime_type, prompt, near=None):
         return None if prompt == "missing" else super().segment(image, mime_type, prompt)
 
 

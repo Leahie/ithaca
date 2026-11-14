@@ -9,7 +9,7 @@ import trimesh
 from PIL import Image
 
 from services.api.objects.classes import TYPICAL_SIZE_M
-from services.api.objects.providers.base import ImageReading, Piece, Segment
+from services.api.objects.providers.base import ImageReading, Model3D, Piece, Segment
 
 
 class FilenameDescriber:
@@ -23,7 +23,7 @@ class FilenameDescriber:
 
 
 class WholeImageSegmenter:
-    def segment(self, image: bytes, mime_type: str, prompt: str) -> Segment:
+    def segment(self, image: bytes, mime_type: str, prompt: str, near: list[float] | None = None) -> Segment:
         picture = Image.open(io.BytesIO(image)).convert("RGBA")
         mask, cutout = io.BytesIO(), io.BytesIO()
         Image.new("L", picture.size, 255).save(mask, "PNG")
@@ -32,9 +32,9 @@ class WholeImageSegmenter:
 
 
 class BoxTo3D:
-    def generate(self, cutout_png: bytes, piece: Piece) -> bytes:
+    def generate(self, image: bytes, segment: Segment, piece: Piece) -> Model3D:
         w, d, h = TYPICAL_SIZE_M.get(piece.item_class, TYPICAL_SIZE_M["other"])
         box = trimesh.creation.box(extents=(w, h, d))  # glTF is Y up: (x, y, z) = (w, h, d)
-        r, g, b = Image.open(io.BytesIO(cutout_png)).convert("RGB").resize((1, 1)).getpixel((0, 0))  # mean color
+        r, g, b = Image.open(io.BytesIO(segment.cutout_png)).convert("RGB").resize((1, 1)).getpixel((0, 0))  # mean color
         box.visual.vertex_colors = (r, g, b, 255)
-        return trimesh.Scene(box).export(file_type="glb")
+        return Model3D(trimesh.Scene(box).export(file_type="glb"))

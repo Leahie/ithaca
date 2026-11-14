@@ -16,7 +16,7 @@ import httpx
 import trimesh
 
 from services.api.integrations.config import REPO_ROOT, env
-from services.api.objects.providers.base import Piece
+from services.api.objects.providers.base import Model3D, Piece, Segment
 from services.api.objects.providers.stub import BoxTo3D
 
 log = logging.getLogger(__name__)
@@ -122,14 +122,14 @@ def fetch(asset_id: str) -> bytes:
 
 
 class CatalogTo3D:
-    def generate(self, cutout_png: bytes, piece: Piece) -> bytes:
+    def generate(self, image: bytes, segment: Segment, piece: Piece) -> Model3D:
         asset_id = MODELS.get(piece.item_class)
         if asset_id:
             try:
-                return fetch(asset_id)
+                return Model3D(fetch(asset_id))
             except Exception as e:  # offline, or the asset moved: a box is better than nothing
                 log.warning("catalog model %s unavailable (%s); using a box", asset_id, e)
-        return BoxTo3D().generate(cutout_png, piece)
+        return BoxTo3D().generate(image, segment, piece)
 
 
 if __name__ == "__main__":  # python -m services.api.objects.providers.catalog : download everything now

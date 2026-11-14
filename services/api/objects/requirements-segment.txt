@@ -1,0 +1,8 @@
+# Optional: segmentation on this machine (OBJECT_SEGMENTER=local, and the `segment` command of
+# services/api/objects/cli.py). Not needed by the API otherwise.
+# The next line picks the CPU build of torch (200 MB instead of 2.5 GB of CUDA libraries).
+# Remove it on a machine with an NVIDIA GPU.
+--extra-index-url https://download.pytorch.org/whl/cpu
+torch>=2.6
+transformers>=4.56
+scipy>=1.13

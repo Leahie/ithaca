@@ -60,9 +60,15 @@ trap cleanup EXIT INT TERM
 
 # --- API ------------------------------------------------------------------------------------------
 echo "Starting the API on port $API_PORT (the first run installs Python packages, about a minute)…"
+# OBJECT_SEGMENTER=local (in the environment or .env) needs torch and friends; nothing else does.
+SEGMENT_REQS=()
+if [ "${OBJECT_SEGMENTER:-}" = local ] || grep -qsE '^OBJECT_SEGMENTER="?local' .env; then
+  SEGMENT_REQS=(--with-requirements services/api/objects/requirements-segment.txt)
+fi
 setsid uv run --quiet --no-project \
   --with-requirements services/api/requirements-b.txt \
   --with-requirements services/api/twin/requirements.txt \
+  "${SEGMENT_REQS[@]}" \
   uvicorn services.api.main:app --host 0.0.0.0 --port "$API_PORT" \
   --reload --reload-dir services --reload-dir packages \
   > >(sed -u 's/^/[api] /') 2>&1 &
