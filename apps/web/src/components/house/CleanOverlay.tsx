@@ -7,8 +7,32 @@ import { useInventory, useLayouts } from '@/lib/data/hooks';
 import { placeName, roomName } from '@/lib/rooms';
 import { setVoiceKind, speechProvider } from '@/lib/speech/provider';
 import { canSpeak, useSpeakGuide } from '@/lib/speech/useSpeakGuide';
-import { useSession } from '@/lib/store/session';
+import { onSessionEvent, useSession } from '@/lib/store/session';
 import { formatClock, minutesOfDay } from '@/lib/time';
+
+/** Two soft rising notes, made in the browser (no sound file). Silent until the page has been clicked. */
+let chimeContext: AudioContext | null = null;
+function chime(): void {
+  try {
+    chimeContext ??= new AudioContext();
+    const ctx = chimeContext;
+    [660, 880].forEach((hz, n) => {
+      const at = ctx.currentTime + n * 0.11;
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = 'sine';
+      osc.frequency.value = hz;
+      gain.gain.setValueAtTime(0, at);
+      gain.gain.linearRampToValueAtTime(0.07, at + 0.02);
+      gain.gain.exponentialRampToValueAtTime(0.0001, at + 0.22);
+      osc.connect(gain).connect(ctx.destination);
+      osc.start(at);
+      osc.stop(at + 0.24);
+    });
+  } catch {
+    /* no audio here: the dots still show */
+  }
+}
 
 const GLASS = 'rounded-full border border-white/30 bg-black/35 text-white shadow-lg backdrop-blur-md';
 
@@ -46,6 +70,25 @@ export function CleanOverlay({ twin, pairing, onShowControls }: { twin: Property
     speechProvider().cancelSpeech();
     speechProvider().speak("Hi, I'll be your guide.");
   }, [kind, voice]);
+
+  // Between the user's words and the guide's first: a soft two-note chime says "heard you", and
+  // three dots show it is working, so the pause reads as thinking and not as nothing happening.
+  const [thinking, setThinking] = useState(false);
+  const voiceOn = useRef(voice);
+  voiceOn.current = voice;
+  useEffect(
+    () =>
+      onSessionEvent((event) => {
+        const asked = event.type === 'chat.user' || (event.type === 'voice.transcript' && event.payload.final && event.payload.text.trim() !== '');
+        if (asked) {
+          setThinking(true);
+          if (voiceOn.current) chime();
+        } else if (event.type === 'agent.token' || event.type === 'agent.message' || event.type === 'agent.error' || (event.type === 'agent.turn' && event.payload.status === 'ended')) {
+          setThinking(false);
+        }
+      }),
+    [],
+  );
 
   // A caption stays while it is being written and for a few seconds after.
   useEffect(() => {
@@ -96,6 +139,15 @@ export function CleanOverlay({ twin, pairing, onShowControls }: { twin: Property
                 );
               })}
             </div>
+          </div>
+        </div>
+      )}
+      {thinking && !caption && (
+        <div role="status" aria-label="The guide is thinking" className="absolute inset-x-0 bottom-3 flex justify-center" data-testid="guide-thinking">
+          <div className="flex items-center gap-1.5 rounded-full border border-white/20 bg-black/40 px-4 py-2.5 backdrop-blur-md">
+            {[0, 1, 2].map((i) => (
+              <i key={i} className="thinking-dot h-2 w-2 rounded-full bg-white" style={{ animationDelay: `${i * 160}ms` }} />
+            ))}
           </div>
         </div>
       )}

@@ -17,7 +17,10 @@ export interface SpeechProvider {
   ttsAvailable(): boolean;
   /** Start listening. Returns a function that stops and delivers the final transcript. */
   listen(handlers: ListenHandlers, opts?: { lang?: string }): () => void;
+  /** Say this now: whatever was being said, or was waiting to be said, is dropped. */
   speak(text: string, opts?: { lang?: string; rate?: number }): void;
+  /** Say this after what is being said. For a reply that arrives sentence by sentence. */
+  enqueue(text: string, opts?: { lang?: string; rate?: number }): void;
   cancelSpeech(): void;
 }
 
@@ -99,6 +102,12 @@ export class WebSpeechProvider implements SpeechProvider {
   }
 
   speak(text: string, opts: { lang?: string; rate?: number } = {}): void {
+    this.cancelSpeech();
+    this.enqueue(text, opts);
+  }
+
+  /** speechSynthesis keeps its own queue: an utterance waits for the ones before it. */
+  enqueue(text: string, opts: { lang?: string; rate?: number } = {}): void {
     if (!this.ttsAvailable()) return;
     const clean = speakable(text);
     if (!clean) return;
@@ -111,7 +120,6 @@ export class WebSpeechProvider implements SpeechProvider {
       u.voice = voices.find((v) => preferred.test(v.name)) ?? voices[0] ?? null;
     }
     u.rate = opts.rate ?? 1.04;
-    synth.cancel();
     synth.speak(u);
   }
 
@@ -228,6 +236,8 @@ export class DeepgramProvider implements SpeechProvider {
   private abort: AbortController | null = null;
   private audio: HTMLAudioElement | null = null;
   private speaking: string | null = null;
+  private queue: { text: string; audio: Promise<Blob> }[] = [];
+  private draining = false;
 
   private streams(): boolean {
     return !this.sttUnavailable && typeof AudioWorkletNode !== 'undefined' && !!navigator.mediaDevices?.getUserMedia;
@@ -339,15 +349,26 @@ export class DeepgramProvider implements SpeechProvider {
     // The guide and the agent dock can both read the same reply: say it once.
     if (this.speaking !== null && text === this.speaking) return;
     this.cancelSpeech();
-    if (this.unavailable) return this.browser.speak(text, opts);
-    const parts = speechChunks(speakable(text));
-    if (!parts.length) return;
-    const id = this.seq;
     this.speaking = text;
-    this.abort = new AbortController();
-    void this.play(parts, id, this.abort.signal, opts).finally(() => {
-      if (id === this.seq) this.speaking = null;
-    });
+    this.enqueue(text, opts);
+  }
+
+  /**
+   * Each part's audio is asked for at once, so it is ready (or nearly) when its turn comes; the
+   * parts play in the order they were given. A reply that streams in is spoken from its first
+   * sentence, while the rest is still being written.
+   */
+  enqueue(text: string, opts: { lang?: string; rate?: number } = {}): void {
+    const clean = speakable(text);
+    if (!clean) return;
+    if (this.unavailable) return this.browser.enqueue(clean, opts);
+    this.abort ??= new AbortController();
+    for (const part of speechChunks(clean)) {
+      const audio = this.fetchAudio(part, this.abort.signal);
+      audio.catch(() => {}); // handled when its turn comes
+      this.queue.push({ text: part, audio });
+    }
+    if (!this.draining) void this.drain(this.seq, opts);
   }
 
   cancelSpeech(): void {
@@ -355,31 +376,33 @@ export class DeepgramProvider implements SpeechProvider {
     this.seq++;
     this.abort?.abort();
     this.abort = null;
+    this.queue = [];
+    this.draining = false;
     this.audio?.pause();
     this.audio = null;
     this.browser.cancelSpeech();
   }
 
-  private async play(parts: string[], id: number, signal: AbortSignal, opts: { lang?: string; rate?: number }): Promise<void> {
-    // The next part is fetched while one plays, so a long reply has no gaps.
-    let next = this.fetchAudio(parts[0]!, signal);
-    for (let i = 0; i < parts.length; i++) {
+  private async drain(id: number, opts: { lang?: string; rate?: number }): Promise<void> {
+    this.draining = true;
+    while (this.queue.length && id === this.seq) {
+      const item = this.queue.shift()!;
       let blob: Blob;
       try {
-        blob = await next;
+        blob = await item.audio;
       } catch (err) {
         if (id !== this.seq) return;
         if (err instanceof VoiceUnavailable) this.unavailable = true;
         else console.warn('[speech] Deepgram failed; using the browser voice.', err);
-        return this.browser.speak(parts.slice(i).join(' '), opts);
+        for (const rest of [item, ...this.queue.splice(0)]) this.browser.enqueue(rest.text, opts);
+        break;
       }
       if (id !== this.seq) return;
-      if (i + 1 < parts.length) {
-        next = this.fetchAudio(parts[i + 1]!, signal);
-        next.catch(() => {}); // handled when its turn comes
-      }
       await this.playBlob(blob);
-      if (id !== this.seq) return;
+    }
+    if (id === this.seq) {
+      this.draining = false;
+      this.speaking = null;
     }
   }
 
