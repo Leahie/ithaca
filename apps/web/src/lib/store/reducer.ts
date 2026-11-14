@@ -15,6 +15,8 @@ export interface ViewerSlice {
   sound_scenario: SoundSetScenarioPayload | null;
   shown_layout_ids: string[];
   selected_layout_id: string | null;
+  /** Where to stand and what to face in `room_id`, when the last goto said (the agent's best view). */
+  view: { at_sweep_id: string; look_at: { x: number; y: number; z: number } } | null;
   /** Bumps on every goto, so a repeated goto to the same room still moves the camera. */
   goto_seq: number;
 }
@@ -58,7 +60,7 @@ const MAX_CHAT = 300;
 
 export function initialCore(datetime: string): CoreState {
   return {
-    viewer: { mode: 'tour', room_id: null, sweep_id: null, datetime, sound_scenario: null, shown_layout_ids: [], selected_layout_id: null, goto_seq: 0 },
+    viewer: { mode: 'tour', room_id: null, sweep_id: null, datetime, sound_scenario: null, shown_layout_ids: [], selected_layout_id: null, view: null, goto_seq: 0 },
     chat: [],
     interim: null,
     jobs: {},
@@ -107,9 +109,10 @@ export function applyEvent(state: CoreState, event: AnyEvent): CoreState {
       return { ...state, peers: { ...state.peers, [client]: false } };
     }
     case 'viewer.goto': {
-      const { room_id, sweep_id } = event.payload;
-      if (room_id) return { ...state, viewer: { ...v, room_id, sweep_id: null, goto_seq: v.goto_seq + 1 } };
-      if (sweep_id) return { ...state, viewer: { ...v, sweep_id, room_id: state.sweepRooms[sweep_id] ?? v.room_id, goto_seq: v.goto_seq + 1 } };
+      const { room_id, sweep_id, at_sweep_id, look_at } = event.payload;
+      const view = at_sweep_id && look_at ? { at_sweep_id, look_at } : null;
+      if (room_id) return { ...state, viewer: { ...v, room_id, sweep_id: null, view, goto_seq: v.goto_seq + 1 } };
+      if (sweep_id) return { ...state, viewer: { ...v, sweep_id, room_id: state.sweepRooms[sweep_id] ?? v.room_id, view: null, goto_seq: v.goto_seq + 1 } };
       return state;
     }
     case 'viewer.setTime':
@@ -178,6 +181,12 @@ export function applyEvent(state: CoreState, event: AnyEvent): CoreState {
     }
     case 'job.progress':
       return { ...state, jobs: { ...state.jobs, [event.payload.job_id]: event.payload } };
+    case 'viewer.walk': {
+      // The Tour plays the walk from the event itself. Here the session only learns where it ends.
+      // goto_seq stays as it is, so the goto effect doesn't also jump the camera.
+      const last = event.payload.sweep_ids[event.payload.sweep_ids.length - 1] ?? null;
+      return { ...state, viewer: { ...v, room_id: event.payload.to_room_id, sweep_id: last, view: null } };
+    }
     case 'catalog.suggest': {
       const p = event.payload;
       return { ...state, chat: push(state.chat, { kind: 'catalog', id: event.id, property_id: p.property_id, room_id: p.room_id ?? null, near_item_id: p.near_item_id ?? null, pieces: p.pieces, member_id: event.member_id ?? null }) };
@@ -187,7 +196,6 @@ export function applyEvent(state: CoreState, event: AnyEvent): CoreState {
     case 'capture.upload':
     case 'sound.placeSource': // TODO(A): C's place-a-sound demo (docs/handoffs/stream-a)
     case 'sound.clearSource':
-    case 'viewer.walk': // TODO(A): play the walk (see docs/handoffs/stream-a); for now only the chip shows
     case 'agent.turn': // brackets one agent turn; nothing stored yet (use it for a typing indicator)
       return state; // transient: handled by event listeners, not stored
     default: {

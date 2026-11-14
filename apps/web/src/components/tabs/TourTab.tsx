@@ -9,7 +9,7 @@ import { api } from '@/lib/api';
 import { config } from '@/lib/config';
 import { useInventory, useLayouts } from '@/lib/data/hooks';
 import { onHandNav } from '@/lib/hands/engine';
-import { defaultStartSweep, sweepForRoom } from '@/lib/showcase/rooms';
+import { defaultStartSweep, rotationToward, sweepForRoom, viewForRoom } from '@/lib/showcase/rooms';
 import type { MpSdk } from '@/lib/showcase/sdk-types';
 import { mountShowcase, type ShowcaseHandle } from '@/lib/showcase/viewer';
 import { onSessionEvent, useSession } from '@/lib/store/session';
@@ -184,22 +184,28 @@ export function TourTab({ twin, active }: { twin: PropertyTwin; active: boolean 
   // One camera move at a time. The viewer rejects a move that starts while another move or a
   // mode change (inside <-> outside) is in flight, so a request waits and is tried again; a
   // newer request replaces a waiting one, so the last request wins.
+  type Facing = { x: number; y: number };
   const moving = useRef(false);
-  const queued = useRef<{ target: string; instant: boolean; attempt: number } | null>(null);
+  const queued = useRef<{ target: string; instant: boolean; attempt: number; facing?: Facing } | null>(null);
+  /** Bumped by every new walk and every goto: a walk in progress stops at its next step. */
+  const walkToken = useRef(0);
   const moveTo = useCallback(
-    (target: string, instant: boolean, attempt = 0) => {
+    (target: string, instant: boolean, attempt = 0, facing?: Facing) => {
       if (!sdk) return;
       if (moving.current) {
-        queued.current = { target, instant, attempt: 0 };
+        queued.current = { target, instant, attempt: 0, facing };
         return;
       }
       moving.current = true;
       programmatic.current = target;
-      const options = instant ? { transition: sdk.Sweep.Transition.INSTANT } : { transition: sdk.Sweep.Transition.FLY, transitionTime: 1400 };
+      const options = {
+        ...(instant ? { transition: sdk.Sweep.Transition.INSTANT } : { transition: sdk.Sweep.Transition.FLY, transitionTime: 1400 }),
+        ...(facing ? { rotation: facing } : {}), // arrive facing the room, not whatever was ahead
+      };
       sdk.Sweep.moveTo(target, options)
         .catch((err: unknown) => {
           programmatic.current = null;
-          if (attempt < 4 && !queued.current) queued.current = { target, instant, attempt: attempt + 1 };
+          if (attempt < 4 && !queued.current) queued.current = { target, instant, attempt: attempt + 1, facing };
           else if (!queued.current) console.warn('[tour] moveTo failed', err);
           return new Promise((resolve) => setTimeout(resolve, 700));
         })
@@ -207,10 +213,23 @@ export function TourTab({ twin, active }: { twin: PropertyTwin; active: boolean 
           moving.current = false;
           const next = queued.current;
           queued.current = null;
-          if (next) moveTo(next.target, next.instant, next.attempt);
+          if (next) moveTo(next.target, next.instant, next.attempt, next.facing);
         });
     },
     [sdk],
+  );
+
+  /** Start the move that was waiting, if any. */
+  const runQueued = useCallback(() => {
+    const next = queued.current;
+    queued.current = null;
+    if (next) moveTo(next.target, next.instant, next.attempt, next.facing);
+  }, [moveTo]);
+
+  /** A sweep's position: the viewer's own if it has the sweep, else the twin's. */
+  const sweepPosition = useCallback(
+    (id: string) => sdkSweeps.current.get(id)?.position ?? twin.sweeps.find((s) => s.sweep_id === id)?.position,
+    [twin],
   );
 
   // viewer.goto -> Sweep.moveTo. Also runs once when the tour becomes interactive: it goes to
@@ -219,7 +238,15 @@ export function TourTab({ twin, active }: { twin: PropertyTwin; active: boolean 
   useEffect(() => {
     if (!sdk) return;
     const first = gotoSeq === 0;
-    const wanted = sweepId ?? (roomId ? sweepForRoom(twin, roomId)?.sweep_id : undefined) ?? (first && canPlaceObjects ? defaultStartSweep(twin)?.sweep_id : undefined);
+    walkToken.current++; // a goto replaces a walk in progress
+    // Going to a room (not to one sweep): stand where the room shows best and face into it. The
+    // agent sends that view with the goto; for a click on the room list it is worked out here.
+    const asked = useSession.getState().viewer.view;
+    const best = !sweepId && roomId ? (asked ? { sweep_id: asked.at_sweep_id, lookAt: asked.look_at } : (() => {
+      const v = viewForRoom(twin, roomId);
+      return v ? { sweep_id: v.sweep.sweep_id, lookAt: v.lookAt } : undefined;
+    })()) : undefined;
+    const wanted = sweepId ?? best?.sweep_id ?? (roomId ? sweepForRoom(twin, roomId)?.sweep_id : undefined) ?? (first && canPlaceObjects ? defaultStartSweep(twin)?.sweep_id : undefined);
     if (!wanted) {
       // Nothing asked for yet: the hosted viewer opens on the outside view, where the house can
       // be dragged round and zoomed (the bundle viewer has none, and started indoors above).
@@ -248,10 +275,57 @@ export function TourTab({ twin, active }: { twin: PropertyTwin; active: boolean 
       }
       console.warn(`[tour] sweep ${wanted} is not in the Showcase model; using the nearest sweep ${target} (${best.toFixed(2)} m away)`);
     }
-    moveTo(target, first);
+    const from = sweepPosition(target);
+    moveTo(target, first, 0, best && from ? rotationToward(from, best.lookAt) : undefined);
     if (first) setTimeout(() => setRevealed(true), 400); // an instant move
     // The sweep list is read at the moment of the move; it is not a trigger.
   }, [sdk, gotoSeq]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // viewer.walk: step the camera from sweep to sweep along the route, facing the way it is going,
+  // and face the room on arrival. A new walk, a goto or a click on the room list stops it.
+  useEffect(() => {
+    if (!sdk) return;
+    const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+    return onSessionEvent((event) => {
+      if (event.type !== 'viewer.walk') return;
+      const token = ++walkToken.current;
+      const { sweep_ids, look_at, duration_s } = event.payload;
+      // Only sweeps the viewer has: a few of the twin's are not in the Showcase model.
+      const steps = sweep_ids.filter((id) => !sdkSweeps.current.size || sdkSweeps.current.has(id));
+      if (!steps.length) return;
+      const stepMs = Math.max(700, Math.min(1600, (duration_s * 1000) / steps.length));
+      void (async () => {
+        queued.current = null;
+        while (moving.current) await sleep(100); // let a move in flight finish
+        if (walkToken.current !== token) return;
+        moving.current = true;
+        try {
+          for (let i = 0; i < steps.length; i++) {
+            if (walkToken.current !== token) return;
+            const id = steps[i]!;
+            const here = sweepPosition(id);
+            const nextId = steps[i + 1];
+            const ahead = nextId ? sweepPosition(nextId) : look_at;
+            programmatic.current = id;
+            try {
+              await sdk.Sweep.moveTo(id, {
+                transition: sdk.Sweep.Transition.FLY,
+                transitionTime: i === 0 ? 1200 : stepMs,
+                ...(here && ahead ? { rotation: rotationToward(here, ahead) } : {}),
+              });
+            } catch (err) {
+              console.warn('[tour] a step of the walk failed', err);
+              await sleep(300);
+            }
+          }
+        } finally {
+          programmatic.current = null;
+          moving.current = false;
+          runQueued(); // a goto that arrived during the walk
+        }
+      })();
+    });
+  }, [sdk, runQueued, sweepPosition]);
 
   // viewer.look (phone joystick / gyroscope)
   useEffect(() => {

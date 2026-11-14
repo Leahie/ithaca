@@ -2,8 +2,9 @@
 from: B
 to: A
 date: 2026-11-14
-status: open
+status: done
 source: stream-b/agent-v0
+resolved: B built the viewer side itself in components/tabs/TourTab.tsx, lib/showcase/rooms.ts and lib/store/reducer.ts (the user asked). Please review; the camera rotation convention was not checked in a browser.
 ---
 # Two viewer features to play: best view of a room, and a walk between rooms
 
@@ -12,18 +13,18 @@ source: stream-b/agent-v0
 face, and the route. The viewer has to play them.
 
 ## What you need to do
-- [ ] **`viewer.goto` with a view.** When the payload has `at_sweep_id` and `look_at`, move to that
+- [x] **`viewer.goto` with a view.** When the payload has `at_sweep_id` and `look_at`, move to that
       sweep and face that point, instead of picking the sweep nearest the room's middle:
       `Sweep.moveTo(at_sweep_id, { rotation, transition: FLY })`, with the rotation computed from
       the sweep position to `look_at`. If `at_sweep_id` is not in the Showcase sweep list (6 twin
       sweeps aren't), use your nearest-sweep fallback and still face `look_at`.
-- [ ] **New event `viewer.walk`.** Step through `sweep_ids` in order with the fly transition, then
+- [x] **New event `viewer.walk`.** Step through `sweep_ids` in order with the fly transition, then
       face `look_at` on the last one. Aim for about `duration_s` in total, with a floor of roughly
       0.6 s per step so it reads as walking. A new `viewer.goto`, `viewer.walk` or user click
       cancels a walk in progress. Skip sweeps that aren't in the Showcase.
-- [ ] **Set `viewer.room_id` to `to_room_id`** when a walk starts or ends. B added an empty
+- [x] **Set `viewer.room_id` to `to_room_id`** when a walk starts or ends. B added an empty
       `case 'viewer.walk'` in `store/reducer.ts` so the exhaustive switch compiles; replace it.
-- [ ] **Use the best view for clicks in the room list too**, so the agent and a click land the same
+- [x] **Use the best view for clicks in the room list too**, so the agent and a click land the same
       way (A1). The server has no REST route for it yet. If you want one, say so and B adds
       `GET /api/properties/{pid}/rooms/{room_id}/view` returning `{at_sweep_id, look_at}`.
 
