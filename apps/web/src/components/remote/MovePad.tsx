@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import { dispatch } from '@/lib/store/session';
 
 /** Degrees of camera turn per pixel of a slow drag. */
-const DRAG_SENSITIVITY = 0.34;
+const DRAG_SENSITIVITY = 0.3;
 /** A quick flick turns further than a slow drag of the same length, as a trackpad does. */
 const ACCEL_PER_PX = 0.035;
 const ACCEL_MAX = 2.4;

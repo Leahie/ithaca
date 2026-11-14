@@ -1,11 +1,10 @@
 'use client';
 
-import type { NoiseScenario, PropertyTwin, ViewerMode } from '@ithaca/schema';
+import type { NoiseScenario, PropertyTwin } from '@ithaca/schema';
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { PlanPreview } from '@/components/design/PlanPreview';
 import { JobRows, useObjectUpload } from '@/components/me/InventorySection';
 import { SessionProvider, useSessionInfo } from '@/components/session/SessionProvider';
-import { TimeScrubber } from '@/components/sunlab/TimeScrubber';
 import { Badge, Button, Notice, Segmented, Spinner, Toggle, cn } from '@/components/ui';
 import { IconCamera, IconCheck, IconDesign, IconMap, IconMic, IconSend, IconSound, IconSun, IconTour } from '@/components/ui/icons';
 import { useInventory, useLayouts, useTwin } from '@/lib/data/hooks';
@@ -16,6 +15,7 @@ import { useFamily, useMemberName } from '@/lib/store/family';
 import { useSession } from '@/lib/store/session';
 import { RoomIcon } from '@/components/ui/RoomIcon';
 import { ArrangePanel } from '@/components/house/ArrangePanel';
+import { LightPanel } from './LightPanel';
 import { MovePad } from './MovePad';
 
 const AS_BUILT: NoiseScenario = { glazing: null, add_carpet: false, include_furniture: true };
@@ -375,19 +375,7 @@ function Remote({ propertyId }: { propertyId: string }) {
         )}
         {twin.data && view === 'light' && (
           <>
-            <Card title="Time of day" testId="remote-time">
-              <TimeScrubber twin={twin.data} compact />
-            </Card>
-            <Card title="On the big screen">
-              <Segmented<ViewerMode>
-                className="w-full [&>button]:flex-1 [&>button]:justify-center"
-                label="What the big screen shows"
-                value={mode === 'sun' ? 'sun' : 'tour'}
-                options={[{ value: 'tour', label: 'Walkthrough' }, { value: 'sun', label: 'Sunlight' }]}
-                onChange={(m) => dispatch('viewer.setMode', { mode: m })}
-              />
-              <p className="mt-2 text-xs text-muted">Sunlight shows where the sun falls at the time above. The walkthrough is the scan as it was photographed.</p>
-            </Card>
+            <LightPanel twin={twin.data} />
             <Card title="Sound">
               <SoundControls twin={twin.data} />
             </Card>
