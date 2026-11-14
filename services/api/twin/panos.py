@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import io
 import logging
+import threading
 import time
 from pathlib import Path
 
@@ -36,6 +37,7 @@ _Y_UP_TO_Z_UP = np.array([[1, 0, 0], [0, 0, -1], [0, 1, 0]], float)
 _SIDE_TURN = Rotation.from_euler("y", 270, degrees=True).as_matrix()
 
 _urls: dict[tuple[str, str], tuple[float, dict[str, list[str]]]] = {}
+_locks: dict[tuple[str, str, str], threading.Lock] = {}
 
 
 def pano_to_interior(rotation: dict) -> np.ndarray:
@@ -97,13 +99,16 @@ def skybox_face(model_id: str, sweep_id: str, face: str, res: str = "2k",
     if face not in FACES or res not in RESOLUTIONS:
         raise ValueError(f"face must be one of {FACES}, res one of {RESOLUTIONS}")
     out = skybox_dir(model_id, sweep_id, res)
-    if not (out / f"{face}.jpg").exists():
-        faces = load_matterport_faces(model_id, sweep_id, res, client)
-        out.mkdir(parents=True, exist_ok=True)
-        n = faces[0].shape[0]
-        for name in FACES:
-            pixels = sample_matterport(faces, gl_face_directions(name, n))
-            Image.fromarray(pixels).save(out / f"{name}.jpg", quality=90)
+    with _locks.setdefault((model_id, sweep_id, res), threading.Lock()):
+        if not all((out / f"{name}.jpg").exists() for name in FACES):
+            faces = load_matterport_faces(model_id, sweep_id, res, client)
+            out.mkdir(parents=True, exist_ok=True)
+            n = faces[0].shape[0]
+            for name in FACES:
+                pixels = sample_matterport(faces, gl_face_directions(name, n))
+                partial = out / f"{name}.part.jpg"
+                Image.fromarray(pixels).save(partial, quality=90)
+                partial.replace(out / f"{name}.jpg")
     return out / f"{face}.jpg"
 
 

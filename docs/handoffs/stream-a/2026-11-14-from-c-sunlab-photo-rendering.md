@@ -39,11 +39,38 @@ patches, and as stretching while moving between scan points.
       C is replacing `interior.glb` with a mesh rebuilt from the point cloud with the photos baked
       on, so this view improves without changes on your side.
 
-## Coming from C (contract; endpoints land next)
-- `Sweep.rotation: {x, y, z, w}`: the panorama's orientation in the interior frame.
-- `GET /api/properties/{pid}/sweeps/{sweep_id}/skybox/{face}?res=low|2k` JPEG, `face` in
-  `px nx py ny pz nz` (three.js cube order), so
-  `new CubeTextureLoader().load(['px','nx','py','ny','pz','nz'].map(f => url(f)))` works as is.
-  `low` (512 px faces) for neighbors you might move to next, `2k` for where you stand.
-- A small test page in C's repo that renders one room this way, with the exact GLSL lookup
-  line (cube texture handedness is easy to get backwards), verified against the photos.
+## From C (live now, twin version 7)
+- `Sweep.rotation: {x, y, z, w}`: takes pano-frame directions to the interior frame.
+- `GET /api/properties/{pid}/sweeps/{sweep_id}/skybox/{face}?res=low|2k|high|4k` JPEG, `face` in
+  `px nx py ny pz nz`, so
+  `new CubeTextureLoader().load(['px','nx','py','ny','pz','nz'].map(f => url(f)))` works as is
+  (set `colorSpace = SRGBColorSpace`). `low` is 256 px faces, `2k` is 2048 px. The first request
+  per sweep takes a few seconds (C downloads and re-cuts it); after that it is a file read.
+- The lookup, verified against the point cloud's colors (which come from the same photos):
+
+```glsl
+uniform samplerCube pano;  // the sweep's six faces
+uniform vec3 eye;          // sweep.position
+uniform mat3 toPano;       // inverse(sweep.rotation) as a mat3
+varying vec3 vWorld;       // world position of the fragment
+vec4 photo = textureCube(pano, toPano * (vWorld - eye));  // no axis flips needed
+```
+
+- **Working reference:** `services/api/twin/static/walk.html`. Run
+  `uvicorn services.api.twin.app:app --port 8012` and open
+  `http://127.0.0.1:8012/dev/walk.html?sweep=<sweep_id>` (or `?room=<room_id>`). It has walk mode
+  (drag to look, click the floor or press the up arrow to move along links, a 0.6 s crossfade),
+  sun from `GET .../sun/at` through a hand-rolled shadow map (the mesh's depth seen from the
+  sun), and the time slider. Copy what helps.
+
+## Things learned building it
+- **Add a backdrop.** Wherever the mesh has no surface (through windows, since the yard is
+  trimmed from `interior.glb`), nothing is drawn. A sphere of radius 150 m centered on the eye
+  with the same material fills those pixels with the exact photo.
+- **Normals:** `normalize(cross(dFdx(vWorld), dFdy(vWorld)))`, flipped to face the eye. The
+  mesh's own normals are not needed.
+- **Sun look:** `photo * (sky_level + 0.9 * lit * max(n·l, 0) * vec3(1.0, 0.9, 0.72))` with a
+  3x3 PCF on the depth map reads well. `sky_level` 0.55 to 1.0 by sun elevation, 0.18 at night.
+- **Known seams in the photos themselves:** some panoramas have a faint exposure seam where
+  Matterport stitched two shots (for example on the primary bedroom floor). The face re-cut is
+  pixel-exact, so this is in Matterport's data.
