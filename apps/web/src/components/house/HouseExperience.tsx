@@ -12,11 +12,13 @@ import { ApiError } from '@/lib/api';
 import { config, type Feature } from '@/lib/config';
 import { useLayouts, useTwin } from '@/lib/data/hooks';
 import { useHands } from '@/lib/hands/store';
+import { useFamily } from '@/lib/store/family';
 import { useSession } from '@/lib/store/session';
 import { sunPosition } from '@/lib/sun/position';
 import { fromZonedParts, toZonedIso, zonedParts } from '@/lib/time';
 import { AgentDock } from './AgentDock';
 import { HouseLoader } from './HouseLoader';
+import { FamilyButton } from './FamilyButton';
 import { PairingButton } from './PairingButton';
 import { RoomRail } from './RoomRail';
 
@@ -64,7 +66,7 @@ const has = (f: Feature) => config.features.has(f);
 /** Views that are switched on, in tab order. The page shows no tab bar when there is one. */
 const VIEWS = TABS.filter((t) => has(t.mode));
 /** The session (agent, phone, saved choices) is only needed when something uses it. */
-const NEEDS_SESSION = has('agent') || has('phone') || has('design');
+const NEEDS_SESSION = has('agent') || has('phone') || has('design') || has('family');
 
 function House({ propertyId }: { propertyId: string }) {
   const twin = useTwin(propertyId);
@@ -158,7 +160,8 @@ function House({ propertyId }: { propertyId: string }) {
         )}
         <div className="flex items-center gap-1">
           {has('hands') && <HandsButton />}
-          {has('phone') && <PairingButton propertyId={propertyId} />}
+          {/* The family code covers one phone too, so it replaces single-phone pairing. */}
+          {has('family') ? <FamilyButton propertyId={propertyId} /> : has('phone') && <PairingButton propertyId={propertyId} />}
           {has('me') && (
             <Link href="/me" className="inline-flex h-10 items-center gap-1.5 rounded-full px-3.5 font-display font-semibold text-muted hover:bg-ink hover:text-text">
               <IconUser />
@@ -211,8 +214,28 @@ function House({ propertyId }: { propertyId: string }) {
   );
 }
 
+/** With families on, the session waits for the saved household, so the family's phones find it. */
+function FamilySession({ propertyId, children }: { propertyId: string; children: React.ReactNode }) {
+  const restored = useFamily((s) => s.restored);
+  const householdId = useFamily((s) => s.household?.household_id ?? null);
+  useEffect(() => void useFamily.getState().restore(), []);
+  if (!restored) return <HouseLoader label="Loading the home…" className="h-dvh" />;
+  return (
+    <SessionProvider client="desktop" propertyId={propertyId} householdId={householdId}>
+      {children}
+    </SessionProvider>
+  );
+}
+
 export function HouseExperience({ propertyId }: { propertyId: string }) {
   if (!NEEDS_SESSION) return <House propertyId={propertyId} />;
+  if (has('family')) {
+    return (
+      <FamilySession propertyId={propertyId}>
+        <House propertyId={propertyId} />
+      </FamilySession>
+    );
+  }
   return (
     <SessionProvider client="desktop" propertyId={propertyId}>
       <House propertyId={propertyId} />

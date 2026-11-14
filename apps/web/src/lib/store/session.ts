@@ -12,6 +12,8 @@ type EventListener = (event: AnyEvent, origin: EventOrigin) => void;
 interface SessionStore extends CoreState {
   client: ClientKind;
   sessionId: string | null;
+  /** A family member's phone: the member it speaks for. The hub stamps the same on its events. */
+  memberId: string | null;
   status: TransportStatus;
 
   /** A UI action: apply it here and send it to the session (A1). */
@@ -20,7 +22,7 @@ interface SessionStore extends CoreState {
   receive(raw: unknown): void;
   /** Local setup that is not an event: values that come from the twin, not from a user. */
   init(patch: { viewer?: Partial<ViewerSlice>; sweepRooms?: Record<string, string | null> }): void;
-  start(opts: { client: ClientKind; sessionId: string; transport: Transport }): void;
+  start(opts: { client: ClientKind; sessionId: string; transport: Transport; memberId?: string | null }): void;
   stop(): void;
 }
 
@@ -37,18 +39,21 @@ export function onSessionEvent(cb: EventListener): () => void {
 }
 
 function core(s: SessionStore): CoreState {
-  return { viewer: s.viewer, chat: s.chat, interim: s.interim, jobs: s.jobs, peers: s.peers, sweepRooms: s.sweepRooms };
+  return { viewer: s.viewer, chat: s.chat, interim: s.interim, jobs: s.jobs, peers: s.peers, members: s.members, sweepRooms: s.sweepRooms };
 }
 
 export const useSession = create<SessionStore>((set, get) => ({
   ...initialCore(new Date().toISOString()),
   client: 'desktop',
   sessionId: null,
+  memberId: null,
   status: 'idle',
 
   dispatch(type, payload) {
-    const { sessionId, client } = get();
+    const { sessionId, client, memberId } = get();
     const event = makeEvent(type, payload, sessionId ?? 'local', client) as AnyEvent;
+    // Applied here before the hub echoes it back: label it as the hub will.
+    if (memberId) event.member_id = memberId;
     sentIds.add(event.id);
     if (sentIds.size > 2000) sentIds.delete(sentIds.values().next().value as string);
     set((s) => applyEvent(core(s), event));
@@ -75,10 +80,10 @@ export const useSession = create<SessionStore>((set, get) => ({
     }));
   },
 
-  start({ client, sessionId, transport: next }) {
+  start({ client, sessionId, transport: next, memberId = null }) {
     get().stop();
     transport = next;
-    set({ client, sessionId, status: 'connecting', peers: { desktop: client === 'desktop', phone: client === 'phone' } });
+    set({ client, sessionId, memberId, status: 'connecting', peers: { desktop: client === 'desktop', phone: client === 'phone' } });
     unsubscribe = [next.onMessage((raw) => get().receive(raw)), next.onStatus((status) => set({ status }))];
     next.connect();
   },

@@ -4,6 +4,7 @@
   "packageManager": "pnpm@12.20.0",
   "scripts": {
     "dev": "pnpm --filter @ithaca/web dev",
+    "dev:all": "bash scripts/dev.sh",
     "build": "pnpm --filter @ithaca/web build",
     "test": "pnpm --filter @ithaca/web test",
     "typecheck": "pnpm --filter @ithaca/web typecheck",

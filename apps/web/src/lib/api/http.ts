@@ -1,13 +1,14 @@
 import type { NoiseScenario } from '@ithaca/schema';
 import { config } from '@/lib/config';
 import { ApiError, type ApiClient } from './types';
+import { apiUserId } from './user';
 
 async function request<T>(path: string, init: RequestInit = {}, as: 'json' | 'text' | 'none' = 'json'): Promise<T> {
   let res: Response;
   try {
     res = await fetch(config.apiBase + path, {
       ...init,
-      headers: { 'X-User-Id': config.userId, ...(init.body && !(init.body instanceof FormData) ? { 'content-type': 'application/json' } : {}), ...init.headers },
+      headers: { 'X-User-Id': apiUserId(), ...(init.body && !(init.body instanceof FormData) ? { 'content-type': 'application/json' } : {}), ...init.headers },
     });
   } catch (err) {
     throw new ApiError(`Cannot reach the API at ${config.apiBase} (${(err as Error).message})`, 0);
@@ -47,7 +48,16 @@ export function createHttpApi(): ApiClient {
     getArea: (pid) => request(`/properties/${enc(pid)}/area`),
     ingestProperty: (pid) => request(`/properties/${enc(pid)}/ingest`, { method: 'POST' }),
 
-    createSession: () => request('/sessions', { method: 'POST' }),
+    createSession: (opts) =>
+      request('/sessions', {
+        method: 'POST',
+        ...(opts?.propertyId ? { body: JSON.stringify({ property_id: opts.propertyId, household_id: opts.householdId ?? null }) } : {}),
+      }),
+    createHousehold: (name) => request('/households', { method: 'POST', body: JSON.stringify({ name }) }),
+    getHousehold: (hid) => request(`/households/${enc(hid)}`),
+    rotateInvite: (hid) => request(`/households/${enc(hid)}/invite`, { method: 'POST' }),
+    joinHousehold: (invite_token, name, member_id) =>
+      request('/households/join', { method: 'POST', body: JSON.stringify({ invite_token, name, member_id: member_id ?? null }) }),
     joinSession: (sid, pairToken) => request(`/sessions/${enc(sid)}/join`, { method: 'POST', body: JSON.stringify({ pair_token: pairToken }) }),
     upload: (file, filename) => {
       const form = new FormData();

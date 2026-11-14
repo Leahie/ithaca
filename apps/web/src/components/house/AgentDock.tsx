@@ -6,19 +6,41 @@ import { IconCheck, IconMic, IconSend } from '@/components/ui/icons';
 import { speechProvider } from '@/lib/speech/provider';
 import { usePushToTalk } from '@/lib/speech/usePushToTalk';
 import type { ChatItem } from '@/lib/store/reducer';
+import { useMemberName } from '@/lib/store/family';
 import { onSessionEvent, useSession } from '@/lib/store/session';
 
 const SUGGESTIONS = ['Take me to the kitchen', 'Show me December morning', 'Show layouts', 'How loud is the bedroom?'];
 
-function Item({ item }: { item: ChatItem }) {
+/** A member's initials in an ink disc: who said it, without spending an accent colour. */
+function Who({ name, agent = false }: { name: string; agent?: boolean }) {
+  const initials = name
+    .split(/\s+/)
+    .map((w) => w[0] ?? '')
+    .join('')
+    .slice(0, 2)
+    .toUpperCase();
+  return (
+    <span className="flex items-center gap-1.5 text-[12px] font-semibold text-muted">
+      <span aria-hidden className="grid h-5 w-5 place-items-center rounded-full bg-main font-display text-[9px] text-on-main">
+        {initials}
+      </span>
+      {agent ? `${name}'s agent` : name}
+    </span>
+  );
+}
+
+function Item({ item, nameOf }: { item: ChatItem; nameOf: (id: string | null | undefined) => string | null }) {
+  // In a family session every line says whose it is: the person, or their agent.
+  const who = 'member_id' in item ? nameOf(item.member_id) : null;
   switch (item.kind) {
     case 'user':
       return (
-        <div className="flex justify-end">
+        <div className="flex flex-col items-end gap-1">
+          {who && <Who name={who} />}
           <div className="max-w-[85%] rounded-2xl rounded-br-sm bg-raised px-3 py-2 text-sm leading-5">
             {item.text}
             {(item.via === 'voice' || item.source === 'phone') && (
-              <span className="mt-0.5 block text-[10px] text-faint">
+              <span className="mt-0.5 block text-[11px] text-faint">
                 {item.via === 'voice' ? 'spoken' : 'typed'}
                 {item.source === 'phone' ? ' on phone' : ''}
               </span>
@@ -28,8 +50,11 @@ function Item({ item }: { item: ChatItem }) {
       );
     case 'agent':
       return (
-        <div data-testid="agent-message" data-streaming={item.streaming} className={cn('max-w-[92%] text-sm leading-[1.45] whitespace-pre-wrap', item.streaming && 'streaming-caret')}>
-          {item.text}
+        <div className="space-y-1">
+          {who && <Who name={who} agent />}
+          <div data-testid="agent-message" data-streaming={item.streaming} className={cn('max-w-[92%] text-sm leading-[1.45] whitespace-pre-wrap', item.streaming && 'streaming-caret')}>
+            {item.text}
+          </div>
         </div>
       );
     case 'action':
@@ -37,18 +62,42 @@ function Item({ item }: { item: ChatItem }) {
         <div data-testid="agent-action" data-tool={item.tool}>
           <Badge tone="sun" title={item.tool}>
             <IconCheck width={11} height={11} />
-            {item.summary}
+            {who ? `${who}'s agent: ${item.summary}` : item.summary}
           </Badge>
         </div>
       );
     case 'error':
       return (
         <div data-testid="agent-error">
-          <Notice tone="error" title="The agent hit a problem">
+          <Notice tone="error" title={who ? `${who}'s agent hit a problem` : 'The agent hit a problem'}>
             {item.message}
           </Notice>
         </div>
       );
+    case 'note':
+      return (
+        <div data-testid="family-note" className="rounded-[var(--radius-frame)] border border-line bg-raised px-3 py-2.5">
+          <div className="text-[11px] font-semibold tracking-[0.08em] text-muted uppercase">Family board</div>
+          <p className="mt-1 text-sm leading-5">{item.text}</p>
+          <div className="mt-1.5">{<Who name={nameOf(item.member_id) ?? 'The guide'} agent={!!nameOf(item.member_id)} />}</div>
+        </div>
+      );
+    case 'ask': {
+      const from = nameOf(item.from_member_id);
+      const to = nameOf(item.to_member_id) ?? 'Another member';
+      return (
+        <div data-testid="family-ask" className="space-y-2 rounded-[var(--radius-frame)] border-2 border-text bg-raised px-3 py-2.5">
+          <div className="text-[11px] font-semibold tracking-[0.08em] text-muted uppercase">
+            {from ? `${from}'s agent` : 'The guide'} asked {to}'s agent
+          </div>
+          {item.question && <p className="text-sm leading-5 text-muted">“{item.question}”</p>}
+          <div className="space-y-1">
+            <Who name={to} agent />
+            <p className={cn('text-sm leading-5', !item.answer && 'streaming-caret text-muted')}>{item.answer ?? 'Thinking'}</p>
+          </div>
+        </div>
+      );
+    }
   }
 }
 
@@ -57,6 +106,7 @@ export function AgentDock() {
   const chat = useSession((s) => s.chat);
   const interim = useSession((s) => s.interim);
   const status = useSession((s) => s.status);
+  const nameOf = useMemberName();
   const dispatch = useSession((s) => s.dispatch);
   const [draft, setDraft] = useState('');
   const [speak, setSpeak] = useState(false);
@@ -75,7 +125,8 @@ export function AgentDock() {
       onSessionEvent((event) => {
         if (event.type === 'voice.transcript' && event.payload.final) spokeByVoice.current = true;
         if (event.type === 'chat.user') spokeByVoice.current = false;
-        if (event.type === 'agent.message' && (speak || spokeByVoice.current)) speechProvider().speak(event.payload.text);
+        // Read aloud only the big screen's own agent, not every family member's.
+        if (event.type === 'agent.message' && !event.member_id && (speak || spokeByVoice.current)) speechProvider().speak(event.payload.text);
       }),
     [speak],
   );
@@ -121,7 +172,7 @@ export function AgentDock() {
           </div>
         )}
         {chat.map((item) => (
-          <Item key={`${item.kind}:${item.id}`} item={item} />
+          <Item key={`${item.kind}:${item.id}`} item={item} nameOf={nameOf} />
         ))}
         {interim && (
           <div className="flex justify-end">

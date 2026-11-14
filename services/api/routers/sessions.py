@@ -10,6 +10,7 @@ from fastapi import APIRouter, Header, HTTPException, Request, WebSocket, WebSoc
 from packages.schema.events import parse_client_event
 from packages.schema.session import ClientKind, CreateSessionRequest, JoinRequest, JoinResult, Session
 from services.api.integrations.config import env, fixtures_dir
+from services.api.realtime.households import households
 from services.api.realtime.hub import Hub
 from services.api.twin.service import TwinNotFound, get_twin
 
@@ -38,8 +39,15 @@ def create_session(
         twin = get_twin(property_id)
     except TwinNotFound as e:
         raise HTTPException(404, str(e)) from e
+    household_id = body.household_id if body else None
+    if household_id and households().get(household_id) is None:
+        raise HTTPException(404, "unknown household")
     hub: Hub = request.app.state.hub
-    return hub.create_session(user_id=x_user_id, property_id=property_id, timezone_name=twin.timezone)
+    session = hub.create_session(user_id=x_user_id, property_id=property_id, timezone_name=twin.timezone, household_id=household_id)
+    if household_id:
+        # The family's phones join whatever house the desktop has open now.
+        households().set_active_session(household_id, session.session_id)
+    return session
 
 
 @router.post("/sessions/{session_id}/pair")
@@ -68,7 +76,10 @@ async def session_socket(ws: WebSocket, session_id: str, client: ClientKind, tok
         await ws.close(code=4401, reason="bad session, client or token")
         return
     await ws.accept()
-    conn = hub.connect(session_id, client)
+    member_id = hub.member_for(session_id, token) if client == "phone" else None
+    room = hub.rooms[session_id]
+    member = households().member(room.household_id, member_id) if member_id and room.household_id else None
+    conn = hub.connect(session_id, client, member_id=member_id, name=member.name if member else None)
 
     async def send_loop() -> None:
         while True:
@@ -82,7 +93,7 @@ async def session_socket(ws: WebSocket, session_id: str, client: ClientKind, tok
             except json.JSONDecodeError:
                 log.info("dropped non-JSON message from %s", client)
                 continue
-            event = parse_client_event(raw, session_id, source=client)
+            event = parse_client_event(raw, session_id, source=client, member_id=member_id)
             if isinstance(event, str):
                 log.info("dropped event from %s: %s", client, event)  # I-G7: log, never throw
             else:

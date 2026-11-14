@@ -25,7 +25,9 @@ try {
   // MediaPipe's wasm for hand tracking, served from public/mediapipe/wasm (gitignored).
   const pkg = path.dirname(require.resolve('@mediapipe/tasks-vision'));
   await cp(path.join(pkg, 'wasm'), path.join(here, '..', 'public', 'mediapipe', 'wasm'), { recursive: true });
-  console.log('mediapipe wasm copied to public/mediapipe/wasm');
+  // The ES-module bundle, for public/hand-worker.mjs: a worker the bundler does not touch.
+  await cp(path.join(pkg, 'vision_bundle.mjs'), path.join(here, '..', 'public', 'mediapipe', 'vision_bundle.mjs'));
+  console.log('mediapipe wasm and bundle copied to public/mediapipe');
 } catch (err) {
   // A missing piece disables hand control, it does not break install.
   console.warn(`mediapipe wasm not copied (${err.message}); hand control will be unavailable`);

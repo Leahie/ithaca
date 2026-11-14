@@ -1,6 +1,8 @@
 import type {
   AreaProfile,
+  Household,
   InventoryItem,
+  JoinHouseholdResult,
   JobRef,
   LayoutVariant,
   NoiseReport,
@@ -41,7 +43,14 @@ export interface ApiClient {
   ingestProperty(propertyId: string): Promise<JobRef>;
 
   // Stream B
-  createSession(): Promise<Session>;
+  /** householdId: the family whose phones may join through the family QR code. */
+  createSession(opts?: { propertyId?: string; householdId?: string }): Promise<Session>;
+  createHousehold(name: string): Promise<Household>;
+  getHousehold(householdId: string): Promise<Household>;
+  /** A new family QR code; the old one stops working. */
+  rotateInvite(householdId: string): Promise<Household>;
+  /** A phone joins the family. memberId: the member it joined as before, to come back as them. */
+  joinHousehold(inviteToken: string, name: string, memberId?: string): Promise<JoinHouseholdResult>;
   joinSession(sessionId: string, pairToken: string): Promise<Ok>;
   upload(file: Blob, filename: string): Promise<UploadResult>;
   ingestObject(uploadId: string): Promise<JobRef>;

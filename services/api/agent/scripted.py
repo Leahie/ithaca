@@ -12,6 +12,7 @@ build the agent dock, action chips and viewer reactions with no API key. Known p
 from __future__ import annotations
 
 import json
+import re
 import time
 from collections.abc import Iterator
 from datetime import datetime
@@ -41,12 +42,56 @@ def _say(text: str) -> Iterator[tuple[Any, ...]]:
     yield ("message", text)
 
 
+def _family_scripted(text: str, said: str, context: AgentContext) -> Iterator[tuple[Any, ...]] | None:
+    """Family prompts, scripted: greetings, answering another agent, "ask Leo about the kitchen",
+    "tell the family the yard is small". None when the text is none of these."""
+    from services.api.agent import family
+
+    me = context.member_name or "the family"
+    plain = text.split("/>\n", 1)[-1].strip()
+    if '<event type="member_joined">' in said:
+        return _say(f"Hi {me}, I'm your own agent for this house. Ask me anything, or try: ask Leo about the kitchen, or tell the family the yard is small.")
+    if '<event type="family_question"' in said:
+        return _say(f"Speaking for {me}: I'm the scripted stand-in and haven't learned what {me} needs yet, so I'd ask {me} directly.")
+    asked = re.match(r"(?i)ask (\w+)(?:'s agent)?\s*(?:about|whether|if|what|how)?\s*(.*)", plain)
+    if asked:
+        name, question = asked.group(1), asked.group(2).strip(" ?.") or "what do you think of this house"
+
+        def ask() -> Iterator[tuple[Any, ...]]:
+            yield ("action", "family_ask_member", {"name": name, "question": question})
+            payload, answer = family.ask_member(context, name, question + "?")
+            if payload is not None:
+                yield ("ui", {"type": "family.ask", "payload": payload})
+                if not answer.startswith("Error:"):
+                    ids = {k: payload[k] for k in ("ask_id", "from_member_id", "to_member_id")}
+                    yield ("ui", {"type": "family.answer", "payload": {**ids, "answer": answer}})
+            yield from _say(answer.removeprefix("Error: ") if answer.startswith("Error:") else f"I asked {name}'s agent. {answer}")
+
+        return ask()
+    told = re.match(r"(?i)(?:tell the family|note for the family|post)[:,]?\s*(?:that\s+)?(.+)", plain)
+    if told:
+
+        def note() -> Iterator[tuple[Any, ...]]:
+            yield ("action", "family_post_note", {})
+            payload = family.post_note(context, told.group(1).strip())
+            yield ("ui", {"type": "family.note", "payload": payload})
+            yield from _say("Posted to the family board.")
+
+        return note()
+    return None
+
+
 def stream_turn_scripted(text: str, context: AgentContext, thread_id: str) -> Iterator[tuple[Any, ...]]:
     twin = get_twin(context.property_id)
     said = text.lower()
 
     if '<event type="room_entered">' in said:
         return  # stays silent
+    if context.household_id:
+        family_turn = _family_scripted(text, said, context)
+        if family_turn is not None:
+            yield from family_turn
+            return
     if '<event type="property_opened">' in said:
         yield from _say(
             f"Welcome to {twin.address.split(',')[0]}. I'm the scripted stand-in for the guide. "

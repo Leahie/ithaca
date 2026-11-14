@@ -13,3 +13,9 @@ class AgentContext:
     user_id: str
     property_id: str
     session_id: str | None = None
+    # In a household session: whose agent this is. user_id is then the member's id, so the agent
+    # reads and writes only that member's memory (B4).
+    household_id: str | None = None
+    member_name: str | None = None
+    # Set when another member's agent asked this one a question: it answers and asks nobody else.
+    asked: bool = False

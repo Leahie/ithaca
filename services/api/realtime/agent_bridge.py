@@ -14,6 +14,12 @@ note, the guide gets an <event type="observer_note"> turn.
 
 Proactive turns are skipped while the agent is busy and are limited to one per
 PROACTIVE_COOLDOWN_S, so the agent doesn't talk over the user. One turn runs at a time per session.
+
+Households: a message from a member's phone (the event carries member_id) runs that member's own
+agent, with their user_id, their memory and their own thread, and everything it says is stamped
+with their member_id. Members' agents run side by side (one lock per member). A member who
+connects gets one short greeting from their agent. Proactive tour turns and the observer stay
+with the session's own (desktop) agent, so a family of five agents doesn't talk at once.
 """
 
 from __future__ import annotations
@@ -25,6 +31,7 @@ import uuid
 from collections.abc import Callable
 
 from packages.schema.events import EventEnvelope, make_event
+from services.api.agent import family
 from services.api.agent.context import AgentContext
 from services.api.agent.provider import TurnRunner
 from services.api.agent.runner import event_message
@@ -57,6 +64,10 @@ def action_summary(tool: str, args: dict) -> str:
         "design_show_variants": "Showing layouts",
         "get_room_geometry": "Measuring the room",
         "list_rooms": "Looking over the rooms",
+        "family_list_members": "Checking who is here",
+        "family_post_note": "Posting to the family board",
+        "family_read_board": "Reading the family board",
+        "family_ask_member": f"Asking {args.get('name', 'a family member')}'s agent",
     }.get(tool, tool.replace("_", " "))
 
 
@@ -73,6 +84,8 @@ class AgentBridge:
         self._last_room: dict[str, str | None] = {}
         self._last_proactive: dict[str, float] = {}
         self._tasks: set[asyncio.Task] = set()
+        self._greeted_members: set[tuple[str, str]] = set()
+        family.set_runner(runner)  # so one member's agent can ask another's
         hub.subscribe(self.on_event)
 
     def on_event(self, room: SessionRoom, event: EventEnvelope) -> None:
@@ -83,7 +96,12 @@ class AgentBridge:
         if event.type == "chat.user" or (event.type == "voice.transcript" and p.get("final")):
             log_.heard(p["text"])
             self._signal(room)
-            self._start(room, p["text"], proactive=False)
+            self._start(room, p["text"], proactive=False, member_id=event.member_id)
+        elif event.type == "session.joined" and p.get("member_id") and room.household_id:
+            key = (sid, p["member_id"])
+            if key not in self._greeted_members:
+                self._greeted_members.add(key)
+                self._start(room, event_message("member_joined"), proactive=False, member_id=p["member_id"])
         elif event.type == "session.joined" and p.get("client") == "desktop" and sid not in self._greeted:
             self._greeted.add(sid)
             self._start(room, event_message("property_opened"), proactive=False)
@@ -143,33 +161,52 @@ class AgentBridge:
         self._tasks.add(task)
         task.add_done_callback(self._tasks.discard)
 
-    def _start(self, room: SessionRoom, text: str, proactive: bool) -> None:
+    def _context(self, room: SessionRoom, member_id: str | None) -> AgentContext:
+        """Whose agent runs: a member's own (their user_id and memory), or the session's."""
+        if member_id and room.household_id:
+            from services.api.realtime.households import households
+
+            m = households().member(room.household_id, member_id)
+            return AgentContext(
+                user_id=member_id,
+                property_id=room.property_id,
+                session_id=room.session_id,
+                household_id=room.household_id,
+                member_name=m.name if m else None,
+            )
+        return AgentContext(user_id=room.user_id, property_id=room.property_id, session_id=room.session_id, household_id=room.household_id)
+
+    def _start(self, room: SessionRoom, text: str, proactive: bool, member_id: str | None = None) -> None:
         sid = room.session_id
-        lock = self._locks.setdefault(sid, asyncio.Lock())
+        if not room.household_id:
+            member_id = None  # outside a household a phone speaks for the session's user, as before
+        lock = self._locks.setdefault(f"{sid}:{member_id}" if member_id else sid, asyncio.Lock())
         if proactive:
             if lock.locked() or time.monotonic() - self._last_proactive.get(sid, -1e9) < PROACTIVE_COOLDOWN_S:
                 return
             self._last_proactive[sid] = time.monotonic()
-        self._keep(asyncio.create_task(self._run_turn(room, text, lock)))
+        self._keep(asyncio.create_task(self._run_turn(room, text, lock, member_id)))
 
-    async def _run_turn(self, room: SessionRoom, text: str, lock: asyncio.Lock) -> None:
+    async def _run_turn(self, room: SessionRoom, text: str, lock: asyncio.Lock, member_id: str | None = None) -> None:
         sid = room.session_id
+        # A member's agent keeps its own conversation with its own person.
+        thread_id = f"{sid}:{member_id}" if member_id else sid
 
         def emit(type: str, payload: dict) -> None:
             try:
-                self.hub.publish(make_event(sid, "agent", type, payload))
+                self.hub.publish(make_event(sid, "agent", type, payload, member_id=member_id))
             except (KeyError, ValueError) as e:  # an event the schema doesn't know or accept
                 log.warning("agent event %s dropped: %s", type, e)
 
         async with lock:
             s = room.state
             where = f'<viewer mode="{s.mode}" room_id="{s.room_id or ""}" datetime="{s.datetime or ""}"/>\n'
-            context = AgentContext(user_id=room.user_id, property_id=room.property_id, session_id=sid)
+            context = self._context(room, member_id)
             loop, queue = asyncio.get_running_loop(), asyncio.Queue()
 
             def work() -> None:  # the runner is blocking, so it gets its own thread
                 try:
-                    for item in self.runner(where + text, context, sid):  # thread_id = session_id
+                    for item in self.runner(where + text, context, thread_id):
                         loop.call_soon_threadsafe(queue.put_nowait, item)
                 except Exception as e:
                     log.exception("agent turn failed")

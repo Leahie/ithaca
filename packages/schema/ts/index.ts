@@ -83,8 +83,13 @@ export interface Comp {
   distance_m: number;
 }
 
+export interface CreateHouseholdRequest {
+  name: string;
+}
+
 export interface CreateSessionRequest {
   property_id: string;
+  household_id?: string | null;
 }
 
 /**
@@ -130,6 +135,37 @@ export interface EventEnvelope {
   source: "desktop" | "phone" | "agent" | "server";
   type: string;
   payload: Record<string, unknown>;
+  member_id?: string | null;
+}
+
+/**
+ * The asked agent's reply, from its own member's memory only (B4).
+ */
+export interface FamilyAnswerPayload {
+  ask_id: string;
+  from_member_id: string;
+  to_member_id: string;
+  answer: string;
+}
+
+/**
+ * One member's agent asks another member's agent a question.
+ */
+export interface FamilyAskPayload {
+  ask_id: string;
+  from_member_id: string;
+  to_member_id: string;
+  question: string;
+}
+
+/**
+ * A note one member's agent posted to the family board, for the others to weigh.
+ */
+export interface FamilyNotePayload {
+  note_id: string;
+  member_id: string;
+  text: string;
+  room_id?: string | null;
 }
 
 export interface Floor {
@@ -137,6 +173,15 @@ export interface Floor {
   index: number;
   elevation_m: number;
   label?: string | null;
+}
+
+export interface Household {
+  household_id: string;
+  name: string;
+  invite_token: string;
+  invite_expires_at: string;
+  members?: Member[];
+  active_session_id?: string | null;
 }
 
 export interface InventoryItem {
@@ -180,6 +225,19 @@ export interface JobRef {
   job_id: string;
 }
 
+export interface JoinHouseholdRequest {
+  invite_token: string;
+  name: string;
+  member_id?: string | null;
+}
+
+export interface JoinHouseholdResult {
+  household: Household;
+  member: Member;
+  session_id?: string | null;
+  client_token?: string | null;
+}
+
 export interface JoinRequest {
   pair_token: string;
 }
@@ -214,6 +272,11 @@ export interface LuxGrid {
   cell_m: number;
   origin_xz: [number, number];
   lux: ((number | null)[])[];
+}
+
+export interface Member {
+  member_id: string;
+  name: string;
 }
 
 export interface NoiseHour {
@@ -315,6 +378,8 @@ export interface Session {
 
 export interface SessionPresencePayload {
   client: "desktop" | "phone";
+  member_id?: string | null;
+  name?: string | null;
 }
 
 export interface SoundSetScenarioPayload {
@@ -512,10 +577,13 @@ export interface EventPayloads {
   "agent.error": AgentErrorPayload;
   "agent.turn": AgentTurnPayload;
   "job.progress": JobProgressPayload;
+  "family.note": FamilyNotePayload;
+  "family.ask": FamilyAskPayload;
+  "family.answer": FamilyAnswerPayload;
 }
 
 export type EventType = keyof EventPayloads;
-export const EVENT_TYPES = ["session.state", "session.joined", "session.left", "viewer.goto", "viewer.walk", "viewer.setTime", "viewer.setMode", "viewer.look", "design.showVariants", "layout.select", "sound.setScenario", "capture.upload", "chat.user", "voice.transcript", "agent.token", "agent.message", "agent.action", "agent.error", "agent.turn", "job.progress"] as const satisfies readonly EventType[];
+export const EVENT_TYPES = ["session.state", "session.joined", "session.left", "viewer.goto", "viewer.walk", "viewer.setTime", "viewer.setMode", "viewer.look", "design.showVariants", "layout.select", "sound.setScenario", "capture.upload", "chat.user", "voice.transcript", "agent.token", "agent.message", "agent.action", "agent.error", "agent.turn", "job.progress", "family.note", "family.ask", "family.answer"] as const satisfies readonly EventType[];
 
 /** The typed envelope for one known event type. */
 export interface Event<T extends EventType = EventType> {
@@ -526,6 +594,8 @@ export interface Event<T extends EventType = EventType> {
   source: EventSource;
   type: T;
   payload: EventPayloads[T];
+  /** The household member this is about: the sender of a phone event, or whose agent spoke. */
+  member_id?: string | null;
 }
 
 /** Discriminated union of every known event. */

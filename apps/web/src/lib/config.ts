@@ -3,7 +3,7 @@
  * startup (I-G21). The Showcase SDK key is the only secret the frontend holds (I-G22).
  */
 /** Parts of the app that can be switched on. The default is the tour, the Sun Lab and hand control. */
-export const FEATURES = ['tour', 'sun', 'sound', 'neighborhood', 'design', 'agent', 'phone', 'me', 'hands'] as const;
+export const FEATURES = ['tour', 'sun', 'sound', 'neighborhood', 'design', 'agent', 'phone', 'me', 'hands', 'family'] as const;
 export type Feature = (typeof FEATURES)[number];
 
 function parseFeatures(raw: string | undefined): ReadonlySet<Feature> {
@@ -19,7 +19,8 @@ export const config = {
   /**
    * What the house page shows: any of tour, sun, sound, neighborhood, design (views), agent
    * (chat dock), phone (pairing), me (link to /me), hands (drag and zoom the view with your hands,
-   * through the webcam); or "all". Default: "tour,sun,hands".
+   * through the webcam), family (one QR code for the whole family: each phone gets its own agent);
+   * or "all". Default: "tour,sun,hands".
    */
   features: parseFeatures(process.env.NEXT_PUBLIC_FEATURES),
   /** "embed" (hosted viewer, has the outside view) or "bundle" (can place 3D objects). */

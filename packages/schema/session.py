@@ -38,6 +38,9 @@ class ViewerState(Model):
 
 class CreateSessionRequest(Model):
     property_id: str
+    # Additive: the family whose phones join this session. The session becomes the household's
+    # active house, so a member who scans the family QR lands here.
+    household_id: str | None = None
 
 
 class JoinRequest(Model):
@@ -50,6 +53,45 @@ class Ok(Model):
 
 class JoinResult(Ok):
     client_token: str  # additive to v0: goes on the phone's WebSocket URL
+
+
+# --- Households: a family looking at houses together --------------------------------------------
+# Each member is a user in their own right: member_id is their user_id, so their agent has its
+# own memory namespace (B4). The family QR carries invite_token, reusable until it expires.
+
+
+class Member(Model):
+    member_id: str  # also this member's user_id (X-User-Id, memory namespace)
+    name: str
+
+
+class Household(Model):
+    household_id: str
+    name: str
+    invite_token: str
+    invite_expires_at: datetime
+    members: list[Member] = []
+    # The house session the family's desktop has open, if any.
+    active_session_id: str | None = None
+
+
+class CreateHouseholdRequest(Model):
+    name: str
+
+
+class JoinHouseholdRequest(Model):
+    invite_token: str
+    name: str
+    # A phone that joined before sends its member_id to come back as the same person.
+    member_id: str | None = None
+
+
+class JoinHouseholdResult(Model):
+    household: Household
+    member: Member
+    # The family's open house, if the desktop has one: the phone connects to it with client_token.
+    session_id: str | None = None
+    client_token: str | None = None
 
 
 class UploadResult(Model):

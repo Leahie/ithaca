@@ -19,11 +19,25 @@ export interface ViewerSlice {
   goto_seq: number;
 }
 
+/**
+ * One line of the conversation. `member_id` says whose it is in a household session: the member
+ * who spoke, or the member whose agent replied. Null for the desktop and its own agent.
+ */
 export type ChatItem =
-  | { kind: 'user'; id: string; text: string; via: 'chat' | 'voice'; source: EventSource }
-  | { kind: 'agent'; id: string; text: string; streaming: boolean }
-  | { kind: 'action'; id: string; tool: string; summary: string }
-  | { kind: 'error'; id: string; message: string };
+  | { kind: 'user'; id: string; text: string; via: 'chat' | 'voice'; source: EventSource; member_id: string | null }
+  | { kind: 'agent'; id: string; text: string; streaming: boolean; member_id: string | null }
+  | { kind: 'action'; id: string; tool: string; summary: string; member_id: string | null }
+  | { kind: 'error'; id: string; message: string; member_id: string | null }
+  /** A note one member's agent shared on the family board. */
+  | { kind: 'note'; id: string; text: string; room_id: string | null; member_id: string }
+  /** One member's agent asked another's; `answer` arrives later. */
+  | { kind: 'ask'; id: string; from_member_id: string; to_member_id: string; question: string; answer: string | null };
+
+/** A household member seen in this session. */
+export interface MemberPresence {
+  name: string;
+  connected: boolean;
+}
 
 export interface CoreState {
   viewer: ViewerSlice;
@@ -32,6 +46,8 @@ export interface CoreState {
   interim: { source: EventSource; text: string } | null;
   jobs: Record<string, JobProgressPayload>;
   peers: Record<ClientKind, boolean>;
+  /** Household members by member_id: who has a phone here now. */
+  members: Record<string, MemberPresence>;
   /** sweep_id -> room_id, from the twin, so a goto by sweep also updates the room. */
   sweepRooms: Record<string, string | null>;
 }
@@ -45,6 +61,7 @@ export function initialCore(datetime: string): CoreState {
     interim: null,
     jobs: {},
     peers: { desktop: false, phone: false },
+    members: {},
     sweepRooms: {},
   };
 }
@@ -73,10 +90,20 @@ export function applyEvent(state: CoreState, event: AnyEvent): CoreState {
         },
       };
     }
-    case 'session.joined':
-      return { ...state, peers: { ...state.peers, [event.payload.client]: true } };
-    case 'session.left':
-      return { ...state, peers: { ...state.peers, [event.payload.client]: false } };
+    case 'session.joined': {
+      const { client, member_id, name } = event.payload;
+      const members = member_id ? { ...state.members, [member_id]: { name: name ?? state.members[member_id]?.name ?? 'Someone', connected: true } } : state.members;
+      return { ...state, peers: { ...state.peers, [client]: true }, members };
+    }
+    case 'session.left': {
+      const { client, member_id } = event.payload;
+      if (member_id) {
+        // One member leaving does not mean no phone is left.
+        const members = { ...state.members, [member_id]: { name: state.members[member_id]?.name ?? 'Someone', connected: false } };
+        return { ...state, members, peers: { ...state.peers, phone: Object.values(members).some((m) => m.connected) } };
+      }
+      return { ...state, peers: { ...state.peers, [client]: false } };
+    }
     case 'viewer.goto': {
       const { room_id, sweep_id } = event.payload;
       if (room_id) return { ...state, viewer: { ...v, room_id, sweep_id: null, goto_seq: v.goto_seq + 1 } };
@@ -94,18 +121,18 @@ export function applyEvent(state: CoreState, event: AnyEvent): CoreState {
     case 'sound.setScenario':
       return { ...state, viewer: { ...v, sound_scenario: event.payload } };
     case 'chat.user':
-      return { ...state, chat: push(state.chat, { kind: 'user', id: event.id, text: event.payload.text, via: 'chat', source: event.source }) };
+      return { ...state, chat: push(state.chat, { kind: 'user', id: event.id, text: event.payload.text, via: 'chat', source: event.source, member_id: event.member_id ?? null }) };
     case 'voice.transcript':
       if (!event.payload.final) return { ...state, interim: { source: event.source, text: event.payload.text } };
       return {
         ...state,
         interim: null,
-        chat: event.payload.text.trim() ? push(state.chat, { kind: 'user', id: event.id, text: event.payload.text, via: 'voice', source: event.source }) : state.chat,
+        chat: event.payload.text.trim() ? push(state.chat, { kind: 'user', id: event.id, text: event.payload.text, via: 'voice', source: event.source, member_id: event.member_id ?? null }) : state.chat,
       };
     case 'agent.token': {
       const { message_id, delta } = event.payload;
       const at = state.chat.findIndex((c) => c.kind === 'agent' && c.id === message_id);
-      if (at < 0) return { ...state, chat: push(state.chat, { kind: 'agent', id: message_id, text: delta, streaming: true }) };
+      if (at < 0) return { ...state, chat: push(state.chat, { kind: 'agent', id: message_id, text: delta, streaming: true, member_id: event.member_id ?? null }) };
       const chat = [...state.chat];
       const item = chat[at] as Extract<ChatItem, { kind: 'agent' }>;
       chat[at] = { ...item, text: item.text + delta, streaming: true };
@@ -114,21 +141,39 @@ export function applyEvent(state: CoreState, event: AnyEvent): CoreState {
     case 'agent.message': {
       const { message_id, text } = event.payload;
       const at = state.chat.findIndex((c) => c.kind === 'agent' && c.id === message_id);
-      if (at < 0) return { ...state, chat: push(state.chat, { kind: 'agent', id: message_id, text, streaming: false }) };
+      if (at < 0) return { ...state, chat: push(state.chat, { kind: 'agent', id: message_id, text, streaming: false, member_id: event.member_id ?? null }) };
       const chat = [...state.chat];
-      chat[at] = { kind: 'agent', id: message_id, text, streaming: false };
+      chat[at] = { kind: 'agent', id: message_id, text, streaming: false, member_id: event.member_id ?? null };
       return { ...state, chat };
     }
     case 'agent.action':
-      return { ...state, chat: push(state.chat, { kind: 'action', id: event.id, tool: event.payload.tool, summary: event.payload.summary }) };
+      return { ...state, chat: push(state.chat, { kind: 'action', id: event.id, tool: event.payload.tool, summary: event.payload.summary, member_id: event.member_id ?? null }) };
     case 'agent.error':
       return {
         ...state,
         chat: push(
-          state.chat.map((c) => (c.kind === 'agent' && c.streaming ? { ...c, streaming: false } : c)),
-          { kind: 'error', id: event.id, message: event.payload.message },
+          state.chat.map((c) => (c.kind === 'agent' && c.streaming && c.member_id === (event.member_id ?? null) ? { ...c, streaming: false } : c)),
+          { kind: 'error', id: event.id, message: event.payload.message, member_id: event.member_id ?? null },
         ),
       };
+    case 'family.note': {
+      const p = event.payload;
+      return { ...state, chat: push(state.chat, { kind: 'note', id: p.note_id, text: p.text, room_id: p.room_id ?? null, member_id: p.member_id }) };
+    }
+    case 'family.ask': {
+      const p = event.payload;
+      return { ...state, chat: push(state.chat, { kind: 'ask', id: p.ask_id, from_member_id: p.from_member_id, to_member_id: p.to_member_id, question: p.question, answer: null }) };
+    }
+    case 'family.answer': {
+      const p = event.payload;
+      const at = state.chat.findIndex((c) => c.kind === 'ask' && c.id === p.ask_id);
+      if (at < 0) {
+        return { ...state, chat: push(state.chat, { kind: 'ask', id: p.ask_id, from_member_id: p.from_member_id, to_member_id: p.to_member_id, question: '', answer: p.answer }) };
+      }
+      const chat = [...state.chat];
+      chat[at] = { ...(chat[at] as Extract<ChatItem, { kind: 'ask' }>), answer: p.answer };
+      return { ...state, chat };
+    }
     case 'job.progress':
       return { ...state, jobs: { ...state.jobs, [event.payload.job_id]: event.payload } };
     case 'viewer.look':

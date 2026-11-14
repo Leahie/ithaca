@@ -152,9 +152,32 @@ list beside them. Everything else is built and tested but switched off. `NEXT_PU
 | `phone` | QR pairing for the phone controller |
 | `me` | The link to `/me` |
 | `hands` (default) | Hand control: the **Hands** button in the header |
+| `family` | One QR code for a whole family; each phone gets its own agent (needs the API) |
 | `all` | Everything |
 
 Example: `NEXT_PUBLIC_FEATURES=tour,sun,agent`.
+
+## Family phones and agents
+
+With `family` in `NEXT_PUBLIC_FEATURES`, the house page's **Family** button shows one QR code for a
+whole family (reusable for 24 hours). Each person scans it on their phone and types their name; the
+phone becomes their remote for whatever house the big screen has open, with **their own agent**:
+its own memory of what they need (B4), its own conversation. The agents compare notes on a shared
+family board and ask each other ("ask Leo about the kitchen"), and the big screen's agent dock
+shows everything, labelled by person. A phone that scans again comes back as the same person.
+
+This needs the real API (the hub and the agents), on your Wi-Fi so phones can reach it:
+
+```sh
+uvicorn services.api.main:app --host 0.0.0.0 --port 8000      # repo root
+NEXT_PUBLIC_USE_FIXTURES=0 NEXT_PUBLIC_FEATURES=tour,sun,hands,agent,family \
+  NEXT_PUBLIC_PUBLIC_ORIGIN=http://<this-computer's-LAN-IP>:3000 \
+  DEV_ALLOWED_ORIGINS=<LAN-IP> pnpm dev -H 0.0.0.0              # apps/web
+```
+
+Without an LLM key the agents are scripted (try "ask Leo about the kitchen" or "tell the family the
+yard is small"). Households live in `data/agent/households.sqlite`. Push-to-talk on a phone needs
+HTTPS; typed chat works over plain HTTP.
 
 ## Hand control
 

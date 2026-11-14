@@ -133,6 +133,18 @@
           "title": "Id",
           "type": "string"
         },
+        "member_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Member Id"
+        },
         "payload": {
           "additionalProperties": true,
           "title": "Payload",
@@ -175,6 +187,100 @@
         "payload"
       ],
       "title": "EventEnvelope",
+      "type": "object"
+    },
+    "FamilyAnswerPayload": {
+      "description": "The asked agent's reply, from its own member's memory only (B4).",
+      "properties": {
+        "answer": {
+          "title": "Answer",
+          "type": "string"
+        },
+        "ask_id": {
+          "title": "Ask Id",
+          "type": "string"
+        },
+        "from_member_id": {
+          "title": "From Member Id",
+          "type": "string"
+        },
+        "to_member_id": {
+          "title": "To Member Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "ask_id",
+        "from_member_id",
+        "to_member_id",
+        "answer"
+      ],
+      "title": "FamilyAnswerPayload",
+      "type": "object"
+    },
+    "FamilyAskPayload": {
+      "description": "One member's agent asks another member's agent a question.",
+      "properties": {
+        "ask_id": {
+          "title": "Ask Id",
+          "type": "string"
+        },
+        "from_member_id": {
+          "title": "From Member Id",
+          "type": "string"
+        },
+        "question": {
+          "title": "Question",
+          "type": "string"
+        },
+        "to_member_id": {
+          "title": "To Member Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "ask_id",
+        "from_member_id",
+        "to_member_id",
+        "question"
+      ],
+      "title": "FamilyAskPayload",
+      "type": "object"
+    },
+    "FamilyNotePayload": {
+      "description": "A note one member's agent posted to the family board, for the others to weigh.",
+      "properties": {
+        "member_id": {
+          "title": "Member Id",
+          "type": "string"
+        },
+        "note_id": {
+          "title": "Note Id",
+          "type": "string"
+        },
+        "room_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Room Id"
+        },
+        "text": {
+          "title": "Text",
+          "type": "string"
+        }
+      },
+      "required": [
+        "note_id",
+        "member_id",
+        "text"
+      ],
+      "title": "FamilyNotePayload",
       "type": "object"
     },
     "JobProgressPayload": {
@@ -278,6 +384,30 @@
           ],
           "title": "Client",
           "type": "string"
+        },
+        "member_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Member Id"
+        },
+        "name": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Name"
         }
       },
       "required": [
@@ -596,6 +726,24 @@
     },
     "design.showVariants": {
       "payload": "DesignShowVariantsPayload",
+      "sent_by": [
+        "agent"
+      ]
+    },
+    "family.answer": {
+      "payload": "FamilyAnswerPayload",
+      "sent_by": [
+        "agent"
+      ]
+    },
+    "family.ask": {
+      "payload": "FamilyAskPayload",
+      "sent_by": [
+        "agent"
+      ]
+    },
+    "family.note": {
+      "payload": "FamilyNotePayload",
       "sent_by": [
         "agent"
       ]

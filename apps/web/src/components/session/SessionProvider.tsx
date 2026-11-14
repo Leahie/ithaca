@@ -8,6 +8,7 @@ import { invalidate } from '@/lib/data/resource';
 import { LocalTransport } from '@/lib/realtime/local';
 import { scriptedAgentTurn } from '@/lib/realtime/scripted-agent';
 import { WsTransport } from '@/lib/realtime/ws';
+import { useFamily } from '@/lib/store/family';
 import { onSessionEvent, useSession, viewerSnapshot } from '@/lib/store/session';
 
 const STORAGE_KEY = 'ithaca.session';
@@ -59,8 +60,13 @@ export function useSessionInfo(): SessionInfo {
 interface Props {
   client: ClientKind;
   propertyId: string;
-  /** Phone: the session and token from the pairing link. Desktop: omitted, a session is created. */
-  join?: { sessionId: string; token: string };
+  /**
+   * Phone: the session and token from the pairing link. `prejoined`: a family member's phone,
+   * whose token is already a client token (no pairing step). Desktop: omitted, a session is created.
+   */
+  join?: { sessionId: string; token: string; prejoined?: boolean };
+  /** Desktop: the family whose phones join this session through the family QR code. */
+  householdId?: string | null;
   children: ReactNode;
 }
 
@@ -68,7 +74,7 @@ interface Props {
  * Owns the session connection for a page. Desktop creates (or restores) a session; the phone
  * joins one. In fixture mode the transport is local and the desktop runs the scripted agent.
  */
-export function SessionProvider({ client, propertyId, join, children }: Props) {
+export function SessionProvider({ client, propertyId, join, householdId = null, children }: Props) {
   const [generation, setGeneration] = useState(0);
 
   useEffect(() => {
@@ -79,12 +85,13 @@ export function SessionProvider({ client, propertyId, join, children }: Props) {
       try {
         let session: Session;
         if (join) {
-          await api().joinSession(join.sessionId, join.token);
+          if (!join.prejoined) await api().joinSession(join.sessionId, join.token);
           session = { session_id: join.sessionId, pair_token: join.token, expires_at: '' };
         } else {
+          // A saved session is reused only for the same family: phones find the house through it.
           const saved = generation === 0 ? restoreSession() : null;
-          session = saved ?? (await api().createSession());
-          storeSession(session);
+          session = saved && (saved as Session & { household_id?: string | null }).household_id === householdId ? saved : await api().createSession({ propertyId, householdId: householdId ?? undefined });
+          storeSession({ ...session, household_id: householdId } as Session);
         }
         if (cancelled) return;
         setInfo({ session });
@@ -97,7 +104,7 @@ export function SessionProvider({ client, propertyId, join, children }: Props) {
                 : undefined,
             )
           : new WsTransport(session.session_id, client, session.pair_token);
-        useSession.getState().start({ client, sessionId: session.session_id, transport });
+        useSession.getState().start({ client, sessionId: session.session_id, transport, memberId: join?.prejoined ? useFamily.getState().me?.member_id : null });
       } catch (err) {
         if (!cancelled) setInfo({ error: err instanceof Error ? err.message : String(err) });
       }
@@ -107,7 +114,7 @@ export function SessionProvider({ client, propertyId, join, children }: Props) {
       cancelled = true;
       useSession.getState().stop();
     };
-  }, [client, propertyId, join?.sessionId, join?.token, generation]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [client, propertyId, join?.sessionId, join?.token, join?.prejoined, householdId, generation]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Effects of events that are not viewer state. They run for local and remote events alike (A1).
   useEffect(

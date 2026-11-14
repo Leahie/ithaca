@@ -16,7 +16,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from services.api.agent.provider import get_observer, get_turn_runner, provider_name
 from services.api.realtime.agent_bridge import AgentBridge
 from services.api.realtime.hub import Hub
-from services.api.routers import properties, sessions
+from services.api.routers import households, properties, sessions
 
 logging.basicConfig(level=logging.INFO)
 
@@ -32,6 +32,7 @@ app = FastAPI(title="Ithaca API", lifespan=lifespan)
 # Dev: the web app runs on another port. Tighten when there is real auth.
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
 app.include_router(sessions.router, prefix="/api")
+app.include_router(households.router, prefix="/api")
 app.include_router(properties.router, prefix="/api")
 # The WebSocket is also served without the prefix (/ws/sessions/{sid}), which is the path in
 # WORKSTREAMS.md 2.4 and the one the web app connects to directly on port 8000.

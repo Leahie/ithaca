@@ -157,6 +157,8 @@ def render() -> str:
     out.append("  source: EventSource;")
     out.append("  type: T;")
     out.append("  payload: EventPayloads[T];")
+    out.append("  /** The household member this is about: the sender of a phone event, or whose agent spoke. */")
+    out.append("  member_id?: string | null;")
     out.append("}")
     out.append("")
     out.append("/** Discriminated union of every known event. */")

@@ -12,6 +12,7 @@ import { useInventory, useLayouts, useTwin } from '@/lib/data/hooks';
 import { visibleLayouts } from '@/lib/layouts';
 import { roomName, roomsOnFloor } from '@/lib/rooms';
 import { usePushToTalk } from '@/lib/speech/usePushToTalk';
+import { useFamily, useMemberName } from '@/lib/store/family';
 import { useSession } from '@/lib/store/session';
 import { LookPad } from './LookPad';
 
@@ -175,11 +176,18 @@ function SoundControls({ twin }: { twin: PropertyTwin }) {
   );
 }
 
-/** The latest thing the agent said or did, so the phone user sees their words landed. */
-function AgentFeed() {
+/**
+ * The latest thing the agent said or did, so the phone user sees their words landed. In a family,
+ * a phone shows its own member's conversation and the family board; the big screen shows all.
+ */
+function AgentFeed({ memberId }: { memberId: string | null }) {
   const chat = useSession((s) => s.chat);
   const interim = useSession((s) => s.interim);
-  const recent = chat.slice(-4);
+  const nameOf = useMemberName();
+  const mine = memberId
+    ? chat.filter((c) => (c.kind === 'ask' ? c.from_member_id === memberId || c.to_member_id === memberId : c.kind === 'note' || c.member_id === memberId))
+    : chat;
+  const recent = mine.slice(-4);
   if (!recent.length && !interim) return <p className="text-sm leading-5 text-muted">Hold the button below and speak. For example: “Take me to the kitchen.”</p>;
   return (
     <div className="space-y-2" aria-live="polite" data-testid="remote-feed">
@@ -199,6 +207,14 @@ function AgentFeed() {
               {c.summary}
             </Badge>
           </div>
+        ) : c.kind === 'note' ? (
+          <p key={c.id} className="rounded-[var(--radius-frame)] border border-line bg-raised px-3 py-2 text-sm leading-5">
+            <span className="font-semibold">{nameOf(c.member_id) ? `${nameOf(c.member_id)}'s agent` : 'The guide'}</span> on the family board: {c.text}
+          </p>
+        ) : c.kind === 'ask' ? (
+          <p key={c.id} className="rounded-[var(--radius-frame)] border border-line bg-raised px-3 py-2 text-sm leading-5">
+            <span className="font-semibold">{nameOf(c.to_member_id) ?? 'Another member'}'s agent</span>: {c.answer ?? 'thinking…'}
+          </p>
         ) : (
           <p key={c.id} className="text-sm text-danger">
             {c.message}
@@ -212,6 +228,8 @@ function AgentFeed() {
 
 function Remote({ propertyId }: { propertyId: string }) {
   const twin = useTwin(propertyId || null);
+  const me = useFamily((s) => s.me);
+  const household = useFamily((s) => s.household);
   const status = useSession((s) => s.status);
   const desktopOn = useSession((s) => s.peers.desktop);
   const mode = useSession((s) => s.viewer.mode);
@@ -245,10 +263,11 @@ function Remote({ propertyId }: { propertyId: string }) {
   return (
     <div className="mx-auto flex min-h-dvh max-w-md flex-col" data-testid="remote" data-status={status} data-mode={mode}>
       <header className="sticky top-0 z-20 border-b border-line bg-ink/95 px-4 pt-[max(12px,env(safe-area-inset-top))] pb-3 backdrop-blur">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2 text-sm font-semibold">
-            <span className="h-2.5 w-2.5 rounded-full bg-sun" />
-            Ithaca remote
+        <div className="flex items-center justify-between gap-3">
+          <div className="flex min-w-0 items-center gap-2 font-display text-base font-semibold">
+            <span className="h-3 w-3 shrink-0 rounded-full bg-sun shadow-[0_0_0_1.5px_var(--color-main)]" />
+            {/* In a family, the phone says whose it is: "Maya · The Riveras". */}
+            <span className="truncate">{me ? `${me.name} · ${household?.name ?? 'Family'}` : 'Ithaca remote'}</span>
           </div>
           <Badge tone={status === 'open' ? (desktopOn ? 'leaf' : 'sun') : 'danger'}>{status === 'open' ? (desktopOn ? 'connected' : 'waiting for desktop') : status}</Badge>
         </div>
@@ -317,7 +336,7 @@ function Remote({ propertyId }: { propertyId: string }) {
 
       <footer className="fixed inset-x-0 bottom-0 z-30 border-t border-line bg-ink/95 backdrop-blur">
         <div className="mx-auto max-w-md space-y-3 px-4 pt-3 pb-[max(12px,env(safe-area-inset-bottom))]">
-          <AgentFeed />
+          <AgentFeed memberId={me?.member_id ?? null} />
           {ptt.error && <p className="text-xs text-danger">{ptt.error}</p>}
           <div className="flex items-center gap-2">
             <form
@@ -369,14 +388,16 @@ interface Props {
   sessionId: string;
   token: string;
   propertyId: string;
+  /** A family member's phone: `token` is already its client token, no pairing step. */
+  member?: boolean;
 }
 
 /**
  * Phone controller (A2): a pure remote. It holds no state the desktop does not also hold, and
  * rebuilds its view from `session.state` whenever it (re)connects.
  */
-export function RemoteController({ sessionId, token, propertyId }: Props) {
-  const join = useMemo(() => ({ sessionId, token }), [sessionId, token]);
+export function RemoteController({ sessionId, token, propertyId, member = false }: Props) {
+  const join = useMemo(() => ({ sessionId, token, prejoined: member }), [sessionId, token, member]);
   if (!token) {
     return (
       <main className="mx-auto flex min-h-dvh max-w-md items-center p-6">

@@ -1,4 +1,4 @@
-import type { InventoryItem, JobProgressPayload, LayoutVariant, NoiseReport, NoiseScenario, Opening, PropertyTwin, SunReport } from '@ithaca/schema';
+import type { Household, InventoryItem, JobProgressPayload, LayoutVariant, NoiseReport, NoiseScenario, Opening, PropertyTwin, SunReport } from '@ithaca/schema';
 import { config } from '@/lib/config';
 import { ApiError, type ApiClient } from './types';
 
@@ -72,6 +72,22 @@ export function noiseKey(s: NoiseScenario): string {
 }
 
 const uuid = () => crypto.randomUUID();
+
+const HOUSEHOLDS_KEY = 'ithaca.fixture.households';
+function loadHouseholds(): Record<string, Household> {
+  try {
+    return JSON.parse(window.localStorage.getItem(HOUSEHOLDS_KEY) ?? '{}') as Record<string, Household>;
+  } catch {
+    return {};
+  }
+}
+function saveHouseholds(all: Record<string, Household>): void {
+  try {
+    window.localStorage.setItem(HOUSEHOLDS_KEY, JSON.stringify(all));
+  } catch {
+    /* fixture households last for this page load only */
+  }
+}
 
 async function blobToDataUrl(blob: Blob): Promise<string> {
   return new Promise((resolve, reject) => {
@@ -170,8 +186,38 @@ export function createFixtureApi(): ApiClient {
       throw new ApiError('Ingestion is not available in fixture mode', 501, true);
     },
 
-    async createSession() {
-      return { session_id: `fx-${uuid().slice(0, 8)}`, pair_token: uuid().slice(0, 8), expires_at: new Date(Date.now() + 10 * 60_000).toISOString() };
+    async createSession(opts) {
+      const session = { session_id: `fx-${uuid().slice(0, 8)}`, pair_token: uuid().slice(0, 8), expires_at: new Date(Date.now() + 10 * 60_000).toISOString() };
+      if (opts?.householdId) saveHouseholds({ ...loadHouseholds(), [opts.householdId]: { ...loadHouseholds()[opts.householdId]!, active_session_id: session.session_id } });
+      return session;
+    },
+    // Households in fixture mode live in this browser's localStorage: tabs of one browser can
+    // try the family flow, real phones need the API.
+    async createHousehold(name) {
+      const h: Household = { household_id: `fx-h-${uuid().slice(0, 8)}`, name, invite_token: uuid().slice(0, 12), invite_expires_at: new Date(Date.now() + 86_400_000).toISOString(), members: [], active_session_id: null };
+      saveHouseholds({ ...loadHouseholds(), [h.household_id]: h });
+      return h;
+    },
+    async getHousehold(hid) {
+      const h = loadHouseholds()[hid];
+      if (!h) throw new ApiError('unknown household', 404);
+      return h;
+    },
+    async rotateInvite(hid) {
+      const h = loadHouseholds()[hid];
+      if (!h) throw new ApiError('unknown household', 404);
+      const next = { ...h, invite_token: uuid().slice(0, 12), invite_expires_at: new Date(Date.now() + 86_400_000).toISOString() };
+      saveHouseholds({ ...loadHouseholds(), [hid]: next });
+      return next;
+    },
+    async joinHousehold(invite, name, memberId) {
+      const all = loadHouseholds();
+      const h = Object.values(all).find((x) => x.invite_token === invite);
+      if (!h) throw new ApiError('This family code is unknown or has expired. Ask for a new one on the big screen.', 403);
+      const member = (h.members ?? []).find((m) => m.member_id === memberId || m.name.toLowerCase() === name.toLowerCase()) ?? { member_id: `m-${uuid().slice(0, 12)}`, name };
+      const next = { ...h, members: [...(h.members ?? []).filter((m) => m.member_id !== member.member_id), { ...member, name }] };
+      saveHouseholds({ ...all, [h.household_id]: next });
+      return { household: next, member: { ...member, name }, session_id: h.active_session_id ?? null, client_token: h.active_session_id ? 'fx' : null };
     },
     async joinSession() {
       return { ok: true };

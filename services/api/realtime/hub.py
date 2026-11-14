@@ -1,6 +1,8 @@
 """Session hub: the switchboard between desktop, phone and agent. Owner: B.
 
-One session = one house being viewed by one user. Everything that happens is an event (see
+One session = one house being viewed by one user, or by one household: a family whose members
+each pair a phone (realtime/households.py). A member's phone connection carries their member_id,
+which the hub stamps on every event that phone sends. Everything that happens is an event (see
 packages/schema/events.py). The hub:
 - delivers every event, in order, to every client in the session, including the sender (B9);
 - keeps the latest ViewerState and sends it as `session.state` to a client when it joins (B9);
@@ -37,6 +39,14 @@ class Connection:
     session_id: str
     client: ClientKind
     queue: asyncio.Queue[EventEnvelope] = field(default_factory=asyncio.Queue)
+    member_id: str | None = None  # the household member on this phone
+    name: str | None = None
+
+    def presence(self) -> dict:
+        p: dict = {"client": self.client}
+        if self.member_id:
+            p.update(member_id=self.member_id, name=self.name)
+        return p
 
 
 @dataclass
@@ -50,6 +60,8 @@ class SessionRoom:
     client_tokens: dict[str, ClientKind] = field(default_factory=dict)
     issued_pair_tokens: set[str] = field(default_factory=set)
     joined_pair_tokens: set[str] = field(default_factory=set)
+    household_id: str | None = None
+    member_tokens: dict[str, str] = field(default_factory=dict)  # client_token -> member_id
 
 
 def _apply(state: ViewerState, event: EventEnvelope) -> None:
@@ -76,11 +88,16 @@ class Hub:
 
     # --- sessions and pairing (B10) -------------------------------------------------------------
 
-    def create_session(self, user_id: str, property_id: str, timezone_name: str = "UTC") -> Session:
-        """timezone_name: the property's IANA timezone, for the viewer's starting date and time."""
+    def create_session(self, user_id: str, property_id: str, timezone_name: str = "UTC", household_id: str | None = None) -> Session:
+        """timezone_name: the property's IANA timezone, for the viewer's starting date and time.
+        household_id: the family whose members' phones may join through the family QR code."""
         now = datetime.now(ZoneInfo(timezone_name)).isoformat(timespec="seconds")
         room = SessionRoom(
-            session_id=uuid.uuid4().hex, user_id=user_id, property_id=property_id, state=ViewerState(mode="tour", datetime=now)
+            session_id=uuid.uuid4().hex,
+            user_id=user_id,
+            property_id=property_id,
+            state=ViewerState(mode="tour", datetime=now),
+            household_id=household_id,
         )
         self.rooms[room.session_id] = room
         client_token = secrets.token_urlsafe(24)
@@ -108,6 +125,26 @@ class Hub:
         room.joined_pair_tokens.add(pair_token)
         return client_token
 
+    def mint_member_token(self, session_id: str, member_id: str) -> str:
+        """A phone client_token for a household member who joined through the family QR code.
+        The family invite was checked already; this only binds the token to the member. Raises
+        KeyError for an unknown session."""
+        room = self.rooms[session_id]
+        client_token = secrets.token_urlsafe(24)
+        room.client_tokens[client_token] = "phone"
+        room.member_tokens[client_token] = member_id
+        return client_token
+
+    def member_for(self, session_id: str, token: str) -> str | None:
+        """The household member a phone's token belongs to, if any."""
+        room = self.rooms.get(session_id)
+        return room.member_tokens.get(token) if room else None
+
+    def connected_members(self, session_id: str) -> dict[str, str]:
+        """member_id -> name of every household member with a phone in this session now."""
+        room = self.rooms.get(session_id)
+        return {c.member_id: c.name or "" for c in room.connections if c.member_id} if room else {}
+
     def authorize(self, session_id: str, client: ClientKind, token: str) -> bool:
         """May this token open a WebSocket as `client`?
 
@@ -128,21 +165,21 @@ class Hub:
         """Call `listener(room, event)` for every published event, after the state is updated."""
         self._listeners.append(listener)
 
-    def connect(self, session_id: str, client: ClientKind) -> Connection:
+    def connect(self, session_id: str, client: ClientKind, member_id: str | None = None, name: str | None = None) -> Connection:
         room = self.rooms[session_id]
-        conn = Connection(session_id, client)
+        conn = Connection(session_id, client, member_id=member_id, name=name)
         conn.queue.put_nowait(make_event(session_id, "server", "session.state", room.state))
         for other in room.connections:  # so a late joiner knows who is already here
-            conn.queue.put_nowait(make_event(session_id, "server", "session.joined", {"client": other.client}))
+            conn.queue.put_nowait(make_event(session_id, "server", "session.joined", other.presence()))
         room.connections.append(conn)
-        self.publish(make_event(session_id, "server", "session.joined", {"client": client}))
+        self.publish(make_event(session_id, "server", "session.joined", conn.presence()))
         return conn
 
     def disconnect(self, conn: Connection) -> None:
         room = self.rooms.get(conn.session_id)
         if room and conn in room.connections:
             room.connections.remove(conn)
-            self.publish(make_event(conn.session_id, "server", "session.left", {"client": conn.client}))
+            self.publish(make_event(conn.session_id, "server", "session.left", conn.presence()))
 
     def publish(self, event: EventEnvelope) -> None:
         """Update the state and queue the event for every client. Call from the event loop only;

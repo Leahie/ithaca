@@ -30,6 +30,9 @@ class EventEnvelope(Model):
     source: EventSource
     type: str
     payload: dict[str, Any]
+    # Additive: which household member this is about. On a phone's event, the sender; on an
+    # agent's event, whose agent is speaking. None for the desktop and for the server.
+    member_id: str | None = None
 
 
 # --- payloads ---------------------------------------------------------------------------------
@@ -37,6 +40,36 @@ class EventEnvelope(Model):
 
 class SessionPresencePayload(Model):
     client: ClientKind
+    # Additive: the household member on that phone.
+    member_id: str | None = None
+    name: str | None = None
+
+
+class FamilyNotePayload(Model):
+    """A note one member's agent posted to the family board, for the others to weigh."""
+
+    note_id: str
+    member_id: str  # whose agent wrote it
+    text: str
+    room_id: str | None = None
+
+
+class FamilyAskPayload(Model):
+    """One member's agent asks another member's agent a question."""
+
+    ask_id: str
+    from_member_id: str
+    to_member_id: str
+    question: str
+
+
+class FamilyAnswerPayload(Model):
+    """The asked agent's reply, from its own member's memory only (B4)."""
+
+    ask_id: str
+    from_member_id: str
+    to_member_id: str
+    answer: str
 
 
 class ViewerGotoPayload(Model):
@@ -155,6 +188,9 @@ EVENTS: dict[str, tuple[type[Model], frozenset[str]]] = {
     "agent.error": (AgentErrorPayload, frozenset({"agent"})),
     "agent.turn": (AgentTurnPayload, frozenset({"agent"})),
     "job.progress": (JobProgressPayload, frozenset({"server"})),
+    "family.note": (FamilyNotePayload, frozenset({"agent"})),
+    "family.ask": (FamilyAskPayload, frozenset({"agent"})),
+    "family.answer": (FamilyAnswerPayload, frozenset({"agent"})),
 }
 
 # Event type -> payload model. The TypeScript codegen reads this.
@@ -171,7 +207,7 @@ UI_TOOL_EVENTS: dict[str, str] = {
 }
 
 
-def make_event(session_id: str, source: EventSource, type: str, payload: dict | Model, id: str | None = None) -> EventEnvelope:
+def make_event(session_id: str, source: EventSource, type: str, payload: dict | Model, id: str | None = None, member_id: str | None = None) -> EventEnvelope:
     """Build a valid event. Raises on an unknown type or a payload that doesn't fit: for our own
     code. Input from clients goes through parse_client_event, which never raises."""
     model, senders = EVENTS[type]
@@ -186,19 +222,20 @@ def make_event(session_id: str, source: EventSource, type: str, payload: dict | 
         source=source,
         type=type,
         payload=clean,
+        member_id=member_id,
     )
 
 
-def parse_client_event(raw: Any, session_id: str, source: EventSource) -> EventEnvelope | str:
+def parse_client_event(raw: Any, session_id: str, source: EventSource, member_id: str | None = None) -> EventEnvelope | str:
     """Check a message from a browser. Returns the event, or the reason it was dropped (I-G7).
 
-    session_id and source come from the connection, never from the message.
+    session_id, source and member_id come from the connection, never from the message.
     """
     if not isinstance(raw, dict) or not isinstance(raw.get("type"), str):
         return "not an event"
     if raw["type"] not in EVENTS:
         return f"unknown type {raw['type']!r}"
     try:
-        return make_event(session_id, source, raw["type"], raw.get("payload") or {}, id=raw.get("id"))
+        return make_event(session_id, source, raw["type"], raw.get("payload") or {}, id=raw.get("id"), member_id=member_id)
     except ValueError as e:  # includes pydantic.ValidationError
         return str(e).splitlines()[0]
