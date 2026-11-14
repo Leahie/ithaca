@@ -7,6 +7,7 @@ import { CHART, ChartTitle, Legend, TableView } from '@/components/charts/kit';
 import { Button, Notice, Segmented, Spinner, Toggle, ViewState } from '@/components/ui';
 import { IconPause, IconPlay } from '@/components/ui/icons';
 import { AURALIZATION, Auralizer, auralizationParams } from '@/lib/audio/auralizer';
+import { describeLevel as describe } from '@/lib/audio/levels';
 import { useNoiseReport } from '@/lib/data/hooks';
 import { roomName } from '@/lib/rooms';
 import { useSession } from '@/lib/store/session';
@@ -17,16 +18,6 @@ type GlazingChoice = 'asbuilt' | 'single' | 'double' | 'triple';
 
 const sameScenario = (a: NoiseScenario, b: NoiseScenario) =>
   (a.glazing ?? null) === (b.glazing ?? null) && !!a.add_carpet === !!b.add_carpet && (a.include_furniture ?? true) === (b.include_furniture ?? true);
-
-/** Everyday anchors for an indoor level. General acoustics references, not report data. */
-function describe(dba: number): string {
-  if (dba < 25) return 'barely audible';
-  if (dba < 32) return 'like a quiet bedroom at night';
-  if (dba < 40) return 'like a library';
-  if (dba < 48) return 'like a quiet office';
-  if (dba < 56) return 'like a conversation in the next room';
-  return 'like a busy street through an open window';
-}
 
 const hourLabel = (h: number) => formatClock(h * 60).replace(':00', '');
 const bandLabel = (hz: number) => (hz >= 1000 ? `${hz / 1000}k` : String(hz));

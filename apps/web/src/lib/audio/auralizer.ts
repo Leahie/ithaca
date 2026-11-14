@@ -23,7 +23,38 @@ export const AURALIZATION = {
   rampSeconds: 0.12,
   /** Default calibration: the level, in dBA, that plays at full scale. */
   defaultFullScaleDba: 65,
+  /** Passing vehicles: Gaussian sigma of one pass's amplitude envelope, s. */
+  passSigmaSeconds: 1.2,
+  /** Passes per second in the day's loudest hour; other hours scale with traffic energy. */
+  peakPassesPerSecond: 0.25,
+  minPassesPerSecond: 1 / 60,
+  /** At most this share of the traffic energy comes as distinct passes; the rest is a steady hum. */
+  maxPassShare: 0.6,
+  /** How often the pass scheduler rolls the dice, ms. */
+  passTickMs: 250,
 } as const;
+
+/**
+ * Texture for traffic noise: a share of the energy arrives as separate passes at a mean rate.
+ * The bed carries the rest, so on average the level is still the report's.
+ */
+export interface TrafficTexture {
+  /** 0..1 share of the energy carried by passes. 0 is the steady sound alone. */
+  share: number;
+  ratePerS: number;
+}
+
+export const NO_TRAFFIC: TrafficTexture = { share: 0, ratePerS: 0 };
+
+/**
+ * Twice the traffic energy means twice the vehicles, so the pass rate follows the level of the
+ * hour relative to the loudest hour of the day.
+ */
+export function trafficTexture(laeqDba: number, peakLaeqDba: number, trafficShare: number): TrafficTexture {
+  const share = Math.min(AURALIZATION.maxPassShare, Math.max(0, trafficShare));
+  const rate = AURALIZATION.peakPassesPerSecond * 10 ** ((laeqDba - peakLaeqDba) / 10);
+  return { share, ratePerS: Math.min(AURALIZATION.peakPassesPerSecond, Math.max(AURALIZATION.minPassesPerSecond, rate)) };
+}
 
 export interface AuralizationParams {
   /** Linear master gain, 0..1. */
@@ -105,15 +136,23 @@ export function impulseResponse(rt60_s: number, sampleRate: number, seed = 7): F
   return ir;
 }
 
-/** The Web Audio graph: pink noise -> 8 band filters -> convolver -> master gain. */
+/**
+ * The Web Audio graph: (pink noise bed + passing vehicles) -> bus -> 8 band filters -> convolver
+ * -> master gain.
+ */
 export class Auralizer {
   private ctx: AudioContext | null = null;
   private source: AudioBufferSourceNode | null = null;
+  private bus: GainNode | null = null;
+  private bed: GainNode | null = null;
+  private passBuffer: AudioBuffer | null = null;
+  private passTimer: ReturnType<typeof setInterval> | null = null;
   private bandGains: GainNode[] = [];
   private convolver: ConvolverNode | null = null;
   private master: GainNode | null = null;
   private rt60 = 0;
   private params: AuralizationParams | null = null;
+  private traffic: TrafficTexture = NO_TRAFFIC;
 
   get playing(): boolean {
     return !!this.source;
@@ -133,7 +172,15 @@ export class Auralizer {
     const source = ctx.createBufferSource();
     source.buffer = buffer;
     source.loop = true;
+    if (!this.passBuffer) {
+      this.passBuffer = ctx.createBuffer(1, 10 * ctx.sampleRate, ctx.sampleRate);
+      this.passBuffer.copyToChannel(pinkNoise(this.passBuffer.length, 3) as Float32Array<ArrayBuffer>, 0);
+    }
 
+    this.bus = ctx.createGain();
+    this.bed = ctx.createGain();
+    this.bed.gain.value = Math.sqrt(1 - this.traffic.share);
+    source.connect(this.bed).connect(this.bus);
     this.convolver = ctx.createConvolver();
     this.convolver.normalize = false;
     this.master = ctx.createGain();
@@ -145,14 +192,71 @@ export class Auralizer {
       filter.Q.value = AURALIZATION.bandQ;
       const gain = ctx.createGain();
       gain.gain.value = 0;
-      source.connect(filter).connect(gain).connect(this.convolver!);
+      this.bus!.connect(filter).connect(gain).connect(this.convolver!);
       return gain;
     });
     this.convolver.connect(this.master).connect(ctx.destination);
     this.rt60 = 0;
     source.start();
     this.source = source;
+    this.passTimer = setInterval(() => this.maybePass(), AURALIZATION.passTickMs);
     if (this.params) this.update(this.params);
+  }
+
+  /** Passing vehicles on top of the steady sound. NO_TRAFFIC turns them off. */
+  setTraffic(traffic: TrafficTexture): void {
+    this.traffic = traffic;
+    if (this.ctx && this.bed) this.bed.gain.setTargetAtTime(Math.sqrt(1 - traffic.share), this.ctx.currentTime, AURALIZATION.rampSeconds / 3);
+  }
+
+  /** Fade to silence without stopping, e.g. while there is nothing to hear. */
+  silence(): void {
+    if (this.ctx && this.master) this.master.gain.setTargetAtTime(0, this.ctx.currentTime, AURALIZATION.rampSeconds / 3);
+  }
+
+  private maybePass(): void {
+    const { share, ratePerS } = this.traffic;
+    if (share <= 0 || ratePerS <= 0) return;
+    if (Math.random() < 1 - Math.exp((-ratePerS * AURALIZATION.passTickMs) / 1000)) this.playPass();
+  }
+
+  /**
+   * One vehicle: a Gaussian swell of shaped noise that pans across. Peak amplitude is set so
+   * that passes at ratePerS carry `share` of the energy on average; sqrt(2) makes up for a mono
+   * voice panned into a stereo bed.
+   */
+  private playPass(): void {
+    const ctx = this.ctx;
+    const buffer = this.passBuffer;
+    if (!ctx || !this.bus || !buffer) return;
+    const { share, ratePerS } = this.traffic;
+    const sigma = AURALIZATION.passSigmaSeconds;
+    const duration = 6 * sigma;
+    const energy = 0.5 + Math.random(); // cars and trucks, mean 1
+    const peak = Math.SQRT2 * Math.sqrt((share * energy) / (ratePerS * sigma * Math.sqrt(Math.PI)));
+    const curve = new Float32Array(64);
+    for (let i = 0; i < curve.length; i++) {
+      const t = (i / (curve.length - 1) - 0.5) * duration;
+      curve[i] = peak * Math.exp(-(t * t) / (2 * sigma * sigma));
+    }
+    const at = ctx.currentTime + 0.05;
+    const voice = ctx.createBufferSource();
+    voice.buffer = buffer;
+    const envelope = ctx.createGain();
+    envelope.gain.value = 0;
+    envelope.gain.setValueCurveAtTime(curve, at, duration);
+    const pan = ctx.createStereoPanner();
+    const side = Math.random() < 0.5 ? -1 : 1;
+    pan.pan.setValueAtTime(-0.7 * side, at);
+    pan.pan.linearRampToValueAtTime(0.7 * side, at + duration);
+    voice.connect(envelope).connect(pan).connect(this.bus);
+    voice.onended = () => {
+      voice.disconnect();
+      envelope.disconnect();
+      pan.disconnect();
+    };
+    voice.start(at, Math.random() * Math.max(0, buffer.duration - duration));
+    voice.stop(at + duration + 0.05);
   }
 
   /** Apply report-derived parameters. Safe to call before start(). */
@@ -179,6 +283,8 @@ export class Auralizer {
     if (!ctx || !this.source || !this.master) return;
     const source = this.source;
     this.source = null;
+    if (this.passTimer) clearInterval(this.passTimer);
+    this.passTimer = null;
     this.master.gain.setTargetAtTime(0, ctx.currentTime, 0.03);
     setTimeout(() => {
       try {
@@ -194,5 +300,6 @@ export class Auralizer {
     this.stop();
     void this.ctx?.close();
     this.ctx = null;
+    this.passBuffer = null;
   }
 }

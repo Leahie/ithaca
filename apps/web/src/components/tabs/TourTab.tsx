@@ -4,6 +4,7 @@ import { shownLayouts } from '@/lib/layouts';
 import type { InventoryItem, LayoutVariant, PropertyTwin } from '@ithaca/schema';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { HouseLoader } from '@/components/house/HouseLoader';
+import { SoundTimelapse } from '@/components/sound/SoundTimelapse';
 import { Badge, Notice, ViewState } from '@/components/ui';
 import { api } from '@/lib/api';
 import { config } from '@/lib/config';
@@ -502,6 +503,11 @@ export function TourTab({ twin, active }: { twin: PropertyTwin; active: boolean 
           </Badge>
         )}
       </div>
+      {config.features.has('sound') && sdk && revealed && (
+        <div className="pointer-events-none absolute inset-x-0 bottom-4 z-10 flex justify-center [&>*]:pointer-events-auto">
+          <SoundTimelapse twin={twin} active={active} />
+        </div>
+      )}
     </div>
   );
 }
