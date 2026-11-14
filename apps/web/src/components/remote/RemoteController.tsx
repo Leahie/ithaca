@@ -14,6 +14,7 @@ import { roomArea, roomName, roomsOnFloor } from '@/lib/rooms';
 import { usePushToTalk } from '@/lib/speech/usePushToTalk';
 import { useFamily, useMemberName } from '@/lib/store/family';
 import { useSession } from '@/lib/store/session';
+import { RoomIcon } from '@/components/ui/RoomIcon';
 import { MovePad } from './MovePad';
 
 const AS_BUILT: NoiseScenario = { glazing: null, add_carpet: false, include_furniture: true };
@@ -223,10 +224,13 @@ function RoomBlocks({ twin, onPicked }: { twin: PropertyTwin; onPicked(): void }
             {roomsOnFloor(twin, floor.floor_id).map((r) => (
               <button key={r.room_id} type="button" data-room-id={r.room_id} aria-pressed={r.room_id === roomId}
                 onClick={() => { dispatch('viewer.goto', { room_id: r.room_id }); onPicked(); }}
-                className={cn('flex min-h-16 flex-col items-start justify-center rounded-[var(--radius-frame)] border px-3.5 py-2.5 text-left',
+                className={cn('flex min-h-16 items-center gap-3 rounded-[var(--radius-frame)] border px-3 py-2.5 text-left',
                   r.room_id === roomId ? 'border-main bg-main text-on-main' : 'border-line bg-raised text-text active:bg-ink')}>
-                <span className="text-[15px] leading-5 font-semibold">{roomName(twin, r.room_id)}</span>
-                <span className={cn('font-mono text-xs', r.room_id === roomId ? 'text-on-main/70' : 'text-muted')}>{roomArea(r).toFixed(0)} m²</span>
+                <RoomIcon label={r.label} width={26} height={26} className={cn('shrink-0', r.room_id === roomId ? 'text-leaf' : 'text-leaf-deep')} />
+                <span className="flex min-w-0 flex-col">
+                  <span className="text-[15px] leading-5 font-semibold">{roomName(twin, r.room_id)}</span>
+                  <span className={cn('font-mono text-xs', r.room_id === roomId ? 'text-on-main/70' : 'text-muted')}>{roomArea(r).toFixed(0)} m²</span>
+                </span>
               </button>
             ))}
           </div>
