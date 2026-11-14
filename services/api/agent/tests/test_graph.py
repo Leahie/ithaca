@@ -20,7 +20,7 @@ PROPERTY = "onXQLXhfyQv"
 class ScriptedModel(BaseChatModel):
     """Replays `script` one message per call and records the system prompt of each call."""
 
-    script: list[AIMessage]
+    script: list[Any]
     system_prompts: list[str] = []
     tool_results: list[str] = []
 
@@ -35,7 +35,8 @@ class ScriptedModel(BaseChatModel):
         self.system_prompts.append(messages[0].text)
         if messages[-1].type == "tool":
             self.tool_results.append(messages[-1].text)
-        return ChatResult(generations=[ChatGeneration(message=self.script.pop(0))])
+        step = self.script.pop(0)  # a message, or a function of the conversation so far
+        return ChatResult(generations=[ChatGeneration(message=step(messages) if callable(step) else step)])
 
 
 def call(name: str, **args) -> AIMessage:

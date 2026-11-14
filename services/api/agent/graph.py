@@ -25,7 +25,8 @@ from langgraph.store.base import BaseStore
 from services.api.agent import prompts
 from services.api.agent.context import AgentContext
 from services.api.agent.models import get_model
-from services.api.agent.tools import AREA_TOOLS, PROPERTY_TOOLS, SOUND_TOOLS, SUN_TOOLS, UI_TOOLS
+from services.api.agent.design_tools import design_show_variants, inventory_search, propose_layouts
+from services.api.agent.tools import AREA_TOOLS, PROPERTY_TOOLS, SOUND_TOOLS, SUN_TOOLS, UI_TOOLS, sun_by_room
 from services.api.twin.service import get_twin
 
 MEMORY_ROOT = "/memories/"
@@ -77,10 +78,22 @@ def build_agent(
         default=StateBackend(),
         routes={MEMORY_ROOT: StoreBackend(namespace=lambda rt: memory_namespace(rt.context.user_id))},
     )
+    designer = {
+        "name": "designer",
+        "description": (
+            "Interior designer. Arranges the user's own furniture in one room and returns saved layout_ids. "
+            "Give it the room_id, the pieces to use, what the user wants from the room, and their preferences."
+        ),
+        "system_prompt": prompts.DESIGNER_PROMPT,
+        "tools": [inventory_search, *PROPERTY_TOOLS, sun_by_room, propose_layouts],
+        "middleware": [PropertyContextMiddleware()],
+        **({"model": get_model("designer")} if model is None else {}),
+    }
     return create_deep_agent(
         model=model or get_model("main"),
-        tools=[*PROPERTY_TOOLS, *SUN_TOOLS, *AREA_TOOLS, *SOUND_TOOLS, *UI_TOOLS],
-        system_prompt=prompts.main_persona(subagents=False),  # no designer/analyst/scout yet
+        tools=[*PROPERTY_TOOLS, *SUN_TOOLS, *AREA_TOOLS, *SOUND_TOOLS, inventory_search, *UI_TOOLS, design_show_variants],
+        system_prompt=prompts.main_persona(subagents=("designer",)),  # analyst and scout don't exist yet
+        subagents=[designer],
         middleware=[PropertyContextMiddleware()],
         memory=memory_files(property_id),
         permissions=[FilesystemPermission(operations=["write"], paths=[INVENTORY_FILE], mode="deny")],

@@ -49,6 +49,10 @@ def action_summary(tool: str, args: dict) -> str:
     return {
         "viewer_goto": "Moving the view",
         "viewer_walk": "Walking you there",
+        "task": f"Asking the {args.get('subagent_type', 'helper')}",
+        "inventory_search": "Looking at your furniture",
+        "propose_layouts": "Arranging the room",
+        "design_show_variants": "Showing layouts",
         "area_profile": "Looking up the listing and nearby homes",
         "area_search": f"Searching nearby for {args.get('query', 'places')}",
         "sound_heard_from": "Working out how far the sound carries",
@@ -58,7 +62,6 @@ def action_summary(tool: str, args: dict) -> str:
         "sun_by_room": "Checking where the sun falls",
         "sun_report": "Adding up sun hours",
         "daylight_at": "Checking how bright the rooms are",
-        "design_show_variants": "Showing layouts",
         "get_room_geometry": "Measuring the room",
         "list_rooms": "Looking over the rooms",
     }.get(tool, tool.replace("_", " "))
@@ -101,6 +104,15 @@ class AgentBridge:
         elif event.type == "viewer.walk":
             self._last_room[sid] = p["to_room_id"]
             log_.enter_room(p["to_room_id"], by_user=False)
+        elif event.type == "layout.select" and by_user:
+            from services.api.agent.design_tools import describe_layout
+            from services.api.furniture.store import furniture_store
+
+            furniture_store().choose_layout(room.user_id, p["layout_id"])
+            picked = describe_layout(room.user_id, room.property_id, p["layout_id"])
+            if picked:
+                self._signal(room)
+                self._start(room, event_message("layout_chosen", picked), proactive=False)
         elif event.type == "viewer.setMode":
             log_.set_view(p["mode"])
         elif event.type == "viewer.setTime" and by_user:
