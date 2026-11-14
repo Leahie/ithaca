@@ -42,8 +42,10 @@ class IngestResult:
 
 
 def provider_name() -> str:
+    """fal = real segmentation and 3D (needs FAL_KEY); catalog = free ready-made models sized to
+    the photo's dimensions; stub = plain boxes, no network. Unset: fal with a key, else catalog."""
     name = env("OBJECT_PROVIDER").lower()
-    return name if name in ("fal", "stub") else ("fal" if env("FAL_KEY") else "stub")
+    return name if name in ("fal", "catalog", "stub") else ("fal" if env("FAL_KEY") else "catalog")
 
 
 def default_providers() -> Providers:
@@ -60,6 +62,10 @@ def default_providers() -> Providers:
         from services.api.objects.providers.fal import FalImageTo3D, FalSegmenter
 
         return Providers(describer, FalSegmenter(), FalImageTo3D())
+    if provider_name() == "catalog":
+        from services.api.objects.providers.catalog import CatalogTo3D
+
+        return Providers(describer, stub.WholeImageSegmenter(), CatalogTo3D())
     return Providers(describer, stub.WholeImageSegmenter(), stub.BoxTo3D())
 
 
@@ -111,3 +117,34 @@ def ingest_image(
         result.items.append(item)
     progress(100, "Done")
     return result
+
+
+def import_glb(
+    glb: bytes,
+    label: str,
+    item_class: str,
+    stated: tuple[float | None, float | None, float | None],
+    user_id: str,
+    store: FurnitureStore,
+    source_url: str = "",
+) -> InventoryItem:
+    """Add a 3D file the user already has (for example one generated on a TRELLIS demo site).
+    It goes through the same sizing rules as a generated model. Raises NormalizeError if it fails."""
+    item_class = item_class if item_class in FURNITURE_CLASSES else "other"
+    sized, (w, d, h) = normalize_glb(glb, item_class, stated)
+    item_id = uuid.uuid4()
+    item = InventoryItem(
+        item_id=item_id,
+        user_id=user_id,
+        label=label,
+        item_class=item_class,
+        attributes=ItemAttributes(),
+        dims_m=ItemDims(w=w, d=d, h=h),
+        glb_url=files.save(f"items/{item_id}.glb", sized),
+        source_image_url=source_url,
+        mask_url=None,
+        price=None,
+        product_url=None,
+    )
+    store.put_item(item)
+    return item

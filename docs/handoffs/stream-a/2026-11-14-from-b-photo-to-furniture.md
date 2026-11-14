@@ -34,6 +34,12 @@ and a new route saves a piece the user dragged, if the layout is still valid.
 - `GET /api/health` shows `object_provider`: `fal` (real segmentation and 3D, needs `FAL_KEY`) or
   `stub`. In stub mode every piece is a plain box of the right size and color: fine for building
   the UI. Dimensions printed in the image are still read by the vision model when an LLM key is set.
+- A third mode, `catalog`, is the default without a fal key: each piece is a free, ready-made
+  model for its class (Poly Haven, CC0), sized to the dimensions read from the image. It looks
+  like furniture but is generic, not the piece in the photo.
+- `POST /api/objects/import` (multipart: `file` = a .glb, `label`, `item_class`, optional
+  `width_m`, `depth_m`, `height_m`) adds a 3D file the user already has. Returns the
+  `InventoryItem`, or 422 with the reason if it can't be sized.
 - One image can yield up to 4 pieces. A piece that can't be cut out or sized is skipped and named
   in the guide's message; the others are still added.
 - A generated model may face the wrong way: nothing checks which side is the front. Let the user

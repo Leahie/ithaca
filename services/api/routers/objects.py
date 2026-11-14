@@ -6,13 +6,15 @@ import mimetypes
 import uuid
 from pathlib import Path
 
-from fastapi import APIRouter, Header, HTTPException, Request, UploadFile
+from fastapi import APIRouter, Form, Header, HTTPException, Request, UploadFile
 from fastapi.responses import FileResponse
 
+from packages.schema.inventory import InventoryItem
 from packages.schema.session import JobRef, ObjectIngestRequest, UploadResult
 from services.api.agent import memory_files
 from services.api.furniture.store import furniture_store
 from services.api.objects import files, pipeline
+from services.api.objects.normalize import NormalizeError
 from services.api.runner_hooks import object_ready
 
 router = APIRouter(tags=["objects"])
@@ -64,6 +66,30 @@ def ingest(body: ObjectIngestRequest, request: Request, x_user_id: str = Header(
         result_ref=lambda result: ",".join(str(i.item_id) for i in result.items) or None,
     )
     return JobRef(job_id=job_id)
+
+
+@router.post("/objects/import")
+async def import_model(
+    request: Request,
+    file: UploadFile,
+    label: str = Form(...),
+    item_class: str = Form("other"),
+    width_m: float | None = Form(None),
+    depth_m: float | None = Form(None),
+    height_m: float | None = Form(None),
+    x_user_id: str = Header("demo"),
+) -> InventoryItem:
+    """Add a .glb the user already has as a piece of furniture. Give all three dimensions to size
+    it exactly; with none, it gets the typical size for its class."""
+    data = await file.read()
+    if len(data) > 60 * 1024 * 1024:
+        raise HTTPException(413, "the 3D file is larger than 60 MB")
+    try:
+        item = pipeline.import_glb(data, label, item_class, (width_m, depth_m, height_m), x_user_id, furniture_store())
+    except NormalizeError as e:
+        raise HTTPException(422, str(e)) from e
+    memory_files.sync_inventory(request.app.state.memory_store, x_user_id, furniture_store().list_items(x_user_id))
+    return item
 
 
 @router.get("/jobs/{job_id}")

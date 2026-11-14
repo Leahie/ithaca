@@ -48,7 +48,8 @@ def normalize_glb(glb: bytes, item_class: str, stated: tuple[float | None, float
 
     # Models can come out turned a quarter. Pick the turn whose footprint shape matches best.
     ex, _, ez = extents()
-    if abs(math.log((ez / ex) / (want_w / want_d))) < abs(math.log((ex / ez) / (want_w / want_d))):
+    # Only when the turn is clearly better: a near-square piece keeps the way it faces.
+    if abs(math.log((ez / ex) / (want_w / want_d))) + 0.25 < abs(math.log((ex / ez) / (want_w / want_d))):
         scene.apply_transform(trimesh.transformations.rotation_matrix(math.pi / 2, [0, 1, 0]))
     ex, ey, ez = extents()
 
