@@ -146,11 +146,30 @@ class FurnitureSelectPayload(Model):
     item_id: str | None = None
 
 
+class FurnitureDragPayload(Model):
+    """Additive to v0. A piece on its way across a plan editor, before it is saved: the 3D view
+    moves the piece with the finger. Interior frame; item_id None: the drag is over (the saved
+    pose, or the old one if the server refused, comes with the next furniture reload)."""
+
+    item_id: str | None = None
+    x: float = 0.0
+    z: float = 0.0
+    yaw_deg: float = 0.0
+
+
+class FurnitureOverviewPayload(Model):
+    """Additive to v0. Look down on a room from above while arranging it (None: back inside)."""
+
+    room_id: str | None = None
+
+
 class RemoteViewPayload(Model):
     """Additive to v0. Which screen the phone remote is on, so the big screen can follow it
     (it shows the floor plan while the phone is choosing a room)."""
 
     view: Literal["move", "rooms", "guide", "furniture", "light"]
+    # On "rooms": the floor the phone is choosing on, so the big screen shows that floor's plan.
+    floor_id: str | None = None
 
 
 class DesignShowVariantsPayload(Model):
@@ -260,6 +279,8 @@ EVENTS: dict[str, tuple[type[Model], frozenset[str]]] = {
     "viewer.playback": (ViewerPlaybackPayload, frozenset({"phone", "desktop", "server"})),
     "layout.changed": (LayoutChangedPayload, frozenset({"agent", "phone", "desktop", "server"})),
     "furniture.select": (FurnitureSelectPayload, frozenset({"phone", "desktop"})),
+    "furniture.drag": (FurnitureDragPayload, frozenset({"phone", "desktop"})),
+    "furniture.overview": (FurnitureOverviewPayload, frozenset({"phone", "desktop"})),
     "remote.view": (RemoteViewPayload, frozenset({"phone"})),
     # the agent's layouts, or the placement options a phone or the desktop asked the server for
     "design.showVariants": (DesignShowVariantsPayload, frozenset({"agent", "phone", "desktop"})),

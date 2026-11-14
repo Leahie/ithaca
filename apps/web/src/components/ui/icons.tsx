@@ -159,3 +159,42 @@ export const IconHand = (p: P) => (
     <path d="M8 12.5a1.5 1.5 0 00-3 0v1.5a7 7 0 007 7h1a5 5 0 005-5v-2.5" />
   </svg>
 );
+export const IconBackpack = (p: P) => (
+  <svg {...base(p)}>
+    <path d="M9 5V4a3 3 0 016 0v1" />
+    <path d="M5 11a6 6 0 016-6h2a6 6 0 016 6v8a2 2 0 01-2 2H7a2 2 0 01-2-2z" />
+    <path d="M9 21v-5a1 1 0 011-1h4a1 1 0 011 1v5M9 11h6" />
+  </svg>
+);
+export const IconBag = (p: P) => (
+  <svg {...base(p)}>
+    <path d="M5 8h14l-1 12a1 1 0 01-1 1H7a1 1 0 01-1-1z" />
+    <path d="M9 10V7a3 3 0 016 0v3" />
+  </svg>
+);
+export const IconSearch = (p: P) => (
+  <svg {...base(p)}>
+    <circle cx="11" cy="11" r="6.5" />
+    <path d="M20 20l-4.2-4.2" />
+  </svg>
+);
+export const IconPeople = (p: P) => (
+  <svg {...base(p)}>
+    <circle cx="9" cy="8" r="3.2" />
+    <path d="M3 20a6 6 0 0112 0" />
+    <path d="M16 5.2a3 3 0 010 5.6M18 14.2a6 6 0 013 5.8" />
+  </svg>
+);
+/** The house from above, as a cube: the big screen's view down on the room. */
+export const IconCube = (p: P) => (
+  <svg {...base(p)}>
+    <path d="M12 3l8 4.5v9L12 21l-8-4.5v-9z" />
+    <path d="M4 7.5l8 4.5 8-4.5M12 12v9" />
+  </svg>
+);
+export const IconGear = (p: P) => (
+  <svg {...base(p)}>
+    <circle cx="12" cy="12" r="3" />
+    <path d="M12 2.5v3M12 18.5v3M2.5 12h3M18.5 12h3M5.3 5.3l2.1 2.1M16.6 16.6l2.1 2.1M5.3 18.7l2.1-2.1M16.6 7.4l2.1-2.1" />
+  </svg>
+);

@@ -3,7 +3,7 @@
 import { QRCodeSVG } from 'qrcode.react';
 import { useEffect, useState } from 'react';
 import { useSessionInfo } from '@/components/session/SessionProvider';
-import { Badge, Button, Notice, cn } from '@/components/ui';
+import { Button, GLASS, GLASS_PANEL, cn, glassButton } from '@/components/ui';
 import { IconPhone } from '@/components/ui/icons';
 import { publicOrigin } from '@/lib/config';
 import { useSession } from '@/lib/store/session';
@@ -31,7 +31,7 @@ export function PairingButton({ propertyId, avatar = false }: { propertyId: stri
     <div className="relative">
       {avatar ? (
         <button type="button" onClick={() => setOpen(!open)} aria-expanded={open} aria-label="Connect a phone" data-testid="guide-avatar"
-          className="flex items-center gap-2 rounded-full border border-white/30 bg-black/35 py-1 pr-3.5 pl-1 text-sm text-white shadow-lg backdrop-blur-md">
+          className={`flex items-center gap-2 rounded-full py-1 pr-3.5 pl-1 text-sm ${GLASS}`}>
           <span className="flex h-8 w-8 items-center justify-center rounded-full bg-leaf font-display text-sm font-semibold text-main">G</span>
           {phoneOn ? 'Phone connected' : 'Connect a phone'}
         </button>
@@ -42,37 +42,38 @@ export function PairingButton({ propertyId, avatar = false }: { propertyId: stri
         </Button>
       )}
       {open && (
-        <div role="dialog" aria-label="Pair a phone" className="absolute top-11 right-0 z-30 w-[300px] rounded-xl border border-line-strong bg-raised p-4 shadow-2xl">
+        <div role="dialog" aria-label="Pair a phone" className={`absolute top-11 right-0 z-30 w-[300px] rounded-3xl p-4 ${GLASS_PANEL}`}>
           <div className="flex items-center justify-between">
-            <div className="text-sm font-medium">Phone controller</div>
-            <Badge tone={phoneOn ? 'leaf' : 'neutral'}>{phoneOn ? 'connected' : 'waiting'}</Badge>
+            <div className="text-sm font-semibold">Phone controller</div>
+            <span className={cn('flex items-center gap-1.5 text-xs', phoneOn ? 'text-leaf' : 'text-white/60')}>
+              <i aria-hidden className={cn('h-2 w-2 rounded-full', phoneOn ? 'bg-leaf' : 'bg-white/40')} />
+              {phoneOn ? 'connected' : 'waiting'}
+            </span>
           </div>
           {error && (
-            <div className="mt-3">
-              <Notice tone="error" title="No session">
-                {error}
-              </Notice>
-            </div>
+            <p role="alert" className="mt-3 text-[13px] leading-5 text-coral">
+              No session. {error}
+            </p>
           )}
           {session && (
             <>
-              <div className="mt-3 flex justify-center rounded-lg bg-white p-3">
+              <div className="mt-3 flex justify-center rounded-2xl bg-white p-3">
                 <QRCodeSVG value={url} size={200} marginSize={0} data-testid="pair-qr" />
               </div>
-              <p className="mt-3 text-xs leading-5 text-muted">Scan with your phone camera. The phone becomes a remote: scrub the sun, jump rooms, talk to the agent, capture furniture.</p>
-              <a href={url} target="_blank" rel="noreferrer" data-testid="pair-link" className="mt-2 block truncate font-mono text-[11px] text-sky-deep hover:underline">
+              <p className="mt-3 text-xs leading-5 text-white/75">Scan with your phone camera. The phone becomes a remote: scrub the sun, jump rooms, talk to the agent, capture furniture.</p>
+              <a href={url} target="_blank" rel="noreferrer" data-testid="pair-link" className="mt-2 block truncate font-mono text-[11px] text-sky hover:underline">
                 {url}
               </a>
               {isLocalhost && (
-                <p className="mt-2 text-[11px] leading-4 text-sun-deep">
+                <p className="mt-2 text-[11px] leading-4 text-sun">
                   This link points at localhost. A real phone needs your LAN address: set NEXT_PUBLIC_PUBLIC_ORIGIN, and HTTPS for the microphone and gyroscope.
                 </p>
               )}
-              <div className="mt-3 flex items-center justify-between text-xs text-faint">
+              <div className="mt-3 flex items-center justify-between border-t border-white/20 pt-3 text-xs text-white/60">
                 <span>{left === null ? '' : left > 0 ? `Code expires in ${Math.floor(left / 60)}:${String(left % 60).padStart(2, '0')}` : 'Code expired'}</span>
-                <Button size="sm" onClick={renew}>
+                <button type="button" className={glassButton()} onClick={renew}>
                   New code
-                </Button>
+                </button>
               </div>
             </>
           )}

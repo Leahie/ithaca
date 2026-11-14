@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import type { CatalogPiece, PropertyTwin } from '@ithaca/schema';
 import { PlanPreview } from '@/components/design/PlanPreview';
+import { GLASS, GLASS_PANEL } from '@/components/ui';
 import { useInventory, useLayouts } from '@/lib/data/hooks';
 import { placeName, roomName } from '@/lib/rooms';
 import { onSoundBlocked, pageHasBeenClicked, setVoiceKind, speechProvider, unlockSound } from '@/lib/speech/provider';
@@ -34,7 +35,7 @@ function chime(): void {
   }
 }
 
-const GLASS = 'rounded-full border border-white/30 bg-black/35 text-white shadow-lg backdrop-blur-md';
+const PILL = `rounded-full ${GLASS}`;
 
 /**
  * What the big screen shows over the house: where you are, the time, the guide's face (click it
@@ -153,16 +154,16 @@ export function CleanOverlay({ twin, pairing, onShowControls }: { twin: Property
       {/* The guide's face: click it for the code a phone scans. */}
       <div className="pointer-events-auto absolute top-3 right-3 flex items-start gap-2">
         {canSpeak() && (
-          <button type="button" aria-pressed={voice} onClick={() => setVoice(!voice)} className={`px-3.5 py-2 text-sm ${GLASS}`}>
+          <button type="button" aria-pressed={voice} onClick={() => setVoice(!voice)} className={`px-3.5 py-2 text-sm ${PILL}`}>
             {voice ? 'Voice on' : 'Voice off'}
           </button>
         )}
-        <button type="button" onClick={onShowControls} className={`px-3.5 py-2 text-sm ${GLASS}`}>
+        <button type="button" onClick={onShowControls} className={`px-3.5 py-2 text-sm ${PILL}`}>
           Controls
         </button>
         {pairing}
       </div>
-      <div className={`absolute bottom-3 left-3 px-3.5 py-1.5 text-sm tabular-nums ${GLASS}`}><span className="font-display font-semibold">{placeName(twin, roomId, sweepId)}</span> · {formatClock(minutesOfDay(datetime, twin.timezone))}</div>
+      <div className={`absolute bottom-3 left-3 px-3.5 py-1.5 text-sm tabular-nums ${PILL}`}><span className="font-display font-semibold">{placeName(twin, roomId, sweepId)}</span> · {formatClock(minutesOfDay(datetime, twin.timezone))}</div>
       {suggested.length > 0 && options.length <= 1 && (
         <div className="absolute inset-x-0 top-20 flex justify-center px-6" data-testid="clean-catalog">
           <div className="rounded-3xl border border-white/30 bg-black/45 p-4 text-white shadow-lg backdrop-blur-md">
@@ -184,7 +185,7 @@ export function CleanOverlay({ twin, pairing, onShowControls }: { twin: Property
       )}
       {options.length > 1 && (
         <div className="absolute inset-x-0 top-20 flex justify-center px-6" data-testid="clean-options">
-          <div className="rounded-3xl border border-white/30 bg-black/45 p-4 text-white shadow-lg backdrop-blur-md">
+          <div className={`rounded-3xl p-4 ${GLASS_PANEL}`}>
             <div className="mb-3 text-center text-sm">{options.length} places it fits in {roomName(twin, options[0]!.room_id)} · choose on your phone</div>
             <div className="flex gap-3">
               {options.map((l, i) => {

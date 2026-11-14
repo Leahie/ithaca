@@ -398,6 +398,59 @@
       "title": "FamilyNotePayload",
       "type": "object"
     },
+    "FurnitureDragPayload": {
+      "description": "Additive to v0. A piece on its way across a plan editor, before it is saved: the 3D view\nmoves the piece with the finger. Interior frame; item_id None: the drag is over (the saved\npose, or the old one if the server refused, comes with the next furniture reload).",
+      "properties": {
+        "item_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Item Id"
+        },
+        "x": {
+          "default": 0.0,
+          "title": "X",
+          "type": "number"
+        },
+        "yaw_deg": {
+          "default": 0.0,
+          "title": "Yaw Deg",
+          "type": "number"
+        },
+        "z": {
+          "default": 0.0,
+          "title": "Z",
+          "type": "number"
+        }
+      },
+      "title": "FurnitureDragPayload",
+      "type": "object"
+    },
+    "FurnitureOverviewPayload": {
+      "description": "Additive to v0. Look down on a room from above while arranging it (None: back inside).",
+      "properties": {
+        "room_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Room Id"
+        }
+      },
+      "title": "FurnitureOverviewPayload",
+      "type": "object"
+    },
     "FurnitureSelectPayload": {
       "description": "Additive to v0. The piece selected in a plan editor (None: nothing), so the 3D view can\npoint it out.",
       "properties": {
@@ -580,6 +633,18 @@
     "RemoteViewPayload": {
       "description": "Additive to v0. Which screen the phone remote is on, so the big screen can follow it\n(it shows the floor plan while the phone is choosing a room).",
       "properties": {
+        "floor_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Floor Id"
+        },
         "view": {
           "enum": [
             "move",
@@ -1228,6 +1293,20 @@
       "payload": "FamilyNotePayload",
       "sent_by": [
         "agent"
+      ]
+    },
+    "furniture.drag": {
+      "payload": "FurnitureDragPayload",
+      "sent_by": [
+        "desktop",
+        "phone"
+      ]
+    },
+    "furniture.overview": {
+      "payload": "FurnitureOverviewPayload",
+      "sent_by": [
+        "desktop",
+        "phone"
       ]
     },
     "furniture.select": {

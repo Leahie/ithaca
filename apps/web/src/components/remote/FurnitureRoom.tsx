@@ -1,15 +1,18 @@
 'use client';
 
 import type { InventoryItem, LayoutVariant, PropertyTwin } from '@ithaca/schema';
-import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { CatalogBrowser } from '@/components/design/CatalogBrowser';
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { createPortal } from 'react-dom';
+import { CARD, CARD_NAME, CARD_SUB, CardImage, CatalogBrowser, SearchBox, matches } from '@/components/design/CatalogBrowser';
 import { PlanEditor, type PlanControls } from '@/components/design/PlanEditor';
 import { furnitureChanged } from '@/components/house/ArrangePanel';
 import { JobRows, useObjectUpload } from '@/components/me/InventorySection';
 import { compassWord } from '@/components/sunlab/TimeScrubber';
-import { Spinner, cn } from '@/components/ui';
-import { IconArrowUp, IconCamera, IconCheck, IconClose, IconEye, IconList, IconPlus, IconSend, IconSparkle, IconTrash, IconTurnLeft, IconTurnRight } from '@/components/ui/icons';
+import { MODAL_BACKDROP, MODAL_SCROLL, Spinner, cn, useScrollLock } from '@/components/ui';
+import { IconArrowUp, IconBackpack, IconBag, IconCamera, IconCheck, IconClose, IconCube, IconEye, IconGear, IconList, IconPeople, IconPlus, IconSend, IconSparkle, IconTrash, IconTurnLeft, IconTurnRight } from '@/components/ui/icons';
 import { api } from '@/lib/api';
+import { apiUserId } from '@/lib/api/user';
+import { config } from '@/lib/config';
 import { useHouseFurniture, useInventory, useLayouts } from '@/lib/data/hooks';
 import { compassToInterior, interiorDirectionToAzimuth } from '@/lib/geometry/frames';
 import { bounds, frontDirection } from '@/lib/geometry/polygon';
@@ -17,18 +20,44 @@ import { previewLayout, visibleLayouts } from '@/lib/layouts';
 import { roomName } from '@/lib/rooms';
 import { floorSweeps } from '@/lib/showcase/rooms';
 import { useFamily } from '@/lib/store/family';
-import { useSession } from '@/lib/store/session';
+import { dispatch as sessionDispatch, useSession } from '@/lib/store/session';
 import { OFF, ON } from './LightPanel';
+import { DRAG_SENSITIVITY, PINCH_GAIN, SEND_MS } from './MovePad';
 
 const NUDGE_M = 0.1;
 const LETTERS = 'ABCDEFGH';
 const ISLAND = 'rounded-2xl border border-line bg-surface shadow-lg';
 
-/** The server's refusal in words: `{"violations": ["…"]}` comes back as JSON text. */
+/** The server's refusal in words: `{"violations": ["…"]}` or `{"detail": "…"}` comes back as JSON text. */
 const reason = (err: unknown) => {
   const text = err instanceof Error ? err.message : String(err);
-  return /"violations":\s*\["([^"]+)"/.exec(text)?.[1] ?? text;
+  return /"violations":\s*\["([^"]+)"/.exec(text)?.[1] ?? /"detail":\s*"([^"]+)"/.exec(text)?.[1] ?? text;
 };
+
+/** Two fingers on the plan turn the big screen's camera, the way a drag on the Move screen does. */
+function useLookAround() {
+  const acc = useRef({ yaw: 0, pitch: 0, zoom: 0 });
+  useEffect(() => {
+    const beat = setInterval(() => {
+      const { yaw, pitch, zoom } = acc.current;
+      if (Math.abs(yaw) >= 0.05 || Math.abs(pitch) >= 0.05) {
+        acc.current.yaw = acc.current.pitch = 0;
+        sessionDispatch('viewer.look', { yaw_delta_deg: Number(yaw.toFixed(2)), pitch_delta_deg: Number(pitch.toFixed(2)) });
+      }
+      if (Math.abs(zoom) >= 0.01) {
+        acc.current.zoom = 0;
+        sessionDispatch('viewer.zoom', { delta: Number(zoom.toFixed(3)) });
+      }
+    }, SEND_MS);
+    return () => clearInterval(beat);
+  }, []);
+  return useCallback(({ dx, dy, zoom }: { dx: number; dy: number; zoom: number }) => {
+    // The view follows the fingers, like dragging the scene.
+    acc.current.yaw -= dx * DRAG_SENSITIVITY;
+    acc.current.pitch += dy * DRAG_SENSITIVITY;
+    acc.current.zoom += zoom * PINCH_GAIN;
+  }, []);
+}
 
 function RoundButton({ label, onClick, children, on = false, disabled = false, className }: { label: string; onClick(): void; children: ReactNode; on?: boolean; disabled?: boolean; className?: string }) {
   return (
@@ -64,7 +93,7 @@ function Compass({ angle }: { angle: number }) {
 
 function Sheet({ title, onClose, children, action }: { title: string; onClose(): void; children: ReactNode; action?: ReactNode }) {
   return (
-    <section className={cn(ISLAND, 'flex max-h-[58dvh] flex-col overflow-hidden')} aria-label={title}>
+    <section className={cn(ISLAND, 'overflow-hidden')} aria-label={title}>
       <header className="flex shrink-0 items-center gap-2 border-b border-line px-4 py-2">
         <h2 className="text-[11px] font-semibold tracking-wider text-faint uppercase">{title}</h2>
         <div className="ml-auto flex items-center gap-2">
@@ -74,7 +103,8 @@ function Sheet({ title, onClose, children, action }: { title: string; onClose():
           </RoundButton>
         </div>
       </header>
-      <div className="min-h-0 overflow-y-auto px-4 py-3">{children}</div>
+      {/* The max-height is on the scroller itself: mobile Safari won't shrink a flex child to fit one. */}
+      <div className="max-h-[50dvh] touch-pan-y overflow-y-auto overscroll-contain px-4 py-3">{children}</div>
     </section>
   );
 }
@@ -123,13 +153,21 @@ export function FurnitureRoom({ twin }: { twin: PropertyTwin }) {
   const [selected, setSelected] = useState<string | null>(null);
   const [note, setNote] = useState<{ tone: 'ok' | 'error'; text: string } | null>(null);
   const [asked, setAsked] = useState<{ after: string | null } | null>(null);
+  const [above, setAbove] = useState(false);
   const controls = useRef<PlanControls | null>(null);
+  const look = useLookAround();
+  const me = apiUserId();
 
   // A new room starts with nothing selected and no sheet open.
   useEffect(() => {
     setSelected(null);
     setSheet(null);
   }, [room?.room_id]);
+  // The big screen looks down on the room while "From above" is on.
+  useEffect(() => {
+    dispatch('furniture.overview', { room_id: above && room ? room.room_id : null });
+  }, [above, room?.room_id, dispatch]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => () => dispatch('furniture.overview', { room_id: null }), [dispatch]);
   // The big screen points out the selected piece.
   useEffect(() => {
     dispatch('furniture.select', { item_id: selected });
@@ -192,7 +230,16 @@ export function FurnitureRoom({ twin }: { twin: PropertyTwin }) {
     if (!room || !p) return;
     const away = (sw: { position: { x: number; z: number } }) => Math.hypot(sw.position.x - p.position.x, sw.position.z - p.position.z);
     const sweep = [...floorSweeps(twin, room.room_id)].sort((a, b) => Math.abs(away(a) - 2.5) - Math.abs(away(b) - 2.5))[0];
-    if (sweep) dispatch('viewer.goto', { room_id: room.room_id, at_sweep_id: sweep.sweep_id, look_at: { x: p.position.x, y: sweep.position.y - 1.0, z: p.position.z } });
+    if (!sweep) return;
+    setAbove(false);
+    dispatch('viewer.goto', { room_id: room.room_id, at_sweep_id: sweep.sweep_id, look_at: { x: p.position.x, y: sweep.position.y - 1.0, z: p.position.z } });
+  };
+
+  /** Delete a piece for good: it leaves storage and every house (F1, F3). */
+  const deleteForGood = async (item: InventoryItem) => {
+    await api().deleteInventoryItem(item.item_id);
+    furnitureChanged(twin.property_id);
+    setNote({ tone: 'ok', text: `${item.label} is deleted.` });
   };
 
   // A photo that has become a piece goes straight into this room.
@@ -225,7 +272,7 @@ export function FurnitureRoom({ twin }: { twin: PropertyTwin }) {
     <div className="relative min-h-0 flex-1 overflow-hidden bg-ink" data-testid="furniture-room">
       <div className="absolute inset-x-0 top-0 bottom-28 px-2 pt-2">
         {trying ? (
-          <PlanEditor fill readOnly propertyId={twin.property_id} room={room} openings={openings} pieces={trying.placements} items={items} interiorToWorld={twin.interior_to_world} />
+          <PlanEditor fill readOnly propertyId={twin.property_id} room={room} openings={openings} pieces={trying.placements} items={items} interiorToWorld={twin.interior_to_world} onTwoFinger={look} />
         ) : (
           <PlanEditor
             fill
@@ -241,12 +288,18 @@ export function FurnitureRoom({ twin }: { twin: PropertyTwin }) {
               setSelected(id);
               if (id) setSheet(null);
             }}
+            onDrag={(id, pose) => dispatch('furniture.drag', pose ? { item_id: id, ...pose } : { item_id: null })}
+            onTwoFinger={look}
           />
         )}
       </div>
 
-      <div className="absolute top-3 right-3">
+      <p className="pointer-events-none absolute top-3 left-3 max-w-[55%] text-[11px] leading-4 text-faint">Two fingers turn the big screen</p>
+      <div className="absolute top-3 right-3 flex flex-col items-end gap-2">
         <Compass angle={north} />
+        <RoundButton label={above ? 'Back inside on the big screen' : 'See the room from above on the big screen'} on={above} onClick={() => setAbove((a) => !a)}>
+          <IconCube width={18} height={18} />
+        </RoundButton>
       </div>
       <div className="absolute inset-x-3 bottom-3 flex flex-col gap-2">
         {!pieces.length && !trying && house.data && !sheet && !note && !asked && (
@@ -265,43 +318,30 @@ export function FurnitureRoom({ twin }: { twin: PropertyTwin }) {
           </div>
         )}
 
-        {sheet === 'add' ? (
-          <Sheet
-            title={`Add to the ${name.toLowerCase()}`}
-            onClose={() => setSheet(null)}
-            action={
-              <RoundButton label={uploading ? 'Uploading…' : 'Add a piece from a photo'} onClick={() => camera.current?.click()} disabled={uploading} on={uploading} className="h-8 w-8">
-                {uploading ? <Spinner /> : <IconCamera width={16} height={16} />}
-              </RoundButton>
-            }
-          >
-            <input ref={camera} type="file" accept="image/*" capture="environment" className="sr-only" data-testid="capture-input"
-              onChange={(e) => { const f = e.target.files?.[0]; if (f) void upload(f); e.target.value = ''; }} />
-            {(uploadError || rows.length > 0) && (
-              <div className="mb-3 space-y-2">
-                {uploadError && <p className="text-xs text-danger">{uploadError}</p>}
-                <JobRows rows={rows} dismiss={dismiss} />
-              </div>
-            )}
-            {stored.length > 0 && (
+        {sheet === 'add' && (
+          <AddModal name={name} stored={stored} me={me} host={me === config.userId} onClose={() => setSheet(null)} onPlace={place} onDelete={deleteForGood}
+            photo={
               <>
-                <h3 className="mb-1.5 text-xs font-semibold text-muted">Your furniture</h3>
-                <ul className="mb-3 grid grid-cols-2 gap-2">
-                  {stored.map((i) => (
-                    <li key={i.item_id}>
-                      <button type="button" onClick={() => void place(i)} className="flex w-full flex-col rounded-xl border border-line bg-raised px-3 py-2 text-left active:scale-[0.98]">
-                        <span className="truncate text-sm font-semibold">{i.label}</span>
-                        <span className="truncate text-xs text-muted">{i.owner_name ?? i.item_class.replace(/_/g, ' ')} · {i.dims_m.w.toFixed(1)}×{i.dims_m.d.toFixed(1)} m</span>
-                      </button>
-                    </li>
-                  ))}
-                </ul>
-                <h3 className="mb-1.5 text-xs font-semibold text-muted">From the catalog</h3>
+                <input ref={camera} type="file" accept="image/*" capture="environment" className="sr-only" data-testid="capture-input"
+                  onChange={(e) => { const f = e.target.files?.[0]; if (f) void upload(f); e.target.value = ''; }} />
+                {(uploadError || rows.length > 0) && (
+                  <div className="space-y-2">
+                    {uploadError && <p className="text-xs text-danger">{uploadError}</p>}
+                    <JobRows rows={rows} dismiss={dismiss} />
+                  </div>
+                )}
               </>
-            )}
-            <CatalogBrowser onAdded={place} />
-          </Sheet>
-        ) : sheet === 'room' ? (
+            }
+            photoCard={
+              <button type="button" onClick={() => camera.current?.click()} disabled={uploading} aria-label="Add a piece from a photo"
+                className="flex h-full min-h-36 w-full flex-col items-center justify-center gap-1.5 rounded-xl border-2 border-dashed border-line-strong/60 text-[13px] font-semibold text-muted active:scale-[0.97] disabled:opacity-60">
+                {uploading ? <Spinner /> : <IconCamera width={22} height={22} />}
+                {uploading ? 'Uploading…' : 'From a photo'}
+              </button>
+            }
+          />
+        )}
+        {sheet === 'room' ? (
           <Sheet title={`In the ${name.toLowerCase()} · ${pieces.length}`} onClose={() => setSheet(null)}>
             {pieces.length ? (
               <ul className="space-y-1.5">
@@ -351,28 +391,36 @@ export function FurnitureRoom({ twin }: { twin: PropertyTwin }) {
             onMore={() => ask(`Suggest a few more layouts for the ${name.toLowerCase()}, different from these.`)}
           />
         ) : selectedItem && selectedPiece ? (
-          <section className={cn(ISLAND, 'px-3 py-2.5')} aria-label={`Arrange ${selectedItem.label}`} data-testid="piece-tools">
-            <div className="mb-2 flex items-center gap-2">
-              <span className="min-w-0 truncate text-sm font-semibold">{selectedItem.label}</span>
-              {facing && <span className="shrink-0 rounded-full bg-leaf/15 px-2 py-0.5 text-[11px] font-semibold text-leaf-deep">faces {facing}</span>}
-              <RoundButton label="Done" onClick={() => setSelected(null)} className="ml-auto h-8 w-8">
-                <IconCheck width={16} height={16} />
-              </RoundButton>
-            </div>
-            <div className="flex items-center justify-between gap-1.5">
-              <RoundButton label="Turn left 15 degrees" onClick={() => controls.current?.turn(15)}><IconTurnLeft width={18} height={18} /></RoundButton>
-              <RoundButton label="Turn right 15 degrees" onClick={() => controls.current?.turn(-15)}><IconTurnRight width={18} height={18} /></RoundButton>
-              <RoundButton label="Turn a quarter" onClick={() => controls.current?.turn(90)}><span className="text-xs font-semibold">90°</span></RoundButton>
-              <div className="grid grid-cols-3 grid-rows-2 gap-1" role="group" aria-label="Move">
-                <span />
-                <RoundButton label="Move up the plan" onClick={() => controls.current?.nudge(0, -NUDGE_M)} className="h-8 w-8"><IconArrowUp width={14} height={14} /></RoundButton>
-                <span />
-                <RoundButton label="Move left" onClick={() => controls.current?.nudge(-NUDGE_M, 0)} className="h-8 w-8"><IconArrowUp width={14} height={14} className="-rotate-90" /></RoundButton>
-                <RoundButton label="Move down the plan" onClick={() => controls.current?.nudge(0, NUDGE_M)} className="h-8 w-8"><IconArrowUp width={14} height={14} className="rotate-180" /></RoundButton>
-                <RoundButton label="Move right" onClick={() => controls.current?.nudge(NUDGE_M, 0)} className="h-8 w-8"><IconArrowUp width={14} height={14} className="rotate-90" /></RoundButton>
+          <section className={cn(ISLAND, 'px-3 pt-2.5 pb-3')} aria-label={`Arrange ${selectedItem.label}`} data-testid="piece-tools">
+            <div className="flex items-center gap-1.5">
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-sm font-semibold">{selectedItem.label}</p>
+                {facing && <p className="text-[11px] font-semibold text-leaf-deep">Faces {facing}</p>}
               </div>
-              <RoundButton label="Look at it on the big screen" onClick={() => lookAt(selectedPiece.item_id)}><IconEye width={18} height={18} /></RoundButton>
-              <RoundButton label="Take it out of the room" onClick={() => controls.current?.remove()}><IconTrash width={17} height={17} /></RoundButton>
+              <RoundButton label="Look at it on the big screen" onClick={() => lookAt(selectedPiece.item_id)}><IconEye width={17} height={17} /></RoundButton>
+              <RoundButton label="Take it out of the room" onClick={() => controls.current?.remove()}><IconTrash width={16} height={16} /></RoundButton>
+              <RoundButton label="Done" on onClick={() => setSelected(null)}><IconCheck width={17} height={17} /></RoundButton>
+            </div>
+            <div className="mt-2.5 flex items-start justify-around border-t border-line pt-2.5">
+              <ToolGroup title="Turn">
+                <div className="grid grid-cols-2 gap-1.5">
+                  <RoundButton label="Turn left 15 degrees" onClick={() => controls.current?.turn(15)}><IconTurnLeft width={18} height={18} /></RoundButton>
+                  <RoundButton label="Turn right 15 degrees" onClick={() => controls.current?.turn(-15)}><IconTurnRight width={18} height={18} /></RoundButton>
+                  <button type="button" aria-label="Turn a quarter" title="Turn a quarter" onClick={() => controls.current?.turn(90)}
+                    className={cn('col-span-2 h-10 rounded-full border text-xs font-semibold transition-transform active:scale-95', OFF)}>
+                    90°
+                  </button>
+                </div>
+              </ToolGroup>
+              <div className="w-px self-stretch bg-line" aria-hidden />
+              <ToolGroup title={`Move · ${NUDGE_M * 100} cm`}>
+                <div className="grid grid-cols-3 gap-1.5">
+                  <RoundButton label="Move up the plan" onClick={() => controls.current?.nudge(0, -NUDGE_M)} className="col-start-2"><IconArrowUp width={16} height={16} /></RoundButton>
+                  <RoundButton label="Move left" onClick={() => controls.current?.nudge(-NUDGE_M, 0)} className="col-start-1"><IconArrowUp width={16} height={16} className="-rotate-90" /></RoundButton>
+                  <RoundButton label="Move down the plan" onClick={() => controls.current?.nudge(0, NUDGE_M)}><IconArrowUp width={16} height={16} className="rotate-180" /></RoundButton>
+                  <RoundButton label="Move right" onClick={() => controls.current?.nudge(NUDGE_M, 0)}><IconArrowUp width={16} height={16} className="rotate-90" /></RoundButton>
+                </div>
+              </ToolGroup>
             </div>
           </section>
         ) : (
@@ -387,6 +435,15 @@ export function FurnitureRoom({ twin }: { twin: PropertyTwin }) {
   );
 }
 
+function ToolGroup({ title, children }: { title: string; children: ReactNode }) {
+  return (
+    <div role="group" aria-label={title} className="flex flex-col items-center gap-1.5">
+      <span className="text-[10px] font-semibold tracking-wider text-faint uppercase">{title}</span>
+      {children}
+    </div>
+  );
+}
+
 function IslandButton({ label, onClick, children, disabled = false }: { label: string; onClick(): void; children: ReactNode; disabled?: boolean }) {
   return (
     <button type="button" onClick={onClick} disabled={disabled}
@@ -394,6 +451,194 @@ function IslandButton({ label, onClick, children, disabled = false }: { label: s
       {children}
       <span className="text-[11px] font-semibold text-text">{label}</span>
     </button>
+  );
+}
+
+type AddTab = 'mine' | 'family' | 'catalog';
+const ADD_TABS: { tab: AddTab; label: string; icon: typeof IconBag }[] = [
+  { tab: 'mine', label: 'My furniture', icon: IconBackpack },
+  { tab: 'family', label: "Family's", icon: IconPeople },
+  { tab: 'catalog', label: 'Catalog', icon: IconBag },
+];
+/** The host (the big screen's user) has no member name. */
+const SHARED = 'Shared';
+
+const kind = (i: InventoryItem) => i.item_class.replace(/_/g, ' ');
+const size = (i: InventoryItem) => `${i.dims_m.w.toFixed(1)}×${i.dims_m.d.toFixed(1)} m`;
+
+/**
+ * Adding a piece, as a modal over the room: a backpack tab for what you own (and a photo of
+ * something new), a people tab for the rest of the family's, a shopping-bag tab for the catalog.
+ * Tapping a card puts it in the room. Manage turns the cards into delete buttons, for the pieces
+ * you may delete (yours; the host may delete anyone's).
+ */
+function AddModal({ name, stored, me, host, onClose, onPlace, onDelete, photo, photoCard }: {
+  name: string;
+  /** The family's pieces that are in no room of this house. */
+  stored: InventoryItem[];
+  /** Who this phone speaks for (X-User-Id). */
+  me: string;
+  /** This phone is the host's: it may delete every piece of the family. */
+  host: boolean;
+  onClose(): void;
+  onPlace(item: InventoryItem): Promise<void>;
+  onDelete(item: InventoryItem): Promise<void>;
+  /** The hidden camera input and upload progress. */
+  photo: ReactNode;
+  /** The "From a photo" card that opens the camera. */
+  photoCard: ReactNode;
+}) {
+  const own = stored.filter((i) => i.user_id === me);
+  const others = stored.filter((i) => i.user_id !== me);
+  const [tab, setTab] = useState<AddTab>(own.length ? 'mine' : others.length ? 'family' : 'catalog');
+  const [query, setQuery] = useState('');
+  const [managing, setManaging] = useState(false);
+  const [confirming, setConfirming] = useState<string | null>(null);
+  const [busy, setBusy] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const hit = (i: InventoryItem) => matches(query, i.label, kind(i), i.owner_name ?? '');
+  const mine = own.filter(hit);
+  const family = useMemo(() => {
+    const groups = new Map<string, InventoryItem[]>();
+    for (const i of others.filter(hit)) {
+      const who = i.owner_name ?? SHARED;
+      groups.set(who, [...(groups.get(who) ?? []), i]);
+    }
+    return [...groups];
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [stored, me, query]);
+  const mayDelete = (i: InventoryItem) => i.user_id === me || host;
+  const list = tab === 'mine' ? own : others;
+  const canManage = tab !== 'catalog' && list.some(mayDelete);
+
+  useEffect(() => {
+    setConfirming(null);
+    setError(null);
+  }, [tab, managing]);
+  useEffect(() => {
+    if (!canManage) setManaging(false);
+  }, [canManage]);
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape') return;
+      if (confirming) setConfirming(null);
+      else onClose();
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [onClose, confirming]);
+  useScrollLock();
+
+  const run = async (item: InventoryItem, fn: (item: InventoryItem) => Promise<void>) => {
+    setBusy(item.item_id);
+    setError(null);
+    try {
+      await fn(item);
+      setConfirming(null);
+    } catch (err) {
+      setError(reason(err));
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const card = (i: InventoryItem, sub: string) =>
+    confirming === i.item_id ? (
+      <div role="group" aria-label={`Delete ${i.label} for good?`} className="flex h-full w-full flex-col rounded-xl border border-danger/50 bg-raised p-2">
+        <CardImage src={i.source_image_url} state="delete" />
+        <span className={CARD_NAME}>Delete {i.label}?</span>
+        <span className={CARD_SUB}>It leaves every house.</span>
+        <div className="mt-1.5 flex gap-1.5">
+          <button type="button" disabled={busy !== null} onClick={() => void run(i, onDelete)} className="flex h-8 flex-1 items-center justify-center rounded-full bg-danger text-xs font-semibold text-white disabled:opacity-60">
+            {busy === i.item_id ? <Spinner /> : 'Delete'}
+          </button>
+          <button type="button" disabled={busy !== null} onClick={() => setConfirming(null)} className={cn('h-8 flex-1 rounded-full border text-xs font-semibold', OFF)}>
+            Keep
+          </button>
+        </div>
+      </div>
+    ) : managing ? (
+      <button type="button" disabled={busy !== null || !mayDelete(i)} onClick={() => setConfirming(i.item_id)}
+        aria-label={mayDelete(i) ? `Delete ${i.label}` : `${i.label}: only ${i.owner_name ?? 'its owner'} can delete it`}
+        title={mayDelete(i) ? undefined : `Only ${i.owner_name ?? 'its owner'} can delete it`} className={cn(CARD, !mayDelete(i) && 'opacity-45')}>
+        <CardImage src={i.source_image_url} state={mayDelete(i) ? 'delete' : 'idle'} />
+        <span className={CARD_NAME}>{i.label}</span>
+        <span className={CARD_SUB}>{sub}</span>
+      </button>
+    ) : (
+      <button type="button" disabled={busy !== null} onClick={() => void run(i, onPlace)} aria-label={`Add ${i.label} to the ${name.toLowerCase()}`} aria-busy={busy === i.item_id} className={CARD}>
+        <CardImage src={i.source_image_url} state={busy === i.item_id ? 'adding' : 'idle'} />
+        <span className={CARD_NAME}>{i.label}</span>
+        <span className={CARD_SUB}>{sub}</span>
+      </button>
+    );
+
+  const empty = (text: string) => <p className="pt-1 text-center text-[13px] text-muted">{text}</p>;
+
+  return createPortal(
+    <div className={MODAL_BACKDROP} onClick={(e) => e.target === e.currentTarget && onClose()}>
+      <section role="dialog" aria-modal aria-label={`Add to the ${name.toLowerCase()}`} data-testid="add-modal"
+        className="flex h-[min(85dvh,44rem)] w-full max-w-md flex-col overflow-hidden rounded-3xl border border-line bg-surface shadow-float">
+        <header className="flex shrink-0 items-center gap-2 px-3 pt-3 pb-2">
+          <h2 className="min-w-0 truncate font-display text-sm font-semibold">{managing ? 'Manage furniture' : `Add to the ${name.toLowerCase()}`}</h2>
+          <div className="ml-auto flex items-center gap-2">
+            {canManage && (
+              <button type="button" aria-pressed={managing} onClick={() => setManaging((m) => !m)} data-testid="manage-toggle"
+                className={cn('flex h-8 items-center gap-1.5 rounded-full border px-3 text-xs font-semibold', managing ? ON : OFF)}>
+                {managing ? <IconCheck width={14} height={14} /> : <IconGear width={14} height={14} />}
+                {managing ? 'Done' : 'Manage'}
+              </button>
+            )}
+            <RoundButton label="Close" onClick={onClose} className="h-8 w-8">
+              <IconClose width={16} height={16} />
+            </RoundButton>
+          </div>
+        </header>
+        <div role="tablist" aria-label="Where from" className="mx-3 flex shrink-0 gap-1 rounded-full bg-ink p-1">
+          {ADD_TABS.map(({ tab: t, label, icon: Icon }) => (
+            <button key={t} type="button" role="tab" aria-selected={t === tab} aria-label={label} title={label} data-tab={t} onClick={() => setTab(t)}
+              className={cn('flex h-9 min-w-0 items-center justify-center gap-1.5 rounded-full text-xs font-semibold whitespace-nowrap transition-colors',
+                t === tab ? 'flex-[2] bg-raised text-text shadow-[0_2px_0_var(--color-line)]' : 'flex-1 text-muted')}>
+              <Icon width={17} height={17} className="shrink-0" />
+              {t === tab && <span>{label}</span>}
+            </button>
+          ))}
+        </div>
+        <div className={cn(MODAL_SCROLL, 'space-y-2 px-3 pt-3 pb-4')}>
+          {managing && <p className="text-xs text-muted">Tap a piece to delete it for good. Pieces standing in a room come out of it first (In room).</p>}
+          {error && <p role="alert" className="text-sm text-danger">{error}</p>}
+          {tab === 'mine' ? (
+            <>
+              {!managing && photo}
+              {own.length > 0 && <SearchBox value={query} onChange={setQuery} placeholder="Search your furniture" />}
+              <ul className="grid grid-cols-2 gap-2">
+                {!managing && <li>{photoCard}</li>}
+                {mine.map((i) => <li key={i.item_id}>{card(i, `${kind(i)} · ${size(i)}`)}</li>)}
+              </ul>
+              {!own.length && empty('Everything you own is already in the house. Take a photo to add something new, or look in the catalog.')}
+              {own.length > 0 && !mine.length && empty(`None of your furniture matches “${query.trim()}”.`)}
+            </>
+          ) : tab === 'family' ? (
+            <>
+              {others.length > 0 && <SearchBox value={query} onChange={setQuery} placeholder="Search the family's furniture" />}
+              {family.map(([who, pieces]) => (
+                <section key={who} aria-label={who === SHARED ? 'Shared furniture' : `${who}'s furniture`} className="space-y-1.5 pt-1">
+                  <h3 className="text-[11px] font-semibold tracking-wider text-faint uppercase">{who} · {pieces.length}</h3>
+                  <ul className="grid grid-cols-2 gap-2">
+                    {pieces.map((i) => <li key={i.item_id}>{card(i, `${kind(i)} · ${size(i)}`)}</li>)}
+                  </ul>
+                </section>
+              ))}
+              {!others.length && empty("Nothing of the rest of the family's is waiting: it is all in the house, or they have not added any yet.")}
+              {others.length > 0 && !family.length && empty(`None of the family's furniture matches “${query.trim()}”.`)}
+            </>
+          ) : (
+            <CatalogBrowser onAdded={onPlace} scroll={false} />
+          )}
+        </div>
+      </section>
+    </div>,
+    document.body,
   );
 }
 

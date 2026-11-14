@@ -2,6 +2,7 @@
 
 import type { CatalogPiece } from '@ithaca/schema';
 import { useState } from 'react';
+import { CARD, CARD_NAME, CARD_SUB, CardImage } from '@/components/design/CatalogBrowser';
 import { api } from '@/lib/api';
 import { useHouseFurniture, useTwin } from '@/lib/data/hooks';
 import { invalidate } from '@/lib/data/resource';
@@ -78,15 +79,14 @@ export function CatalogSuggestion({ propertyId, roomId, nearItemId, pieces }: Pr
                 disabled={busy !== null || done}
                 onClick={() => void add(p)}
                 aria-label={`Add ${p.label}${room && twin.data ? ` to ${roomName(twin.data, room.room_id)}` : ''}`}
-                className="group flex w-full flex-col rounded-xl border border-line bg-raised p-2 text-left transition-colors hover:border-text disabled:cursor-default disabled:opacity-70"
+                aria-busy={busy === p.catalog_id}
+                className={CARD}
               >
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={p.thumbnail_url} alt="" loading="lazy" className="aspect-square w-full rounded-lg bg-surface object-contain" />
-                <span className="mt-1 text-sm font-semibold leading-tight">{p.label}</span>
-                <span className="text-xs tabular-nums text-muted">
-                  {p.dims_m.w.toFixed(2)} × {p.dims_m.d.toFixed(2)} × {p.dims_m.h.toFixed(2)} m
+                <CardImage src={p.thumbnail_url} state={done ? 'added' : busy === p.catalog_id ? 'adding' : 'idle'} />
+                <span className={CARD_NAME}>{p.label}</span>
+                <span className={CARD_SUB}>
+                  {p.dims_m.w.toFixed(1)}×{p.dims_m.d.toFixed(1)}×{p.dims_m.h.toFixed(1)} m
                 </span>
-                <span className="mt-1 text-xs font-semibold text-muted group-hover:text-text">{done ? 'Added ✓' : busy === p.catalog_id ? 'Adding…' : 'Add to the room'}</span>
               </button>
             </li>
           );

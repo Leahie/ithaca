@@ -242,6 +242,25 @@ export interface FloorOpening {
 }
 
 /**
+ * Additive to v0. A piece on its way across a plan editor, before it is saved: the 3D view
+ * moves the piece with the finger. Interior frame; item_id None: the drag is over (the saved
+ * pose, or the old one if the server refused, comes with the next furniture reload).
+ */
+export interface FurnitureDragPayload {
+  item_id?: string | null;
+  x?: number;
+  z?: number;
+  yaw_deg?: number;
+}
+
+/**
+ * Additive to v0. Look down on a room from above while arranging it (None: back inside).
+ */
+export interface FurnitureOverviewPayload {
+  room_id?: string | null;
+}
+
+/**
  * Additive to v0. The piece selected in a plan editor (None: nothing), so the 3D view can
  * point it out.
  */
@@ -563,6 +582,7 @@ export interface Quat {
  */
 export interface RemoteViewPayload {
   view: "move" | "rooms" | "guide" | "furniture" | "light";
+  floor_id?: string | null;
 }
 
 export interface Room {
@@ -923,6 +943,8 @@ export interface EventPayloads {
   "viewer.playback": ViewerPlaybackPayload;
   "layout.changed": LayoutChangedPayload;
   "furniture.select": FurnitureSelectPayload;
+  "furniture.drag": FurnitureDragPayload;
+  "furniture.overview": FurnitureOverviewPayload;
   "remote.view": RemoteViewPayload;
   "design.showVariants": DesignShowVariantsPayload;
   "layout.select": LayoutSelectPayload;
@@ -948,7 +970,7 @@ export interface EventPayloads {
 }
 
 export type EventType = keyof EventPayloads;
-export const EVENT_TYPES = ["session.state", "session.joined", "session.left", "viewer.goto", "viewer.walk", "viewer.setTime", "viewer.setMode", "viewer.look", "viewer.step", "viewer.zoom", "viewer.playback", "layout.changed", "furniture.select", "remote.view", "design.showVariants", "layout.select", "layout.confirm", "sound.setScenario", "sound.placeSource", "sound.clearSource", "catalog.suggest", "catalog.picked", "capture.upload", "chat.user", "voice.transcript", "voice.spoken", "agent.token", "agent.message", "agent.action", "agent.error", "agent.turn", "job.progress", "family.note", "family.ask", "family.answer"] as const satisfies readonly EventType[];
+export const EVENT_TYPES = ["session.state", "session.joined", "session.left", "viewer.goto", "viewer.walk", "viewer.setTime", "viewer.setMode", "viewer.look", "viewer.step", "viewer.zoom", "viewer.playback", "layout.changed", "furniture.select", "furniture.drag", "furniture.overview", "remote.view", "design.showVariants", "layout.select", "layout.confirm", "sound.setScenario", "sound.placeSource", "sound.clearSource", "catalog.suggest", "catalog.picked", "capture.upload", "chat.user", "voice.transcript", "voice.spoken", "agent.token", "agent.message", "agent.action", "agent.error", "agent.turn", "job.progress", "family.note", "family.ask", "family.answer"] as const satisfies readonly EventType[];
 
 /** The typed envelope for one known event type. */
 export interface Event<T extends EventType = EventType> {

@@ -1,19 +1,21 @@
 'use client';
 
 import { cubicBezier } from '@/lib/geometry/bezier';
+import { LiveArrangeMinimap } from '@/components/house/ArrangeMinimap';
 import { HousePlan } from '@/components/house/HousePlan';
 import { furnitureOnScreen, previewLayout } from '@/lib/layouts';
 import type { InventoryItem, PropertyTwin } from '@ithaca/schema';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { HouseLoader } from '@/components/house/HouseLoader';
 import { SoundTimelapse } from '@/components/sound/SoundTimelapse';
-import { Badge, Notice, ViewState } from '@/components/ui';
+import { GlassBadge, Notice, ViewState } from '@/components/ui';
 import { api } from '@/lib/api';
 import { config } from '@/lib/config';
 import { useHouseFurniture, useInventory, useLayouts } from '@/lib/data/hooks';
+import { bounds, centroid } from '@/lib/geometry/polygon';
 import { onHandNav } from '@/lib/hands/engine';
 import { sweepRooms } from '@/lib/rooms';
-import { defaultStartSweep, rotationToward, sweepForRoom, viewForRoom } from '@/lib/showcase/rooms';
+import { aerialView, defaultStartSweep, rotationToward, sweepForRoom, viewForRoom } from '@/lib/showcase/rooms';
 import type { MpSdk } from '@/lib/showcase/sdk-types';
 import { mountShowcase, type ShowcaseHandle } from '@/lib/showcase/viewer';
 import { onSessionEvent, useSession } from '@/lib/store/session';
@@ -49,6 +51,16 @@ const ZOOM_EASE_MS = 280;
 const exposeForTests =(key: string, value: unknown) => {
   window.__ITHACA__ = { ...window.__ITHACA__, [key]: value };
 };
+
+/** A5: a scene node at a stored pose, as it is. Interior frame == Showcase frame (I-G9); yaw is about +Y (I-G12). */
+function poseNode(node: MpSdk.Scene.INode, x: number, y: number, z: number, yawDeg: number) {
+  node.position.set(x, y, z);
+  const half = (yawDeg * Math.PI) / 360;
+  node.quaternion.set(0, Math.sin(half), 0, Math.cos(half));
+}
+
+/** After a drag ends, the saved pose arrives with the furniture reload; a refused move must still go back. */
+const DRAG_SETTLE_MS = 2500;
 
 /**
  * Showcase view modes, as this app names them. In the current viewer the "Outside" view is
@@ -93,6 +105,10 @@ export function TourTab({ twin, active }: { twin: PropertyTwin; active: boolean 
   const programmatic = useRef<string | null>(null);
   /** The sweep the camera stands on now, as the viewer last reported it. */
   const here = useRef<string | null>(null);
+  /** The view from above while arranging furniture: what it shows (see aerialKey), or null. */
+  const aerial = useRef<string | null>(null);
+  /** A view from above that a goto, walk, step or "Outside" took over from: not shown again. */
+  const aerialDismissed = useRef<string | null>(null);
 
   const roomId = useSession((s) => s.viewer.room_id);
   const sweepId = useSession((s) => s.viewer.sweep_id);
@@ -136,7 +152,8 @@ export function TourTab({ twin, active }: { twin: PropertyTwin; active: boolean 
   useEffect(() => {
     if (!sdk) return;
     exposeForTests('tourSdk', sdk);
-    const sub = sdk.Mode.current.subscribe((mode) => useTour.getState().setPlace(placeOf(mode)));
+    // The view from above while arranging is the dollhouse too, but it is still the room.
+    const sub = sdk.Mode.current.subscribe((mode) => useTour.getState().setPlace(mode === sdk.Mode.Mode.DOLLHOUSE && aerial.current ? 'inside' : placeOf(mode)));
     return () => {
       sub.cancel();
       useTour.getState().setPlace(null);
@@ -147,7 +164,11 @@ export function TourTab({ twin, active }: { twin: PropertyTwin; active: boolean 
   useEffect(() => {
     if (!sdk || outsideSeq === 0) return;
     queued.current = null; // a room move that was waiting is superseded
-    sdk.Mode.moveTo(sdk.Mode.Mode.DOLLHOUSE).catch((err: unknown) => console.warn('[tour] could not go outside', err));
+    aerialDismissed.current = aerial.current;
+    aerial.current = null;
+    sdk.Mode.moveTo(sdk.Mode.Mode.DOLLHOUSE)
+      .then(() => sdk.Floor.showAll()) // the view from above may have left one floor showing
+      .catch((err: unknown) => console.warn('[tour] could not go outside', err));
   }, [sdk, outsideSeq]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // The SDK's own sweep list and the frame check. Available as soon as the SDK connects.
@@ -531,13 +552,17 @@ export function TourTab({ twin, active }: { twin: PropertyTwin; active: boolean 
   }, [sdk, active]);
 
   // The house's furniture (or the layout being tried in its room), in the Showcase scene.
-  const placements = useMemo(() => {
-    const items = new Map<string, InventoryItem>((inventory.data ?? []).map((i) => [i.item_id, i]));
-    return furnitureOnScreen(house.data, previewLayout(layouts.data, selectedLayoutId)).flatMap((p) => {
-      const item = items.get(p.item_id);
-      return item ? [{ ...p, url: api().assetUrl(item.glb_url) }] : [];
-    });
-  }, [house.data, layouts.data, inventory.data, selectedLayoutId]);
+  const itemsById = useMemo(() => new Map<string, InventoryItem>((inventory.data ?? []).map((i) => [i.item_id, i])), [inventory.data]);
+  const placements = useMemo(
+    () =>
+      furnitureOnScreen(house.data, previewLayout(layouts.data, selectedLayoutId)).flatMap((p) => {
+        const item = itemsById.get(p.item_id);
+        return item ? [{ ...p, url: api().assetUrl(item.glb_url) }] : [];
+      }),
+    [house.data, layouts.data, itemsById, selectedLayoutId],
+  );
+  const roomPieces = useMemo(() => placements.filter((p) => p.room_id === roomId), [placements, roomId]);
+  const arrangingFromPhone = useSession((s) => s.peers.phone && s.remoteView === 'furniture');
 
   // One scene object per piece, kept between changes: a piece that only moved or turned is
   // re-posed where it stands, a new one is loaded, one that left is taken out. Nothing else is
@@ -555,12 +580,7 @@ export function TourTab({ twin, active }: { twin: PropertyTwin; active: boolean 
       piece.object.stop();
       have.delete(id);
     }
-    const pose = (node: MpSdk.Scene.INode, p: (typeof placements)[number]) => {
-      // A5: the stored pose, as it is. Interior frame == Showcase frame (I-G9); yaw is about +Y (I-G12).
-      node.position.set(p.position.x, p.position.y, p.position.z);
-      const half = (p.yaw_deg * Math.PI) / 360;
-      node.quaternion.set(0, Math.sin(half), 0, Math.cos(half));
-    };
+    const pose = (node: MpSdk.Scene.INode, p: (typeof placements)[number]) => poseNode(node, p.position.x, p.position.y, p.position.z, p.yaw_deg);
     void (async () => {
       try {
         if (placements.length && !sceneLights.current) {
@@ -633,6 +653,124 @@ export function TourTab({ twin, active }: { twin: PropertyTwin; active: boolean 
     };
   }, [sdk]);
 
+  // furniture.drag: the piece follows the finger on the phone's plan before the move is saved.
+  const placementsRef = useRef(placements);
+  placementsRef.current = placements;
+  useEffect(() => {
+    if (!sdk) return;
+    let dragged: string | null = null;
+    let settleTimer: ReturnType<typeof setTimeout> | null = null;
+    const restore = (id: string) => {
+      const p = placementsRef.current.find((x) => x.item_id === id);
+      const node = pieces.current.get(id)?.node;
+      if (p && node) poseNode(node, p.position.x, p.position.y, p.position.z, p.yaw_deg);
+    };
+    const off = onSessionEvent((event) => {
+      if (event.type !== 'furniture.drag') return;
+      const { item_id, x = 0, z = 0, yaw_deg = 0 } = event.payload;
+      if (settleTimer) clearTimeout(settleTimer);
+      settleTimer = null;
+      if (!item_id) {
+        const id = dragged;
+        dragged = null;
+        if (id) settleTimer = setTimeout(() => restore(id), DRAG_SETTLE_MS);
+        return;
+      }
+      if (dragged && dragged !== item_id) restore(dragged);
+      dragged = item_id;
+      const node = pieces.current.get(item_id)?.node;
+      if (node) poseNode(node, x, node.position.y, z, yaw_deg);
+    });
+    return () => {
+      if (settleTimer) clearTimeout(settleTimer);
+      off();
+    };
+  }, [sdk]);
+
+  // Arranging from the phone: while a piece is selected on its plan, a layout is being tried in a
+  // room, or the phone asked for the room from above, the big screen looks down on it, turned like
+  // the phone's plan, and follows the piece each time it is moved or turned. Letting go of it goes
+  // back inside, to where the camera stood. A goto, walk or step takes the camera from it at once.
+  const [arranging, setArranging] = useState<string | null>(null);
+  const [overview, setOverview] = useState<string | null>(null);
+  useEffect(
+    () =>
+      onSessionEvent((event) => {
+        if (event.type === 'furniture.select') setArranging(event.payload.item_id ?? null);
+        else if (event.type === 'furniture.overview') setOverview(event.payload.room_id ?? null);
+        else if (event.type === 'remote.view' && event.payload.view !== 'furniture') {
+          setArranging(null);
+          setOverview(null);
+        } else if ((event.type === 'viewer.goto' || event.type === 'viewer.walk' || event.type === 'viewer.step') && aerial.current) {
+          aerialDismissed.current = aerial.current;
+          aerial.current = null;
+        }
+      }),
+    [],
+  );
+  /** What to look down on: a key that changes when the view must, where, and in which room. 'wait': a piece just added is not loaded yet. */
+  const aerialTarget = useMemo(() => {
+    if (arranging) {
+      const p = placements.find((x) => x.item_id === arranging);
+      const room = p && twin.rooms.find((r) => r.room_id === p.room_id);
+      if (!p || !room) return 'wait' as const;
+      return { key: `${p.item_id}@${p.position.x.toFixed(2)},${p.position.z.toFixed(2)}`, at: p.position, room };
+    }
+    const tried = previewLayout(layouts.data, selectedLayoutId);
+    const triedRoom = tried && twin.rooms.find((r) => r.room_id === tried.room_id);
+    if (tried && triedRoom) {
+      const [x, z] = centroid(triedRoom.polygon);
+      return { key: `layout:${tried.layout_id}`, at: { x, y: triedRoom.floor_y, z }, room: triedRoom };
+    }
+    const room = overview ? twin.rooms.find((r) => r.room_id === overview) : undefined;
+    if (!room) return null;
+    const [x, z] = centroid(room.polygon);
+    return { key: `room:${room.room_id}`, at: { x, y: room.floor_y, z }, room };
+  }, [arranging, overview, placements, layouts.data, selectedLayoutId, twin.rooms]);
+  useEffect(() => {
+    if (!sdk || !canPlaceObjects || aerialTarget === 'wait') return;
+    if (!aerialTarget) {
+      aerialDismissed.current = null;
+      if (!aerial.current) return;
+      aerial.current = null;
+      const back = here.current ?? (roomId ? sweepForRoom(twin, roomId)?.sweep_id : undefined);
+      if (back) moveTo(back, false);
+      return;
+    }
+    const { key, at, room } = aerialTarget;
+    if (key === aerial.current || key === aerialDismissed.current) return;
+    aerial.current = key;
+    const b = bounds(room.polygon);
+    const view = aerialView(at, Math.max(b.maxX - b.minX, b.maxZ - b.minZ));
+    const floor = twin.floors.find((f) => f.floor_id === room.floor_id)?.index;
+    void (async () => {
+      while (moving.current) await new Promise((resolve) => setTimeout(resolve, 100));
+      if (aerial.current !== key) return; // a newer move of the piece, or a goto, came first
+      moving.current = true;
+      const above = { ...view, transition: sdk.Mode.TransitionType.FLY };
+      try {
+        await sdk.Mode.moveTo(sdk.Mode.Mode.DOLLHOUSE, above);
+        // The floors above would hide the room. Changing floors pulls the camera far back, so the
+        // view is set again after it.
+        const shown = await new Promise<number | undefined>((resolve) => {
+          const sub = sdk.Floor.current.subscribe((f) => {
+            resolve(f.sequence);
+            queueMicrotask(() => sub.cancel());
+          });
+        });
+        if (floor !== undefined && shown !== floor) {
+          await sdk.Floor.moveTo(floor);
+          await sdk.Mode.moveTo(sdk.Mode.Mode.DOLLHOUSE, above);
+        }
+      } catch (err) {
+        console.warn('[tour] could not look down on the room', err);
+      } finally {
+        moving.current = false;
+        runQueued();
+      }
+    })();
+  }, [sdk, aerialTarget]); // eslint-disable-line react-hooks/exhaustive-deps
+
   // The viewer going away takes every piece with it.
   useEffect(() => {
     const have = pieces.current;
@@ -692,35 +830,36 @@ export function TourTab({ twin, active }: { twin: PropertyTwin; active: boolean 
           </Notice>
         </div>
       )}
-      {sdk && revealed && (
-        <div className="pointer-events-none absolute top-3 left-3 z-10">
-          <HousePlan twin={twin} />
+      {sdk && revealed && <HousePlan twin={twin} />}
+      {sdk && revealed && arrangingFromPhone && roomId && (
+        <div className="absolute bottom-4 left-3 z-10">
+          <LiveArrangeMinimap sdk={sdk} twin={twin} roomId={roomId} pieces={roomPieces} items={itemsById} selected={arranging} />
         </div>
       )}
       <div className="pointer-events-none absolute top-16 right-3 flex flex-wrap justify-end gap-1.5">
         {/* The frame check runs always (see window.__ITHACA__.frameCheck); it shows only when it fails. */}
         {frame && !frameOk && (
-          <Badge
+          <GlassBadge
             tone={frameOk ? 'leaf' : 'sun'}
             title="Compares the twin's sweep positions with the positions the Showcase SDK reports. They must match for furniture to land where the layout says (I-G9)."
           >
             Frame check: {frame.matched} of {frame.total} sweeps match, max {(frame.maxError * 100).toFixed(1)} cm apart
-          </Badge>
+          </GlassBadge>
         )}
         {!canPlaceObjects && placements.length > 0 && (
-          <Badge title="The hosted Matterport viewer cannot add 3D objects. Set NEXT_PUBLIC_MATTERPORT_VIEWER=bundle to place furniture in the tour, or see it in the Sun Lab.">
+          <GlassBadge tone="sun" title="The hosted Matterport viewer cannot add 3D objects. Set NEXT_PUBLIC_MATTERPORT_VIEWER=bundle to place furniture in the tour, or see it in the Sun Lab.">
             Furniture is not shown in this viewer
-          </Badge>
+          </GlassBadge>
         )}
         {placed.count > 0 && (
-          <Badge tone="leaf">
+          <GlassBadge tone="leaf">
             {placed.count} items placed
-          </Badge>
+          </GlassBadge>
         )}
         {placed.error && (
-          <Badge tone="danger" title={placed.error}>
+          <GlassBadge tone="danger" title={placed.error}>
             Furniture could not be placed
-          </Badge>
+          </GlassBadge>
         )}
       </div>
       {config.features.has('sound') && sdk && revealed && (
