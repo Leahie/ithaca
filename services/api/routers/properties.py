@@ -20,11 +20,16 @@ from fastapi.responses import FileResponse
 from pydantic import BaseModel
 
 from packages.schema.reports import (
+    Amenity,
     AreaProfile,
+    Comp,
     DaylightMoment,
     DaylightSpot,
     NoiseReport,
     NoiseScenario,
+    SoundCatalog,
+    SoundDoors,
+    SoundField,
     SunMoment,
     SunReport,
     SunRoomDay,
@@ -175,7 +180,43 @@ def get_daylight_spot(pid: str, room_id: str, x: float, z: float, date: date, sk
         return service.daylight_spot(pid, room_id, x, z, date, sky, height_m)
 
 
-# --- not built yet --------------------------------------------------------------------------
+# --- sound placed in the house --------------------------------------------------------------
+
+
+@router.get("/properties/{pid}/sound/presets", response_model=SoundCatalog)
+def get_sound_presets(pid: str, x_user_id: str = UserId) -> SoundCatalog:
+    """Sounds a user can place, and loudness choices for their own recording."""
+    with _errors():
+        service.get_twin(pid)
+        return SoundCatalog(presets=service.sound_presets(), loudness_dba=service.acoustics().loudness)
+
+
+@router.get("/properties/{pid}/sound/field", response_model=SoundField)
+def get_sound_field(
+    pid: str,
+    room_id: str,
+    x: float,
+    z: float,
+    preset: str = "tv",
+    level_dba: float | None = Query(None, ge=20, le=120, description="at 1 m; default: the preset's"),
+    doors: SoundDoors = "closed",
+    include_furniture: bool = True,
+    listener_room_id: str | None = None,
+    listener_x: float | None = None,
+    listener_z: float | None = None,
+    x_user_id: str = UserId,
+) -> SoundField:
+    """A sound at (x, z) in room_id: every room's level, band gains and reverb time. With
+    listener_*, also the level at that spot (direct sound added in the source's own room)."""
+    given = [v is not None for v in (listener_room_id, listener_x, listener_z)]
+    if any(given) and not all(given):
+        raise HTTPException(422, "listener_room_id, listener_x and listener_z go together")
+    listener = (listener_room_id, listener_x, listener_z) if all(given) else None
+    with _errors():
+        return service.sound_field(pid, room_id, x, z, preset, level_dba, doors, include_furniture, listener)
+
+
+# --- noise (not built yet) and area ---------------------------------------------------------
 
 
 @router.get("/properties/{pid}/noise", response_model=NoiseReport)
@@ -187,8 +228,24 @@ def get_noise(pid: str, room_id: str, glazing: Literal["single", "double", "trip
 
 @router.get("/properties/{pid}/area", response_model=AreaProfile)
 def get_area(pid: str, x_user_id: str = UserId) -> AreaProfile:
+    """The home's listing, comparable homes, nearby amenities and a markdown summary. Missing
+    sources show up in `caveats`, not as errors."""
     with _errors():
         return service.area_profile(pid)
+
+
+@router.get("/properties/{pid}/area/search", response_model=list[Amenity])
+def get_area_search(pid: str, q: str = Query(..., min_length=1), limit: int = Query(10, ge=1, le=50),
+                    x_user_id: str = UserId) -> list[Amenity]:
+    """Amenities matching a free-text query ("coffee", "bus stop", "Kroger"), nearest first."""
+    with _errors():
+        return service.area_search(pid, q, limit)
+
+
+@router.get("/properties/{pid}/area/comps", response_model=list[Comp])
+def get_area_comps(pid: str, x_user_id: str = UserId) -> list[Comp]:
+    with _errors():
+        return service.get_comps(pid)
 
 
 # --- ingestion ------------------------------------------------------------------------------

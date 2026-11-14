@@ -164,13 +164,81 @@ class NoiseReport(BaseModel):
     sources: list[NoiseSource]
 
 
+# Sound placed inside the house ("a TV in the den: what do I hear in the bedroom?"). Every
+# bands list is the 8 octave bands of I-G14. Levels are dB re 20 uPa.
+
+SoundDoors = Literal["closed", "open"]  # the hinged interior doors; passages are always open
+
+
+class SoundPreset(BaseModel):
+    preset_id: str
+    label: str
+    level_dba: float  # free field, 1 m from the source
+    bands_db: list[float]  # at 1 m
+
+
+class SoundCatalog(BaseModel):
+    presets: list[SoundPreset]
+    loudness_dba: dict[str, float]  # choices for the user's own recording, e.g. {"talking": 60}
+
+
+class SoundSource(BaseModel):
+    room_id: str
+    position: Vec3  # interior frame
+    preset_id: str
+    level_dba: float  # at 1 m
+    bands_db: list[float]  # at 1 m
+
+
+class SoundRoom(BaseModel):
+    room_id: str
+    laeq_dba: float  # the room's diffuse (reverberant) level; uniform across the room
+    bands_db: list[float]
+    # Per band, this room's level minus the source's level at 1 m. For auralization: play a clip
+    # recorded about 1 m from the source through these band gains and this room's reverb.
+    gain_db: list[float]
+    rt60_s: float  # mean of 500 and 1000 Hz
+    rt60_bands_s: list[float]
+
+
+class SoundListener(BaseModel):
+    room_id: str
+    position: Vec3
+    distance_m: float | None  # to the source, when in the source's room
+    laeq_dba: float  # direct + reverberant
+    bands_db: list[float]
+    gain_db: list[float]
+    direct_fraction: float  # share of the energy (A-weighted) arriving directly: the dry/wet mix
+    rt60_s: float
+
+
+class SoundField(BaseModel):
+    source: SoundSource
+    doors: SoundDoors
+    include_furniture: bool
+    rooms: list[SoundRoom]  # every room, loudest first
+    listener: SoundListener | None = None
+
+
+AmenityCategory = Literal[
+    "grocery", "school", "park", "playground", "restaurant", "cafe", "transit", "pharmacy",
+    "health", "fitness", "library", "worship", "shopping",
+]
+
+
 class Amenity(BaseModel):
     name: str
-    category: str
+    category: str  # an AmenityCategory
     lat: float
     lon: float
-    distance_m: float
+    distance_m: float  # straight line from the property
     source: Literal["vexcel", "costar", "osm"]
+    kind: str | None = None  # the source's own tag, e.g. "supermarket", "bus_stop"
+
+
+CompStatus = Literal["active", "pending", "sold"]
+# Texas does not disclose sale prices, so a Texas sold home shows its last asking price.
+PriceKind = Literal["sale", "asking", "last_asking"]
 
 
 class Comp(BaseModel):
@@ -180,9 +248,40 @@ class Comp(BaseModel):
     beds: int | None = None
     sold_date: date | None = None
     distance_m: float
+    status: CompStatus | None = None
+    price_kind: PriceKind | None = None
+    baths: float | None = None
+    year_built: int | None = None
+    price_per_sqft: float | None = None
+    lat: float | None = None
+    lon: float | None = None
+    listing_id: str | None = None  # CoStar residential listing id
+
+
+class ListingFacts(BaseModel):
+    """The property's own listing (CoStar residential listings)."""
+
+    listing_id: str
+    status: CompStatus | Literal["off_market"]
+    price: int | None = None
+    price_kind: PriceKind | None = None
+    list_date: date | None = None
+    days_on_market: int | None = None
+    sqft: int | None = None
+    beds: int | None = None
+    baths: float | None = None
+    year_built: int | None = None
+    lot_acres: float | None = None
+    hoa_monthly: float | None = None
+    subdivision: str | None = None
+    neighborhood: str | None = None
+    zip: str | None = None
+    highlights: list[str] = []
 
 
 class AreaProfile(BaseModel):
     markdown: str
-    amenities: list[Amenity]
-    comps: list[Comp]
+    amenities: list[Amenity]  # the nearest few per category
+    comps: list[Comp]  # most comparable first
+    listing: ListingFacts | None = None
+    caveats: list[str] = []  # data gaps the agent should mention (C3)

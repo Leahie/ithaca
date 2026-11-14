@@ -1,0 +1,991 @@
+{
+ "service": "osm",
+ "name": "pois",
+ "request": {
+  "lat": 29.67825,
+  "lon": -95.46197,
+  "radius_m": 2000,
+  "tags": {
+   "shop": [
+    "supermarket",
+    "greengrocer",
+    "convenience",
+    "bakery",
+    "mall",
+    "department_store"
+   ],
+   "amenity": [
+    "school",
+    "kindergarten",
+    "college",
+    "university",
+    "library",
+    "pharmacy",
+    "hospital",
+    "clinic",
+    "doctors",
+    "restaurant",
+    "cafe",
+    "fast_food",
+    "place_of_worship"
+   ],
+   "leisure": [
+    "park",
+    "playground",
+    "fitness_centre",
+    "sports_centre"
+   ],
+   "public_transport": [
+    "station"
+   ],
+   "highway": [
+    "bus_stop"
+   ],
+   "railway": [
+    "station",
+    "tram_stop"
+   ]
+  }
+ },
+ "response": {
+  "pois": [
+   {
+    "osm_id": "node/10050018053",
+    "key": "amenity",
+    "value": "restaurant",
+    "name": "168 Szechuan",
+    "lat": 29.6665904,
+    "lon": -95.4628279
+   },
+   {
+    "osm_id": "node/10092568613",
+    "key": "amenity",
+    "value": "fast_food",
+    "name": "Wingstop",
+    "lat": 29.6720698,
+    "lon": -95.4604869
+   },
+   {
+    "osm_id": "node/12570462173",
+    "key": "highway",
+    "value": "bus_stop",
+    "name": "West Loop Transit Center",
+    "lat": 29.6795926,
+    "lon": -95.4574273
+   },
+   {
+    "osm_id": "node/12570462174",
+    "key": "highway",
+    "value": "bus_stop",
+    "name": "West Loop Transit Center",
+    "lat": 29.6794673,
+    "lon": -95.4571866
+   },
+   {
+    "osm_id": "node/12570462175",
+    "key": "highway",
+    "value": "bus_stop",
+    "name": "West Loop Transit Center",
+    "lat": 29.6794543,
+    "lon": -95.4569465
+   },
+   {
+    "osm_id": "node/12570462176",
+    "key": "highway",
+    "value": "bus_stop",
+    "name": "West Loop Transit Center",
+    "lat": 29.6795416,
+    "lon": -95.4571125
+   },
+   {
+    "osm_id": "node/12570462177",
+    "key": "highway",
+    "value": "bus_stop",
+    "name": "West Loop Transit Center",
+    "lat": 29.6796289,
+    "lon": -95.4572785
+   },
+   {
+    "osm_id": "node/12848040359",
+    "key": "amenity",
+    "value": "restaurant",
+    "name": "Pepper Salt",
+    "lat": 29.6886681,
+    "lon": -95.4753413
+   },
+   {
+    "osm_id": "node/2051347349",
+    "key": "amenity",
+    "value": "cafe",
+    "name": "Starbucks",
+    "lat": 29.6888717,
+    "lon": -95.4621141
+   },
+   {
+    "osm_id": "node/2051347987",
+    "key": "amenity",
+    "value": "fast_food",
+    "name": "Becks Prime",
+    "lat": 29.6888694,
+    "lon": -95.4619612
+   },
+   {
+    "osm_id": "node/2069777127",
+    "key": "amenity",
+    "value": "fast_food",
+    "name": "Panda Express",
+    "lat": 29.686706,
+    "lon": -95.458016
+   },
+   {
+    "osm_id": "node/2296236830",
+    "key": "leisure",
+    "value": "sports_centre",
+    "name": "Bikram Yoga Meyerland Plaza",
+    "lat": 29.6867808,
+    "lon": -95.460828
+   },
+   {
+    "osm_id": "node/2333859003",
+    "key": "amenity",
+    "value": "fast_food",
+    "name": "Smoothie King",
+    "lat": 29.687933,
+    "lon": -95.459803
+   },
+   {
+    "osm_id": "node/2345832882",
+    "key": "amenity",
+    "value": "restaurant",
+    "name": "Escalante's Mexican Grille",
+    "lat": 29.688858,
+    "lon": -95.45989
+   },
+   {
+    "osm_id": "node/2345863635",
+    "key": "amenity",
+    "value": "restaurant",
+    "name": "Café Express",
+    "lat": 29.685633,
+    "lon": -95.46056
+   },
+   {
+    "osm_id": "node/2346595277",
+    "key": "amenity",
+    "value": "fast_food",
+    "name": "Subway",
+    "lat": 29.689483,
+    "lon": -95.45718
+   },
+   {
+    "osm_id": "node/2346596702",
+    "key": "amenity",
+    "value": "restaurant",
+    "name": "JJ Garden Restaurant",
+    "lat": 29.689483,
+    "lon": -95.457298
+   },
+   {
+    "osm_id": "node/2346600570",
+    "key": "shop",
+    "value": "department_store",
+    "name": "Ross",
+    "lat": 29.687295,
+    "lon": -95.46062
+   },
+   {
+    "osm_id": "node/2346602176",
+    "key": "shop",
+    "value": "department_store",
+    "name": "Marshalls",
+    "lat": 29.687812,
+    "lon": -95.460651
+   },
+   {
+    "osm_id": "node/2349341848",
+    "key": "amenity",
+    "value": "restaurant",
+    "name": "La Madeline",
+    "lat": 29.6887987,
+    "lon": -95.4601726
+   },
+   {
+    "osm_id": "node/2352145818",
+    "key": "amenity",
+    "value": "clinic",
+    "name": "Kelsey-Seybold Clinic",
+    "lat": 29.688159,
+    "lon": -95.460684
+   },
+   {
+    "osm_id": "node/2356462301",
+    "key": "amenity",
+    "value": "restaurant",
+    "name": "Gugliani's",
+    "lat": 29.689558,
+    "lon": -95.46519
+   },
+   {
+    "osm_id": "node/2647696381",
+    "key": "amenity",
+    "value": "restaurant",
+    "name": "The Egg and I",
+    "lat": 29.6895666,
+    "lon": -95.4643168
+   },
+   {
+    "osm_id": "node/2890206703",
+    "key": "amenity",
+    "value": "fast_food",
+    "name": "Firehouse Subs",
+    "lat": 29.6857351,
+    "lon": -95.4638807
+   },
+   {
+    "osm_id": "node/356718805",
+    "key": "amenity",
+    "value": "school",
+    "name": "Pilgrim School",
+    "lat": 29.6873918,
+    "lon": -95.4753063
+   },
+   {
+    "osm_id": "node/356866358",
+    "key": "amenity",
+    "value": "place_of_worship",
+    "name": "Pilgrim Lutheran Church",
+    "lat": 29.6879898,
+    "lon": -95.4757433
+   },
+   {
+    "osm_id": "node/4711368241",
+    "key": "amenity",
+    "value": "cafe",
+    "name": "Berripop Frozen Yogurt",
+    "lat": 29.6887698,
+    "lon": -95.4621051
+   },
+   {
+    "osm_id": "node/480003064",
+    "key": "amenity",
+    "value": "place_of_worship",
+    "name": "Grace Episcopal Church",
+    "lat": 29.6735272,
+    "lon": -95.4439223
+   },
+   {
+    "osm_id": "node/6503285221",
+    "key": "amenity",
+    "value": "school",
+    "name": "Grace Episcopal Church School & Office Entrance",
+    "lat": 29.673784,
+    "lon": -95.4440319
+   },
+   {
+    "osm_id": "node/6814439513",
+    "key": "amenity",
+    "value": "pharmacy",
+    "name": "Walgreens",
+    "lat": 29.6638949,
+    "lon": -95.4649399
+   },
+   {
+    "osm_id": "node/7215102835",
+    "key": "amenity",
+    "value": "pharmacy",
+    "name": "H-E-B Pharmacy",
+    "lat": 29.6885083,
+    "lon": -95.4639306
+   },
+   {
+    "osm_id": "node/9383114454",
+    "key": "amenity",
+    "value": "fast_food",
+    "name": "Little Caesars",
+    "lat": 29.6631683,
+    "lon": -95.4647606
+   },
+   {
+    "osm_id": "node/9952069488",
+    "key": "amenity",
+    "value": "restaurant",
+    "name": "Perú Gourmet",
+    "lat": 29.6633482,
+    "lon": -95.4647604
+   },
+   {
+    "osm_id": "way/1064940326",
+    "key": "amenity",
+    "value": "clinic",
+    "name": "Fresenius Kidney Care",
+    "lat": 29.6729347,
+    "lon": -95.4578887
+   },
+   {
+    "osm_id": "way/1088029492",
+    "key": "amenity",
+    "value": "pharmacy",
+    "name": "CVS Pharmacy",
+    "lat": 29.6708228,
+    "lon": -95.4638557
+   },
+   {
+    "osm_id": "way/1089804118",
+    "key": "amenity",
+    "value": "restaurant",
+    "name": "Tapster's Grill",
+    "lat": 29.6896058,
+    "lon": -95.4519859
+   },
+   {
+    "osm_id": "way/1089807896",
+    "key": "amenity",
+    "value": "fast_food",
+    "name": "El Costeñito",
+    "lat": 29.6613982,
+    "lon": -95.4643954
+   },
+   {
+    "osm_id": "way/1089905311",
+    "key": "amenity",
+    "value": "fast_food",
+    "name": "Burger King",
+    "lat": 29.6638495,
+    "lon": -95.4635512
+   },
+   {
+    "osm_id": "way/1090349536",
+    "key": "amenity",
+    "value": "fast_food",
+    "name": "Chick-fil-A",
+    "lat": 29.6743812,
+    "lon": -95.4593301
+   },
+   {
+    "osm_id": "way/1090394168",
+    "key": "amenity",
+    "value": "fast_food",
+    "name": "Tacos “El Zeba’s”",
+    "lat": 29.6685998,
+    "lon": -95.4629796
+   },
+   {
+    "osm_id": "way/1102749248",
+    "key": "amenity",
+    "value": "place_of_worship",
+    "name": "Willow Meadows Baptist Church",
+    "lat": 29.6737666,
+    "lon": -95.4498419
+   },
+   {
+    "osm_id": "way/1102930816",
+    "key": "amenity",
+    "value": "restaurant",
+    "name": "Watershed",
+    "lat": 29.6721546,
+    "lon": -95.4601277
+   },
+   {
+    "osm_id": "way/1119487387",
+    "key": "amenity",
+    "value": "restaurant",
+    "name": "Plucker's",
+    "lat": 29.6862673,
+    "lon": -95.4579828
+   },
+   {
+    "osm_id": "way/1120006833",
+    "key": "amenity",
+    "value": "restaurant",
+    "name": "Hu's Garden",
+    "lat": 29.6737465,
+    "lon": -95.4588023
+   },
+   {
+    "osm_id": "way/129843518",
+    "key": "leisure",
+    "value": "park",
+    "name": "Willow Park",
+    "lat": 29.6681809,
+    "lon": -95.455055
+   },
+   {
+    "osm_id": "way/129864714",
+    "key": "amenity",
+    "value": "school",
+    "name": "Horn Elementary School",
+    "lat": 29.6940463,
+    "lon": -95.4542574
+   },
+   {
+    "osm_id": "way/1325582635",
+    "key": "amenity",
+    "value": "fast_food",
+    "name": "Subway",
+    "lat": 29.6678607,
+    "lon": -95.4638043
+   },
+   {
+    "osm_id": "way/1358278439",
+    "key": "public_transport",
+    "value": "station",
+    "name": "West Loop Transit Center",
+    "lat": 29.6794366,
+    "lon": -95.4580486
+   },
+   {
+    "osm_id": "way/1371270277",
+    "key": "amenity",
+    "value": "restaurant",
+    "name": "Annie's Hamburgers",
+    "lat": 29.6632168,
+    "lon": -95.4637335
+   },
+   {
+    "osm_id": "way/1385704089",
+    "key": "amenity",
+    "value": "fast_food",
+    "name": "Boston Market",
+    "lat": 29.6895559,
+    "lon": -95.4576706
+   },
+   {
+    "osm_id": "way/1385891734",
+    "key": "leisure",
+    "value": "park",
+    "name": "That Duck Park Lake Park",
+    "lat": 29.6759391,
+    "lon": -95.4562835
+   },
+   {
+    "osm_id": "way/1387916598",
+    "key": "amenity",
+    "value": "restaurant",
+    "name": "Sweet Spot",
+    "lat": 29.688663,
+    "lon": -95.4755416
+   },
+   {
+    "osm_id": "way/1430353007",
+    "key": "amenity",
+    "value": "place_of_worship",
+    "name": "Westbury United Methodist Church",
+    "lat": 29.6667366,
+    "lon": -95.4688731
+   },
+   {
+    "osm_id": "way/1431988913",
+    "key": "leisure",
+    "value": "playground",
+    "name": "Bunnell Family Playground",
+    "lat": 29.6682237,
+    "lon": -95.4675228
+   },
+   {
+    "osm_id": "way/1531517920",
+    "key": "amenity",
+    "value": "fast_food",
+    "name": "Chipotle",
+    "lat": 29.6852767,
+    "lon": -95.4580139
+   },
+   {
+    "osm_id": "way/1531517923",
+    "key": "amenity",
+    "value": "fast_food",
+    "name": "Shake Shack",
+    "lat": 29.6856457,
+    "lon": -95.4582188
+   },
+   {
+    "osm_id": "way/194533801",
+    "key": "shop",
+    "value": "department_store",
+    "name": "Target",
+    "lat": 29.6870672,
+    "lon": -95.4621252
+   },
+   {
+    "osm_id": "way/194533803",
+    "key": "shop",
+    "value": "department_store",
+    "name": "JCPenney",
+    "lat": 29.6873013,
+    "lon": -95.4632592
+   },
+   {
+    "osm_id": "way/194534067",
+    "key": "amenity",
+    "value": "fast_food",
+    "name": "James Coney Island",
+    "lat": 29.686971,
+    "lon": -95.4598102
+   },
+   {
+    "osm_id": "way/194534068",
+    "key": "amenity",
+    "value": "restaurant",
+    "name": "Saltgrass Steak House",
+    "lat": 29.6861747,
+    "lon": -95.4598845
+   },
+   {
+    "osm_id": "way/194536043",
+    "key": "leisure",
+    "value": "park",
+    "name": "Meyerland Park",
+    "lat": 29.6829466,
+    "lon": -95.4705907
+   },
+   {
+    "osm_id": "way/194628797",
+    "key": "leisure",
+    "value": "fitness_centre",
+    "name": "EōS Fitness",
+    "lat": 29.6871119,
+    "lon": -95.4650593
+   },
+   {
+    "osm_id": "way/194631319",
+    "key": "amenity",
+    "value": "fast_food",
+    "name": "Chick-fil-A",
+    "lat": 29.688796,
+    "lon": -95.465153
+   },
+   {
+    "osm_id": "way/196677185",
+    "key": "amenity",
+    "value": "restaurant",
+    "name": "IHOP",
+    "lat": 29.6885483,
+    "lon": -95.4580418
+   },
+   {
+    "osm_id": "way/196677186",
+    "key": "amenity",
+    "value": "fast_food",
+    "name": "McDonald's",
+    "lat": 29.6888468,
+    "lon": -95.4581024
+   },
+   {
+    "osm_id": "way/203395218",
+    "key": "amenity",
+    "value": "place_of_worship",
+    "name": "Saint Thomas' Episcopal Church",
+    "lat": 29.6851117,
+    "lon": -95.4643483
+   },
+   {
+    "osm_id": "way/203403685",
+    "key": "shop",
+    "value": "supermarket",
+    "name": "Gordon Food Service",
+    "lat": 29.6783989,
+    "lon": -95.4787511
+   },
+   {
+    "osm_id": "way/203404576",
+    "key": "leisure",
+    "value": "fitness_centre",
+    "name": "Snap Fitness",
+    "lat": 29.6797714,
+    "lon": -95.4774082
+   },
+   {
+    "osm_id": "way/206476486",
+    "key": "amenity",
+    "value": "restaurant",
+    "name": "El Ranchero",
+    "lat": 29.6778005,
+    "lon": -95.4786812
+   },
+   {
+    "osm_id": "way/206476711",
+    "key": "shop",
+    "value": "convenience",
+    "name": "Q Mart",
+    "lat": 29.6896341,
+    "lon": -95.4599704
+   },
+   {
+    "osm_id": "way/207779511",
+    "key": "leisure",
+    "value": "park",
+    "name": "Godwin Park",
+    "lat": 29.6726779,
+    "lon": -95.4690967
+   },
+   {
+    "osm_id": "way/227382462",
+    "key": "amenity",
+    "value": "restaurant",
+    "name": "The Catch",
+    "lat": 29.672861,
+    "lon": -95.4602606
+   },
+   {
+    "osm_id": "way/227383005",
+    "key": "shop",
+    "value": "department_store",
+    "name": "Walmart",
+    "lat": 29.6768841,
+    "lon": -95.4575015
+   },
+   {
+    "osm_id": "way/227383653",
+    "key": "amenity",
+    "value": "doctors",
+    "name": "Sanitas Medical Center",
+    "lat": 29.6731204,
+    "lon": -95.4601641
+   },
+   {
+    "osm_id": "way/229885223",
+    "key": "amenity",
+    "value": "fast_food",
+    "name": "Jack in the Box",
+    "lat": 29.6710017,
+    "lon": -95.4627991
+   },
+   {
+    "osm_id": "way/252344547",
+    "key": "amenity",
+    "value": "place_of_worship",
+    "name": "Church of Christ",
+    "lat": 29.693338,
+    "lon": -95.4672652
+   },
+   {
+    "osm_id": "way/292317577",
+    "key": "amenity",
+    "value": "restaurant",
+    "name": "Original Napoli Italian Restaurant",
+    "lat": 29.6894631,
+    "lon": -95.4753996
+   },
+   {
+    "osm_id": "way/367718376",
+    "key": "amenity",
+    "value": "school",
+    "name": "Meyerland Performing and Visual Arts Middle School",
+    "lat": 29.6687518,
+    "lon": -95.4747473
+   },
+   {
+    "osm_id": "way/378815480",
+    "key": "amenity",
+    "value": "school",
+    "name": "Lovett Elementary School",
+    "lat": 29.6830222,
+    "lon": -95.4690735
+   },
+   {
+    "osm_id": "way/378818288",
+    "key": "shop",
+    "value": "department_store",
+    "name": "Kohl's",
+    "lat": 29.673719,
+    "lon": -95.4572961
+   },
+   {
+    "osm_id": "way/383999053",
+    "key": "shop",
+    "value": "supermarket",
+    "name": "Kroger",
+    "lat": 29.6692856,
+    "lon": -95.4639551
+   },
+   {
+    "osm_id": "way/384000566",
+    "key": "amenity",
+    "value": "cafe",
+    "name": "Kolache Factory",
+    "lat": 29.666936,
+    "lon": -95.4626651
+   },
+   {
+    "osm_id": "way/384000567",
+    "key": "amenity",
+    "value": "fast_food",
+    "name": "Shipley Do-Nuts",
+    "lat": 29.6671964,
+    "lon": -95.4626353
+   },
+   {
+    "osm_id": "way/384000572",
+    "key": "amenity",
+    "value": "restaurant",
+    "name": "Doña Leti's",
+    "lat": 29.6684569,
+    "lon": -95.4619381
+   },
+   {
+    "osm_id": "way/388945054",
+    "key": "amenity",
+    "value": "place_of_worship",
+    "name": "Sanctuary",
+    "lat": 29.6687871,
+    "lon": -95.4668923
+   },
+   {
+    "osm_id": "way/394682342",
+    "key": "amenity",
+    "value": "school",
+    "name": "Shearn Elementary School",
+    "lat": 29.6774987,
+    "lon": -95.4408337
+   },
+   {
+    "osm_id": "way/394682806",
+    "key": "leisure",
+    "value": "park",
+    "name": "Westwood Park",
+    "lat": 29.6774784,
+    "lon": -95.4421954
+   },
+   {
+    "osm_id": "way/396267256",
+    "key": "amenity",
+    "value": "school",
+    "name": "Bellaire High School",
+    "lat": 29.6921206,
+    "lon": -95.469859
+   },
+   {
+    "osm_id": "way/396270528",
+    "key": "amenity",
+    "value": "school",
+    "name": "Kolter Elementary School",
+    "lat": 29.6737998,
+    "lon": -95.4675908
+   },
+   {
+    "osm_id": "way/396272342",
+    "key": "amenity",
+    "value": "school",
+    "name": "Red Elementary School",
+    "lat": 29.6667908,
+    "lon": -95.4550685
+   },
+   {
+    "osm_id": "way/396536314",
+    "key": "amenity",
+    "value": "fast_food",
+    "name": "Whataburger",
+    "lat": 29.6690835,
+    "lon": -95.4630038
+   },
+   {
+    "osm_id": "way/396536315",
+    "key": "amenity",
+    "value": "fast_food",
+    "name": "Taco Cabana",
+    "lat": 29.6702605,
+    "lon": -95.4625425
+   },
+   {
+    "osm_id": "way/396536319",
+    "key": "leisure",
+    "value": "sports_centre",
+    "name": "Bayou City Fencing Academy",
+    "lat": 29.667827,
+    "lon": -95.4650295
+   },
+   {
+    "osm_id": "way/431783297",
+    "key": "shop",
+    "value": "convenience",
+    "name": "Circle K",
+    "lat": 29.677822,
+    "lon": -95.4790259
+   },
+   {
+    "osm_id": "way/450347190",
+    "key": "amenity",
+    "value": "cafe",
+    "name": "Starbucks",
+    "lat": 29.6826873,
+    "lon": -95.4578704
+   },
+   {
+    "osm_id": "way/460668432",
+    "key": "amenity",
+    "value": "school",
+    "name": "Harmony Science Academy",
+    "lat": 29.6758035,
+    "lon": -95.4791495
+   },
+   {
+    "osm_id": "way/460670067",
+    "key": "amenity",
+    "value": "clinic",
+    "name": "Clínica Hispana Cruz #3",
+    "lat": 29.6756494,
+    "lon": -95.4774432
+   },
+   {
+    "osm_id": "way/460670068",
+    "key": "shop",
+    "value": "supermarket",
+    "name": "Globus Market",
+    "lat": 29.6756509,
+    "lon": -95.4772918
+   },
+   {
+    "osm_id": "way/460670071",
+    "key": "amenity",
+    "value": "fast_food",
+    "name": "Subway",
+    "lat": 29.6757045,
+    "lon": -95.4770743
+   },
+   {
+    "osm_id": "way/460670072",
+    "key": "amenity",
+    "value": "fast_food",
+    "name": "Saba's Grill and Wok",
+    "lat": 29.6756482,
+    "lon": -95.4775389
+   },
+   {
+    "osm_id": "way/460670073",
+    "key": "amenity",
+    "value": "restaurant",
+    "name": "Old Hickory Inn",
+    "lat": 29.6757783,
+    "lon": -95.4783201
+   },
+   {
+    "osm_id": "way/460688264",
+    "key": "amenity",
+    "value": "restaurant",
+    "name": "La Fresca Pizza",
+    "lat": 29.6792979,
+    "lon": -95.478065
+   },
+   {
+    "osm_id": "way/460688277",
+    "key": "amenity",
+    "value": "restaurant",
+    "name": "Exodus Bar and Grill",
+    "lat": 29.6788087,
+    "lon": -95.4787129
+   },
+   {
+    "osm_id": "way/460689671",
+    "key": "amenity",
+    "value": "place_of_worship",
+    "name": "Meyerland Minyan Synagogue",
+    "lat": 29.6796414,
+    "lon": -95.4774065
+   },
+   {
+    "osm_id": "way/460689674",
+    "key": "amenity",
+    "value": "cafe",
+    "name": "Fioza",
+    "lat": 29.6795347,
+    "lon": -95.4774058
+   },
+   {
+    "osm_id": "way/526153446",
+    "key": "amenity",
+    "value": "fast_food",
+    "name": "McDonald's",
+    "lat": 29.6699847,
+    "lon": -95.4614448
+   },
+   {
+    "osm_id": "way/528127248",
+    "key": "amenity",
+    "value": "fast_food",
+    "name": "Popeyes",
+    "lat": 29.6646977,
+    "lon": -95.463181
+   },
+   {
+    "osm_id": "way/528128571",
+    "key": "amenity",
+    "value": "restaurant",
+    "name": "Luby's",
+    "lat": 29.6751953,
+    "lon": -95.4589811
+   },
+   {
+    "osm_id": "way/528128677",
+    "key": "shop",
+    "value": "department_store",
+    "name": "Burlington",
+    "lat": 29.6746279,
+    "lon": -95.4568583
+   },
+   {
+    "osm_id": "way/529676680",
+    "key": "shop",
+    "value": "supermarket",
+    "name": "Foodarama",
+    "lat": 29.6623643,
+    "lon": -95.4648892
+   },
+   {
+    "osm_id": "way/530002828",
+    "key": "leisure",
+    "value": "sports_centre",
+    "name": "Willow Pool",
+    "lat": 29.6669225,
+    "lon": -95.4574269
+   },
+   {
+    "osm_id": "way/530002829",
+    "key": "amenity",
+    "value": "school",
+    "name": "Trafton Academy",
+    "lat": 29.66745,
+    "lon": -95.4571945
+   },
+   {
+    "osm_id": "way/554288607",
+    "key": "amenity",
+    "value": "school",
+    "name": "St. Thomas",
+    "lat": 29.6855167,
+    "lon": -95.464759
+   },
+   {
+    "osm_id": "way/615216975",
+    "key": "shop",
+    "value": "supermarket",
+    "name": "H-E-B",
+    "lat": 29.6884698,
+    "lon": -95.4641413
+   },
+   {
+    "osm_id": "way/642337624",
+    "key": "leisure",
+    "value": "park",
+    "name": "Lafayette Park",
+    "lat": 29.6911121,
+    "lon": -95.4486003
+   },
+   {
+    "osm_id": "way/744558975",
+    "key": "leisure",
+    "value": "playground",
+    "name": "Horn Elementary School Playground",
+    "lat": 29.6939663,
+    "lon": -95.4548777
+   },
+   {
+    "osm_id": "way/887453610",
+    "key": "shop",
+    "value": "convenience",
+    "name": "Star Stop",
+    "lat": 29.664763,
+    "lon": -95.4635535
+   }
+  ],
+  "source": "https://overpass-api.de/api/interpreter"
+ }
+}

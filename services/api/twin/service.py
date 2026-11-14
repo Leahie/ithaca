@@ -4,6 +4,7 @@ integrations/* directly. get_twin serves the twin that ingestion wrote.
 
 from __future__ import annotations
 
+import json
 import threading
 from datetime import date, datetime
 from functools import lru_cache
@@ -23,15 +24,20 @@ from packages.schema.reports import (
     NoiseReport,
     NoiseScenario,
     SkySource,
+    SoundDoors,
+    SoundField,
+    SoundPreset,
     SunMoment,
     SunReport,
     SunRoomDay,
     SunSpot,
 )
 from packages.schema.twin import PropertyTwin
-from services.api.integrations import nsrdb
+from services.api.integrations import costar, nsrdb, osm
+from services.api.integrations.cache import FixtureMissing
 from services.api.integrations.config import IntegrationNotConfigured, fixtures_dir
-from services.api.sim import daylight, sun
+from services.api.sim import daylight, noise, sun
+from services.api.twin import area
 
 
 class TwinNotFound(LookupError):
@@ -126,20 +132,89 @@ def _check_spot(property_id: str, room_id: str, x: float, z: float) -> None:
 # Not built yet. They raise IntegrationNotConfigured (I-G21) so agent tools can say so.
 
 
+def sound_presets() -> list[SoundPreset]:
+    """Sounds a user can place (level at 1 m and spectrum), plus loudness choices for own recordings."""
+    return list(acoustics().presets.values())
+
+
+def sound_field(property_id: str, room_id: str, x: float, z: float, preset_id: str = "tv",
+                level_dba: float | None = None, doors: SoundDoors = "closed", include_furniture: bool = True,
+                listener: tuple[str, float, float] | None = None) -> SoundField:
+    """A sound placed at (x, z) in a room: what every room hears, and optionally one listener spot
+    (room_id, x, z) with the direct sound added when it is in the source's room."""
+    _check_spot(property_id, room_id, x, z)
+    if listener is not None:
+        _check_spot(property_id, *listener)
+    return _sound_field(property_id, get_twin(property_id).version, room_id, x, z, preset_id, level_dba,
+                        doors, include_furniture, listener)
+
+
+@lru_cache(maxsize=1)
+def acoustics() -> noise.Acoustics:
+    path = fixtures_dir() / "tables" / "acoustics.json"
+    return noise.load_acoustics(json.loads(path.read_text(encoding="utf-8")))
+
+
+@lru_cache(maxsize=64)
+def _sound_network(property_id, version, doors, include_furniture, add_carpet=False, glazing=None) -> noise.Network:
+    return noise.network(get_twin(property_id), acoustics(), doors=doors, include_furniture=include_furniture,
+                         add_carpet=add_carpet, glazing=glazing)
+
+
+@lru_cache(maxsize=1024)
+def _sound_field(property_id, version, room_id, x, z, preset_id, level_dba, doors, include_furniture,
+                 listener) -> SoundField:
+    twin, table = get_twin(property_id), acoustics()
+    preset = noise.scaled_preset(table, preset_id, level_dba)
+    net = _sound_network(property_id, version, doors, include_furniture)
+    source, rooms, heard = noise.sound_field(twin, net, table, preset, room_id, x, z, listener)
+    return SoundField(source=source, doors=doors, include_furniture=include_furniture, rooms=rooms, listener=heard)
+
+
 def noise_report(property_id: str, room_id: str, scenario: NoiseScenario) -> NoiseReport:
     raise IntegrationNotConfigured("noise", "the noise engine (services/api/sim/noise.py, not built yet)")
 
 
 def area_profile(property_id: str) -> AreaProfile:
-    raise IntegrationNotConfigured("area", "the CoStar area profile (not built yet)")
+    """The home's own listing, comparable homes and nearby amenities, with a markdown summary.
+    Missing sources don't fail it: the gaps are listed in `caveats` (C3)."""
+    return _area_profile(property_id, get_twin(property_id).version)
 
 
 def area_search(property_id: str, query: str, limit: int = 10) -> list[Amenity]:
-    raise IntegrationNotConfigured("area", "the amenity search (not built yet)")
+    """Amenities near the home matching a free-text query ("coffee", "bus stop", "H-E-B"), nearest first."""
+    twin = get_twin(property_id)
+    _, _, pois, _ = _area_inputs(property_id, twin.version)
+    return area.search(area.amenities(twin, pois or []), query, limit)
 
 
 def get_comps(property_id: str) -> list[Comp]:
-    raise IntegrationNotConfigured("costar", "the CoStar comps lookup (not built yet)")
+    """Comparable homes nearby, most comparable first."""
+    return area_profile(property_id).comps
+
+
+@lru_cache(maxsize=32)
+def _area_profile(property_id: str, version: int) -> AreaProfile:
+    subject, nearby, pois, caveats = _area_inputs(property_id, version)
+    return area.build_profile(get_twin(property_id), subject, nearby, pois, list(caveats))
+
+
+@lru_cache(maxsize=32)
+def _area_inputs(property_id: str, version: int) -> tuple[dict | None, list | None, list | None, tuple[str, ...]]:
+    twin = get_twin(property_id)
+    caveats = []
+    subject = nearby = pois = None
+    listing_id = twin.sources.costar_listing_id
+    try:
+        subject = costar.home_listing(listing_id) if listing_id else None
+        nearby = costar.nearby_listings(twin.lat, twin.lon, area.COMP_RADIUS_M)
+    except (IntegrationNotConfigured, FixtureMissing) as e:
+        caveats.append(f"No CoStar listing data: {e}.")
+    try:
+        pois = osm.points_of_interest(twin.lat, twin.lon, area.AMENITY_RADIUS_M)
+    except (IntegrationNotConfigured, RuntimeError) as e:
+        caveats.append(f"No amenity data: {e}.")
+    return subject, nearby, pois, tuple(caveats)
 
 
 def weather(property_id: str, times: pd.DatetimeIndex, sky: SkySource) -> daylight.Weather:
