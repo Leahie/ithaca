@@ -263,10 +263,11 @@ export class DeepgramProvider implements SpeechProvider {
 
   listen(handlers: ListenHandlers, opts?: ListenOptions): () => void {
     if (!this.streams()) return this.browser.listen(handlers, opts);
-    // The audio context is made after the microphone opens, not here in the tap. On an iPhone a
-    // context that exists before the microphone is granted is interrupted when the audio route
-    // switches to recording, and then delivers silence; one made while capturing starts running.
-    let ctx: AudioContext | null = null;
+    const apple = /iPhone|iPad|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+    // Made and started here, inside the tap: an iPhone only lets audio start from a user gesture.
+    // (A context made later reports "running" there, but its processing stalls after a moment.)
+    const ctx = new AudioContext();
+    void ctx.resume().catch(() => {});
     let frames = 0;
     let watchdog = 0;
     let stream: MediaStream | null = null;
@@ -282,8 +283,10 @@ export class DeepgramProvider implements SpeechProvider {
       stream = null;
       clearTimeout(watchdog);
       source?.disconnect();
-      source = null;
-      if (ctx && ctx.state !== 'closed') void ctx.close();
+      tap?.disconnect();
+      mute?.disconnect();
+      source = tap = mute = null;
+      if (ctx.state !== 'closed') void ctx.close();
     };
     const finish = (final: string) => {
       if (done) return;
@@ -303,87 +306,92 @@ export class DeepgramProvider implements SpeechProvider {
     };
     const sendStop = () => ws?.send(JSON.stringify({ type: 'stop' }));
 
-    // Kept in a variable on purpose: a source node nothing refers to can be collected by the
-    // browser, and the microphone then reads as silence.
+    // Kept in variables on purpose: audio nodes nothing refers to can be collected by the browser,
+    // and the microphone then reads as silence.
     let source: MediaStreamAudioSourceNode | null = null;
+    let tap: AudioNode | null = null;
+    let mute: GainNode | null = null;
 
-    /**
-     * Open the microphone and stream it. A real microphone is never exactly silent, so if every
-     * sample is zero for a second and a half the capture is broken, not quiet: the first attempt
-     * is then torn down and tried once more the plain way (no processing asked for, and the
-     * audio context at the microphone's own sample rate, which some phones need).
-     */
-    const open = async (attempt: 0 | 1): Promise<void> => {
+    void (async () => {
       try {
-        stream = await navigator.mediaDevices.getUserMedia(attempt === 0 ? { audio: { channelCount: 1, echoCancellation: true, noiseSuppression: true } } : { audio: true });
+        stream = await navigator.mediaDevices.getUserMedia({ audio: { channelCount: 1, echoCancellation: true, noiseSuppression: true } });
       } catch (err) {
         return fail(micError(err));
       }
       if (stopping) return finish(''); // stopped before the microphone opened
       const track = stream.getAudioTracks()[0];
-      const micRate = track?.getSettings().sampleRate;
-      let audio: AudioContext;
-      try {
-        audio = attempt === 1 && micRate ? new AudioContext({ sampleRate: micRate }) : new AudioContext();
-      } catch {
-        audio = new AudioContext();
-      }
-      ctx = audio;
-      const url = URL.createObjectURL(new Blob([PCM_WORKLET], { type: 'text/javascript' }));
-      try {
-        // resume() can hang on a phone; the watchdog below catches a context that never runs.
-        await Promise.race([audio.resume(), new Promise((r) => setTimeout(r, 800))]);
-        await audio.audioWorklet.addModule(url);
-      } finally {
-        URL.revokeObjectURL(url);
-      }
-      if (stopping || done) return finish('');
-      const node = new AudioWorkletNode(audio, 'pcm16');
-      source = audio.createMediaStreamSource(stream);
-      source.connect(node);
-      node.connect(audio.destination); // silent; keeps the node running
-      const facts = () => `microphone ${track?.muted ? 'muted' : 'live'} at ${micRate ?? '?'} Hz, audio ${audio.state} at ${audio.sampleRate} Hz`;
-      frames = 0;
-      let loudest = 0;
-      const started = performance.now();
-      // No sound at all within three seconds means the microphone is not really delivering.
-      watchdog = window.setTimeout(() => {
-        if (!frames && !done) fail(`The microphone opened but no sound arrived (${facts()}). Tap the mic to try again.`);
-      }, 3000);
+      // Opening the microphone switches an iPhone's audio route, which can interrupt the context.
+      if (ctx.state !== 'running') await Promise.race([ctx.resume(), new Promise((r) => setTimeout(r, 800))]);
+      const facts = () => `microphone ${track?.muted ? 'muted' : 'live'} at ${track?.getSettings().sampleRate ?? '?'} Hz, audio ${ctx.state} at ${ctx.sampleRate} Hz, ${apple ? 'script' : 'worklet'} capture`;
 
-      const socket = new WebSocket(`${wsOrigin()}/ws/speech/listen?sample_rate=${audio.sampleRate}${opts?.auto ? '&auto=1' : ''}`);
+      const socket = new WebSocket(`${wsOrigin()}/ws/speech/listen?sample_rate=${ctx.sampleRate}${opts?.auto ? '&auto=1' : ''}`);
       ws = socket;
       socket.binaryType = 'arraybuffer';
-      node.port.onmessage = (e: MessageEvent<ArrayBuffer>) => {
-        if (done || ws !== socket) return;
+      let loudest = 0;
+      let lastFrame = performance.now();
+      const started = lastFrame;
+      /** One block of 16-bit samples from the microphone. */
+      const onPcm = (pcm: Int16Array) => {
+        if (done) return;
         frames += 1;
-        const pcm = new Int16Array(e.data);
+        lastFrame = performance.now();
         let peak = 0;
         for (let i = 0; i < pcm.length; i += 4) peak = Math.max(peak, Math.abs(pcm[i]!));
         loudest = Math.max(loudest, peak);
         handlers.onLevel?.(Math.min(1, peak / 9000));
-        if (loudest === 0 && performance.now() - started > 1500) {
-          // Pure digital silence: this capture is broken.
-          socket.onclose = null;
-          socket.onmessage = null;
-          socket.close();
-          node.port.onmessage = null;
-          clearTimeout(watchdog);
-          stream?.getTracks().forEach((t) => t.stop());
-          void audio.close();
-          if (attempt === 0) {
-            ws = null;
-            void open(1).catch((err: unknown) => fail(`Speech recognition could not start (${err instanceof Error ? err.message : String(err)}).`));
-          } else {
-            fail(`The microphone is open but sends only silence (${facts()}). Close other apps that use the microphone, or try another browser.`);
-          }
-          return;
-        }
-        if (socket.readyState === WebSocket.OPEN && !stopping) socket.send(e.data);
+        if (socket.readyState === WebSocket.OPEN && !stopping) socket.send(pcm.buffer as ArrayBuffer);
       };
+
+      source = ctx.createMediaStreamSource(stream);
+      if (apple) {
+        // iPhone and iPad: the old script node. Their audio worklet stops being called a moment
+        // after the microphone opens; this one keeps running.
+        const node = ctx.createScriptProcessor(4096, 1, 1);
+        node.onaudioprocess = (e) => {
+          const f = e.inputBuffer.getChannelData(0);
+          const pcm = new Int16Array(f.length);
+          for (let i = 0; i < f.length; i++) {
+            const v = Math.max(-1, Math.min(1, f[i]!));
+            pcm[i] = v < 0 ? v * 0x8000 : v * 0x7fff;
+          }
+          onPcm(pcm);
+        };
+        tap = node;
+      } else {
+        const url = URL.createObjectURL(new Blob([PCM_WORKLET], { type: 'text/javascript' }));
+        try {
+          await ctx.audioWorklet.addModule(url);
+        } finally {
+          URL.revokeObjectURL(url);
+        }
+        if (stopping || done) return finish('');
+        const node = new AudioWorkletNode(ctx, 'pcm16');
+        node.port.onmessage = (e: MessageEvent<ArrayBuffer>) => onPcm(new Int16Array(e.data));
+        tap = node;
+      }
+      // Through a silent gain to the output: a node only runs while it leads somewhere.
+      mute = ctx.createGain();
+      mute.gain.value = 0;
+      source.connect(tap);
+      tap.connect(mute);
+      mute.connect(ctx.destination);
+
+      // The microphone has to keep delivering: no blocks at all, blocks that stop coming, or
+      // blocks of exact zeros (a real microphone is never exactly silent) all mean it is broken.
+      const check = () => {
+        if (done || stopping) return;
+        const now = performance.now();
+        if (!frames && now - started > 3000) return fail(`The microphone opened but no sound arrived (${facts()}). Tap the mic to try again.`);
+        if (frames && now - lastFrame > 2000) return fail(`The microphone stopped delivering sound (${facts()}). Tap the mic to try again.`);
+        if (frames && loudest === 0 && now - started > 3000) return fail(`The microphone is open but sends only silence (${facts()}). Close other apps that use the microphone.`);
+        if (ctx.state !== 'running') void ctx.resume().catch(() => {});
+        watchdog = window.setTimeout(check, 700);
+      };
+      watchdog = window.setTimeout(check, 700);
+
       socket.onopen = () => {
         // What this browser says about its microphone, for the server's speech log.
-        socket.send(JSON.stringify({ type: 'diag', facts: `attempt ${attempt}, ${facts()}, ${navigator.userAgent.slice(0, 120)}` }));
+        socket.send(JSON.stringify({ type: 'diag', facts: `${facts()}, ${navigator.userAgent.slice(0, 120)}` }));
         if (stopping) sendStop();
       };
       socket.onmessage = (e: MessageEvent<string>) => {
@@ -401,10 +409,9 @@ export class DeepgramProvider implements SpeechProvider {
           release();
           fallback = this.browser.listen(handlers, opts);
         } else if (stopping) finish(text);
-        else fail('Speech recognition stopped: the connection to the server was lost.');
+        else fail(`Speech recognition stopped: the connection to the server was lost (${frames} blocks of sound sent).`);
       };
-    };
-    void open(0).catch((err: unknown) => fail(`Speech recognition could not start (${err instanceof Error ? err.message : String(err)}).`));
+    })().catch((err: unknown) => fail(`Speech recognition could not start (${err instanceof Error ? err.message : String(err)}).`));
 
     return () => {
       if (fallback) return fallback();
