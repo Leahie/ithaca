@@ -314,16 +314,16 @@ function Remote({ propertyId }: { propertyId: string }) {
   return (
     <div className="relative mx-auto flex h-dvh max-w-md flex-col" data-testid="remote" data-status={status} data-mode={mode} data-view={view}>
       <header className="flex shrink-0 items-center justify-between gap-3 border-b border-line bg-ink/95 px-4 pt-[max(12px,env(safe-area-inset-top))] pb-3">
-        <div className="flex min-w-0 items-center gap-2 font-display text-base font-semibold">
-          <span className="h-3 w-3 shrink-0 rounded-full bg-sun shadow-[0_0_0_1.5px_var(--color-main)]" />
-          {/* In a family, the phone says whose it is: "Maya · The Riveras". */}
-          <span className="truncate">{me ? `${me.name} · ${household?.name ?? 'Family'}` : 'Ithaca remote'}</span>
-        </div>
+        {/* In a family, the phone says whose it is: "Maya · The Riveras". */}
+        <div className="min-w-0 truncate font-serif text-lg font-semibold tracking-tight">{me ? `${me.name} · ${household?.name ?? 'Family'}` : 'Ithaca remote'}</div>
         <div className="flex shrink-0 items-center gap-2">
           <Badge tone={status === 'open' ? (desktopOn ? 'leaf' : 'sun') : 'danger'}>{status === 'open' ? (desktopOn ? 'connected' : 'waiting for desktop') : status}</Badge>
           <button type="button" aria-label="Settings" aria-expanded={settings} data-testid="remote-settings" onClick={() => setSettings(!settings)}
-            className="flex h-9 items-center rounded-full border border-line bg-raised px-3 text-sm">
-            Settings
+            className={cn('flex h-9 w-9 items-center justify-center rounded-full border border-line', settings ? 'bg-main text-on-main' : 'bg-raised text-text')}>
+            <svg viewBox="0 0 24 24" width={18} height={18} fill="none" stroke="currentColor" strokeWidth={1.7} strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+              <circle cx="12" cy="12" r="3.2" />
+              <path d="M19.4 15a1.7 1.7 0 0 0 .34 1.87l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.7 1.7 0 0 0-1.87-.34 1.7 1.7 0 0 0-1.04 1.56V21a2 2 0 1 1-4 0v-.09a1.7 1.7 0 0 0-1.11-1.56 1.7 1.7 0 0 0-1.87.34l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.7 1.7 0 0 0 .34-1.87 1.7 1.7 0 0 0-1.56-1.04H3a2 2 0 1 1 0-4h.09a1.7 1.7 0 0 0 1.56-1.11 1.7 1.7 0 0 0-.34-1.87l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.7 1.7 0 0 0 1.87.34h.01a1.7 1.7 0 0 0 1.03-1.56V3a2 2 0 1 1 4 0v.09a1.7 1.7 0 0 0 1.04 1.56 1.7 1.7 0 0 0 1.87-.34l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.7 1.7 0 0 0-.34 1.87v.01a1.7 1.7 0 0 0 1.56 1.03H21a2 2 0 1 1 0 4h-.09a1.7 1.7 0 0 0-1.51 1.04z" />
+            </svg>
           </button>
         </div>
       </header>

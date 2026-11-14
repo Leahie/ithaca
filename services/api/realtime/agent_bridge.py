@@ -203,6 +203,7 @@ class AgentBridge:
                 session_id=room.session_id,
                 household_id=room.household_id,
                 member_name=m.name if m else None,
+                house_user_id=room.user_id,
             )
         return AgentContext(user_id=room.user_id, property_id=room.property_id, session_id=room.session_id, household_id=room.household_id)
 

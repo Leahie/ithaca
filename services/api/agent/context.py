@@ -17,5 +17,13 @@ class AgentContext:
     # reads and writes only that member's memory (B4).
     household_id: str | None = None
     member_name: str | None = None
+    # In a household session: the user the big screen draws furniture for. A member's agent works on
+    # that shared furniture and those layouts, while its memory stays the member's own.
+    house_user_id: str | None = None
     # Set when another member's agent asked this one a question: it answers and asks nobody else.
     asked: bool = False
+
+    @property
+    def furniture_user(self) -> str:
+        """Whose inventory and layouts the furniture tools read and write."""
+        return self.house_user_id or self.user_id

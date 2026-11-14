@@ -3,12 +3,19 @@ import { config } from '@/lib/config';
 import { ApiError, type ApiClient } from './types';
 import { apiUserId } from './user';
 
+/**
+ * The furniture belongs to the house on the big screen, not to whoever holds a phone: a family
+ * member's phone reads and changes the same pieces and layouts the desktop draws. Their memory and
+ * their guide stay their own (`apiUserId`).
+ */
+const HOUSE = /^\/(layouts|inventory|catalog|objects|uploads)(\/|\?|$)/;
+
 async function request<T>(path: string, init: RequestInit = {}, as: 'json' | 'text' | 'none' = 'json'): Promise<T> {
   let res: Response;
   try {
     res = await fetch(config.apiBase + path, {
       ...init,
-      headers: { 'X-User-Id': apiUserId(), ...(init.body && !(init.body instanceof FormData) ? { 'content-type': 'application/json' } : {}), ...init.headers },
+      headers: { 'X-User-Id': HOUSE.test(path) ? config.userId : apiUserId(), ...(init.body && !(init.body instanceof FormData) ? { 'content-type': 'application/json' } : {}), ...init.headers },
     });
   } catch (err) {
     throw new ApiError(`Cannot reach the API at ${config.apiBase} (${(err as Error).message})`, 0);

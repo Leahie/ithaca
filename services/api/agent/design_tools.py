@@ -28,7 +28,7 @@ Runtime = ToolRuntime[AgentContext]
 def inventory_search(runtime: Runtime, query: str = "") -> str:
     """The furniture the user owns: item_id, what it is, size and style. query filters by a word
     in the name, kind or style ("sofa", "oak"). Leave it empty for everything."""
-    items = furniture_store().list_items(runtime.context.user_id)
+    items = furniture_store().list_items(runtime.context.furniture_user)
     words = query.lower().split()
     rows = []
     for i in items:
@@ -100,13 +100,13 @@ def catalog_add(catalog_id: str, runtime: Runtime) -> str:
 
     if catalog_id not in catalog.BY_ID:
         return f"Error: unknown catalog_id {catalog_id!r}. Use a catalog_id from catalog_search."
-    store, user_id = furniture_store(), runtime.context.user_id
+    store, user_id = furniture_store(), runtime.context.furniture_user
     try:
         item = pipeline.add_from_catalog(catalog_id, user_id, store)
     except Exception as e:
         return f"Error: that piece could not be added ({e})."
     if runtime.store is not None:
-        memory_files.sync_inventory(runtime.store, user_id, store.list_items(user_id))
+        memory_files.sync_inventory(runtime.store, runtime.context.user_id, store.list_items(user_id))
     return (
         f"Added {item.label} ({item.item_class}), {item.dims_m.w:.2f} × {item.dims_m.d:.2f} × {item.dims_m.h:.2f} m, "
         f"item_id {item.item_id}. It is a generic stand-in, not a specific product: say so."
@@ -118,12 +118,12 @@ def remove_from_room(item_id: str, room_id: str, runtime: Runtime) -> str:
     """Take one of the user's pieces out of a room. The piece stays in their furniture and can be
     placed again. Use it for "take the armchair out" or "remove the table from here"."""
     store, ctx = furniture_store(), runtime.context
-    in_room = [l for l in store.layouts_with_item(ctx.user_id, item_id) if l.room_id == room_id and l.property_id == ctx.property_id]
+    in_room = [l for l in store.layouts_with_item(ctx.furniture_user, item_id) if l.room_id == room_id and l.property_id == ctx.property_id]
     if not in_room:
         return "That piece is not placed in that room. Check the item_id with inventory_search and the room_id in the room directory."
     for layout in in_room:  # every saved option for the room, so it doesn't come back with "next option"
-        store.remove_placement(ctx.user_id, str(layout.layout_id), item_id)
-    item = store.get_item(ctx.user_id, item_id)
+        store.remove_placement(ctx.furniture_user, str(layout.layout_id), item_id)
+    item = store.get_item(ctx.furniture_user, item_id)
     return f"{item.label if item else 'The piece'} is out of the room. It is still in the user's furniture."
 
 
@@ -134,12 +134,12 @@ def delete_from_inventory(item_id: str, runtime: Runtime) -> str:
     from services.api.agent import memory_files
 
     store, ctx = furniture_store(), runtime.context
-    item = store.get_item(ctx.user_id, item_id)
+    item = store.get_item(ctx.furniture_user, item_id)
     if item is None:
         return f"Error: unknown item_id {item_id!r}. Use an item_id from inventory_search."
-    changed = store.delete_item_everywhere(ctx.user_id, item_id) or []
+    changed = store.delete_item_everywhere(ctx.furniture_user, item_id) or []
     if runtime.store is not None:
-        memory_files.sync_inventory(runtime.store, ctx.user_id, store.list_items(ctx.user_id))
+        memory_files.sync_inventory(runtime.store, ctx.user_id, store.list_items(ctx.furniture_user))
     return f"Deleted {item.label} from the user's furniture" + (f" and took it out of {len(changed)} saved layout(s)." if changed else ".")
 
 
@@ -166,7 +166,7 @@ def propose_layouts(room_id: str, item_ids: list[str], wishes: list[Constraint],
     room = next((r for r in twin.rooms if r.room_id == room_id), None)
     if room is None:
         return f"Error: unknown room_id {room_id!r}. Use a room_id from the room directory."
-    owned = {str(i.item_id): i for i in furniture_store().list_items(ctx.user_id)}
+    owned = {str(i.item_id): i for i in furniture_store().list_items(ctx.furniture_user)}
     unknown = [i for i in item_ids if i not in owned]
     if unknown or not item_ids:
         return f"Error: unknown item_ids {unknown}. Use item_ids from inventory_search."
@@ -191,7 +191,7 @@ def propose_layouts(room_id: str, item_ids: list[str], wishes: list[Constraint],
         rationale += "Could not fully meet: " + "; ".join(v.unmet) + "." if v.unmet else ""
         layout = LayoutVariant(
             layout_id=uuid.uuid4(),
-            user_id=ctx.user_id,
+            user_id=ctx.furniture_user,
             property_id=ctx.property_id,
             room_id=room_id,
             placements=[
@@ -229,7 +229,7 @@ def design_show_variants(layout_ids: list[str], runtime: Runtime) -> str:
     the view the user is already in; all of them become cards the user can flip through.
     layout_ids come from the designer's answer, best first."""
     store, ctx = furniture_store(), runtime.context
-    layouts = [store.get_layout(ctx.user_id, i) for i in layout_ids]
+    layouts = [store.get_layout(ctx.furniture_user, i) for i in layout_ids]
     missing = [i for i, found in zip(layout_ids, layouts) if found is None]
     if missing or not layout_ids:
         return f"Error: unknown layout_ids {missing}. Use the layout_ids the designer returned."
@@ -245,7 +245,7 @@ def design_show_variants(layout_ids: list[str], runtime: Runtime) -> str:
 @tool
 def design_apply_layout(layout_id: str, runtime: Runtime) -> str:
     """Place a different saved layout in the room, e.g. when the user says "show me option 2"."""
-    layout = furniture_store().get_layout(runtime.context.user_id, layout_id)
+    layout = furniture_store().get_layout(runtime.context.furniture_user, layout_id)
     if layout is None:
         return f"Error: unknown layout_id {layout_id!r}."
     _place_in_view(runtime, layout)
