@@ -464,7 +464,7 @@ export function TourTab({ twin, active }: { twin: PropertyTwin; active: boolean 
   // when the last call is done.
   useEffect(() => {
     if (!sdk) return;
-    type Ease = { start: number; ms: number; yaw: number; pitch: number; zoom: number; done: number };
+    type Ease = { start: number; ms: number; yaw: number; pitch: number; zoom: number; done: number; slow?: boolean };
     let eases: Ease[] = [];
     let yaw = 0;
     let pitch = 0;
@@ -495,7 +495,8 @@ export function TourTab({ twin, active }: { twin: PropertyTwin; active: boolean 
     const tick = (now: number) => {
       frame = null;
       for (const e of eases) {
-        const at = LOOK_EASE((now - e.start) / e.ms);
+        if (now < e.start) continue; // a slow turn that waits for the walk to the room
+        const at = e.slow ? Math.min(1, (now - e.start) / e.ms) : LOOK_EASE((now - e.start) / e.ms);
         const step = at - e.done;
         e.done = at;
         yaw += e.yaw * step;
@@ -509,7 +510,13 @@ export function TourTab({ twin, active }: { twin: PropertyTwin; active: boolean 
     const off = onSessionEvent((event) => {
       if (useSession.getState().viewer.mode !== 'tour') return;
       const start = performance.now();
-      if (event.type === 'viewer.look') eases.push({ start, ms: LOOK_EASE_MS, yaw: event.payload.yaw_delta_deg, pitch: event.payload.pitch_delta_deg, zoom: 0, done: 0 });
+      if (event.type === 'viewer.look') {
+        const { ms, delay_ms } = event.payload;
+        // The guide's slow turn around a room: even speed, and a hand on the view takes over.
+        if (ms) eases = eases.filter((e) => !e.slow);
+        else if (event.source !== 'agent') eases = eases.filter((e) => !e.slow);
+        eases.push({ start: start + (delay_ms ?? 0), ms: ms ?? LOOK_EASE_MS, yaw: event.payload.yaw_delta_deg, pitch: event.payload.pitch_delta_deg, zoom: 0, done: 0, slow: !!ms });
+      }
       else if (event.type === 'viewer.zoom') eases.push({ start, ms: ZOOM_EASE_MS, yaw: 0, pitch: 0, zoom: event.payload.delta, done: 0 });
       else return;
       frame ??= requestAnimationFrame(tick);

@@ -15,7 +15,7 @@ from langchain.tools import ToolRuntime, tool
 
 from packages.schema.layout import LayoutVariant, Placement
 from packages.schema.twin import Vec3
-from services.api.agent import design_gate
+from services.api.agent import design_gate, house_plans
 from services.api.agent import prompts, views
 from services.api.agent.context import AgentContext
 from services.api.furniture import house
@@ -46,6 +46,21 @@ def _one_room_at_a_time(runtime: Runtime, room_id: str) -> str | None:
         f"Not yet: {name} {state}. Rooms are done one at a time and the user decides between them. Do not start another "
         f"room in this turn. Tell the user in one sentence that this room comes next, once they have kept a layout for "
         f"{name} or told you to move on, and stop."
+    )
+
+
+def _someone_elses_room(runtime: Runtime, room_id: str, go_ahead: bool) -> str | None:
+    """The refusal to give when another person already has plans for this room and this agent's
+    person has not yet been asked about it, else None."""
+    theirs = house_plans.of_others(runtime.context, room_id)
+    if not theirs or go_ahead:
+        return None
+    p = theirs[0]
+    name = prompts.room_short_names(get_twin(runtime.context.property_id)).get(room_id, room_id)
+    return (
+        f"Hold on: {p.who} {p.status} for {name}. Nothing has been started. Tell your person that in one sentence and ask "
+        f"whether to go ahead anyway or leave this room to {p.who}, then stop. Only if they then say to go ahead, call "
+        "this again with go_ahead_over_other_plans=true."
     )
 
 
@@ -94,10 +109,12 @@ def catalog_sets(runtime: Runtime) -> str:
 
 
 @tool
-def furnish_with_set(set_id: str, room_id: str, runtime: Runtime) -> str:
+def furnish_with_set(set_id: str, room_id: str, runtime: Runtime, go_ahead_over_other_plans: bool = False) -> str:
     """Furnish a room with one catalog set: adds the set's pieces to the user's furniture and asks
     the interior designer to arrange them (in the background; you get `layouts_ready`). Use this
-    when a room is empty or the user asks you to furnish or style it. One set per room."""
+    when a room is empty or the user asks you to furnish or style it. One set per room.
+    go_ahead_over_other_plans: only after the tool told you someone else has plans for this room
+    and your person said to go ahead anyway."""
     from services.api.agent import memory_files
     from services.api.objects import pipeline
     from services.api.objects.providers import catalog
@@ -108,7 +125,7 @@ def furnish_with_set(set_id: str, room_id: str, runtime: Runtime) -> str:
     twin = get_twin(runtime.context.property_id)
     if not any(r.room_id == room_id for r in twin.rooms):
         return f"Error: no room with id {room_id}. Use an id from the room directory."
-    if refusal := _one_room_at_a_time(runtime, room_id):
+    if refusal := _one_room_at_a_time(runtime, room_id) or _someone_elses_room(runtime, room_id, go_ahead_over_other_plans):
         return refusal
     store, user_id = furniture_store(), runtime.context.user_id  # new pieces are the person's own (F1)
     owned: dict[str, list] = {}
@@ -251,17 +268,20 @@ def delete_from_inventory(item_id: str, runtime: Runtime) -> str:
 
 
 @tool
-def design_in_background(room_id: str, brief: str, runtime: Runtime) -> str:
+def design_in_background(room_id: str, brief: str, runtime: Runtime, go_ahead_over_other_plans: bool = False) -> str:
     """Ask the interior designer to arrange a room. It works in the background and takes up to a
     minute; you get a `layouts_ready` event with the layout_ids when it is done.
 
     brief: which pieces to use (or "whatever fits"), what the user wants from the room, and every
-    relevant preference from memory word for word, marking the hard ones."""
+    relevant preference from memory word for word, marking the hard ones.
+    go_ahead_over_other_plans: only after the tool told you someone else has plans for this room
+    and your person said to go ahead anyway."""
     twin = get_twin(runtime.context.property_id)
     if not any(r.room_id == room_id for r in twin.rooms):
         return f"Error: no room with id {room_id}. Use an id from the room directory."
-    if refusal := _one_room_at_a_time(runtime, room_id):
+    if refusal := _one_room_at_a_time(runtime, room_id) or _someone_elses_room(runtime, room_id, go_ahead_over_other_plans):
         return refusal
+    house_plans.note(runtime.context, room_id, house_plans.ARRANGING)
     design_gate.started(design_gate.key(runtime.context.session_id, runtime.context.user_id), room_id)
     runtime.stream_writer({"type": BACKGROUND_DESIGN, "payload": {"room_id": room_id, "brief": brief}})
     return ("The designer has started. Tell the user in one sentence that you are working on it and that they can keep "
@@ -340,6 +360,9 @@ def propose_layouts(room_id: str, item_ids: list[str], wishes: list[Constraint],
     return "\n".join(lines)
 
 
+SPIN_MS, SPIN_DELAY_MS = 10_000, 2_500
+
+
 def _place_in_view(runtime: Runtime, layout: LayoutVariant) -> None:
     """Put one layout's furniture in the room, in whatever view the user is in, and take them to
     that room. The user stays where they are: no tab switch."""
@@ -349,6 +372,8 @@ def _place_in_view(runtime: Runtime, layout: LayoutVariant) -> None:
     if view := views.best_view(twin, layout.room_id):
         payload |= {"at_sweep_id": view.sweep_id, "look_at": view.look_at.model_dump()}
     runtime.stream_writer({"type": "viewer.goto", "payload": payload})
+    # Once slowly around, after the walk there, so they see the whole arrangement before deciding.
+    runtime.stream_writer({"type": "viewer.look", "payload": {"yaw_delta_deg": 360.0, "pitch_delta_deg": 0.0, "ms": SPIN_MS, "delay_ms": SPIN_DELAY_MS}})
 
 
 @tool
@@ -364,8 +389,10 @@ def design_show_variants(layout_ids: list[str], runtime: Runtime) -> str:
     runtime.stream_writer({"type": "design.showVariants", "payload": {"layout_ids": layout_ids}})
     _place_in_view(runtime, layouts[0])
     return (
-        f"Option 1 is now placed in the room and the user is looking at it. All {len(layout_ids)} option(s) are in the chat "
-        "as small plans they can click to try, with a Keep button to settle on one. Say briefly what option 1 does. "
+        f"Option 1 is now placed in the room, and the view is turning once slowly around the room so the user sees all of it. "
+        f"All {len(layout_ids)} option(s) are in the chat as small plans they can click to try, with a Keep button to settle "
+        "on one. Say in one or two sentences what option 1 does, then ask one question: keep it, see another, or change "
+        "something? Then stop and wait for their answer: do not start another room. "
         "Nothing is decided until they press Keep: don't record a choice in memory before the layout_chosen event."
     )
 
@@ -378,7 +405,7 @@ def design_apply_layout(layout_id: str, runtime: Runtime) -> str:
     if layout is None:
         return f"Error: unknown layout_id {layout_id!r}."
     _place_in_view(runtime, layout)
-    return f"That layout is now shown in the room: {layout.rationale}"
+    return f"That layout is now shown in the room, and the view is turning once around it: {layout.rationale}"
 
 
 def compass_axes(twin) -> dict[str, tuple[float, float]]:

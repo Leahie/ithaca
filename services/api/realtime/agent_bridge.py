@@ -32,7 +32,7 @@ import uuid
 from collections.abc import Callable
 
 from packages.schema.events import EventEnvelope, make_event
-from services.api.agent import design_gate, family
+from services.api.agent import design_gate, family, house_plans
 from services.api.agent.context import AgentContext
 from services.api.agent.design_tools import BACKGROUND_DESIGN
 from services.api.agent.provider import TurnRunner
@@ -94,6 +94,17 @@ def action_summary(tool: str, args: dict) -> str:
         "family_read_board": "Reading the family board",
         "family_ask_member": f"Asking {args.get('name', 'a family member')}'s agent",
     }.get(tool, tool.replace("_", " "))
+
+
+def others_plans(context: AgentContext) -> str:
+    """What this agent may know of the others arranging the same house: who has plans for which
+    room, and nothing more (agent/house_plans.py)."""
+    plans = house_plans.of_others(context)
+    if not plans:
+        return ""
+    names = prompts.room_short_names(get_twin(context.property_id))
+    lines = "".join(f"\n- {p.who} {p.status} for {names.get(p.room_id, p.room_id)} (room_id {p.room_id})" for p in plans)
+    return f"<others_plans>{lines}\n</others_plans>\n"
 
 
 def spoken_cue(tool: str, args: dict, property_id: str) -> str | None:
@@ -171,6 +182,7 @@ class AgentBridge:
         elif event.type == "layout.confirm" and by_user:  # a click on an option only previews it (layout.select)
             from services.api.agent.design_tools import describe_layout
             from services.api.furniture import house
+            from services.api.furniture.store import furniture_store
 
             try:  # the kept layout goes into the house (F8), and every screen reloads
                 house.apply(room.user_id, p["layout_id"], event.member_id or room.user_id)
@@ -178,6 +190,9 @@ class AgentBridge:
                 log.warning("layout %s not applied: %s", p["layout_id"], e.detail)
             else:
                 asyncio.get_running_loop().call_soon(self.hub.publish, make_event(sid, "server", "layout.changed", {"layout_id": p["layout_id"]}))
+            kept = furniture_store().get_proposal(room.user_id, p["layout_id"])
+            if kept is not None:  # the others' agents hear that this room is taken, and by whom
+                house_plans.note(self._context(room, event.member_id if room.household_id else None), kept.room_id, house_plans.KEPT)
             picked = describe_layout(room.user_id, room.property_id, p["layout_id"])
             if picked:
                 self._signal(room)
@@ -281,6 +296,7 @@ class AgentBridge:
             s = room.state
             where = f'<viewer mode="{s.mode}" room_id="{s.room_id or ""}" datetime="{s.datetime or ""}"/>\n'
             context = self._context(room, member_id)
+            where += others_plans(context)
             # The conversation belongs to the person (or the family's guide) and the house, not to
             # this browser session: a new visit goes on from the last one.
             thread_id = context.thread_id
@@ -374,6 +390,7 @@ class AgentBridge:
                 report = await asyncio.to_thread(self.design, context, room_id, brief)
                 message = event_message("layouts_ready", f"room_id: {room_id}\n{report}")
                 design_gate.shown(conversation, room_id)  # now it waits for the user
+                house_plans.note(context, room_id, house_plans.CHOOSING)
             except Exception as e:
                 log.exception("background designer failed")
                 message = event_message("layouts_failed", f"room_id: {room_id}\n{e}")

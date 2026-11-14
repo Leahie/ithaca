@@ -7,7 +7,7 @@ from langchain_core.messages import AIMessage
 from langgraph.store.memory import InMemoryStore
 
 from services.api.agent import views
-from services.api.agent import design_gate
+from services.api.agent import design_gate, house_plans
 from services.api.agent.context import AgentContext
 from services.api.agent.design_tools import BACKGROUND_DESIGN
 from services.api.agent.graph import build_designer, run_designer
@@ -23,8 +23,10 @@ LIVING_ROOM = "tt6gm2a0463x9wmnx7rn6gugc"
 @pytest.fixture(autouse=True)
 def open_gate():
     design_gate.reset()
+    house_plans.reset()
     yield
     design_gate.reset()
+    house_plans.reset()
 
 
 @pytest.fixture
@@ -89,7 +91,7 @@ def test_guide_starts_the_designer_in_the_background_then_shows_valid_layouts(fu
 
     shown = [e[1] for e in out if e[0] == "ui"]
     # cards for all options, option 1 placed in the room, and the user taken there: no tab switch
-    assert [e["type"] for e in shown] == ["design.showVariants", "layout.select", "viewer.goto"]
+    assert [e["type"] for e in shown] == ["design.showVariants", "layout.select", "viewer.goto", "viewer.look"]  # the last: once around the room
     assert sorted(shown[0]["payload"]["layout_ids"]) == sorted(str(l.layout_id) for l in layouts)
     assert shown[1]["payload"]["layout_id"] == shown[0]["payload"]["layout_ids"][0] and shown[2]["payload"]["room_id"] == LIVING_ROOM
 
@@ -151,3 +153,24 @@ def test_a_second_room_waits_until_the_user_has_decided_on_the_first(furniture):
     assert jobs(run(second, InMemoryStore(), user="alice", thread="t1")) == [] and "has not decided" in second.tool_results[0]
     design_gate.user_spoke(conversation)  # they kept one, or said to go on
     assert jobs(run(ask(other), InMemoryStore(), user="alice", thread="t1")) == [other]
+
+
+def test_planning_a_room_someone_else_has_plans_for_is_raised_with_the_person_first(furniture):
+    """Two people's agents on one house share no context, only who has plans for which room."""
+    from services.api.agent.runner import stream_turn
+    from services.api.agent.graph import build_agent
+    from services.api.realtime.agent_bridge import others_plans
+
+    maya = AgentContext(user_id="m-maya", property_id=PROPERTY, session_id="s", household_id="h", member_name="Maya", house_user_id="demo")
+    leo = AgentContext(user_id="m-leo", property_id=PROPERTY, session_id="s", household_id="h", member_name="Leo", house_user_id="demo")
+
+    def ask(who, **extra):
+        model = ScriptedModel(script=[call("design_in_background", room_id=LIVING_ROOM, brief="whatever fits", **extra), AIMessage(content="ok")])
+        out = list(stream_turn(build_agent(PROPERTY, store=InMemoryStore(), model=model), "plan the living room", who, who.thread_id))
+        return model.tool_results[0], [e for e in out if e[0] == "ui" and e[1]["type"] == BACKGROUND_DESIGN]
+
+    assert ask(maya)[1] and others_plans(maya) == ""  # her own plan is not news to her
+    said, started = ask(leo)
+    assert started == [] and "Hold on: Maya is having layouts drawn up" in said
+    assert "Maya is having layouts drawn up for" in others_plans(leo)
+    assert ask(leo, go_ahead_over_other_plans=True)[1]  # Leo said to go ahead anyway

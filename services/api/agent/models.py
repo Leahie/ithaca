@@ -9,7 +9,9 @@ from langchain_core.language_models import BaseChatModel
 
 from services.api.integrations.config import IntegrationNotConfigured, env
 
-DEFAULT_ANTHROPIC_MODEL = "claude-sonnet-5-5"
+# The fast model: the guide talks while people walk, so a short wait matters more than depth.
+# AGENT_MODEL (or AGENT_MODEL_DESIGNER etc.) picks another.
+DEFAULT_ANTHROPIC_MODEL = "claude-haiku-5-5"
 
 
 def get_model(role: str = "main") -> BaseChatModel:
