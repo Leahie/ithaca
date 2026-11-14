@@ -34,7 +34,7 @@ from services.api.integrations import costar
 from services.api.integrations.cache import RecordReplayCache
 from services.api.integrations.config import fixtures_dir
 from services.api.integrations.matterport import MatterportClient
-from services.api.twin import frames
+from services.api.twin import annotations, frames
 from services.api.twin import rooms as plan
 from services.api.twin.mesh import interior_glb_path
 from services.api.twin.service import twin_path
@@ -52,6 +52,9 @@ DEFAULT_CAMERA_HEIGHT_M = 1.5
 DEFAULT_OPENING_HEIGHT_M = {"window": 1.2, "door": 2.1, "slider": 2.1}
 GEOREF_TOLERANCE_M = 2.0
 OPENING_SIDE_PROBE_M = 0.3
+# An opening with no room on its far side leads outside unless another room outline (labeled or
+# not) starts within this distance beyond it. Longer would misread courtyards; shorter, wide walls.
+EXTERIOR_PROBE_M = 2.0
 MIN_OPENING_WIDTH_M = 0.2  # Matterport has a few centimetre-wide annotation slivers
 WINDOW_GLAZING = "double"  # assumed until annotated
 FLOOR_MATERIAL_BY_LABEL = {
@@ -89,6 +92,7 @@ def build_twin(
                 edges[e["id"]] = {"ends": ends, "floor_id": f["id"], "openings": e.get("openings") or []}
 
     kept = _room_outlines(m.get("rooms") or [], edges, vertices)
+    every_room = _room_outlines(m.get("rooms") or [], edges, vertices, keep_all=True)
     panos = [p for p in m.get("panoLocations") or [] if p.get("position") and p.get("placement") != "unplaced"]
     elevations = _floor_elevations(raw_floors, kept, panos)
 
@@ -99,6 +103,13 @@ def build_twin(
     floor_index = {f.floor_id: f.index for f in floors}
     rooms = _rooms(kept, elevations)
     rooms.sort(key=lambda r: (floor_index.get(r.floor_id, 0), r.room_id))
+    annotated = annotations.load_openings(property_id)
+    openings = annotated if annotated is not None else _openings(
+        raw_floors, edges, vertices, kept, elevations, heading, every_room)
+    if annotated is not None:
+        opening_quality = "annotated"
+    else:
+        opening_quality = "detected" if any(e["openings"] for e in edges.values()) else "none"
 
     return PropertyTwin(
         property_id=property_id,
@@ -114,12 +125,12 @@ def build_twin(
         interior_to_world=frames.to_column_major(frames.interior_to_world_matrix(heading, translation)),
         floors=floors,
         rooms=rooms,
-        openings=_openings(raw_floors, edges, vertices, kept, elevations, heading),
+        openings=openings,
         sweeps=_sweeps(panos, kept, raw_floors, elevations),
         assets=_assets(property_id),
         quality=TwinQuality(
             alignment=alignment,
-            openings="detected" if any(e["openings"] for e in edges.values()) else "none",
+            openings=opening_quality,
             context="none",
             traffic="none",
         ),
@@ -188,12 +199,13 @@ def georef_residual_m(g: dict, heading: float, offset: tuple[float, float], lat:
 # --- rooms ---------------------------------------------------------------------------------
 
 
-def _room_outlines(raw_rooms: list[dict], edges: dict, vertices: dict) -> list[dict]:
+def _room_outlines(raw_rooms: list[dict], edges: dict, vertices: dict, keep_all: bool = False) -> list[dict]:
     kept = []
     for r in raw_rooms:
         classes = sorted(r.get("classifications") or [], key=lambda c: -(c.get("confidence") or 0))
         label = r.get("label") or (classes[0]["label"] if classes else None)
-        if label in SKIP_ROOM_LABELS or SKIP_ROOM_KEYWORDS & set(r.get("keywords") or []):
+        skipped = label in SKIP_ROOM_LABELS or SKIP_ROOM_KEYWORDS & set(r.get("keywords") or [])
+        if skipped and not keep_all:
             continue
         boundary = [e["id"] for e in (r.get("boundary") or {}).get("edges") or [] if e["id"] in edges]
         outline = plan.outline_from_edges([tuple(edges[e]["ends"]) for e in boundary], vertices)
@@ -265,7 +277,15 @@ def _room_at(point: plan.Point, floor_id: str | None, kept: list[dict]) -> str |
 # --- openings ------------------------------------------------------------------------------
 
 
-def _openings(raw_floors, edges, vertices, kept, elevations, heading) -> list[Opening]:
+def _leads_outside(center: np.ndarray, outward: np.ndarray, floor_id: str, every_room: list[dict]) -> bool:
+    """No room outline on this floor (labeled or not) within EXTERIOR_PROBE_M beyond the opening."""
+    for distance in np.arange(OPENING_SIDE_PROBE_M, EXTERIOR_PROBE_M + 1e-9, 0.1):
+        if _room_at(tuple(center + outward * distance), floor_id, every_room):
+            return False
+    return True
+
+
+def _openings(raw_floors, edges, vertices, kept, elevations, heading, every_room) -> list[Opening]:
     rotation = frames.model_to_world_rotation(heading)
     out = []
     for f in raw_floors:
@@ -313,6 +333,7 @@ def _openings(raw_floors, edges, vertices, kept, elevations, heading) -> list[Op
                     facade_azimuth_deg=_r(frames.compass_azimuth_deg(east, north), 2),
                     glazing="none" if kind == "door" else WINDOW_GLAZING,
                     other_room_id=other,
+                    exterior=False if other else _leads_outside(center, outward, f["id"], every_room),
                 ))
     out.sort(key=lambda o: o.opening_id)
     return out

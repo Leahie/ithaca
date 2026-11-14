@@ -37,6 +37,18 @@
     },
     "Opening": {
       "properties": {
+        "exterior": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Exterior"
+        },
         "facade_azimuth_deg": {
           "title": "Facade Azimuth Deg",
           "type": "number"

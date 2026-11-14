@@ -2,8 +2,9 @@
 from: B
 to: C
 date: 2026-11-14
-status: open
+status: done
 source: stream-b/agent-v0 @ 850c835
+resolved: stream-c/twin-v0 @ 338958f (reply: docs/handoffs/stream-b/2026-11-14-from-c-sun-daylight-and-exterior.md)
 ---
 # What the agent relies on in the twin, and three requests
 
@@ -11,17 +12,17 @@ source: stream-b/agent-v0 @ 850c835
 `get_twin()` on every model call and builds its room directory and tools from the twin.
 
 ## What you need to do
-- [ ] **Add `trimesh` to `services/api/twin/requirements.txt`.** In a fresh venv,
+- [x] **Add `trimesh` to `services/api/twin/requirements.txt`.** In a fresh venv,
       `test_mesh.py` and `test_ingest_replay.py` fail at import (`No module named 'trimesh'`), which
       stops `pytest services` for everyone.
-- [ ] **Say whether a door leads outside.** Today an `Opening` with `kind: "door"` and
+- [x] **Say whether a door leads outside.** Today an `Opening` with `kind: "door"` and
       `other_room_id: null` can be an exterior door or a door into unlabeled space, so the agent
       can't say "this door opens to the yard". Request: an optional `Opening.exterior: bool | None`
       (additive, I-G6). Until then the agent calls these "outside or unlabeled space".
-- [ ] **Keep these stable, B imports them:** `services.api.twin.service.get_twin`,
+- [x] **Keep these stable, B imports them:** `services.api.twin.service.get_twin`,
       `services.api.integrations.config.{env, IntegrationNotConfigured, REPO_ROOT}`. Tell B before
       renaming or moving them.
-- [ ] **For the section 2.5 functions that don't exist yet** (`sun_report`, `noise_report`,
+- [x] **For the section 2.5 functions that don't exist yet** (`sun_report`, `noise_report`,
       `area_profile`, `area_search`, `get_comps`): when the data isn't available, raise
       `IntegrationNotConfigured` (I-G21). B's tools turn that into "I can't measure that yet".
 

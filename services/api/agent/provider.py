@@ -64,6 +64,22 @@ def _deep_agent(property_id: str):
     return build_agent(property_id, store=store, checkpointer=saver)
 
 
+@lru_cache(maxsize=16)
+def _observer(property_id: str):
+    from services.api.agent.observer import build_observer
+
+    return build_observer(property_id, store=_storage()[0])
+
+
+def get_observer():
+    """The background tour observer, or None. Needs the real agent; AGENT_OBSERVER=0 turns it off."""
+    if provider_name() != "deep" or env("AGENT_OBSERVER", "1") == "0":
+        return None
+    from services.api.agent.observer import run_observer
+
+    return lambda context: run_observer(_observer(context.property_id), context)
+
+
 def get_turn_runner() -> TurnRunner:
     if provider_name() == "scripted":
         from services.api.agent.scripted import stream_turn_scripted

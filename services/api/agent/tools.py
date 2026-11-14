@@ -8,13 +8,15 @@ and is checked against the twin before anything is emitted.
 from __future__ import annotations
 
 import math
-from datetime import datetime
+from datetime import date, datetime
 from typing import Literal
 
 from langchain.tools import ToolRuntime, tool
 
 from services.api.agent import prompts
 from services.api.agent.context import AgentContext
+from services.api.integrations.config import IntegrationNotConfigured
+from services.api.twin import service
 from services.api.twin.service import get_twin
 
 Runtime = ToolRuntime[AgentContext]
@@ -67,13 +69,140 @@ def get_room_geometry(room_id: str, runtime: Runtime) -> str:
         desc = f"  - {o.kind}, {width:.2f} m wide, {d.y - a.y:.2f} m tall"
         if o.kind == "door":
             far = o.other_room_id if o.room_id == room_id else o.room_id
-            desc += f", to {names.get(far, 'outside or unlabeled space')}"
+            nowhere = {True: "outside", False: "unlabeled space"}.get(o.exterior, "outside or unlabeled space")
+            desc += f", to {names.get(far, nowhere)}"
         else:
             desc += (
                 f", sill {a.y - room.floor_y:.2f} m above floor, faces "
                 f"{prompts.compass_point(o.facade_azimuth_deg)}, {o.glazing} glazing"
             )
         lines.append(desc)
+    return "\n".join(lines)
+
+
+# --- sun and daylight tools (C's engines, WORKSTREAMS 2.5) --------------------------------------
+# Results are short text, in clock times and brightness levels. No lux grids, no coordinates.
+
+
+def _room_or_error(twin, room_id: str) -> str | None:
+    if any(r.room_id == room_id for r in twin.rooms):
+        return None
+    return f"Error: unknown room_id {room_id!r}. Use a room_id from the room directory."
+
+
+def _parse_day(text: str) -> date | str:
+    try:
+        return date.fromisoformat(text[:10])
+    except ValueError:
+        return f"Error: {text!r} is not a date like 2026-12-21."
+
+
+def _facing(twin, opening_ids: list[str]) -> str:
+    by_id = {o.opening_id: o for o in twin.openings}
+    points = sorted({prompts.compass_point(by_id[i].facade_azimuth_deg) for i in opening_ids if i in by_id})
+    return f" through {'/'.join(points)}-facing windows" if points else ""
+
+
+def _sun_line(twin, room_id: str, day: date) -> tuple[float, str]:
+    floor = service.sun_room_day(twin.property_id, room_id, day)
+    if not floor.intervals:
+        return 0.0, "no direct sun"
+    seated = service.sun_room_day(twin.property_id, room_id, day, height_m=1.1)
+    spans = ", ".join(f"{i.start:%H:%M}-{i.end:%H:%M}" for i in floor.intervals)
+    return floor.total_hours, (
+        f"direct sun on the floor {spans} ({floor.total_hours:.1f} h){_facing(twin, floor.through_opening_ids)}; "
+        f"at seated height {seated.total_hours:.1f} h"
+    )
+
+
+@tool
+def sun_by_room(day: str, runtime: Runtime, room_id: str | None = None) -> str:
+    """When direct sunlight comes into the rooms on one day (clear sky).
+
+    day: a date like 2026-12-21. Use Dec 21 for winter and Jun 21 for summer.
+    room_id: one room. Leave it out to compare every room with a window, sunniest first.
+    """
+    twin = get_twin(runtime.context.property_id)
+    when = _parse_day(day)
+    if isinstance(when, str):
+        return when
+    names = prompts.room_display_names(twin)
+    if room_id is not None:
+        return _room_or_error(twin, room_id) or f"{names[room_id]} on {when:%B %d}: {_sun_line(twin, room_id, when)[1]}."
+    rows = sorted(
+        ((*_sun_line(twin, r.room_id, when), names[r.room_id]) for r in twin.rooms if _has_window(twin, r.room_id)),
+        reverse=True,
+    )
+    lines = [f"Direct sun on {when:%B %d}, sunniest room first:"]
+    lines += [f"- {name}: {text}" for _hours, text, name in rows]
+    return "\n".join(lines)
+
+
+def _has_window(twin, room_id: str) -> bool:
+    return any(o.room_id == room_id and o.kind != "door" and o.exterior is not False for o in twin.openings)
+
+
+@tool
+def sun_report(room_id: str, start_date: str, end_date: str, runtime: Runtime) -> str:
+    """Hours of direct sun per day in one room over a date range (clear sky), e.g. a month or a
+    whole year. Dates like 2026-12-01. Use it for "how sunny is this room in December / all year"."""
+    twin = get_twin(runtime.context.property_id)
+    start, end = _parse_day(start_date), _parse_day(end_date)
+    for bad in (start, end, _room_or_error(twin, room_id)):
+        if isinstance(bad, str):
+            return bad
+    if not 0 <= (end - start).days <= 366:
+        return "Error: end_date must be on or after start_date, at most a year later."
+    report = service.sun_report(twin.property_id, room_id, start, end)
+    hours = [d.direct_sun_hours for d in report.daily]
+    name = prompts.room_display_names(twin)[room_id]
+    lines = [
+        f"{name}, {start:%b %d, %Y} to {end:%b %d, %Y}: on average {sum(hours) / len(hours):.1f} h of direct sun "
+        f"a day (least {min(hours):.1f} h, most {max(hours):.1f} h)."
+    ]
+    months: dict[str, list[float]] = {}
+    for d in report.daily:
+        months.setdefault(f"{d.date:%b}", []).append(d.direct_sun_hours)
+    if len(months) > 1:
+        lines.append("By month: " + ", ".join(f"{m} {sum(v) / len(v):.1f} h" for m, v in months.items()))
+    return "\n".join(lines)
+
+
+@tool
+def daylight_at(
+    datetime_iso: str,
+    runtime: Runtime,
+    room_id: str | None = None,
+    sky: Literal["typical", "clear"] = "typical",
+) -> str:
+    """How bright the rooms are at one moment, from daylight alone (no lamps).
+
+    datetime_iso: local time at the property, e.g. 2026-12-21T15:00.
+    room_id: one room. Leave it out for every room with a window.
+    sky: "typical" = usual weather for that date and hour; "clear" = a cloudless day.
+    Levels: dark, dim, moderate, bright, very_bright. A room that is not listed has no window.
+    """
+    twin = get_twin(runtime.context.property_id)
+    if room_id is not None and (error := _room_or_error(twin, room_id)):
+        return error
+    note = ""
+    try:
+        try:
+            moment = service.daylight_at(twin.property_id, datetime_iso, sky=sky, room_id=room_id, grids=False)
+        except IntegrationNotConfigured:
+            moment = service.daylight_at(twin.property_id, datetime_iso, sky="clear", room_id=room_id, grids=False)
+            note = " Typical weather isn't available for this property, so this is a clear day."
+    except ValueError as e:
+        return f"Error: {e}"
+    if not moment.sun_up:
+        return f"At {moment.datetime:%B %d, %H:%M} the sun is down. Every room is dark without lamps."
+    names = prompts.room_display_names(twin)
+    lines = [f"Daylight at {moment.datetime:%B %d, %H:%M} ({moment.sky} sky).{note}"]
+    for r in sorted(moment.rooms, key=lambda r: -r.median_lux):
+        sun_patch = f", with about {r.sun_area_m2:.0f} m² in direct sun" if r.sun_area_m2 >= 0.5 else ""
+        lines.append(f"- {names[r.room_id]}: {r.level.replace('_', ' ')}{sun_patch}")
+    if not moment.rooms:
+        lines.append("- This room has no window of its own.")
     return "\n".join(lines)
 
 
@@ -116,4 +245,5 @@ def viewer_set_time(datetime_iso: str, runtime: Runtime) -> str:
 
 
 PROPERTY_TOOLS = [list_rooms, get_room_geometry]
+SUN_TOOLS = [sun_by_room, sun_report, daylight_at]
 UI_TOOLS = [viewer_goto, viewer_set_mode, viewer_set_time]

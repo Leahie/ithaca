@@ -15,7 +15,7 @@ from pathlib import Path
 
 from pydantic.json_schema import models_json_schema
 
-from packages.schema import events, session, twin
+from packages.schema import events, reports, session, twin
 
 OUT = Path(__file__).parent / "json"
 
@@ -26,6 +26,10 @@ def build() -> dict[str, str]:
         "events": event_models,
         "session": [session.Session, session.ViewerState],
         "twin": [twin.PropertyTwin],
+        "reports": [
+            reports.SunReport, reports.SunMoment, reports.SunRoomDay, reports.SunSpot,
+            reports.DaylightMoment, reports.DaylightSpot, reports.NoiseReport, reports.AreaProfile,
+        ],
     }
     files = {}
     for name, models in groups.items():
@@ -47,7 +51,7 @@ def main() -> None:
         return
     OUT.mkdir(exist_ok=True)
     for name, text in files.items():
-        (OUT / name).write_text(text)
+        (OUT / name).write_text(text, encoding="utf-8", newline="\n")
     print(f"wrote {len(files)} files to {OUT}")
 
 
