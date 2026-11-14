@@ -552,6 +552,7 @@ def measure_roof(twin: dict, model_id: str, levels: dict[str, RoomLevels], clien
         labels[np.isin(lab, 1 + np.flatnonzero(sizes * ROOF_CELL_M ** 2 < 1.5))] = -1
     # straight eaves: smooth the DSM's ragged roof edge before tracing it
     keep = ndimage.binary_closing(ndimage.binary_opening(keep, iterations=2), iterations=2)
+    keep = ndimage.binary_fill_holes(keep)  # the roof runs on under the chimney
     if (labels >= 0).any():
         _, (ri, rj) = ndimage.distance_transform_edt(labels < 0, return_indices=True)
         labels = np.where(keep, labels[ri, rj], -1)
@@ -559,8 +560,32 @@ def measure_roof(twin: dict, model_id: str, levels: dict[str, RoomLevels], clien
     facets = []
     for g in _polys(outline):
         facets += _ceiling_facets(g, planes, labels, origin, ROOF_CELL_M, simplify_m=0.12)
+    facets = _tile(outline, facets)
     log.info("roof: %d planes, %d facets, %.0f m2", len(planes), len(facets), outline.area)
     return Roof(planes, facets, shift, offset, turn)
+
+
+def _tile(outline, facets: list[tuple[Polygon, int]]) -> list[tuple[Polygon, int]]:
+    """Facets that cover the outline once: overlaps go to the larger facet, gaps to the neighbour
+    sharing the longest edge, and touching facets on one plane become one."""
+    taken = Polygon()
+    pieces: list[tuple[Polygon, int]] = []
+    for poly, k in sorted(facets, key=lambda f: -f[0].area):
+        pieces += [(g, k) for g in _polys(poly.difference(taken)) if g.area > 0.02]
+        taken = taken.union(poly)
+    for gap in _polys(outline.difference(taken)):
+        if gap.area < 0.02:
+            continue
+        edge = gap.boundary
+        shared = [(edge.intersection(p.buffer(0.05)).length, k) for p, k in pieces]
+        length, k = max(shared, default=(0.0, -1))
+        if length > 0:
+            pieces.append((gap, k))
+    out = []
+    for k in sorted({k for _, k in pieces}):
+        merged = unary_union([p for p, j in pieces if j == k]).buffer(0.01).buffer(-0.01)
+        out += [(g.simplify(0.05), k) for g in _polys(merged) if g.area > 0.05]
+    return out
 
 
 def _roof_segments(GX: np.ndarray, GZ: np.ndarray, H: np.ndarray) -> tuple[list[Plane], np.ndarray]:
@@ -732,7 +757,7 @@ def build_walls(twin: dict, levels: dict[str, RoomLevels], roof: Roof | None = N
             if roof is not None:
                 # and never through it: the twin's rooms and the DSM disagree in places
                 under = [roof.at(*(a + s * u)) for s in ss]
-                tops = np.array([max(min(tp, r - ROOF_THICKNESS_M), bottom + 2.0) if r is not None else tp
+                tops = np.array([max(min(tp, r - ROOF_THICKNESS_M), bottom + 0.3) if r is not None else tp
                                  for tp, r in zip(tops, under)])
             profile = Polygon([(s0, bottom), (s1, bottom), *zip(ss[::-1], tops[::-1])]).buffer(0)
             profile = profile.simplify(0.005)
@@ -858,7 +883,41 @@ def build_roof(roof: Roof) -> list[trimesh.Trimesh]:
             m = trimesh.Trimesh(verts, np.vstack(faces), process=True)
             trimesh.repair.fix_normals(m)
             out.append(m)
+    risers = _roof_risers(roof)
+    if risers is not None:
+        out.append(risers)
     return out
+
+
+def _roof_risers(roof: Roof) -> trimesh.Trimesh | None:
+    """Vertical faces where a facet meets a higher one: the wall between a low roof and a high one."""
+    verts, faces = [], []
+    for poly, k in roof.facets:
+        ring = np.array(poly.exterior.coords)
+        if not poly.exterior.is_ccw:
+            ring = ring[::-1]
+        for p0, p1 in zip(ring[:-1], ring[1:]):
+            d = p1 - p0
+            L = float(np.hypot(*d))
+            if L < 0.05:
+                continue
+            out_n = np.array([d[1], -d[0]]) / L  # outward for a counter-clockwise ring
+            mid = (p0 + p1) / 2 + 0.1 * out_n
+            nb = [j for q, j in roof.facets if j != k and q.contains(_pt(mid))]
+            if not nb:
+                continue
+            here, there = roof.planes[k], roof.planes[nb[0]]
+            h0, h1 = here.at(*p0), here.at(*p1)
+            g0, g1 = there.at(*p0), there.at(*p1)
+            if min(g0 - h0, g1 - h1) < 0.1:  # only from the lower side, and only for a real step
+                continue
+            n = len(verts)
+            verts += [(p0[0], h0 - ROOF_THICKNESS_M, p0[1]), (p1[0], h1 - ROOF_THICKNESS_M, p1[1]),
+                      (p1[0], g1, p1[1]), (p0[0], g0, p0[1])]
+            faces += [(n, n + 1, n + 2), (n, n + 2, n + 3)]
+    if not faces:
+        return None
+    return trimesh.Trimesh(np.array(verts, float), np.array(faces), process=False)
 
 
 def build(twin: dict, levels: dict[str, RoomLevels], out: Path, roof: Roof | None = None) -> dict:
