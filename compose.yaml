@@ -1,0 +1,139 @@
+# docker compose up: web, api, Postgres (pgvector), Redis and S3 object storage (milestone M0).
+#
+# Keys and settings come from .env (copy .env.example). The repo is mounted at /repo, so the API
+# reloads on save and reads fixtures/ directly. NEXT_PUBLIC_* values are compiled into the web
+# bundle: change them, then `docker compose up --build web`.
+#
+# Object storage is RustFS, an S3-compatible server: MinIO no longer publishes its images. Code
+# talks to it through the S3 API only (S3_* settings), so any S3 store can replace it.
+#
+# Host ports can be moved with WEB_PORT, API_PORT, POSTGRES_PORT, REDIS_PORT, S3_PORT and
+# S3_CONSOLE_PORT. If API_PORT is not 8000, set NEXT_PUBLIC_WS_BASE to ws://localhost:<API_PORT>.
+#
+# Only the data services, for running the API and web app on the host:
+#   docker compose up -d init
+
+name: ithaca
+
+x-backend-env: &backend-env
+  DATABASE_URL: postgresql+psycopg://ithaca:ithaca@postgres:5432/ithaca
+  REDIS_URL: redis://redis:6379/0
+  S3_ENDPOINT_URL: http://s3:9000
+  S3_PUBLIC_URL: http://localhost:${S3_PORT:-9000}
+  S3_ACCESS_KEY: ithaca
+  S3_SECRET_KEY: ithaca-dev-secret
+  S3_BUCKET: ithaca
+
+x-python: &python
+  build:
+    context: .
+    dockerfile: infra/api.Dockerfile
+  image: ithaca-python
+  working_dir: /repo
+  volumes:
+    - .:/repo
+  env_file:
+    - path: .env
+      required: false
+
+services:
+  postgres:
+    image: pgvector/pgvector:pg17
+    environment:
+      POSTGRES_USER: ithaca
+      POSTGRES_PASSWORD: ithaca
+      POSTGRES_DB: ithaca
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - postgres:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ithaca -d ithaca"]
+      interval: 2s
+      timeout: 5s
+      retries: 30
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 2s
+      timeout: 5s
+      retries: 30
+
+  s3:
+    image: rustfs/rustfs:latest
+    environment:
+      RUSTFS_ACCESS_KEY: ithaca
+      RUSTFS_SECRET_KEY: ithaca-dev-secret
+      RUSTFS_ADDRESS: ":9000"
+      RUSTFS_CONSOLE_ENABLE: "true"
+      RUSTFS_CONSOLE_ADDRESS: ":9001"
+    ports:
+      - "${S3_PORT:-9000}:9000"
+      - "${S3_CONSOLE_PORT:-9001}:9001"
+    volumes:
+      - s3:/data
+    healthcheck:
+      test: ["CMD", "curl", "-fs", "http://localhost:9000/health/ready"]
+      interval: 2s
+      timeout: 5s
+      retries: 30
+
+  # One-shot: database migrations, then the bucket. The API starts after it succeeds.
+  init:
+    <<: *python
+    command: sh -c "alembic -c infra/alembic.ini upgrade head && python infra/s3_init.py"
+    environment:
+      <<: *backend-env
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      s3:
+        condition: service_healthy
+
+  api:
+    <<: *python
+    command: uvicorn ${API_APP:-services.api.main:app} --host 0.0.0.0 --port 8000 --reload
+    environment:
+      <<: *backend-env
+      WATCHFILES_FORCE_POLLING: "true"
+    ports:
+      - "${API_PORT:-8000}:8000"
+    depends_on:
+      init:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/api/health')"]
+      interval: 5s
+      timeout: 5s
+      retries: 60
+
+  web:
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
+      args:
+        NEXT_PUBLIC_USE_FIXTURES: ${NEXT_PUBLIC_USE_FIXTURES:-}
+        NEXT_PUBLIC_API_BASE: ${NEXT_PUBLIC_API_BASE:-/api}
+        NEXT_PUBLIC_WS_BASE: ${NEXT_PUBLIC_WS_BASE:-}
+        NEXT_PUBLIC_MATTERPORT_SDK_KEY: ${NEXT_PUBLIC_MATTERPORT_SDK_KEY:-}
+        NEXT_PUBLIC_DEFAULT_PROPERTY_ID: ${NEXT_PUBLIC_DEFAULT_PROPERTY_ID:-}
+        NEXT_PUBLIC_USER_ID: ${NEXT_PUBLIC_USER_ID:-demo}
+        NEXT_PUBLIC_PUBLIC_ORIGIN: ${NEXT_PUBLIC_PUBLIC_ORIGIN:-}
+        API_PROXY_TARGET: http://api:8000
+    ports:
+      - "${WEB_PORT:-3000}:3000"
+    volumes:
+      - ./fixtures:/repo/fixtures:ro
+    depends_on:
+      api:
+        condition: service_healthy
+
+volumes:
+  postgres:
+  s3:
