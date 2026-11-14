@@ -100,7 +100,7 @@ def test_suggested_catalog_pieces_reach_the_chat_as_cards(furniture):
     (card,) = [e[1] for e in out if e[0] == "ui"]
     assert card["type"] == "catalog.suggest" and card["payload"]["near_item_id"] == "desk-1"
     assert [p["catalog_id"] for p in card["payload"]["pieces"]] == ["B07B78LXYF", "B0714QGLSD"]
-    assert all(p["thumbnail_url"].startswith("https://") and p["dims_m"]["w"] > 0 for p in card["payload"]["pieces"])
+    assert all(p["thumbnail_url"].endswith(".jpg") and p["dims_m"]["w"] > 0 for p in card["payload"]["pieces"])
     assert len(furniture.list_items("alice")) == 3  # only the seeded pieces: showing is not adding
 
 
