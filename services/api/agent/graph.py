@@ -29,10 +29,12 @@ from services.api.agent.models import get_model
 from services.api.agent.design_tools import (
     catalog_add,
     catalog_search,
+    catalog_sets,
     catalog_suggest,
     delete_from_inventory,
     design_apply_layout,
     design_in_background,
+    furnish_with_set,
     design_show_variants,
     inventory_search,
     propose_layouts,
@@ -92,7 +94,7 @@ def build_agent(
     )
     return create_deep_agent(
         model=model or get_model("main"),
-        tools=[*PROPERTY_TOOLS, *SUN_TOOLS, *AREA_TOOLS, *SOUND_TOOLS, inventory_search, *UI_TOOLS, design_in_background, design_show_variants, design_apply_layout, catalog_search, catalog_suggest, catalog_add, remove_from_room, delete_from_inventory, *FAMILY_TOOLS],
+        tools=[*PROPERTY_TOOLS, *SUN_TOOLS, *AREA_TOOLS, *SOUND_TOOLS, inventory_search, *UI_TOOLS, design_in_background, design_show_variants, design_apply_layout, catalog_sets, furnish_with_set, catalog_search, catalog_suggest, catalog_add, remove_from_room, delete_from_inventory, *FAMILY_TOOLS],
         system_prompt=prompts.main_persona(subagents=()),  # no helpers through `task`: the designer runs in the background
         middleware=[PropertyContextMiddleware(), FamilyContextMiddleware()],
         memory=memory_files(property_id),

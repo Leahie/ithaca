@@ -142,7 +142,7 @@ def test_placing_moving_and_options_in_the_house(client):
 def test_catalog_piece_is_added_at_its_own_size(client, monkeypatch, tmp_path):
     from services.api.objects.providers import catalog
 
-    cid, _cls, label, w, d, h = catalog.BY_ID["GothicBed_01"]
+    cid, _cls, label, w, d, h = catalog.BY_ID["B07B4SBZFN"]
     monkeypatch.setattr(catalog, "fetch", lambda asset_id: raw_glb((w * 3, h * 3, d * 3)))  # no download in tests
     alice = {"X-User-Id": "alice"}
 

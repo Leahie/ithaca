@@ -102,7 +102,7 @@ export function CatalogBrowser({ onAdded, scroll = true }: { onAdded(item: Inven
         ))}
       </ul>
       {error && <p role="alert" className="text-sm text-danger">{error}</p>}
-      <p className="text-[11px] text-faint">Generic stand-in pieces at real size, from Poly Haven (public domain). Not products to buy.</p>
+      <p className="text-[11px] text-faint">Pieces from matching collections, at real size. 3D models and photos: Amazon Berkeley Objects, CC BY 4.0.</p>
     </div>
   );
 }

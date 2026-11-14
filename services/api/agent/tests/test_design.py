@@ -90,8 +90,8 @@ def test_suggested_catalog_pieces_reach_the_chat_as_cards(furniture):
     """catalog_suggest sends the pieces with pictures and sizes; it adds nothing by itself."""
     model = ScriptedModel(
         script=[
-            call("catalog_suggest", catalog_ids=["dining_chair_02", "mid_century_lounge_chair", "made-up"], room_id=LIVING_ROOM),
-            call("catalog_suggest", catalog_ids=["dining_chair_02", "mid_century_lounge_chair"], room_id=LIVING_ROOM, near_item_id="desk-1"),
+            call("catalog_suggest", catalog_ids=["B07B78LXYF", "B0714QGLSD", "made-up"], room_id=LIVING_ROOM),
+            call("catalog_suggest", catalog_ids=["B07B78LXYF", "B0714QGLSD"], room_id=LIVING_ROOM, near_item_id="desk-1"),
             AIMessage(content="Two chairs that would suit a desk."),
         ]
     )
@@ -99,6 +99,29 @@ def test_suggested_catalog_pieces_reach_the_chat_as_cards(furniture):
     assert model.tool_results[0].startswith("Error")  # an unknown id shows nothing
     (card,) = [e[1] for e in out if e[0] == "ui"]
     assert card["type"] == "catalog.suggest" and card["payload"]["near_item_id"] == "desk-1"
-    assert [p["catalog_id"] for p in card["payload"]["pieces"]] == ["dining_chair_02", "mid_century_lounge_chair"]
+    assert [p["catalog_id"] for p in card["payload"]["pieces"]] == ["B07B78LXYF", "B0714QGLSD"]
     assert all(p["thumbnail_url"].startswith("https://") and p["dims_m"]["w"] > 0 for p in card["payload"]["pieces"])
     assert len(furniture.list_items("alice")) == 3  # only the seeded pieces: showing is not adding
+
+
+def test_furnishing_with_a_set_adds_its_pieces_and_starts_the_designer(furniture, monkeypatch):
+    """One set per room: its pieces (with their counts) go into the user's furniture, and the designer gets them as its brief."""
+    import trimesh
+
+    from services.api.objects.providers import catalog
+
+    def box(cid):  # a box of the piece's own size stands in for its model: no download in tests
+        _id, _cls, _label, w, d, h = catalog.BY_ID[cid]
+        return trimesh.creation.box(extents=(w, h, d)).export(file_type="glb")
+
+    monkeypatch.setattr(catalog, "fetch", box)
+    before = len(furniture.list_items("alice"))
+    model = ScriptedModel(script=[call("catalog_sets"), call("furnish_with_set", set_id="jonathan_bedroom", room_id=LIVING_ROOM), AIMessage(content="I chose the walnut bedroom set.")])
+    out = run(model, InMemoryStore(), user="alice", thread="t1", text="furnish this room")
+
+    assert "Jonathan walnut bedroom" in model.tool_results[0] and "nightstand ×2" in model.tool_results[0]
+    added = furniture.list_items("alice")[before:]
+    wanted = sum(catalog.SET_COUNTS.get(("jonathan_bedroom", c), 1) for c in catalog.SET_BY_ID["jonathan_bedroom"]["pieces"])
+    assert len(added) == wanted and sum(i.item_class == "nightstand" for i in added) == 2
+    job = next(e[1] for e in out if e[0] == "ui" and e[1]["type"] == BACKGROUND_DESIGN)
+    assert job["payload"]["room_id"] == LIVING_ROOM and all(str(i.item_id) in job["payload"]["brief"] for i in added)

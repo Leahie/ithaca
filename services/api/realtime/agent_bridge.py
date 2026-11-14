@@ -66,6 +66,8 @@ def action_summary(tool: str, args: dict) -> str:
         "viewer_turn": "Turning the view",
         "viewer_zoom": "Zooming",
         "design_in_background": "Starting on the room layout",
+        "catalog_sets": "Looking at the furniture sets",
+        "furnish_with_set": "Furnishing the room with a set",
         "task": f"Asking the {args.get('subagent_type', 'helper')}",
         "inventory_search": "Looking at your furniture",
         "propose_layouts": "Arranging the room",

@@ -61,20 +61,86 @@ def inventory_search(runtime: Runtime, query: str = "") -> str:
 
 
 @tool
+def catalog_sets(runtime: Runtime) -> str:
+    """The furniture sets in the catalog: each is a room's worth of pieces designed to go together.
+    Call this before furnishing a room with pieces the user does not own."""
+    from services.api.objects.providers import catalog
+
+    rows = []
+    for st in catalog.SETS:
+        names = []
+        for cid in st["pieces"]:
+            n = catalog.SET_COUNTS.get((st["id"], cid), 1)
+            names.append(catalog.BY_ID[cid][2].split(",")[0] + (f" ×{n}" if n > 1 else ""))
+        rows.append(f"- {st['name']} · set_id {st['id']} · for: {st['rooms']}\n  {st['look']}\n  Pieces: {', '.join(names)}")
+    return "\n".join(rows)
+
+
+@tool
+def furnish_with_set(set_id: str, room_id: str, runtime: Runtime) -> str:
+    """Furnish a room with one catalog set: adds the set's pieces to the user's furniture and asks
+    the interior designer to arrange them (in the background; you get `layouts_ready`). Use this
+    when a room is empty or the user asks you to furnish or style it. One set per room."""
+    from services.api.agent import memory_files
+    from services.api.objects import pipeline
+    from services.api.objects.providers import catalog
+
+    st = catalog.SET_BY_ID.get(set_id)
+    if st is None:
+        return f"Error: unknown set_id {set_id!r}. Use a set_id from catalog_sets."
+    twin = get_twin(runtime.context.property_id)
+    if not any(r.room_id == room_id for r in twin.rooms):
+        return f"Error: no room with id {room_id}. Use an id from the room directory."
+    store, user_id = furniture_store(), runtime.context.user_id  # new pieces are the person's own (F1)
+    owned: dict[str, list] = {}
+    for item in store.list_items(user_id):
+        owned.setdefault(item.source_image_url, []).append(item)
+    lines = []
+    try:
+        for cid in st["pieces"]:
+            want = catalog.SET_COUNTS.get((set_id, cid), 1)
+            have = owned.get(catalog.thumbnail_url(cid), [])  # pieces from an earlier try are used again
+            while len(have) < want:
+                have.append(pipeline.add_from_catalog(cid, user_id, store))
+            for item in have[:want]:
+                lines.append(f"- {item.label} ({item.item_class}) item_id {item.item_id}")
+    except Exception as e:
+        return f"Error: the set could not be added ({e})."
+    if runtime.store is not None:
+        memory_files.sync_inventory(runtime.store, user_id, store.list_items(user_id))
+    _changed(runtime)
+    brief = (
+        f"Furnish this room with the {st['name']} set and nothing else. {st['look']}\n"
+        "Use these pieces, the first ones first; leave out the last ones if the room is too small for all of them. "
+        "A rug goes under the seating or beside the bed. Pieces:\n" + "\n".join(lines)
+    )
+    runtime.stream_writer({"type": BACKGROUND_DESIGN, "payload": {"room_id": room_id, "brief": brief}})
+    return (
+        f"The {st['name']} set ({len(lines)} pieces) is in their furniture and the designer has started arranging it. "
+        "Tell the user in one sentence which set you chose and why it suits them, and that the room will be ready in "
+        "a moment. Do not wait, and do not describe the layout yet."
+    )
+
+
+@tool
 def catalog_search(runtime: Runtime, query: str = "") -> str:
-    """Ready-made furniture the user can add without a photo: generic pieces at real size, not
-    products to buy. query filters by a word in the name or kind ("bed", "round table", "bookshelf").
-    Leave it empty to see the kinds available."""
+    """Single pieces in the furniture catalog, for adding one thing to a room that already has
+    furniture (a chair for a desk, a lamp). query filters by a word in the name or kind ("bed",
+    "side table"). Each piece says which sets it belongs to: add pieces from the set the room
+    already uses. Leave query empty to see the kinds available."""
     from services.api.objects.providers import catalog
 
     words = query.lower().replace("_", " ").split()
     rows = [r for r in catalog.PIECES if all(w in f"{r[2]} {r[1].replace('_', ' ')}".lower() for w in words)]
     if not words:
         kinds = sorted({r[1].replace("_", " ") for r in catalog.PIECES})
-        return f"{len(catalog.PIECES)} pieces. Kinds: {', '.join(kinds)}. Search with one of these words to see the pieces."
+        return f"{len(catalog.PIECES)} pieces in {len(catalog.SETS)} sets (see catalog_sets). Kinds: {', '.join(kinds)}. Search with one of these words to see the pieces."
     if not rows:
         return f"Nothing in the catalog matches {query!r}. Call with no query to see the kinds available."
-    return "\n".join(f"- {label} ({cls}) · catalog_id {cid} · {w:.2f} m wide × {d:.2f} m deep × {h:.2f} m high" for cid, cls, label, w, d, h in rows[:12])
+    return "\n".join(
+        f"- {label} ({cls}) · catalog_id {cid} · {w:.2f} m wide × {d:.2f} m deep × {h:.2f} m high · sets: {', '.join(catalog.sets_of(cid)) or 'none'}"
+        for cid, cls, label, w, d, h in rows[:12]
+    )
 
 
 @tool
@@ -129,7 +195,7 @@ def catalog_add(catalog_id: str, runtime: Runtime) -> str:
     _changed(runtime)
     return (
         f"Added {item.label} ({item.item_class}), {item.dims_m.w:.2f} × {item.dims_m.d:.2f} × {item.dims_m.h:.2f} m, "
-        f"item_id {item.item_id}. It is a generic stand-in, not a specific product: say so."
+        f"item_id {item.item_id}."
     )
 
 
