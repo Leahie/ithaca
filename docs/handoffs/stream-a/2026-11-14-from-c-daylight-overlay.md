@@ -29,6 +29,4 @@ plan and in the Sun Lab next to the realtime shadows.
 - `SunMoment.rooms[].mask` (`SunMask`) is the direct-sun patch at one instant if you want crisp
   sun patches on the 2D plan; in 3D, keep the realtime directional light (recipe in
   `docs/stream-a-handoff.md` section 5).
-- REST endpoints aren't built yet. Planned: `GET /properties/{pid}/sun/at?when&height_m`,
-  `GET /properties/{pid}/daylight/at?when&sky&height_m`. Until then use the CLI images, or ask C
-  for JSON fixtures.
+- REST endpoints are live: see `2026-11-14-from-c-rest-endpoints.md` in this folder.
