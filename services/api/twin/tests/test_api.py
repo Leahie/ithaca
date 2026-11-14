@@ -104,12 +104,22 @@ def test_daylight_spot(client, sunny_room):
     assert max(body["lux"]) > 50
 
 
-def test_not_built_features_say_so(client, sunny_room):
+def test_noise_not_built_says_so(client, sunny_room):
     room_id, _, _ = sunny_room
-    for path, params in ((f"{BASE}/noise", {"room_id": room_id}), (f"{BASE}/area", {})):
-        r = client.get(path, params=params)
-        assert r.status_code == 503
-        assert r.json()["detail"]["error"] == "not_configured"
+    r = client.get(f"{BASE}/noise", params={"room_id": room_id})
+    assert r.status_code == 503
+    assert r.json()["detail"]["error"] == "not_configured"
+
+
+def test_area(client, monkeypatch):
+    monkeypatch.setenv("INTEGRATION_MODE", "replay")
+    r = client.get(f"{BASE}/area")
+    assert r.status_code == 200
+    body = r.json()
+    assert body["listing"]["price"] == 1_995_000 and body["comps"] and body["amenities"]
+    r = client.get(f"{BASE}/area/search", params={"q": "coffee", "limit": 2})
+    assert r.status_code == 200 and 0 < len(r.json()) <= 2
+    assert client.get(f"{BASE}/area/comps").json() == body["comps"]
 
 
 def test_put_openings_saves_annotation_and_bumps_version(client, tmp_path, monkeypatch):

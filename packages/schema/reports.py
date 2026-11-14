@@ -164,13 +164,25 @@ class NoiseReport(BaseModel):
     sources: list[NoiseSource]
 
 
+AmenityCategory = Literal[
+    "grocery", "school", "park", "playground", "restaurant", "cafe", "transit", "pharmacy",
+    "health", "fitness", "library", "worship", "shopping",
+]
+
+
 class Amenity(BaseModel):
     name: str
-    category: str
+    category: str  # an AmenityCategory
     lat: float
     lon: float
-    distance_m: float
+    distance_m: float  # straight line from the property
     source: Literal["vexcel", "costar", "osm"]
+    kind: str | None = None  # the source's own tag, e.g. "supermarket", "bus_stop"
+
+
+CompStatus = Literal["active", "pending", "sold"]
+# Texas does not disclose sale prices, so a Texas sold home shows its last asking price.
+PriceKind = Literal["sale", "asking", "last_asking"]
 
 
 class Comp(BaseModel):
@@ -180,9 +192,40 @@ class Comp(BaseModel):
     beds: int | None = None
     sold_date: date | None = None
     distance_m: float
+    status: CompStatus | None = None
+    price_kind: PriceKind | None = None
+    baths: float | None = None
+    year_built: int | None = None
+    price_per_sqft: float | None = None
+    lat: float | None = None
+    lon: float | None = None
+    listing_id: str | None = None  # CoStar residential listing id
+
+
+class ListingFacts(BaseModel):
+    """The property's own listing (CoStar residential listings)."""
+
+    listing_id: str
+    status: CompStatus | Literal["off_market"]
+    price: int | None = None
+    price_kind: PriceKind | None = None
+    list_date: date | None = None
+    days_on_market: int | None = None
+    sqft: int | None = None
+    beds: int | None = None
+    baths: float | None = None
+    year_built: int | None = None
+    lot_acres: float | None = None
+    hoa_monthly: float | None = None
+    subdivision: str | None = None
+    neighborhood: str | None = None
+    zip: str | None = None
+    highlights: list[str] = []
 
 
 class AreaProfile(BaseModel):
     markdown: str
-    amenities: list[Amenity]
-    comps: list[Comp]
+    amenities: list[Amenity]  # the nearest few per category
+    comps: list[Comp]  # most comparable first
+    listing: ListingFacts | None = None
+    caveats: list[str] = []  # data gaps the agent should mention (C3)

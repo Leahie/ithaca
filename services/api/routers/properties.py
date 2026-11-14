@@ -20,7 +20,9 @@ from fastapi.responses import FileResponse
 from pydantic import BaseModel
 
 from packages.schema.reports import (
+    Amenity,
     AreaProfile,
+    Comp,
     DaylightMoment,
     DaylightSpot,
     NoiseReport,
@@ -175,7 +177,7 @@ def get_daylight_spot(pid: str, room_id: str, x: float, z: float, date: date, sk
         return service.daylight_spot(pid, room_id, x, z, date, sky, height_m)
 
 
-# --- not built yet --------------------------------------------------------------------------
+# --- noise (not built yet) and area ---------------------------------------------------------
 
 
 @router.get("/properties/{pid}/noise", response_model=NoiseReport)
@@ -187,8 +189,24 @@ def get_noise(pid: str, room_id: str, glazing: Literal["single", "double", "trip
 
 @router.get("/properties/{pid}/area", response_model=AreaProfile)
 def get_area(pid: str, x_user_id: str = UserId) -> AreaProfile:
+    """The home's listing, comparable homes, nearby amenities and a markdown summary. Missing
+    sources show up in `caveats`, not as errors."""
     with _errors():
         return service.area_profile(pid)
+
+
+@router.get("/properties/{pid}/area/search", response_model=list[Amenity])
+def get_area_search(pid: str, q: str = Query(..., min_length=1), limit: int = Query(10, ge=1, le=50),
+                    x_user_id: str = UserId) -> list[Amenity]:
+    """Amenities matching a free-text query ("coffee", "bus stop", "Kroger"), nearest first."""
+    with _errors():
+        return service.area_search(pid, q, limit)
+
+
+@router.get("/properties/{pid}/area/comps", response_model=list[Comp])
+def get_area_comps(pid: str, x_user_id: str = UserId) -> list[Comp]:
+    with _errors():
+        return service.get_comps(pid)
 
 
 # --- ingestion ------------------------------------------------------------------------------
