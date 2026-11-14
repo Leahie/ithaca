@@ -113,6 +113,20 @@ class ViewerLookPayload(Model):
     pitch_delta_deg: float
 
 
+class ViewerStepPayload(Model):
+    """Additive to v0. The phone's arrows: one hop to the next scan position ahead of, or behind,
+    the way the camera faces. Turning is a `viewer.look`."""
+
+    direction: Literal["forward", "back"]
+
+
+class RemoteViewPayload(Model):
+    """Additive to v0. Which screen the phone remote is on, so the big screen can follow it
+    (it shows the floor plan while the phone is choosing a room)."""
+
+    view: Literal["move", "rooms", "guide", "furniture", "light"]
+
+
 class DesignShowVariantsPayload(Model):
     layout_ids: list[str]
 
@@ -199,6 +213,8 @@ EVENTS: dict[str, tuple[type[Model], frozenset[str]]] = {
     "viewer.setTime": (ViewerSetTimePayload, frozenset({"agent", "phone", "desktop"})),
     "viewer.setMode": (ViewerSetModePayload, frozenset({"agent", "phone", "desktop"})),
     "viewer.look": (ViewerLookPayload, frozenset({"phone"})),
+    "viewer.step": (ViewerStepPayload, frozenset({"phone"})),
+    "remote.view": (RemoteViewPayload, frozenset({"phone"})),
     "design.showVariants": (DesignShowVariantsPayload, frozenset({"agent"})),
     "layout.select": (LayoutSelectPayload, frozenset({"agent", "phone", "desktop"})),
     # Additive to v0. layout.select only previews an option in the room; layout.confirm is the user

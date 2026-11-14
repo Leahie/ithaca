@@ -21,6 +21,7 @@ import { ArrangePanel } from './ArrangePanel';
 import { HouseLoader } from './HouseLoader';
 import { FamilyButton } from './FamilyButton';
 import { PairingButton } from './PairingButton';
+import { CleanOverlay } from './CleanOverlay';
 import { RoomRail } from './RoomRail';
 
 const loading = () => (
@@ -80,6 +81,11 @@ function House({ propertyId }: { propertyId: string }) {
   const [visited, setVisited] = useState<Set<ViewerMode>>(() => new Set());
   const [dockOpen, setDockOpen] = useState(has('agent'));
   const [arranging, setArranging] = useState(false);
+  // With a phone as the remote, the big screen is only the house: the top bar, the room list and
+  // the chat dock step aside until "Controls" is pressed.
+  const phoneOn = useSession((s) => s.peers.phone);
+  const [controls, setControls] = useState(false);
+  const clean = phoneOn && !controls && (mode === 'tour' || mode === 'sun');
   const initialised = useRef<string | null>(null);
 
   // Values that come from the twin, not from a user action.
@@ -127,7 +133,7 @@ function House({ propertyId }: { propertyId: string }) {
 
   return (
     <div className="flex h-dvh flex-col" data-testid="house" data-mode={mode} data-features={[...config.features].join(' ')}>
-      <header className="flex h-16 shrink-0 items-center gap-4 border-b border-line bg-surface px-4">
+      <header className={cn('flex h-16 shrink-0 items-center gap-4 border-b border-line bg-surface px-4', clean && 'hidden')}>
         <Link href="/" className="flex items-center gap-2 font-display text-lg font-semibold">
           <span className="h-3 w-3 rounded-full bg-sun shadow-[0_0_0_1.5px_var(--color-main)]" />
           Ithaca
@@ -166,6 +172,11 @@ function House({ propertyId }: { propertyId: string }) {
               {arranging ? 'Done arranging' : 'Arrange'}
             </button>
           )}
+          {phoneOn && controls && (
+            <button type="button" onClick={() => setControls(false)} className="inline-flex h-10 items-center rounded-full px-3.5 font-display font-semibold text-muted hover:bg-ink hover:text-text">
+              Hide controls
+            </button>
+          )}
           {has('hands') && <HandsButton />}
           {/* The family code covers one phone too, so it replaces single-phone pairing. */}
           {has('family') ? <FamilyButton propertyId={propertyId} /> : has('phone') && <PairingButton propertyId={propertyId} />}
@@ -192,7 +203,7 @@ function House({ propertyId }: { propertyId: string }) {
       )}
 
       <div className="flex min-h-0 flex-1">
-        {mode !== 'neighborhood' && <RoomRail twin={t} tour={mode === 'tour'} />}
+        {mode !== 'neighborhood' && !clean && <RoomRail twin={t} tour={mode === 'tour'} />}
         <main className="relative min-w-0 flex-1">
           {/* The two 3D views stay mounted once opened: reloading them is slow. An inactive one is
               faded out, not display:none, so its canvas keeps its size. */}
@@ -215,8 +226,9 @@ function House({ propertyId }: { propertyId: string }) {
           )}
           {arranging && (mode === 'tour' || mode === 'sun') && <ArrangePanel twin={t} onClose={() => setArranging(false)} />}
           {has('hands') && <HandsOverlay />}
+          {clean && <CleanOverlay twin={t} onShowControls={() => setControls(true)} />}
         </main>
-        {has('agent') && dockOpen && <AgentDock />}
+        {has('agent') && dockOpen && !clean && <AgentDock />}
       </div>
     </div>
   );

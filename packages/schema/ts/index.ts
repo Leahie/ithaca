@@ -518,6 +518,14 @@ export interface Quat {
   w: number;
 }
 
+/**
+ * Additive to v0. Which screen the phone remote is on, so the big screen can follow it
+ * (it shows the floor plan while the phone is choosing a room).
+ */
+export interface RemoteViewPayload {
+  view: "move" | "rooms" | "guide" | "furniture" | "light";
+}
+
 export interface Room {
   room_id: string;
   floor_id: string;
@@ -782,6 +790,14 @@ export interface ViewerState {
 }
 
 /**
+ * Additive to v0. The phone's arrows: one hop to the next scan position ahead of, or behind,
+ * the way the camera faces. Turning is a `viewer.look`.
+ */
+export interface ViewerStepPayload {
+  direction: "forward" | "back";
+}
+
+/**
  * Additive to v0. Walk the camera from one room to another, sweep by sweep.
  */
 export interface ViewerWalkPayload {
@@ -822,6 +838,8 @@ export interface EventPayloads {
   "viewer.setTime": ViewerSetTimePayload;
   "viewer.setMode": ViewerSetModePayload;
   "viewer.look": ViewerLookPayload;
+  "viewer.step": ViewerStepPayload;
+  "remote.view": RemoteViewPayload;
   "design.showVariants": DesignShowVariantsPayload;
   "layout.select": LayoutSelectPayload;
   "layout.confirm": LayoutSelectPayload;
@@ -845,7 +863,7 @@ export interface EventPayloads {
 }
 
 export type EventType = keyof EventPayloads;
-export const EVENT_TYPES = ["session.state", "session.joined", "session.left", "viewer.goto", "viewer.walk", "viewer.setTime", "viewer.setMode", "viewer.look", "design.showVariants", "layout.select", "layout.confirm", "sound.setScenario", "sound.placeSource", "sound.clearSource", "catalog.suggest", "catalog.picked", "capture.upload", "chat.user", "voice.transcript", "agent.token", "agent.message", "agent.action", "agent.error", "agent.turn", "job.progress", "family.note", "family.ask", "family.answer"] as const satisfies readonly EventType[];
+export const EVENT_TYPES = ["session.state", "session.joined", "session.left", "viewer.goto", "viewer.walk", "viewer.setTime", "viewer.setMode", "viewer.look", "viewer.step", "remote.view", "design.showVariants", "layout.select", "layout.confirm", "sound.setScenario", "sound.placeSource", "sound.clearSource", "catalog.suggest", "catalog.picked", "capture.upload", "chat.user", "voice.transcript", "agent.token", "agent.message", "agent.action", "agent.error", "agent.turn", "job.progress", "family.note", "family.ask", "family.answer"] as const satisfies readonly EventType[];
 
 /** The typed envelope for one known event type. */
 export interface Event<T extends EventType = EventType> {

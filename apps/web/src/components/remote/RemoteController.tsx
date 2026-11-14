@@ -10,19 +10,12 @@ import { Badge, Button, Notice, Segmented, Spinner, Toggle, cn } from '@/compone
 import { IconCamera, IconCheck, IconDesign, IconMap, IconMic, IconSend, IconSound, IconSun, IconTour } from '@/components/ui/icons';
 import { useInventory, useLayouts, useTwin } from '@/lib/data/hooks';
 import { visibleLayouts } from '@/lib/layouts';
-import { roomName, roomsOnFloor } from '@/lib/rooms';
+import { roomName } from '@/lib/rooms';
 import { usePushToTalk } from '@/lib/speech/usePushToTalk';
 import { useFamily, useMemberName } from '@/lib/store/family';
 import { useSession } from '@/lib/store/session';
+import { FloorTabs, PlanSvg, useFloor } from '@/components/house/HousePlan';
 import { LookPad } from './LookPad';
-
-const MODES: { mode: ViewerMode; label: string; icon: typeof IconTour }[] = [
-  { mode: 'tour', label: 'Tour', icon: IconTour },
-  { mode: 'sun', label: 'Sun', icon: IconSun },
-  { mode: 'sound', label: 'Sound', icon: IconSound },
-  { mode: 'neighborhood', label: 'Area', icon: IconMap },
-  { mode: 'design', label: 'Design', icon: IconDesign },
-];
 
 const AS_BUILT: NoiseScenario = { glazing: null, add_carpet: false, include_furniture: true };
 
@@ -32,36 +25,6 @@ function Card({ title, children, testId }: { title: string; children: ReactNode;
       <h2 className="mb-3 text-[11px] font-semibold tracking-wider text-faint uppercase">{title}</h2>
       {children}
     </section>
-  );
-}
-
-function Rooms({ twin }: { twin: PropertyTwin }) {
-  const roomId = useSession((s) => s.viewer.room_id);
-  const dispatch = useSession((s) => s.dispatch);
-  return (
-    <div className="space-y-3">
-      {[...twin.floors]
-        .sort((a, b) => b.index - a.index)
-        .map((floor) => (
-          <div key={floor.floor_id}>
-            <div className="mb-1.5 text-xs text-muted">Floor {floor.index + 1}</div>
-            <div className="flex flex-wrap gap-1.5">
-              {roomsOnFloor(twin, floor.floor_id).map((r) => (
-                  <button
-                    key={r.room_id}
-                    type="button"
-                    data-room-id={r.room_id}
-                    aria-pressed={r.room_id === roomId}
-                    onClick={() => dispatch('viewer.goto', { room_id: r.room_id })}
-                    className={cn('min-h-10 rounded-lg border px-3 text-sm', r.room_id === roomId ? 'border-sun bg-sun/15 text-sun-deep' : 'border-line text-muted active:bg-raised')}
-                  >
-                    {roomName(twin, r.room_id)}
-                  </button>
-              ))}
-            </div>
-          </div>
-        ))}
-    </div>
   );
 }
 
@@ -180,14 +143,14 @@ function SoundControls({ twin }: { twin: PropertyTwin }) {
  * The latest thing the agent said or did, so the phone user sees their words landed. In a family,
  * a phone shows its own member's conversation and the family board; the big screen shows all.
  */
-function AgentFeed({ memberId }: { memberId: string | null }) {
+function AgentFeed({ memberId, count = 4 }: { memberId: string | null; count?: number }) {
   const chat = useSession((s) => s.chat);
   const interim = useSession((s) => s.interim);
   const nameOf = useMemberName();
   const mine = memberId
     ? chat.filter((c) => (c.kind === 'ask' ? c.from_member_id === memberId || c.to_member_id === memberId : c.kind === 'note' || c.member_id === memberId))
     : chat;
-  const recent = mine.slice(-4);
+  const recent = mine.slice(-count);
   if (!recent.length && !interim) return <p className="text-sm leading-5 text-muted">Hold the button below and speak. For example: “Take me to the kitchen.”</p>;
   return (
     <div className="space-y-2" aria-live="polite" data-testid="remote-feed">
@@ -235,6 +198,51 @@ function AgentFeed({ memberId }: { memberId: string | null }) {
   );
 }
 
+type RemoteView = 'move' | 'rooms' | 'guide' | 'furniture' | 'light';
+const VIEWS: { view: RemoteView; label: string; icon: typeof IconTour }[] = [
+  { view: 'move', label: 'Move', icon: IconTour },
+  { view: 'rooms', label: 'Rooms', icon: IconMap },
+  { view: 'guide', label: 'Guide', icon: IconMic },
+  { view: 'furniture', label: 'Furniture', icon: IconDesign },
+  { view: 'light', label: 'Light', icon: IconSun },
+];
+
+/** Look by dragging; the arrows take one step or a quarter-turn. */
+function Move() {
+  const dispatch = useSession((s) => s.dispatch);
+  const arrow = 'flex h-14 w-14 items-center justify-center rounded-full border border-line bg-raised text-xl active:bg-ink';
+  return (
+    <div className="space-y-4">
+      <LookPad />
+      <div className="mx-auto grid w-fit grid-cols-3 gap-2" data-testid="step-pad">
+        <span />
+        <button type="button" aria-label="Step forward" className={arrow} onClick={() => dispatch('viewer.step', { direction: 'forward' })}>↑</button>
+        <span />
+        <button type="button" aria-label="Turn left" className={arrow} onClick={() => dispatch('viewer.look', { yaw_delta_deg: -45, pitch_delta_deg: 0 })}>←</button>
+        <button type="button" aria-label="Step back" className={arrow} onClick={() => dispatch('viewer.step', { direction: 'back' })}>↓</button>
+        <button type="button" aria-label="Turn right" className={arrow} onClick={() => dispatch('viewer.look', { yaw_delta_deg: 45, pitch_delta_deg: 0 })}>→</button>
+      </div>
+    </div>
+  );
+}
+
+/** The plan to tap. The big screen shows the same plan while this is open. */
+function RoomPlan({ twin, onPicked }: { twin: PropertyTwin; onPicked(): void }) {
+  const roomId = useSession((s) => s.viewer.room_id);
+  const dispatch = useSession((s) => s.dispatch);
+  const [floorId, setFloor] = useFloor(twin, roomId);
+  return (
+    <div className="space-y-2">
+      <div className="flex gap-1.5">
+        <FloorTabs twin={twin} floorId={floorId} onPick={setFloor} />
+      </div>
+      <PlanSvg twin={twin} floorId={floorId} roomId={roomId} className="w-full"
+        onPick={(id) => { dispatch('viewer.goto', { room_id: id }); onPicked(); }} />
+      <p className="text-xs text-muted">You are in {roomName(twin, roomId)}. Tap a room to go there.</p>
+    </div>
+  );
+}
+
 function Remote({ propertyId }: { propertyId: string }) {
   const twin = useTwin(propertyId || null);
   const me = useFamily((s) => s.me);
@@ -246,6 +254,13 @@ function Remote({ propertyId }: { propertyId: string }) {
   const { error: sessionError } = useSessionInfo();
   const ptt = usePushToTalk();
   const [text, setText] = useState('');
+  const [view, setView] = useState<RemoteView>('move');
+  const roomId = useSession((s) => s.viewer.room_id);
+
+  // The big screen follows the phone: it shows the floor plan while a room is being chosen.
+  useEffect(() => {
+    if (status === 'open') dispatch('remote.view', { view });
+  }, [view, status, dispatch]);
 
   // sweep -> room lookup comes from the twin, as on the desktop.
   useEffect(() => {
@@ -270,34 +285,17 @@ function Remote({ propertyId }: { propertyId: string }) {
   };
 
   return (
-    <div className="mx-auto flex min-h-dvh max-w-md flex-col" data-testid="remote" data-status={status} data-mode={mode}>
-      <header className="sticky top-0 z-20 border-b border-line bg-ink/95 px-4 pt-[max(12px,env(safe-area-inset-top))] pb-3 backdrop-blur">
-        <div className="flex items-center justify-between gap-3">
-          <div className="flex min-w-0 items-center gap-2 font-display text-base font-semibold">
-            <span className="h-3 w-3 shrink-0 rounded-full bg-sun shadow-[0_0_0_1.5px_var(--color-main)]" />
-            {/* In a family, the phone says whose it is: "Maya · The Riveras". */}
-            <span className="truncate">{me ? `${me.name} · ${household?.name ?? 'Family'}` : 'Ithaca remote'}</span>
-          </div>
-          <Badge tone={status === 'open' ? (desktopOn ? 'leaf' : 'sun') : 'danger'}>{status === 'open' ? (desktopOn ? 'connected' : 'waiting for desktop') : status}</Badge>
+    <div className="mx-auto flex h-dvh max-w-md flex-col" data-testid="remote" data-status={status} data-mode={mode} data-view={view}>
+      <header className="flex shrink-0 items-center justify-between gap-3 border-b border-line bg-ink/95 px-4 pt-[max(12px,env(safe-area-inset-top))] pb-3">
+        <div className="flex min-w-0 items-center gap-2 font-display text-base font-semibold">
+          <span className="h-3 w-3 shrink-0 rounded-full bg-sun shadow-[0_0_0_1.5px_var(--color-main)]" />
+          {/* In a family, the phone says whose it is: "Maya · The Riveras". */}
+          <span className="truncate">{me ? `${me.name} · ${household?.name ?? 'Family'}` : 'Ithaca remote'}</span>
         </div>
-        <nav aria-label="Views" className="mt-3 grid grid-cols-5 gap-1 rounded-xl border border-line bg-surface p-1">
-          {MODES.map(({ mode: m, label, icon: Icon }) => (
-            <button
-              key={m}
-              type="button"
-              data-tab={m}
-              aria-pressed={m === mode}
-              onClick={() => dispatch('viewer.setMode', { mode: m })}
-              className={cn('flex flex-col items-center gap-1 rounded-lg py-2 text-[11px]', m === mode ? 'bg-raised text-sun-deep' : 'text-muted')}
-            >
-              <Icon width={18} height={18} />
-              {label}
-            </button>
-          ))}
-        </nav>
+        <Badge tone={status === 'open' ? (desktopOn ? 'leaf' : 'sun') : 'danger'}>{status === 'open' ? (desktopOn ? 'connected' : 'waiting for desktop') : status}</Badge>
       </header>
 
-      <main className="flex-1 space-y-3 px-4 py-4 pb-40">
+      <main className="min-h-0 flex-1 space-y-3 overflow-y-auto px-4 py-4">
         {sessionError && (
           <Notice tone="error" title="Could not join the session">
             {sessionError}. Pairing codes are single-use and expire after 10 minutes: ask for a new code on the desktop.
@@ -309,85 +307,93 @@ function Remote({ propertyId }: { propertyId: string }) {
           </Notice>
         )}
         {!twin.data && !twin.error && <Spinner label="Loading the home…" />}
-        {twin.data && (
+        {twin.data && view === 'move' && (
+          <Card title={`Look and walk · ${roomName(twin.data, roomId)}`}>
+            <Move />
+          </Card>
+        )}
+        {twin.data && view === 'rooms' && (
+          <Card title="Rooms" testId="remote-rooms">
+            <RoomPlan twin={twin.data} onPicked={() => setView('move')} />
+          </Card>
+        )}
+        {twin.data && view === 'guide' && (
+          <Card title="Your guide">
+            <AgentFeed memberId={me?.member_id ?? null} count={12} />
+            <form className="mt-3 flex gap-2" onSubmit={(e) => { e.preventDefault(); send(); }}>
+              <input value={text} onChange={(e) => setText(e.target.value)} placeholder="Type to the guide" aria-label="Message the guide"
+                className="h-12 min-w-0 flex-1 rounded-xl border border-line bg-surface px-3 text-base placeholder:text-faint focus:border-line-strong focus:outline-none" />
+              <Button type="submit" variant="subtle" size="lg" square aria-label="Send" disabled={!text.trim()}>
+                <IconSend width={18} height={18} />
+              </Button>
+            </form>
+          </Card>
+        )}
+        {twin.data && view === 'furniture' && (
           <>
-            {(mode === 'tour' || mode === 'sun') && (
-              <Card title="Look around">
-                <LookPad />
-              </Card>
-            )}
-            {mode !== 'neighborhood' && (
-              <Card title="Time of day" testId="remote-time">
-                <TimeScrubber twin={twin.data} compact />
-              </Card>
-            )}
-            {mode === 'sound' && (
-              <Card title="Sound">
-                <SoundControls twin={twin.data} />
-              </Card>
-            )}
-            {(mode === 'design' || mode === 'tour' || mode === 'sun') && (
-              <Card title="Layouts" testId="remote-layouts">
-                <Variants twin={twin.data} />
-              </Card>
-            )}
-            {mode !== 'neighborhood' && (
-              <Card title="Rooms" testId="remote-rooms">
-                <Rooms twin={twin.data} />
-              </Card>
-            )}
-            <Card title="Add furniture">
+            <Card title="Layouts" testId="remote-layouts">
+              <Variants twin={twin.data} />
+            </Card>
+            <Card title="Add a piece from a photo">
               <Capture />
+            </Card>
+          </>
+        )}
+        {twin.data && view === 'light' && (
+          <>
+            <Card title="Time of day" testId="remote-time">
+              <TimeScrubber twin={twin.data} compact />
+            </Card>
+            <Card title="On the big screen">
+              <Segmented<ViewerMode>
+                className="w-full [&>button]:flex-1 [&>button]:justify-center"
+                label="What the big screen shows"
+                value={mode === 'sun' ? 'sun' : 'tour'}
+                options={[{ value: 'tour', label: 'Walkthrough' }, { value: 'sun', label: 'Sunlight' }]}
+                onChange={(m) => dispatch('viewer.setMode', { mode: m })}
+              />
+              <p className="mt-2 text-xs text-muted">Sunlight shows where the sun falls at the time above. The walkthrough is the scan as it was photographed.</p>
+            </Card>
+            <Card title="Sound">
+              <SoundControls twin={twin.data} />
             </Card>
           </>
         )}
       </main>
 
-      <footer className="fixed inset-x-0 bottom-0 z-30 border-t border-line bg-ink/95 backdrop-blur">
-        <div className="mx-auto max-w-md space-y-3 px-4 pt-3 pb-[max(12px,env(safe-area-inset-bottom))]">
-          <AgentFeed memberId={me?.member_id ?? null} />
-          {ptt.error && <p className="text-xs text-danger">{ptt.error}</p>}
-          <div className="flex items-center gap-2">
-            <form
-              className="flex min-w-0 flex-1 gap-2"
-              onSubmit={(e) => {
-                e.preventDefault();
-                send();
-              }}
-            >
-              <input
-                value={text}
-                onChange={(e) => setText(e.target.value)}
-                placeholder="Type to the agent"
-                aria-label="Message the agent"
-                className="h-12 min-w-0 flex-1 rounded-xl border border-line bg-surface px-3 text-base placeholder:text-faint focus:border-line-strong focus:outline-none"
-              />
-              {text.trim() && (
-                <Button type="submit" variant="subtle" size="lg" square aria-label="Send">
-                  <IconSend width={18} height={18} />
-                </Button>
-              )}
-            </form>
-            <Button
-              variant={ptt.listening ? 'primary' : 'subtle'}
-              size="lg"
-              disabled={!ptt.supported}
-              aria-label="Hold to talk to the agent"
-              title={ptt.supported ? 'Hold to talk' : 'Speech recognition is not available in this browser'}
-              data-testid="ptt"
-              className={cn('touch-none select-none', ptt.listening && 'scale-105')}
-              onPointerDown={(e) => {
-                e.currentTarget.setPointerCapture(e.pointerId);
-                ptt.start();
-              }}
-              onPointerUp={ptt.stop}
-              onPointerCancel={ptt.stop}
-              onContextMenu={(e) => e.preventDefault()}
-            >
-              <IconMic width={20} height={20} /> {ptt.listening ? 'Listening' : 'Hold to talk'}
-            </Button>
-          </div>
+      <footer className="shrink-0 border-t border-line bg-ink/95">
+        {/* Talk is on every screen; the guide's last words show here unless its own screen is open. */}
+        <div className="flex items-end gap-3 px-4 pt-3">
+          <div className="min-w-0 flex-1">{view !== 'guide' && <AgentFeed memberId={me?.member_id ?? null} count={1} />}</div>
+          <Button
+            variant={ptt.listening ? 'primary' : 'subtle'}
+            size="lg"
+            disabled={!ptt.supported}
+            aria-label="Hold to talk to the guide"
+            title={ptt.supported ? 'Hold to talk' : 'Speech recognition is not available in this browser'}
+            data-testid="ptt"
+            className={cn('shrink-0 touch-none select-none', ptt.listening && 'scale-105')}
+            onPointerDown={(e) => {
+              e.currentTarget.setPointerCapture(e.pointerId);
+              ptt.start();
+            }}
+            onPointerUp={ptt.stop}
+            onPointerCancel={ptt.stop}
+            onContextMenu={(e) => e.preventDefault()}
+          >
+            <IconMic width={20} height={20} /> {ptt.listening ? 'Listening' : 'Hold to talk'}
+          </Button>
         </div>
+        {ptt.error && <p className="px-4 pt-1 text-xs text-danger">{ptt.error}</p>}
+        <nav aria-label="Remote screens" className="mt-3 grid grid-cols-5 border-t border-line pb-[max(8px,env(safe-area-inset-bottom))]">
+          {VIEWS.map(({ view: v, label, icon: Icon }) => (
+            <button key={v} type="button" data-tab={v} aria-pressed={v === view} onClick={() => setView(v)}
+              className={cn('flex flex-col items-center gap-1 pt-2.5 pb-1 text-[11px]', v === view ? 'font-semibold text-sun-deep' : 'text-muted')}>
+              <Icon width={20} height={20} />
+              {label}
+            </button>
+          ))}
+        </nav>
       </footer>
     </div>
   );

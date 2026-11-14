@@ -339,6 +339,61 @@ export function TourTab({ twin, active }: { twin: PropertyTwin; active: boolean 
     });
   }, [sdk]);
 
+  // viewer.step (the phone's arrows): hop to the neighbouring scan position that lies most nearly
+  // ahead of (or behind) the way the camera faces, keeping the camera's direction.
+  useEffect(() => {
+    if (!sdk) return;
+    let rotation = { x: 0, y: 0 };
+    let here: string | null = null;
+    const poseSub = sdk.Camera.pose.subscribe((pose) => {
+      rotation = { x: pose.rotation.x, y: pose.rotation.y };
+    });
+    const sweepSub = sdk.Sweep.current.subscribe((current) => {
+      if (current.id) here = current.id;
+    });
+    const off = onSessionEvent((event) => {
+      if (event.type !== 'viewer.step' || useSession.getState().viewer.mode !== 'tour' || !here || moving.current) return;
+      const from = sweepPosition(here);
+      const neighbors = twin.sweeps.find((s) => s.sweep_id === here)?.neighbors ?? [];
+      if (!from || !neighbors.length) return;
+      // Showcase yaw: 0 looks along -Z, positive turns left.
+      const yaw = (rotation.y * Math.PI) / 180;
+      const sign = event.payload.direction === 'forward' ? 1 : -1;
+      const fx = -Math.sin(yaw) * sign;
+      const fz = -Math.cos(yaw) * sign;
+      let best: string | null = null;
+      let bestScore = 0.35; // within about 70 degrees of straight ahead
+      for (const id of neighbors) {
+        const to = sweepPosition(id);
+        if (!to || (sdkSweeps.current.size && !sdkSweeps.current.has(id))) continue;
+        const dx = to.x - from.x;
+        const dz = to.z - from.z;
+        const dist = Math.hypot(dx, dz);
+        if (dist < 0.2) continue;
+        // Straight ahead first, then the nearer one.
+        const score = (dx * fx + dz * fz) / dist - dist * 0.03;
+        if (score > bestScore) {
+          bestScore = score;
+          best = id;
+        }
+      }
+      if (!best) return;
+      ++walkToken.current;
+      moving.current = true;
+      void sdk.Sweep.moveTo(best, { transition: sdk.Sweep.Transition.FLY, transitionTime: 650, rotation: { x: rotation.x, y: rotation.y } })
+        .catch((err: unknown) => console.warn('[tour] step failed', err))
+        .finally(() => {
+          moving.current = false;
+          runQueued();
+        });
+    });
+    return () => {
+      poseSub.cancel();
+      sweepSub.cancel();
+      off();
+    };
+  }, [sdk, twin, runQueued, sweepPosition]);
+
   // Hand control: a pinch-drag turns the view, both hands pinching zoom. The viewer takes one
   // camera call at a time, so movement gathers while a call is out and goes in the next one.
   useEffect(() => {

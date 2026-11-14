@@ -1,4 +1,4 @@
-import type { AnyEvent, CatalogPiece, ClientKind, EventSource, JobProgressPayload, SoundSetScenarioPayload, ViewerMode, ViewerState } from '@ithaca/schema';
+import type { AnyEvent, CatalogPiece, ClientKind, EventSource, JobProgressPayload, SoundSetScenarioPayload, ViewerMode, ViewerState, RemoteViewPayload } from '@ithaca/schema';
 
 /**
  * Viewer state and its reducer (A1). Every change to what the viewer shows is an event:
@@ -56,6 +56,8 @@ export interface CoreState {
   members: Record<string, MemberPresence>;
   /** sweep_id -> room_id, from the twin, so a goto by sweep also updates the room. */
   sweepRooms: Record<string, string | null>;
+  /** The screen the phone remote is on, while a phone is connected. */
+  remoteView: RemoteViewPayload['view'] | null;
 }
 
 const MAX_CHAT = 300;
@@ -67,6 +69,7 @@ export function initialCore(datetime: string): CoreState {
     interim: null,
     jobs: {},
     peers: { desktop: false, phone: false },
+    remoteView: null,
     members: {},
     sweepRooms: {},
   };
@@ -108,7 +111,7 @@ export function applyEvent(state: CoreState, event: AnyEvent): CoreState {
         const members = { ...state.members, [member_id]: { name: state.members[member_id]?.name ?? 'Someone', connected: false } };
         return { ...state, members, peers: { ...state.peers, phone: Object.values(members).some((m) => m.connected) } };
       }
-      return { ...state, peers: { ...state.peers, [client]: false } };
+      return { ...state, peers: { ...state.peers, [client]: false }, remoteView: client === 'phone' ? null : state.remoteView };
     }
     case 'viewer.goto': {
       const { room_id, sweep_id, at_sweep_id, look_at } = event.payload;
@@ -197,8 +200,11 @@ export function applyEvent(state: CoreState, event: AnyEvent): CoreState {
       const p = event.payload;
       return { ...state, chat: push(state.chat, { kind: 'catalog', id: event.id, property_id: p.property_id, room_id: p.room_id ?? null, near_item_id: p.near_item_id ?? null, pieces: p.pieces, member_id: event.member_id ?? null }) };
     }
+    case 'remote.view':
+      return { ...state, remoteView: event.payload.view };
     case 'catalog.picked': // the user's click; the agent is told by the server
     case 'layout.confirm': // "keep this layout": the agent records it; the view already shows it
+    case 'viewer.step': // a camera move, like viewer.look
     case 'viewer.look':
     case 'capture.upload':
     case 'sound.placeSource': // TODO(A): C's place-a-sound demo (docs/handoffs/stream-a)
