@@ -36,9 +36,17 @@ export function SunLabTab({ twin, active }: { twin: PropertyTwin; active: boolea
   const [view, setView] = useState<SunLabView>(() => (room ? { kind: 'room', room, seq: 0 } : { kind: 'overview', seq: 0 }));
   const [ready, setReady] = useState(false);
   const [assetError, setAssetError] = useState<string | null>(null);
-  const [panelOpen, setPanelOpen] = useState(true);
-  const [heatmapOn, setHeatmapOn] = useState(true);
-  const [showOpenings, setShowOpenings] = useState(true);
+  // A clean view first: the live sun on the scan. Numbers, heatmap and window outlines are a click away.
+  const [panelOpen, setPanelOpen] = useState(false);
+  const [heatmapOn, setHeatmapOn] = useState(false);
+  const [showOpenings, setShowOpenings] = useState(false);
+
+  // Start indoors: with no room chosen yet, go to the main room. A viewer.goto like any other (A1).
+  useEffect(() => {
+    if (!active || useSession.getState().viewer.room_id) return;
+    const target = defaultRoom(twin);
+    if (target) dispatch('viewer.goto', { room_id: target.room_id });
+  }, [active, twin, dispatch]);
 
   // viewer.goto flies the camera into the room.
   useEffect(() => {

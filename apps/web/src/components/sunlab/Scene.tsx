@@ -71,6 +71,16 @@ export interface SceneProps {
 
 const CsmContext = createContext<CSM | null>(null);
 
+/**
+ * Scan materials whose photo texture also glows a little. The glow stands in for the light
+ * that was baked into the photos; it follows the daylight, so rooms dim at dusk and at night
+ * and the simulated sun patch stands out during the day.
+ */
+const glowMaterials = new Set<MeshStandardMaterial>();
+/** Glow of a scan texture by day and by night (a lamp-lit room, not pitch black). */
+const GLOW_DAY = 0.16;
+const GLOW_NIGHT = 0.07;
+
 const NIGHT = new Color('#0a0e18');
 const DUSK = new Color('#d98a5a');
 const DAY = new Color('#a9c9e6');
@@ -130,10 +140,12 @@ function SunRig({ sun, children }: { sun: SunState; children: ReactNode }) {
     csm.lightDirection.set(-direction[0], -Math.max(0.02, direction[1]), -direction[2]).normalize();
     sunColor.copy(SUN_LOW).lerp(SUN_HIGH, smoothstep(2, 30, el));
     for (const light of csm.lights) {
-      light.intensity = 3.0 * up;
+      light.intensity = 4.2 * up;
       light.color.copy(sunColor);
       light.castShadow = up > 0;
     }
+    const glow = GLOW_NIGHT + (GLOW_DAY - GLOW_NIGHT) * smoothstep(-6, 12, el);
+    for (const m of glowMaterials) m.emissiveIntensity = glow;
     background.copy(NIGHT).lerp(DUSK, smoothstep(-8, 1, el) * (1 - smoothstep(4, 18, el)) * 0.7).lerp(DAY, smoothstep(-2, 16, el));
     csm.update();
   });
@@ -143,8 +155,8 @@ function SunRig({ sun, children }: { sun: SunState; children: ReactNode }) {
   return (
     <CsmContext.Provider value={csm}>
       {/* Sky fill is kept low so that direct sun and shadow read clearly. */}
-      <hemisphereLight args={['#dbe9ff', '#8a7f72', 0.12 + 0.42 * day]} />
-      <ambientLight intensity={0.05 + 0.05 * day} />
+      <hemisphereLight args={['#dbe9ff', '#8a7f72', 0.06 + 0.3 * day]} />
+      <ambientLight intensity={0.03 + 0.04 * day} />
       {children}
     </CsmContext.Provider>
   );
@@ -156,7 +168,7 @@ function SunRig({ sun, children }: { sun: SunState; children: ReactNode }) {
 
 /** Clone a loaded glTF scene with lit, shadowed materials that are registered with the CSM. */
 function useLitScene(source: Object3D, csm: CSM, opts: { portalUniforms?: PortalUniforms; roughness?: number } = {}): Object3D {
-  return useMemo(() => {
+  const scene = useMemo(() => {
     const root = source.clone(true);
     const depth = opts.portalUniforms ? createPortalDepthMaterial(opts.portalUniforms) : undefined;
     // One lit material per source material: a textured scan has one material per texture atlas,
@@ -178,7 +190,7 @@ function useLitScene(source: Object3D, csm: CSM, opts: { portalUniforms?: Portal
           // so rooms that the simulated sun does not reach stay readable.
           emissive: new Color(map ? '#ffffff' : '#000000'),
           emissiveMap: map,
-          emissiveIntensity: map ? 0.22 : 0,
+          emissiveIntensity: map ? GLOW_DAY : 0,
           roughness: opts.roughness ?? src?.roughness ?? 0.9,
           metalness: 0,
           side: src?.side ?? FrontSide,
@@ -186,6 +198,7 @@ function useLitScene(source: Object3D, csm: CSM, opts: { portalUniforms?: Portal
           shadowSide: DoubleSide,
         });
         csm.setupMaterial(material);
+        if (map) glowMaterials.add(material);
         if (src) lit.set(src.uuid, material);
       }
       mesh.material = material;
@@ -195,6 +208,18 @@ function useLitScene(source: Object3D, csm: CSM, opts: { portalUniforms?: Portal
     });
     return root;
   }, [source, csm, opts.portalUniforms, opts.roughness]);
+
+  // Stop driving the glow of materials that are no longer shown.
+  useEffect(
+    () => () => {
+      scene.traverse((node) => {
+        const material = (node as Mesh).material;
+        if (material && !Array.isArray(material)) glowMaterials.delete(material as MeshStandardMaterial);
+      });
+    },
+    [scene],
+  );
+  return scene;
 }
 
 function Interior({ url, portalUniforms, onWallClick, onReady }: { url: string; portalUniforms: PortalUniforms; onWallClick: SceneProps['onWallClick']; onReady(): void }) {
@@ -385,28 +410,67 @@ function houseBounds(twin: PropertyTwin): { center: Vector3; radius: number } {
 }
 
 /** Where to stand in a room: across from its main window, looking at the middle. */
-function roomCamera(room: Room, openings: Opening[]): { position: Vector3; target: Vector3; reach: number } {
+const centerOf = (o: Opening) => o.polygon.reduce<Vector3>((acc, p) => acc.add(new Vector3(p.x, p.y, p.z)), new Vector3()).multiplyScalar(1 / o.polygon.length);
+const openingArea = (o: Opening) => {
+  const [p0, p1, , p3] = o.polygon;
+  return p0 && p1 && p3 ? Math.hypot(p1.x - p0.x, p1.z - p0.z) * Math.abs(p3.y - p0.y) : 0;
+};
+
+/**
+ * Where to stand in a room, and where to look.
+ *
+ * Eye: a Matterport scan position in the room. Those are known to be open floor at eye height,
+ * which a point computed from the outline is not (columns, L-shapes). Of the scan positions that
+ * see the room's largest window across open floor, the one nearest 5 m from it: the view takes in
+ * the room and the floor in front of the window, where the sun lands. A room without windows
+ * uses the scan position nearest its middle and looks at the middle.
+ */
+function roomCamera(room: Room, openings: Opening[], sweeps: PropertyTwin['sweeps']): { position: Vector3; target: Vector3; reach: number } {
   const [cx, cz] = centroid(room.polygon);
+  const middle = new Vector3(cx, room.floor_y + 0.9, cz);
+  const windows = openings.filter((o) => o.room_id === room.room_id && passesLight(o) && o.polygon.length >= 4).sort((a, b) => openingArea(b) - openingArea(a));
+  const win = windows[0] && centerOf(windows[0]);
+  const inRoom = sweeps.filter((s) => s.room_id === room.room_id);
+
+  // Open floor all the way: sample the line, stopping short of the wall the window is in.
+  const seesAcrossFloor = (x: number, z: number, tx: number, tz: number) => {
+    for (let t = 0.05; t <= 0.9; t += 0.05) if (!pointInPolygon([x + (tx - x) * t, z + (tz - z) * t], room.polygon)) return false;
+    return true;
+  };
+  const byDistance = (x: number, z: number) => (a: (typeof inRoom)[number], b: (typeof inRoom)[number]) => Math.hypot(a.position.x - x, a.position.z - z) - Math.hypot(b.position.x - x, b.position.z - z);
+  // About 5 m back: far enough to take in the room, near enough that a big room's far end
+  // (behind stairs or furniture) is not chosen.
+  const BACK_M = 5;
+  const back = (x: number, z: number) => Math.abs(Math.hypot(x - win!.x, z - win!.z) - BACK_M);
+  const spot = win
+    ? inRoom.filter((s) => seesAcrossFloor(s.position.x, s.position.z, win.x, win.z)).sort((a, b) => back(a.position.x, a.position.z) - back(b.position.x, b.position.z))[0]
+    : undefined;
+  const chosen = spot ?? [...inRoom].sort(byDistance(cx, cz))[0];
+  const eye = chosen ? new Vector3(chosen.position.x, room.floor_y + 1.6, chosen.position.z) : null;
+
+  let target = middle;
+  if (win && (!eye || Math.hypot(win.x - eye.x, win.z - eye.z) > 1.2)) target = new Vector3(win.x, room.floor_y + 0.9, win.z);
+
+  if (eye) {
+    // Too close to the target to see anything: look across the room instead.
+    if (Math.hypot(target.x - eye.x, target.z - eye.z) < 1) target = middle;
+    return { position: eye, target, reach: Math.max(1.5, eye.distanceTo(target)) };
+  }
+
+  // No scan position in this room: stand back from the middle, away from the window.
   const b = bounds(room.polygon);
-  let dx = b.maxX - b.minX >= b.maxZ - b.minZ ? 1 : 0;
-  let dz = 1 - dx;
-  const win = openings.filter((o) => o.room_id === room.room_id && passesLight(o) && o.polygon.length >= 4)[0];
+  let dx = 1;
+  let dz = 0;
   if (win) {
-    const wx = win.polygon.reduce((s, p) => s + p.x, 0) / win.polygon.length - cx;
-    const wz = win.polygon.reduce((s, p) => s + p.z, 0) / win.polygon.length - cz;
-    const l = Math.hypot(wx, wz);
+    const l = Math.hypot(win.x - cx, win.z - cz);
     if (l > 0.2) {
-      dx = -wx / l;
-      dz = -wz / l;
+      dx = -(win.x - cx) / l;
+      dz = -(win.z - cz) / l;
     }
   }
   let reach = Math.min(4, Math.max(1.1, 0.42 * Math.max(b.maxX - b.minX, b.maxZ - b.minZ)));
   while (reach > 0.6 && !pointInPolygon([cx + dx * reach, cz + dz * reach], room.polygon)) reach *= 0.85;
-  return {
-    position: new Vector3(cx + dx * reach, room.floor_y + 1.7, cz + dz * reach),
-    target: new Vector3(cx, room.floor_y + 1.0, cz),
-    reach,
-  };
+  return { position: new Vector3(cx + dx * reach, room.floor_y + 1.6, cz + dz * reach), target, reach };
 }
 
 function CameraRig({ twin, openings, view }: { twin: PropertyTwin; openings: Opening[]; view: SunLabView }) {
@@ -422,7 +486,7 @@ function CameraRig({ twin, openings, view }: { twin: PropertyTwin; openings: Ope
     const animate = !first.current;
     first.current = false;
     if (view.kind === 'room') {
-      const cam = roomCamera(view.room, openingsRef.current);
+      const cam = roomCamera(view.room, openingsRef.current, twin.sweeps);
       c.minDistance = 0.4;
       c.maxDistance = Math.max(1.5, cam.reach * 1.5);
       void c.setLookAt(cam.position.x, cam.position.y, cam.position.z, cam.target.x, cam.target.y, cam.target.z, animate);
@@ -432,7 +496,7 @@ function CameraRig({ twin, openings, view }: { twin: PropertyTwin; openings: Ope
       c.maxDistance = 260;
       void c.setLookAt(house.center.x - r * 0.9, house.center.y + r * 1.25, house.center.z + r * 1.15, house.center.x, house.center.y, house.center.z, animate);
     }
-  }, [view, house]);
+  }, [view, house, twin.sweeps]);
 
   // viewer.look from the phone joystick / gyroscope.
   useEffect(
