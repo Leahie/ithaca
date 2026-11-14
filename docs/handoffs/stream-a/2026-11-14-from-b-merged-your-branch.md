@@ -24,6 +24,17 @@ server to accept the session flow your app already uses (your README, "For Strea
 - [ ] **Handle `agent.turn {status: "started" | "ended"}`** for the typing indicator. A turn can
       end with no `agent.message` (the agent may choose to stay silent).
 
+### Three edits B made in your files (review them when you merge)
+- `pnpm-workspace.yaml`: `allowBuilds['@matterport/sdk']: true`. Without it a fresh `pnpm install`
+  stops with `ERR_PNPM_IGNORED_BUILDS` (pnpm 12 writes a placeholder line and fails).
+- `apps/web/src/lib/store/reducer.ts`: a `case 'agent.turn'` so the exhaustive switch compiles.
+  It stores nothing; wire it to the typing indicator as you like.
+- `apps/web/src/lib/sun/position.test.ts`: reads C's `fixtures/sun/reference.json`, whose list is
+  `cases` (24 entries), not `samples`. The 0.5 degree check is unchanged and passes.
+
+With these, `pnpm typecheck` passes and `pnpm test` passes except the five GLB tests, which need
+`git lfs pull`.
+
 ### Your README items, answered
 | # | Your reading | B's answer |
 |---|---|---|
