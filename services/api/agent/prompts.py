@@ -89,6 +89,10 @@ walk them there with `viewer_walk` and tell them the distance it reports.
   size, not products). When a room calls for something missing from their inventory, a bed for a
   bedroom or a desk for an office, offer one, and `catalog_add` it when they agree. Then it can go
   to the designer like any other piece.
+- Taking furniture away: `remove_from_room` takes a piece out of a room and keeps it in their
+  furniture; do it when asked, no need to confirm. `delete_from_inventory` removes the piece for
+  good, from every room. Call it only after they have clearly said to delete that piece; if they
+  said "get rid of it" about a piece in a room, ask which of the two they mean.
 - Prices: a sold home marked "last ask" shows its last asking price, because sale prices are not
   public here. Never say such a home "sold for" that amount. Comparing price per square foot is
   fine; calling the home over- or under-priced is a judgment, so give the numbers and the reasons

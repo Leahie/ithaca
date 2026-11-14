@@ -31,7 +31,8 @@ const norm = (deg: number) => ((deg % 360) + 360) % 360;
 /**
  * Top-down plan of one layout that the user edits by hand: drag a piece to move it anywhere in
  * the room, drag its round handle (or use the buttons, or Q / E) to turn it to any angle. Arrow
- * keys nudge the selected piece 5 cm. A change is sent when the pointer is released; the server
+ * keys nudge the selected piece 5 cm; Remove (or Delete) takes it out of the room. A change is sent
+ * when the pointer is released; the server
  * keeps it and may answer with warnings (an overlap, a blocked door), which are shown but never
  * block. Seen from above: +X is right and +Z is down the page, as in PlanPreview.
  */
@@ -131,8 +132,26 @@ export function PlanEditor({ room, openings, layout, items, className }: Props) 
     void commit(id, next);
   };
 
+  /** Take a piece out of the room. It stays in the user's furniture. */
+  const remove = async (id: string) => {
+    try {
+      await api().removePlacement(layout.layout_id, id);
+      setSelected(null);
+      setNote(null);
+      invalidate('layouts:');
+      invalidate('layout:');
+    } catch (err) {
+      setNote({ tone: 'error', text: err instanceof Error ? err.message : String(err) });
+    }
+  };
+
   const onKeyDown = (e: React.KeyboardEvent) => {
     if (!selected) return;
+    if (e.key === 'Delete' || e.key === 'Backspace') {
+      e.preventDefault();
+      void remove(selected);
+      return;
+    }
     const step = e.shiftKey ? NUDGE_M * 4 : NUDGE_M;
     const moves: Record<string, (p: Pose) => Pose> = {
       ArrowLeft: (p) => ({ ...p, x: p.x - step }),
@@ -247,6 +266,9 @@ export function PlanEditor({ room, openings, layout, items, className }: Props) 
               90°
             </button>
             <span className="ml-auto tabular-nums text-muted">{Math.round(norm(selectedPose.yaw))}°</span>
+            <button type="button" className="rounded-full bg-ink px-2.5 py-1 hover:bg-raised" onClick={() => void remove(selected!)} title="Take this piece out of the room. It stays in your furniture.">
+              Remove
+            </button>
           </>
         ) : (
           <span className="text-muted">Drag a piece to move it. Select it to turn it.</span>

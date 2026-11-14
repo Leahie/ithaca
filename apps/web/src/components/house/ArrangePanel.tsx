@@ -36,6 +36,20 @@ export function ArrangePanel({ twin, onClose }: { twin: PropertyTwin; onClose():
   const dispatch = useSession((s) => s.dispatch);
   const [browsing, setBrowsing] = useState(false);
   const [placeError, setPlaceError] = useState<string | null>(null);
+  const [deleting, setDeleting] = useState<string | null>(null);
+
+  /** Delete a piece from the user's furniture for good (it also leaves any room it stood in). */
+  const discard = async (item: InventoryItem) => {
+    setDeleting(null);
+    try {
+      await api().deleteInventoryItem(item.item_id);
+      invalidate('inventory');
+      invalidate('layouts:');
+      invalidate('layout:');
+    } catch (err) {
+      setPlaceError(err instanceof Error ? err.message : String(err));
+    }
+  };
   // Where a new piece goes: the room of the layout on screen, else the room the user is in.
   const targetRoom = room ?? twin.rooms.find((r) => r.room_id === viewRoomId);
   const placed = new Set((layout?.placements ?? []).map((p) => p.item_id));
@@ -94,11 +108,29 @@ export function ArrangePanel({ twin, onClose }: { twin: PropertyTwin; onClose():
       {!browsing && unplaced.length > 0 && (
         <div className="mt-2 flex flex-wrap items-center gap-1.5 border-t border-line pt-2 text-sm">
           <span className="text-muted">Your furniture:</span>
-          {unplaced.slice(0, 8).map((i) => (
-            <button key={i.item_id} type="button" onClick={() => void place(i)} className="rounded-full bg-ink px-2.5 py-1 hover:bg-raised" title={`Place ${i.label} in this room`}>
-              + {i.label}
-            </button>
-          ))}
+          {unplaced.slice(0, 8).map((i) =>
+            deleting === i.item_id ? (
+              // Deleting can't be undone, so it takes a second, explicit click.
+              <span key={i.item_id} className="inline-flex items-center gap-1 rounded-full bg-ink py-1 pl-2.5 pr-1">
+                Delete {i.label} for good?
+                <button type="button" onClick={() => void discard(i)} className="rounded-full bg-danger px-2 py-0.5 font-semibold text-surface">
+                  Delete
+                </button>
+                <button type="button" onClick={() => setDeleting(null)} className="rounded-full px-2 py-0.5 hover:bg-raised">
+                  Keep
+                </button>
+              </span>
+            ) : (
+              <span key={i.item_id} className="inline-flex items-center rounded-full bg-ink">
+                <button type="button" onClick={() => void place(i)} className="rounded-l-full py-1 pl-2.5 pr-1.5 hover:bg-raised" title={`Place ${i.label} in this room`}>
+                  + {i.label}
+                </button>
+                <button type="button" onClick={() => setDeleting(i.item_id)} className="rounded-r-full py-1 pl-1 pr-2 text-muted hover:bg-raised hover:text-danger" aria-label={`Delete ${i.label} from your furniture`} title="Delete from your furniture">
+                  ×
+                </button>
+              </span>
+            ),
+          )}
         </div>
       )}
       {placeError && <p role="alert" className="mt-1 text-sm text-danger">{placeError}</p>}

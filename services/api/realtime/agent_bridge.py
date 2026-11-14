@@ -61,6 +61,8 @@ def action_summary(tool: str, args: dict) -> str:
         "propose_layouts": "Arranging the room",
         "catalog_search": "Looking through the furniture catalog",
         "catalog_add": "Adding a piece to your furniture",
+        "remove_from_room": "Taking a piece out of the room",
+        "delete_from_inventory": "Deleting a piece from your furniture",
         "design_apply_layout": "Placing that option in the room",
         "design_show_variants": "Showing layouts",
         "area_profile": "Looking up the listing and nearby homes",

@@ -73,6 +73,7 @@ export function createHttpApi(): ApiClient {
     selectLayout: (id) => request(`/layouts/${enc(id)}/select`, { method: 'POST' }),
     layoutFeedback: (id, feedback) => request(`/layouts/${enc(id)}/feedback`, { method: 'POST', body: JSON.stringify({ feedback }) }),
     movePlacement: (id, itemId, pose) => request(`/layouts/${enc(id)}/placements/${enc(itemId)}`, { method: 'PUT', body: JSON.stringify(pose) }),
+    removePlacement: (id, itemId) => request(`/layouts/${enc(id)}/placements/${enc(itemId)}`, { method: 'DELETE' }),
     dropItem: (drop) => request('/layouts/drop', { method: 'POST', body: JSON.stringify(drop) }),
     listCatalog: () => request('/catalog'),
     addFromCatalog: (catalogId) => request(`/catalog/${enc(catalogId)}/add`, { method: 'POST' }),

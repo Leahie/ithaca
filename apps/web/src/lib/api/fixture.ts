@@ -292,6 +292,12 @@ export function createFixtureApi(): ApiClient {
       patchOverlay((o) => (o.layouts[id] = { ...o.layouts[id], placements }));
       return { ...layout, placements };
     },
+    async removePlacement(id, itemId) {
+      const layout = withOverlay(await findLayout(id), readOverlay());
+      const placements = layout.placements.filter((p) => p.item_id !== itemId);
+      patchOverlay((o) => (o.layouts[id] = { ...o.layouts[id], placements }));
+      return { ...layout, placements };
+    },
     // The catalog and the drop solver live on the API: fixture mode has neither.
     async dropItem() {
       throw new ApiError('Placing a piece needs the API (fixture mode is on).', 501, true);
