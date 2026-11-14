@@ -32,7 +32,7 @@ import uuid
 from collections.abc import Callable
 
 from packages.schema.events import EventEnvelope, make_event
-from services.api.agent import family
+from services.api.agent import design_gate, family
 from services.api.agent.context import AgentContext
 from services.api.agent.design_tools import BACKGROUND_DESIGN
 from services.api.agent.provider import TurnRunner
@@ -142,6 +142,10 @@ class AgentBridge:
 
         if event.type == "voice.transcript" and p.get("final") and not p.get("text", "").strip():
             return  # the microphone closed without hearing anything: not a turn
+        if event.type == "chat.user" or (event.type == "voice.transcript" and p.get("final")) or (event.type == "layout.confirm" and by_user):
+            # The user has spoken or kept a layout: the room that was waiting for them is settled,
+            # and the guide may go on to another one (agent/design_gate.py).
+            design_gate.user_spoke(design_gate.key(sid, self._context(room, event.member_id if room.household_id else None).user_id))
         if event.type == "chat.user" or (event.type == "voice.transcript" and p.get("final")):
             log_.heard(p["text"])
             self._signal(room)
@@ -353,6 +357,7 @@ class AgentBridge:
         """Run the designer off to the side; when it is done the guide gets an event turn with
         its report, queued like any other turn. One run per room at a time."""
         if self.design is None:
+            design_gate.dropped(design_gate.key(room.session_id, self._context(room, member_id).user_id), room_id)
             self._start(room, event_message("layouts_failed", "The designer is not available in this setup."), proactive=False, member_id=member_id)
             return
         job = (key, room_id)
@@ -362,12 +367,15 @@ class AgentBridge:
         context = self._context(room, member_id)
 
         async def run() -> None:
+            conversation = design_gate.key(room.session_id, context.user_id)
             try:
                 report = await asyncio.to_thread(self.design, context, room_id, brief)
                 message = event_message("layouts_ready", f"room_id: {room_id}\n{report}")
+                design_gate.shown(conversation, room_id)  # now it waits for the user
             except Exception as e:
                 log.exception("background designer failed")
                 message = event_message("layouts_failed", f"room_id: {room_id}\n{e}")
+                design_gate.dropped(conversation, room_id)
             finally:
                 self._designing.discard(job)
             self._start(room, message, proactive=False, member_id=member_id)

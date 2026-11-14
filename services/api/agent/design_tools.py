@@ -15,6 +15,7 @@ from langchain.tools import ToolRuntime, tool
 
 from packages.schema.layout import LayoutVariant, Placement
 from packages.schema.twin import Vec3
+from services.api.agent import design_gate
 from services.api.agent import prompts, views
 from services.api.agent.context import AgentContext
 from services.api.furniture import house
@@ -30,6 +31,22 @@ Runtime = ToolRuntime[AgentContext]
 def _changed(runtime: Runtime) -> None:
     """Tell every screen to load the furniture again."""
     runtime.stream_writer({"type": "layout.changed", "payload": {}})
+
+
+def _one_room_at_a_time(runtime: Runtime, room_id: str) -> str | None:
+    """The refusal to give the guide when another room has to be settled first, else None."""
+    ctx = runtime.context
+    held = design_gate.blocker(design_gate.key(ctx.session_id, ctx.user_id), room_id)
+    if held is None:
+        return None
+    other, why = held
+    name = prompts.room_short_names(get_twin(ctx.property_id)).get(other, other)
+    state = "is still being arranged" if why == "arranging" else "has layouts on screen that the user has not decided on"
+    return (
+        f"Not yet: {name} {state}. Rooms are done one at a time and the user decides between them. Do not start another "
+        f"room in this turn. Tell the user in one sentence that this room comes next, once they have kept a layout for "
+        f"{name} or told you to move on, and stop."
+    )
 
 
 # Not a UI event: the session bridge takes this off the stream and runs the designer itself.
@@ -91,6 +108,8 @@ def furnish_with_set(set_id: str, room_id: str, runtime: Runtime) -> str:
     twin = get_twin(runtime.context.property_id)
     if not any(r.room_id == room_id for r in twin.rooms):
         return f"Error: no room with id {room_id}. Use an id from the room directory."
+    if refusal := _one_room_at_a_time(runtime, room_id):
+        return refusal
     store, user_id = furniture_store(), runtime.context.user_id  # new pieces are the person's own (F1)
     owned: dict[str, list] = {}
     for item in store.list_items(user_id):
@@ -114,6 +133,7 @@ def furnish_with_set(set_id: str, room_id: str, runtime: Runtime) -> str:
         "Use these pieces, the first ones first; leave out the last ones if the room is too small for all of them. "
         "A rug goes under the seating or beside the bed. Pieces:\n" + "\n".join(lines)
     )
+    design_gate.started(design_gate.key(runtime.context.session_id, runtime.context.user_id), room_id)
     runtime.stream_writer({"type": BACKGROUND_DESIGN, "payload": {"room_id": room_id, "brief": brief}})
     return (
         f"The {st['name']} set ({len(lines)} pieces) is in their furniture and the designer has started arranging it. "
@@ -240,6 +260,9 @@ def design_in_background(room_id: str, brief: str, runtime: Runtime) -> str:
     twin = get_twin(runtime.context.property_id)
     if not any(r.room_id == room_id for r in twin.rooms):
         return f"Error: no room with id {room_id}. Use an id from the room directory."
+    if refusal := _one_room_at_a_time(runtime, room_id):
+        return refusal
+    design_gate.started(design_gate.key(runtime.context.session_id, runtime.context.user_id), room_id)
     runtime.stream_writer({"type": BACKGROUND_DESIGN, "payload": {"room_id": room_id, "brief": brief}})
     return ("The designer has started. Tell the user in one sentence that you are working on it and that they can keep "
             "looking around or ask you anything meanwhile. Do not wait, and do not describe any layout yet.")

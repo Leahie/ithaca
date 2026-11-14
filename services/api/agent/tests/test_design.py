@@ -7,6 +7,7 @@ from langchain_core.messages import AIMessage
 from langgraph.store.memory import InMemoryStore
 
 from services.api.agent import views
+from services.api.agent import design_gate
 from services.api.agent.context import AgentContext
 from services.api.agent.design_tools import BACKGROUND_DESIGN
 from services.api.agent.graph import build_designer, run_designer
@@ -17,6 +18,13 @@ from services.api.sim import layout_solver
 from services.api.twin.service import get_twin
 
 LIVING_ROOM = "tt6gm2a0463x9wmnx7rn6gugc"
+
+
+@pytest.fixture(autouse=True)
+def open_gate():
+    design_gate.reset()
+    yield
+    design_gate.reset()
 
 
 @pytest.fixture
@@ -125,3 +133,21 @@ def test_furnishing_with_a_set_adds_its_pieces_and_starts_the_designer(furniture
     assert len(added) == wanted and sum(i.item_class == "nightstand" for i in added) == 2
     job = next(e[1] for e in out if e[0] == "ui" and e[1]["type"] == BACKGROUND_DESIGN)
     assert job["payload"]["room_id"] == LIVING_ROOM and all(str(i.item_id) in job["payload"]["brief"] for i in added)
+
+
+def test_a_second_room_waits_until_the_user_has_decided_on_the_first(furniture):
+    """Human in the loop between rooms: the guide cannot chain room designs by itself."""
+    twin = get_twin(PROPERTY)
+    other = next(r.room_id for r in twin.rooms if r.room_id != LIVING_ROOM)
+    conversation = design_gate.key(None, "alice")
+    ask = lambda room: ScriptedModel(script=[call("design_in_background", room_id=room, brief="whatever fits"), AIMessage(content="ok")])  # noqa: E731
+    jobs = lambda out: [e[1]["payload"]["room_id"] for e in out if e[0] == "ui" and e[1]["type"] == BACKGROUND_DESIGN]  # noqa: E731
+
+    assert jobs(run(ask(LIVING_ROOM), InMemoryStore(), user="alice", thread="t1")) == [LIVING_ROOM]
+    second = ask(other)
+    assert jobs(run(second, InMemoryStore(), user="alice", thread="t1")) == [] and "Not yet" in second.tool_results[0]  # still arranging
+    design_gate.shown(conversation, LIVING_ROOM)  # its layouts are on screen
+    second = ask(other)
+    assert jobs(run(second, InMemoryStore(), user="alice", thread="t1")) == [] and "has not decided" in second.tool_results[0]
+    design_gate.user_spoke(conversation)  # they kept one, or said to go on
+    assert jobs(run(ask(other), InMemoryStore(), user="alice", thread="t1")) == [other]
