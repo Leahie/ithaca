@@ -19,7 +19,7 @@ from services.api.realtime.agent_bridge import AgentBridge
 from services.api.realtime.hub import Hub
 from services.api.jobs import JobRunner
 from services.api.objects import pipeline
-from services.api.routers import furniture, objects, properties, sessions
+from services.api.routers import furniture, objects, panos, properties, sessions
 
 logging.basicConfig(level=logging.INFO)
 
@@ -39,6 +39,7 @@ app = FastAPI(title="Ithaca API", lifespan=lifespan)
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
 app.include_router(sessions.router, prefix="/api")
 app.include_router(properties.router, prefix="/api")
+app.include_router(panos.router, prefix="/api")
 app.include_router(furniture.router, prefix="/api")
 app.include_router(objects.router, prefix="/api")
 # The WebSocket is also served without the prefix (/ws/sessions/{sid}), which is the path in

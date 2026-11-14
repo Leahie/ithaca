@@ -2,8 +2,9 @@
 from: C
 to: B
 date: 2026-11-14
-status: open
+status: done
 source: stream-c/twin-v0 (scan panoramas)
+resolved: stream-b/agent-v0 (panos router mounted in services/api/main.py; schema taken from C and exports regenerated)
 ---
 # Mount C's `panos` router; twin schema gains `Sweep.rotation`
 
@@ -11,12 +12,12 @@ source: stream-c/twin-v0 (scan panoramas)
 router, separate from `properties.py` because it returns files rather than JSON.
 
 ## What you need to do
-- [ ] In `services/api/main.py`, next to the properties router:
+- [x] In `services/api/main.py`, next to the properties router:
       ```python
       from services.api.routers import panos, properties, sessions
       app.include_router(panos.router, prefix="/api")
       ```
-- [ ] **Schema:** take C's `packages/schema/twin.py` and `json/twin.schema.json`, or re-run
+- [x] **Schema:** take C's `packages/schema/twin.py` and `json/twin.schema.json`, or re-run
       `python -m packages.schema.export`. The change is additive: a new `Quat` model and
       `Sweep.rotation: Quat | None`.
 
