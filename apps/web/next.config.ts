@@ -10,11 +10,16 @@ const nextConfig: NextConfig = {
   // proxy's default 30 s would drop it.
   experimental: { proxyTimeout: 120_000 },
   // Let a phone on the LAN load the dev server (comma-separated hosts, e.g. 192.168.1.20).
-  allowedDevOrigins: process.env.DEV_ALLOWED_ORIGINS?.split(',').map((s) => s.trim()).filter(Boolean),
+  // Quick tunnels (scripts/phone-tunnel.sh) are always allowed.
+  allowedDevOrigins: ['*.trycloudflare.com', ...(process.env.DEV_ALLOWED_ORIGINS?.split(',').map((s) => s.trim()).filter(Boolean) ?? [])],
   async rewrites() {
     if (useFixtures) return [];
     const target = (process.env.API_PROXY_TARGET ?? 'http://localhost:8000').replace(/\/$/, '');
-    return [{ source: '/api/:path*', destination: `${target}/api/:path*` }];
+    // The session socket goes through the same origin too, so a phone (or a tunnel) needs only this port.
+    return [
+      { source: '/api/:path*', destination: `${target}/api/:path*` },
+      { source: '/ws/:path*', destination: `${target}/ws/:path*` },
+    ];
   },
 };
 

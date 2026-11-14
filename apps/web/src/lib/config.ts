@@ -29,7 +29,7 @@ export const config = {
   useFixtures: process.env.NEXT_PUBLIC_USE_FIXTURES === '1',
   /** REST base. The default is same-origin, proxied to the API by next.config.ts. */
   apiBase: (process.env.NEXT_PUBLIC_API_BASE ?? '/api').replace(/\/$/, ''),
-  /** WebSocket origin, e.g. ws://192.168.1.20:8000. Empty = same host as the page, port 8000. */
+  /** WebSocket origin, e.g. ws://192.168.1.20:8000. Empty = the page's own origin (proxied to the API). */
   wsBase: (process.env.NEXT_PUBLIC_WS_BASE ?? '').replace(/\/$/, ''),
   matterportSdkKey: process.env.NEXT_PUBLIC_MATTERPORT_SDK_KEY ?? '',
   /** MediaPipe hand landmarker model. Loaded when hand control is first turned on. */
@@ -45,8 +45,9 @@ export const config = {
 export function wsOrigin(): string {
   if (config.wsBase) return config.wsBase;
   if (typeof window === 'undefined') return 'ws://localhost:8000';
+  // Same origin as the page: next.config.ts proxies /ws to the API, so a phone or a tunnel needs one port.
   const scheme = window.location.protocol === 'https:' ? 'wss' : 'ws';
-  return `${scheme}://${window.location.hostname}:8000`;
+  return `${scheme}://${window.location.host}`;
 }
 
 export function publicOrigin(): string {
