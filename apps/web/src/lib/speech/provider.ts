@@ -281,6 +281,8 @@ export class DeepgramProvider implements SpeechProvider {
       stream?.getTracks().forEach((t) => t.stop());
       stream = null;
       clearTimeout(watchdog);
+      source?.disconnect();
+      source = null;
       if (ctx && ctx.state !== 'closed') void ctx.close();
     };
     const finish = (final: string) => {
@@ -301,14 +303,31 @@ export class DeepgramProvider implements SpeechProvider {
     };
     const sendStop = () => ws?.send(JSON.stringify({ type: 'stop' }));
 
-    void (async () => {
+    // Kept in a variable on purpose: a source node nothing refers to can be collected by the
+    // browser, and the microphone then reads as silence.
+    let source: MediaStreamAudioSourceNode | null = null;
+
+    /**
+     * Open the microphone and stream it. A real microphone is never exactly silent, so if every
+     * sample is zero for a second and a half the capture is broken, not quiet: the first attempt
+     * is then torn down and tried once more the plain way (no processing asked for, and the
+     * audio context at the microphone's own sample rate, which some phones need).
+     */
+    const open = async (attempt: 0 | 1): Promise<void> => {
       try {
-        stream = await navigator.mediaDevices.getUserMedia({ audio: { channelCount: 1, echoCancellation: true, noiseSuppression: true } });
+        stream = await navigator.mediaDevices.getUserMedia(attempt === 0 ? { audio: { channelCount: 1, echoCancellation: true, noiseSuppression: true } } : { audio: true });
       } catch (err) {
         return fail(micError(err));
       }
-      if (stopping) return finish(''); // released before the microphone opened
-      const audio = new AudioContext();
+      if (stopping) return finish(''); // stopped before the microphone opened
+      const track = stream.getAudioTracks()[0];
+      const micRate = track?.getSettings().sampleRate;
+      let audio: AudioContext;
+      try {
+        audio = attempt === 1 && micRate ? new AudioContext({ sampleRate: micRate }) : new AudioContext();
+      } catch {
+        audio = new AudioContext();
+      }
       ctx = audio;
       const url = URL.createObjectURL(new Blob([PCM_WORKLET], { type: 'text/javascript' }));
       try {
@@ -320,23 +339,45 @@ export class DeepgramProvider implements SpeechProvider {
       }
       if (stopping || done) return finish('');
       const node = new AudioWorkletNode(audio, 'pcm16');
-      audio.createMediaStreamSource(stream).connect(node);
+      source = audio.createMediaStreamSource(stream);
+      source.connect(node);
       node.connect(audio.destination); // silent; keeps the node running
+      const facts = () => `microphone ${track?.muted ? 'muted' : 'live'} at ${micRate ?? '?'} Hz, audio ${audio.state} at ${audio.sampleRate} Hz`;
+      frames = 0;
+      let loudest = 0;
+      const started = performance.now();
       // No sound at all within three seconds means the microphone is not really delivering.
       watchdog = window.setTimeout(() => {
-        if (!frames && !done) fail(`The microphone opened but no sound arrived (audio is ${audio.state}). Tap the mic to try again.`);
+        if (!frames && !done) fail(`The microphone opened but no sound arrived (${facts()}). Tap the mic to try again.`);
       }, 3000);
 
       const socket = new WebSocket(`${wsOrigin()}/ws/speech/listen?sample_rate=${audio.sampleRate}${opts?.auto ? '&auto=1' : ''}`);
       ws = socket;
       socket.binaryType = 'arraybuffer';
       node.port.onmessage = (e: MessageEvent<ArrayBuffer>) => {
+        if (done || ws !== socket) return;
         frames += 1;
-        if (handlers.onLevel) {
-          const pcm = new Int16Array(e.data);
-          let peak = 0;
-          for (let i = 0; i < pcm.length; i += 8) peak = Math.max(peak, Math.abs(pcm[i]!));
-          handlers.onLevel(Math.min(1, peak / 12000));
+        const pcm = new Int16Array(e.data);
+        let peak = 0;
+        for (let i = 0; i < pcm.length; i += 4) peak = Math.max(peak, Math.abs(pcm[i]!));
+        loudest = Math.max(loudest, peak);
+        handlers.onLevel?.(Math.min(1, peak / 9000));
+        if (loudest === 0 && performance.now() - started > 1500) {
+          // Pure digital silence: this capture is broken.
+          socket.onclose = null;
+          socket.onmessage = null;
+          socket.close();
+          node.port.onmessage = null;
+          clearTimeout(watchdog);
+          stream?.getTracks().forEach((t) => t.stop());
+          void audio.close();
+          if (attempt === 0) {
+            ws = null;
+            void open(1).catch((err: unknown) => fail(`Speech recognition could not start (${err instanceof Error ? err.message : String(err)}).`));
+          } else {
+            fail(`The microphone is open but sends only silence (${facts()}). Close other apps that use the microphone, or try another browser.`);
+          }
+          return;
         }
         if (socket.readyState === WebSocket.OPEN && !stopping) socket.send(e.data);
       };
@@ -360,7 +401,8 @@ export class DeepgramProvider implements SpeechProvider {
         } else if (stopping) finish(text);
         else fail('Speech recognition stopped: the connection to the server was lost.');
       };
-    })().catch((err: unknown) => fail(`Speech recognition could not start (${err instanceof Error ? err.message : String(err)}).`));
+    };
+    void open(0).catch((err: unknown) => fail(`Speech recognition could not start (${err instanceof Error ? err.message : String(err)}).`));
 
     return () => {
       if (fallback) return fallback();
