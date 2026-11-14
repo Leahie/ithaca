@@ -38,6 +38,8 @@ from services.api.agent.runner import event_message
 from services.api.agent.tour import TOUR_LOGS, TourLog
 from services.api.realtime.hub import Hub, SessionRoom
 
+from services.api.twin.service import get_twin
+from services.api.agent import prompts
 log = logging.getLogger(__name__)
 
 PROACTIVE_COOLDOWN_S = 60.0
@@ -82,6 +84,25 @@ def action_summary(tool: str, args: dict) -> str:
         "family_read_board": "Reading the family board",
         "family_ask_member": f"Asking {args.get('name', 'a family member')}'s agent",
     }.get(tool, tool.replace("_", " "))
+
+
+def spoken_cue(tool: str, args: dict, property_id: str) -> str | None:
+    """One short line to say aloud the moment a tool starts, so an action in the house (or a long
+    wait) is never silent. None for tools that are quick and change nothing the user can see."""
+    if tool in ("viewer_walk", "viewer_goto"):
+        room_id = args.get("to_room_id") or args.get("room_id")
+        try:
+            name = prompts.room_short_names(get_twin(property_id)).get(room_id)
+        except Exception:  # no twin for this property: say it without the name
+            name = None
+        if tool == "viewer_walk":
+            return f"Walking you to the {name}." if name else "Walking you there."
+        return f"Here is the {name}." if name else None
+    if tool == "task":
+        return "Give me a moment while I work that out."
+    if tool in ("area_profile", "area_search"):
+        return "Let me look that up."
+    return None
 
 
 class AgentBridge:
@@ -255,11 +276,21 @@ class AgentBridge:
             emit("agent.turn", {"status": "started"})
             worker = asyncio.create_task(asyncio.to_thread(work))
             message_id = uuid.uuid4().hex
+            quiet = True  # the guide has said nothing since the turn began or since its last tool call
+            cued: set[str] = set()
             while (item := await queue.get()) is not None:
                 kind, *rest = item
                 if kind == "token":
+                    quiet = False
                     emit("agent.token", {"message_id": message_id, "delta": rest[0]})
                 elif kind == "action":
+                    # Said at once, as its own message, unless the guide has just spoken itself or
+                    # this turn already had this kind of line.
+                    cue = spoken_cue(rest[0], rest[1], room.property_id)
+                    if cue and quiet and rest[0] not in cued:
+                        cued.add(rest[0])
+                        emit("agent.message", {"message_id": uuid.uuid4().hex, "text": cue})
+                    quiet = True
                     emit("agent.action", {"tool": rest[0], "summary": action_summary(rest[0], rest[1])})
                 elif kind == "ui":
                     emit(rest[0]["type"], rest[0]["payload"])

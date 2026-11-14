@@ -83,6 +83,8 @@ export function CleanOverlay({ twin, pairing, onShowControls }: { twin: Property
         if (asked) {
           setThinking(true);
           if (voiceOn.current) chime();
+        } else if (event.type === 'agent.action') {
+          setThinking(true); // a tool is running: still working, whatever was just said
         } else if (event.type === 'agent.token' || event.type === 'agent.message' || event.type === 'agent.error' || (event.type === 'agent.turn' && event.payload.status === 'ended')) {
           setThinking(false);
         }

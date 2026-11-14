@@ -82,7 +82,8 @@ def test_websocket_turn_with_scripted_agent(monkeypatch):
     assert types[0] == "chat.user" and "made.up" not in types
     goto = next(e for e in events if e["type"] == "viewer.goto")
     assert goto["source"] == "agent" and goto["payload"]["room_id"]
-    assert types.index("viewer.goto") < types.index("agent.message")  # the view moves before the text ends
+    last_message = len(types) - 1 - types[::-1].index("agent.message")
+    assert types.index("agent.message") < types.index("viewer.goto") < last_message  # a spoken cue, the move, then the answer
     assert "agent.token" in types and "agent.action" in types
 
 
@@ -127,3 +128,14 @@ def test_trying_a_layout_tells_the_agent_nothing_and_keeping_it_does(monkeypatch
         assert any(e.type == "layout.changed" and e.source == "server" for e in sent)  # and every screen reloads
 
     asyncio.run(scenario())
+
+
+def test_spoken_cue_names_the_room_and_stays_quiet_for_quick_tools():
+    from services.api.realtime.agent_bridge import spoken_cue
+    from services.api.twin.service import get_twin
+
+    twin = get_twin("onXQLXhfyQv")
+    kitchen = next(r for r in twin.rooms if r.label == "Kitchen")
+    assert spoken_cue("viewer_walk", {"from_room_id": "x", "to_room_id": kitchen.room_id}, twin.property_id).startswith("Walking you to the Kitchen")
+    assert spoken_cue("task", {"subagent_type": "designer"}, twin.property_id)
+    assert spoken_cue("list_rooms", {}, twin.property_id) is None

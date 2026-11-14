@@ -34,10 +34,43 @@ export function useSpeakGuide(enabled: boolean): void {
     const said = new Map<string, number>(); // message_id -> characters already sent to the voice
     const muted = new Set<string>(); // replies the user talked over
     const waits = new Set<number>();
+    // Words wait for the camera: while the view walks or jumps to a room, what the guide says
+    // next is held, so the description is heard on arrival and not over a moving picture. (The
+    // short "Walking you to the kitchen" line comes before the move starts, so it is not held.)
+    let holdUntil = 0;
+    let held: string[] = [];
+    let pump = 0;
+    const release = () => {
+      window.clearTimeout(pump);
+      const wait = holdUntil - performance.now();
+      if (wait > 0) {
+        pump = window.setTimeout(release, wait);
+        return;
+      }
+      for (const text of held.splice(0)) voice.enqueue(text);
+    };
+    const say = (text: string) => {
+      if (!text.trim()) return;
+      held.push(text);
+      release();
+    };
     const off = onSessionEvent((event) => {
       if (event.type === 'chat.user' || event.type === 'voice.transcript') {
         for (const id of written.keys()) muted.add(id);
+        held = [];
+        holdUntil = 0;
         return voice.cancelSpeech();
+      }
+      if (event.type === 'viewer.walk' && event.source === 'agent') {
+        // As the tour plays it: 1.2 s to the first position, then 0.7 to 1.6 s for each one after.
+        const n = Math.max(1, event.payload.sweep_ids.length);
+        const step = Math.max(700, Math.min(1600, (event.payload.duration_s * 1000) / n));
+        holdUntil = performance.now() + Math.min(15000, 1200 + (n - 1) * step);
+        return;
+      }
+      if (event.type === 'viewer.goto' && event.source === 'agent') {
+        holdUntil = Math.max(holdUntil, performance.now() + 1300);
+        return;
       }
       if (event.type === 'agent.token') {
         const id = event.payload.message_id;
@@ -47,18 +80,18 @@ export function useSpeakGuide(enabled: boolean): void {
         const from = said.get(id) ?? 0;
         const end = sentenceEnd(text.slice(from));
         if (end >= MIN_PIECE) {
-          voice.enqueue(text.slice(from, from + end));
+          say(text.slice(from, from + end));
           said.set(id, from + end);
         }
       } else if (event.type === 'agent.message') {
         const id = event.payload.message_id;
         // A reply that streamed: say its tail. One that came whole: say all of it.
         const text = written.get(id) ?? event.payload.text;
-        if (!muted.has(id)) voice.enqueue(text.slice(said.get(id) ?? 0));
+        if (!muted.has(id)) say(text.slice(said.get(id) ?? 0));
         // Tell the phones when this reply has been said to the end: one of them may be waiting
         // to open its microphone for the answer.
         const wait = window.setInterval(() => {
-          if (voice.isSpeaking()) return;
+          if (voice.isSpeaking() || held.length) return;
           window.clearInterval(wait);
           waits.delete(wait);
           dispatch('voice.spoken', { message_id: id });
@@ -72,6 +105,7 @@ export function useSpeakGuide(enabled: boolean): void {
     return () => {
       off();
       waits.forEach((w) => window.clearInterval(w));
+      window.clearTimeout(pump);
       voice.cancelSpeech();
     };
   }, [enabled]);
