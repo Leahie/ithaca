@@ -329,14 +329,37 @@ export function TourTab({ twin, active }: { twin: PropertyTwin; active: boolean 
     });
   }, [sdk, runQueued, sweepPosition]);
 
-  // viewer.look (phone joystick / gyroscope)
+  // viewer.look (the phone's look pad, gyroscope and turn arrows). The viewer takes one camera
+  // call at a time and drops the rest, so turns gather while a call is out and go in the next
+  // one, at a speed that finishes each batch in about the time the next one takes to arrive.
   useEffect(() => {
     if (!sdk) return;
-    return onSessionEvent((event) => {
-      if (event.type === 'viewer.look' && useSession.getState().viewer.mode === 'tour') {
-        void sdk.Camera.rotate(event.payload.yaw_delta_deg, event.payload.pitch_delta_deg, { speed: 180 }).catch(() => {});
-      }
+    let yaw = 0;
+    let pitch = 0;
+    let busy = false;
+    let live = true;
+    const flush = () => {
+      if (busy || !live) return;
+      const size = Math.hypot(yaw, pitch);
+      if (size < 0.05) return;
+      busy = true;
+      const call = sdk.Camera.rotate(yaw, pitch, { speed: Math.max(90, size / 0.07) });
+      yaw = pitch = 0;
+      call.catch(() => {}).finally(() => {
+        busy = false;
+        flush();
+      });
+    };
+    const off = onSessionEvent((event) => {
+      if (event.type !== 'viewer.look' || useSession.getState().viewer.mode !== 'tour') return;
+      yaw += event.payload.yaw_delta_deg;
+      pitch += event.payload.pitch_delta_deg;
+      flush();
     });
+    return () => {
+      live = false;
+      off();
+    };
   }, [sdk]);
 
   // viewer.step (the phone's arrows): hop to the neighbouring scan position that lies most nearly

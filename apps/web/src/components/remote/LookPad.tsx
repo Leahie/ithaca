@@ -2,10 +2,12 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { Toggle } from '@/components/ui';
-import { useThrottledDispatch } from '@/lib/store/useThrottledDispatch';
+import { dispatch } from '@/lib/store/session';
 
 /** Degrees of camera turn per pixel of drag. */
-const DRAG_SENSITIVITY = 0.28;
+const DRAG_SENSITIVITY = 0.22;
+/** How often gathered motion is sent. */
+const SEND_MS = 33;
 
 type OrientationCtor = typeof DeviceOrientationEvent & { requestPermission?: () => Promise<'granted' | 'denied'> };
 
@@ -14,7 +16,6 @@ type OrientationCtor = typeof DeviceOrientationEvent & { requestPermission?: () 
  * Sends `viewer.look` deltas: yaw > 0 looks right, pitch > 0 looks up.
  */
 export function LookPad() {
-  const look = useThrottledDispatch('viewer.look', 40);
   const acc = useRef({ yaw: 0, pitch: 0 });
   const last = useRef<{ x: number; y: number } | null>(null);
   const [gyro, setGyro] = useState(false);
@@ -25,15 +26,21 @@ export function LookPad() {
     setGyroSupported(typeof window !== 'undefined' && 'DeviceOrientationEvent' in window);
   }, []);
 
-  // Deltas accumulate between sends, so a throttled send never loses motion.
+  // Motion gathers here and goes out on a steady beat, so no movement is dropped between sends
+  // and the big screen gets evenly spaced, evenly sized turns.
   const push = (yaw: number, pitch: number) => {
     acc.current.yaw += yaw;
     acc.current.pitch += pitch;
-    const { yaw: y, pitch: p } = acc.current;
-    if (Math.abs(y) < 0.05 && Math.abs(p) < 0.05) return;
-    acc.current = { yaw: 0, pitch: 0 };
-    look({ yaw_delta_deg: Number(y.toFixed(2)), pitch_delta_deg: Number(p.toFixed(2)) });
   };
+  useEffect(() => {
+    const beat = setInterval(() => {
+      const { yaw, pitch } = acc.current;
+      if (Math.abs(yaw) < 0.05 && Math.abs(pitch) < 0.05) return;
+      acc.current = { yaw: 0, pitch: 0 };
+      dispatch('viewer.look', { yaw_delta_deg: Number(yaw.toFixed(2)), pitch_delta_deg: Number(pitch.toFixed(2)) });
+    }, SEND_MS);
+    return () => clearInterval(beat);
+  }, []);
 
   useEffect(() => {
     if (!gyro) return;
@@ -52,7 +59,7 @@ export function LookPad() {
     };
     window.addEventListener('deviceorientation', onOrientation);
     return () => window.removeEventListener('deviceorientation', onOrientation);
-  }, [gyro]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [gyro]);
 
   const toggleGyro = async (on: boolean) => {
     setGyroError(null);
