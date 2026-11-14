@@ -81,11 +81,10 @@ function House({ propertyId }: { propertyId: string }) {
   const [visited, setVisited] = useState<Set<ViewerMode>>(() => new Set());
   const [dockOpen, setDockOpen] = useState(has('agent'));
   const [arranging, setArranging] = useState(false);
-  // With a phone as the remote, the big screen is only the house: the top bar, the room list and
-  // the chat dock step aside until "Controls" is pressed.
-  const phoneOn = useSession((s) => s.peers.phone);
+  // The phone is the remote, so the big screen is only the house: the top bar, the room list and
+  // the chat dock stay away until "Controls" is pressed.
   const [controls, setControls] = useState(false);
-  const clean = phoneOn && !controls && (mode === 'tour' || mode === 'sun');
+  const clean = (has('family') || has('phone')) && !controls && (mode === 'tour' || mode === 'sun');
   const initialised = useRef<string | null>(null);
 
   // Values that come from the twin, not from a user action.
@@ -172,7 +171,7 @@ function House({ propertyId }: { propertyId: string }) {
               {arranging ? 'Done arranging' : 'Arrange'}
             </button>
           )}
-          {phoneOn && controls && (
+          {controls && (has('family') || has('phone')) && (mode === 'tour' || mode === 'sun') && (
             <button type="button" onClick={() => setControls(false)} className="inline-flex h-10 items-center rounded-full px-3.5 font-display font-semibold text-muted hover:bg-ink hover:text-text">
               Hide controls
             </button>
@@ -226,7 +225,10 @@ function House({ propertyId }: { propertyId: string }) {
           )}
           {arranging && (mode === 'tour' || mode === 'sun') && <ArrangePanel twin={t} onClose={() => setArranging(false)} />}
           {has('hands') && <HandsOverlay />}
-          {clean && <CleanOverlay twin={t} onShowControls={() => setControls(true)} />}
+          {clean && (
+            <CleanOverlay twin={t} onShowControls={() => setControls(true)}
+              pairing={has('family') ? <FamilyButton propertyId={propertyId} avatar /> : <PairingButton propertyId={propertyId} avatar />} />
+          )}
         </main>
         {has('agent') && dockOpen && !clean && <AgentDock />}
       </div>

@@ -9,7 +9,7 @@ import { publicOrigin } from '@/lib/config';
 import { useSession } from '@/lib/store/session';
 
 /** QR pairing for the phone controller. The link carries the session id and its short-lived token (B10). */
-export function PairingButton({ propertyId }: { propertyId: string }) {
+export function PairingButton({ propertyId, avatar = false }: { propertyId: string; avatar?: boolean }) {
   const { session, error, renew } = useSessionInfo();
   const phoneOn = useSession((s) => s.peers.phone);
   const [open, setOpen] = useState(false);
@@ -29,10 +29,18 @@ export function PairingButton({ propertyId }: { propertyId: string }) {
 
   return (
     <div className="relative">
-      <Button variant="ghost" onClick={() => setOpen(!open)} aria-expanded={open} aria-label="Pair a phone" className={cn(phoneOn && 'text-leaf-deep')}>
-        <IconPhone />
-        <span className="hidden xl:inline">{phoneOn ? 'Phone connected' : 'Pair phone'}</span>
-      </Button>
+      {avatar ? (
+        <button type="button" onClick={() => setOpen(!open)} aria-expanded={open} aria-label="Connect a phone" data-testid="guide-avatar"
+          className="flex items-center gap-2 rounded-full border border-white/30 bg-black/35 py-1 pr-3.5 pl-1 text-sm text-white shadow-lg backdrop-blur-md">
+          <span className="flex h-8 w-8 items-center justify-center rounded-full bg-sun font-display text-sm font-semibold text-main">G</span>
+          {phoneOn ? 'Phone connected' : 'Connect a phone'}
+        </button>
+      ) : (
+        <Button variant="ghost" onClick={() => setOpen(!open)} aria-expanded={open} aria-label="Pair a phone" className={cn(phoneOn && 'text-leaf-deep')}>
+          <IconPhone />
+          <span className="hidden xl:inline">{phoneOn ? 'Phone connected' : 'Pair phone'}</span>
+        </Button>
+      )}
       {open && (
         <div role="dialog" aria-label="Pair a phone" className="absolute top-11 right-0 z-30 w-[300px] rounded-xl border border-line-strong bg-raised p-4 shadow-2xl">
           <div className="flex items-center justify-between">

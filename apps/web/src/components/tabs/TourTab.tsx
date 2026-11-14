@@ -538,7 +538,7 @@ export function TourTab({ twin, active }: { twin: PropertyTwin; active: boolean 
           <HousePlan twin={twin} />
         </div>
       )}
-      <div className="pointer-events-none absolute top-3 right-3 flex flex-wrap justify-end gap-1.5">
+      <div className="pointer-events-none absolute top-16 right-3 flex flex-wrap justify-end gap-1.5">
         {/* The frame check runs always (see window.__ITHACA__.frameCheck); it shows only when it fails. */}
         {frame && !frameOk && (
           <Badge

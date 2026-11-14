@@ -20,9 +20,10 @@ const initials = (name: string) =>
 /**
  * The family QR code. One code for the whole family, reusable for a day: each person scans it,
  * says their name, and their phone becomes their own remote with their own agent, on whatever
- * house this screen has open.
+ * house this screen has open. `avatar`: the trigger is the guide's face on glass, for the clean
+ * big screen, in place of the top-bar button.
  */
-export function FamilyButton({ propertyId }: { propertyId: string }) {
+export function FamilyButton({ propertyId, avatar = false }: { propertyId: string; avatar?: boolean }) {
   const household = useFamily((s) => s.household);
   const create = useFamily((s) => s.create);
   const newCode = useFamily((s) => s.newCode);
@@ -62,10 +63,18 @@ export function FamilyButton({ propertyId }: { propertyId: string }) {
 
   return (
     <div className="relative">
-      <Button variant="ghost" onClick={() => setOpen(!open)} aria-expanded={open} aria-label="Family phones" className={cn(here > 0 && 'bg-leaf text-main hover:bg-leaf/85')}>
-        <IconPhone />
-        <span className="hidden xl:inline">{here > 0 ? `Family · ${here} here` : 'Family'}</span>
-      </Button>
+      {avatar ? (
+        <button type="button" onClick={() => setOpen(!open)} aria-expanded={open} aria-label="Connect a phone" data-testid="guide-avatar"
+          className="flex items-center gap-2 rounded-full border border-white/30 bg-black/35 py-1 pr-3.5 pl-1 text-sm text-white shadow-lg backdrop-blur-md">
+          <span className="flex h-8 w-8 items-center justify-center rounded-full bg-sun font-display text-sm font-semibold text-main">G</span>
+          {here > 0 ? `${here} phone${here === 1 ? '' : 's'} connected` : 'Connect a phone'}
+        </button>
+      ) : (
+        <Button variant="ghost" onClick={() => setOpen(!open)} aria-expanded={open} aria-label="Family phones" className={cn(here > 0 && 'bg-leaf text-main hover:bg-leaf/85')}>
+          <IconPhone />
+          <span className="hidden xl:inline">{here > 0 ? `Family · ${here} here` : 'Family'}</span>
+        </Button>
+      )}
       {open && (
         <div role="dialog" aria-label="Family phones" className="absolute top-12 right-0 z-30 w-[320px] rounded-[var(--radius-card)] border border-line bg-raised p-4 shadow-float">
           {!household ? (
