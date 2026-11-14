@@ -427,7 +427,7 @@ def daylight_spot(
     twin: PropertyTwin, room_id: str, x: float, z: float, day: date, weather: Weather, *, height_m: float = sun.SEATED_M,
 ) -> DaylightSpot:
     """Daylight at one spot at each of weather.times (one day)."""
-    room = next(r for r in twin.rooms if r.room_id == room_id)
+    room = sun._room(twin, room_id)
     point = np.array([[x, room.floor_y + height_m, z]])
     c = room_coefficients(twin, room, height_m, points=point)
     lux, sunny = [], []

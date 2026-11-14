@@ -4,6 +4,7 @@ integrations/* directly. get_twin serves the twin that ingestion wrote.
 
 from __future__ import annotations
 
+import threading
 from datetime import date, datetime
 from functools import lru_cache
 from pathlib import Path
@@ -11,6 +12,7 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 import pvlib
+from shapely.geometry import Point, Polygon
 
 from packages.schema.reports import (
     Amenity,
@@ -60,6 +62,7 @@ def sun_at(property_id: str, when: datetime | str, height_m: float = 0.0) -> Sun
 def sun_spot(property_id: str, room_id: str, x: float, z: float, day: date,
              height_m: float = sun.SEATED_M) -> SunSpot:
     """When direct sun reaches one spot ("when does the sun hit me at the desk?")."""
+    _check_spot(property_id, room_id, x, z)
     return _sun_spot(property_id, get_twin(property_id).version, room_id, x, z, day, height_m)
 
 
@@ -73,18 +76,51 @@ def sun_report(property_id: str, room_id: str, start: date, end: date, height_m:
     return _sun_report(property_id, get_twin(property_id).version, room_id, start, end, height_m)
 
 
-def daylight_at(property_id: str, when: datetime | str, sky: SkySource = "clear", height_m: float = 0.0) -> DaylightMoment:
+def daylight_at(property_id: str, when: datetime | str, sky: SkySource = "clear", height_m: float = 0.0,
+                room_id: str | None = None, grids: bool = True) -> DaylightMoment:
     """How bright each room is at one instant (sky + sun + reflected light, in lux).
 
     sky="clear" is a clear day; sky="typical" uses the NSRDB typical-year weather for that date
-    and hour (needs NREL_API_KEY and NREL_EMAIL the first time)."""
-    return _daylight_at(property_id, get_twin(property_id).version, str(when), sky, height_m)
+    and hour (needs NREL_API_KEY and NREL_EMAIL the first time). room_id limits it to one room."""
+    return _daylight_at(property_id, get_twin(property_id).version, str(when), sky, height_m, room_id, grids)
 
 
 def daylight_spot(property_id: str, room_id: str, x: float, z: float, day: date, sky: SkySource = "clear",
                   height_m: float = sun.SEATED_M, step_min: int = 15) -> DaylightSpot:
     """How bright one spot is through one day, with the moments it is in direct sun."""
+    _check_spot(property_id, room_id, x, z)
     return _daylight_spot(property_id, get_twin(property_id).version, room_id, x, z, day, sky, height_m, step_min)
+
+
+_warmed: set[tuple[str, int]] = set()
+_warm_lock = threading.Lock()
+
+
+def warm(property_id: str, heights: tuple[float, ...] = (0.0, sun.SEATED_M)) -> None:
+    """Set up every room's sun and daylight geometry in a background thread, so the first question
+    at these heights is fast. Safe to call often: it runs once per twin version."""
+    twin = get_twin(property_id)
+    with _warm_lock:
+        if (property_id, twin.version) in _warmed:
+            return
+        _warmed.add((property_id, twin.version))
+
+    def run():
+        for h in heights:
+            for room in twin.rooms:
+                if sun.room_windows(twin, room.room_id):
+                    sun.room_rays(twin, room, height_m=h)
+                    daylight.room_coefficients(twin, room, h)
+
+    threading.Thread(target=run, daemon=True, name=f"warm-{property_id}").start()
+
+
+def _check_spot(property_id: str, room_id: str, x: float, z: float) -> None:
+    room = next((r for r in get_twin(property_id).rooms if r.room_id == room_id), None)
+    if room is None:
+        raise KeyError(f"no room {room_id} in {property_id}")
+    if not Polygon(room.polygon).buffer(0.05).contains(Point(x, z)):
+        raise ValueError(f"({x}, {z}) is not inside room {room_id}")
 
 
 # Not built yet. They raise IntegrationNotConfigured (I-G21) so agent tools can say so.
@@ -115,10 +151,13 @@ def weather(property_id: str, times: pd.DatetimeIndex, sky: SkySource) -> daylig
 
 
 @lru_cache(maxsize=1024)
-def _daylight_at(property_id, version, when, sky, height_m) -> DaylightMoment:
+def _daylight_at(property_id, version, when, sky, height_m, room_id, grids) -> DaylightMoment:
     twin = get_twin(property_id)
+    if room_id is not None and all(r.room_id != room_id for r in twin.rooms):
+        raise KeyError(f"no room {room_id} in {property_id}")
     times = daylight.single_time(when, twin.timezone)
-    return daylight.daylight_at(twin, weather(property_id, times, sky), height_m=height_m)
+    return daylight.daylight_at(twin, weather(property_id, times, sky), height_m=height_m,
+                                room_ids=None if room_id is None else [room_id], with_grids=grids)
 
 
 @lru_cache(maxsize=256)

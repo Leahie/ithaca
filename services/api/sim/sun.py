@@ -173,10 +173,23 @@ def lit_matrix(
 def room_rays(
     twin: PropertyTwin, room: Room, cell_m: float = CELL_M, height_m: float = 0.0
 ) -> tuple[tuple[float, float], np.ndarray, np.ndarray, list[_Window], list[np.ndarray]]:
-    """Grid, exterior windows and per-window line of sight for one room at one sample height."""
-    origin, inside, points = floor_grid(room, cell_m, height_m)
-    windows = room_windows(twin, room.room_id)
-    return origin, inside, points, windows, [window_visibility(room, points, w) for w in windows]
+    """Grid, exterior windows and per-window line of sight for one room at one sample height.
+    Memoised on the room's geometry, so repeated questions only trace rays."""
+    key = (
+        room.model_dump_json(),
+        tuple(o.model_dump_json() for o in twin.openings if o.room_id == room.room_id),
+        tuple(twin.interior_to_world),
+        cell_m,
+        height_m,
+    )
+    if key not in _ROOM_RAYS:
+        origin, inside, points = floor_grid(room, cell_m, height_m)
+        windows = room_windows(twin, room.room_id)
+        _ROOM_RAYS[key] = (origin, inside, points, windows, [window_visibility(room, points, w) for w in windows])
+    return _ROOM_RAYS[key]
+
+
+_ROOM_RAYS: dict[tuple, tuple] = {}
 
 
 # --- questions ------------------------------------------------------------------------------

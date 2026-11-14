@@ -34,7 +34,7 @@ from services.api.integrations import costar
 from services.api.integrations.cache import RecordReplayCache
 from services.api.integrations.config import fixtures_dir
 from services.api.integrations.matterport import MatterportClient
-from services.api.twin import frames
+from services.api.twin import annotations, frames
 from services.api.twin import rooms as plan
 from services.api.twin.mesh import interior_glb_path
 from services.api.twin.service import twin_path
@@ -103,6 +103,13 @@ def build_twin(
     floor_index = {f.floor_id: f.index for f in floors}
     rooms = _rooms(kept, elevations)
     rooms.sort(key=lambda r: (floor_index.get(r.floor_id, 0), r.room_id))
+    annotated = annotations.load_openings(property_id)
+    openings = annotated if annotated is not None else _openings(
+        raw_floors, edges, vertices, kept, elevations, heading, every_room)
+    if annotated is not None:
+        opening_quality = "annotated"
+    else:
+        opening_quality = "detected" if any(e["openings"] for e in edges.values()) else "none"
 
     return PropertyTwin(
         property_id=property_id,
@@ -118,12 +125,12 @@ def build_twin(
         interior_to_world=frames.to_column_major(frames.interior_to_world_matrix(heading, translation)),
         floors=floors,
         rooms=rooms,
-        openings=_openings(raw_floors, edges, vertices, kept, elevations, heading, every_room),
+        openings=openings,
         sweeps=_sweeps(panos, kept, raw_floors, elevations),
         assets=_assets(property_id),
         quality=TwinQuality(
             alignment=alignment,
-            openings="detected" if any(e["openings"] for e in edges.values()) else "none",
+            openings=opening_quality,
             context="none",
             traffic="none",
         ),
