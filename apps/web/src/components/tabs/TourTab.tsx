@@ -331,7 +331,7 @@ export function TourTab({ twin, active }: { twin: PropertyTwin; active: boolean 
 
   // viewer.look (the phone's look pad, gyroscope and turn arrows). The viewer takes one camera
   // call at a time and drops the rest, so turns gather while a call is out and go in the next
-  // one, at a speed that finishes each batch in about the time the next one takes to arrive.
+  // one, at a speed that finishes each batch before the next one arrives.
   useEffect(() => {
     if (!sdk) return;
     let yaw = 0;
@@ -343,7 +343,8 @@ export function TourTab({ twin, active }: { twin: PropertyTwin; active: boolean 
       const size = Math.hypot(yaw, pitch);
       if (size < 0.05) return;
       busy = true;
-      const call = sdk.Camera.rotate(yaw, pitch, { speed: Math.max(90, size / 0.07) });
+      // Fast enough that a batch is done before the next one arrives (the phone sends every 20 ms).
+      const call = sdk.Camera.rotate(yaw, pitch, { speed: Math.max(240, size / 0.03) });
       yaw = pitch = 0;
       call.catch(() => {}).finally(() => {
         busy = false;

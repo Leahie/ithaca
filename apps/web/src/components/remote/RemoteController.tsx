@@ -245,6 +245,20 @@ function Remote({ propertyId }: { propertyId: string }) {
   const ptt = usePushToTalk();
   const [text, setText] = useState('');
   const [view, setView] = useState<RemoteView>('move');
+  // Handedness: the walking stick sits under the dominant thumb, the talk button on the other side.
+  const [hand, setHand] = useState<'left' | 'right'>('right');
+  const [settings, setSettings] = useState(false);
+  useEffect(() => {
+    try {
+      if (localStorage.getItem('ithaca.hand') === 'left') setHand('left');
+    } catch {}
+  }, []);
+  const chooseHand = (h: 'left' | 'right') => {
+    setHand(h);
+    try {
+      localStorage.setItem('ithaca.hand', h);
+    } catch {}
+  };
   const roomId = useSession((s) => s.viewer.room_id);
 
   // The big screen follows the phone: it shows the floor plan while a room is being chosen.
@@ -282,12 +296,31 @@ function Remote({ propertyId }: { propertyId: string }) {
           {/* In a family, the phone says whose it is: "Maya · The Riveras". */}
           <span className="truncate">{me ? `${me.name} · ${household?.name ?? 'Family'}` : 'Ithaca remote'}</span>
         </div>
-        <Badge tone={status === 'open' ? (desktopOn ? 'leaf' : 'sun') : 'danger'}>{status === 'open' ? (desktopOn ? 'connected' : 'waiting for desktop') : status}</Badge>
+        <div className="flex shrink-0 items-center gap-2">
+          <Badge tone={status === 'open' ? (desktopOn ? 'leaf' : 'sun') : 'danger'}>{status === 'open' ? (desktopOn ? 'connected' : 'waiting for desktop') : status}</Badge>
+          <button type="button" aria-label="Settings" aria-expanded={settings} data-testid="remote-settings" onClick={() => setSettings(!settings)}
+            className="flex h-9 items-center rounded-full border border-line bg-raised px-3 text-sm">
+            Settings
+          </button>
+        </div>
       </header>
+      {settings && (
+        <div className="shrink-0 space-y-2 border-b border-line bg-raised px-4 py-3">
+          <div className="text-sm font-semibold">Which hand do you use?</div>
+          <Segmented<'left' | 'right'>
+            className="w-full [&>button]:flex-1 [&>button]:justify-center"
+            label="Handedness"
+            value={hand}
+            options={[{ value: 'left', label: 'Left-handed' }, { value: 'right', label: 'Right-handed' }]}
+            onChange={chooseHand}
+          />
+          <p className="text-xs text-muted">The walking stick sits under that thumb; the talk button moves to the other corner.</p>
+        </div>
+      )}
 
       {view === 'move' && (
         <div className="min-h-0 flex-1">
-          <MovePad hint={twin.data ? `You are in ${roomName(twin.data, roomId)}` : ''} />
+          <MovePad side={hand} hint={twin.data ? `You are in ${roomName(twin.data, roomId)}` : ''} />
         </div>
       )}
       <main className={cn('min-h-0 flex-1 space-y-3 overflow-y-auto px-4 pt-4 pb-24', view === 'move' && 'hidden')}>
@@ -347,8 +380,8 @@ function Remote({ propertyId }: { propertyId: string }) {
         )}
       </main>
 
-      {/* Talk floats over every screen, bottom right. */}
-      <div className="pointer-events-none absolute right-4 bottom-[calc(68px+env(safe-area-inset-bottom))] z-30 flex flex-row-reverse items-end gap-2">
+      {/* Talk floats over every screen, in the corner away from the walking stick. */}
+      <div className={cn('pointer-events-none absolute bottom-[calc(68px+env(safe-area-inset-bottom))] z-30 flex items-end gap-2', hand === 'right' ? 'left-4' : 'right-4 flex-row-reverse')}>
         <button
           type="button"
           disabled={!ptt.supported}

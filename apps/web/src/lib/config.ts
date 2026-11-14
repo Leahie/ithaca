@@ -45,7 +45,9 @@ export const config = {
 export function wsOrigin(): string {
   if (config.wsBase) return config.wsBase;
   if (typeof window === 'undefined') return 'ws://localhost:8000';
-  // Same origin as the page: next.config.ts proxies /ws to the API, so a phone or a tunnel needs one port.
+  // On the machine that runs the API, go straight to it: one hop fewer for every camera event.
+  if (/^(localhost|127\.0\.0\.1)$/.test(window.location.hostname)) return 'ws://localhost:8000';
+  // Otherwise the page's own origin: next.config.ts proxies /ws to the API, so a phone or a tunnel needs one port.
   const scheme = window.location.protocol === 'https:' ? 'wss' : 'ws';
   return `${scheme}://${window.location.host}`;
 }

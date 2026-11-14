@@ -6,7 +6,7 @@ import { dispatch } from '@/lib/store/session';
 /** Degrees of camera turn per pixel of drag. */
 const DRAG_SENSITIVITY = 0.22;
 /** How often gathered look motion is sent. */
-const SEND_MS = 33;
+const SEND_MS = 20;
 /** While the stick is held over, a step goes out this often (a hop on the big screen takes ~650 ms). */
 const STEP_MS = 720;
 const STICK = 132;
@@ -14,12 +14,13 @@ const KNOB = 56;
 const DEADZONE = 0.35;
 
 /**
- * Game-style controls: a thumbstick walks, a drag anywhere else looks around. Both work at once.
+ * Game-style controls: a thumbstick walks (on the side of the hand that holds the phone's
+ * dominant thumb), a drag anywhere else looks around. Both work at once.
  * The stick sends `viewer.step` with the way to go (the house is walked in hops between scan
  * positions, so holding the stick over repeats the step); the drag sends `viewer.look` deltas,
  * yaw > 0 looks right, pitch > 0 looks up.
  */
-export function MovePad({ hint }: { hint: string }) {
+export function MovePad({ hint, side = 'right' }: { hint: string; side?: 'left' | 'right' }) {
   const acc = useRef({ yaw: 0, pitch: 0 });
   const last = useRef<{ x: number; y: number } | null>(null);
   const stick = useRef<{ x: number; y: number } | null>(null); // -1..1, y up
@@ -97,7 +98,7 @@ export function MovePad({ hint }: { hint: string }) {
       <div
         data-testid="walk-stick"
         aria-label="Walk"
-        className="absolute bottom-24 left-6 rounded-full border border-line-strong/50 bg-ink/80"
+        className={`absolute bottom-8 rounded-full border border-line-strong/50 bg-ink/80 ${side === 'left' ? 'left-6' : 'right-6'}`}
         style={{ width: STICK, height: STICK }}
         onPointerDown={(e) => {
           e.stopPropagation();
