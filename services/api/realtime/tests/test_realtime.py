@@ -37,7 +37,7 @@ def test_hub_delivers_in_order_to_everyone_and_sends_state_on_join():
         phone = hub.connect(sid, "phone")
         first = phone.queue.get_nowait()
         assert first.type == "session.state" and first.payload["mode"] == "sun" and first.payload["room_id"] == "r1"
-        assert drain(phone) == [("session.joined", "server")]
+        assert drain(phone) == [("session.joined", "server"), ("session.joined", "server")]  # desktop, then itself
 
     asyncio.run(scenario())
 
@@ -46,8 +46,10 @@ def test_pair_token_is_single_use_expires_and_is_bound_to_its_session():
     hub = Hub()
     a, b = hub.create_session("demo", PROPERTY), hub.create_session("demo", PROPERTY)
     assert hub.redeem_pair_token(b.session_id, a.pair_token) is None  # other session
+    assert not hub.authorize(a.session_id, "phone", a.pair_token)  # not joined yet
     phone_token = hub.redeem_pair_token(a.session_id, a.pair_token)
-    assert hub.authorize(a.session_id, phone_token) == "phone"
+    assert hub.authorize(a.session_id, "phone", phone_token) and hub.authorize(a.session_id, "phone", a.pair_token)
+    assert not hub.authorize(b.session_id, "phone", a.pair_token)
     assert hub.redeem_pair_token(a.session_id, a.pair_token) is None  # second use
     late = datetime.now(timezone.utc) + timedelta(minutes=11)
     assert hub.redeem_pair_token(b.session_id, b.pair_token, now=late) is None  # expired

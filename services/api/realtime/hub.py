@@ -48,6 +48,8 @@ class SessionRoom:
     connections: list[Connection] = field(default_factory=list)
     pair_tokens: dict[str, datetime] = field(default_factory=dict)  # token -> expiry
     client_tokens: dict[str, ClientKind] = field(default_factory=dict)
+    issued_pair_tokens: set[str] = field(default_factory=set)
+    joined_pair_tokens: set[str] = field(default_factory=set)
 
 
 def _apply(state: ViewerState, event: EventEnvelope) -> None:
@@ -89,22 +91,34 @@ class Hub:
         expires = (now or datetime.now(timezone.utc)) + PAIR_TOKEN_TTL
         token = secrets.token_urlsafe(16)
         room.pair_tokens[token] = expires
+        room.issued_pair_tokens.add(token)
         return Session(session_id=session_id, pair_token=token, expires_at=expires)
 
     def redeem_pair_token(self, session_id: str, pair_token: str, now: datetime | None = None) -> str | None:
-        """Trade a pairing token for a phone client_token. None if unknown, used, expired, or for
-        another session."""
+        """Admit a phone: one successful join per pairing token. Returns the phone's client_token,
+        or None if the token is unknown, used, expired, or for another session."""
         room = self.rooms.get(session_id)
         expires = room.pair_tokens.pop(pair_token, None) if room else None
         if expires is None or (now or datetime.now(timezone.utc)) >= expires:
             return None
         client_token = secrets.token_urlsafe(24)
         room.client_tokens[client_token] = "phone"
+        room.joined_pair_tokens.add(pair_token)
         return client_token
 
-    def authorize(self, session_id: str, client_token: str) -> ClientKind | None:
+    def authorize(self, session_id: str, client: ClientKind, token: str) -> bool:
+        """May this token open a WebSocket as `client`?
+
+        Accepts the client_token, or the pairing token itself: for the desktop any pairing token
+        issued to this session, for the phone only one that has been through a successful join.
+        (The web app reconnects with the pairing token; "single use" means one join, B10.)
+        """
         room = self.rooms.get(session_id)
-        return room.client_tokens.get(client_token) if room else None
+        if room is None or not token:
+            return False
+        if room.client_tokens.get(token) == client:
+            return True
+        return token in (room.issued_pair_tokens if client == "desktop" else room.joined_pair_tokens)
 
     # --- connections and events (B9) ------------------------------------------------------------
 
@@ -116,6 +130,8 @@ class Hub:
         room = self.rooms[session_id]
         conn = Connection(session_id, client)
         conn.queue.put_nowait(make_event(session_id, "server", "session.state", room.state))
+        for other in room.connections:  # so a late joiner knows who is already here
+            conn.queue.put_nowait(make_event(session_id, "server", "session.joined", {"client": other.client}))
         room.connections.append(conn)
         self.publish(make_event(session_id, "server", "session.joined", {"client": client}))
         return conn

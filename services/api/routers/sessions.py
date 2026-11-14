@@ -9,6 +9,7 @@ import logging
 from fastapi import APIRouter, Header, HTTPException, Request, WebSocket, WebSocketDisconnect
 from packages.schema.events import parse_client_event
 from packages.schema.session import ClientKind, CreateSessionRequest, JoinRequest, JoinResult, Session
+from services.api.integrations.config import env, fixtures_dir
 from services.api.realtime.hub import Hub
 from services.api.twin.service import TwinNotFound, get_twin
 
@@ -16,16 +17,29 @@ log = logging.getLogger(__name__)
 router = APIRouter()
 
 
+def _default_property_id() -> str | None:
+    """The property to use when the client names none: DEFAULT_PROPERTY_ID, or the only twin."""
+    if env("DEFAULT_PROPERTY_ID"):
+        return env("DEFAULT_PROPERTY_ID")
+    twins = sorted((fixtures_dir() / "twin").glob("*.json"))
+    return twins[0].stem if len(twins) == 1 else None
+
+
 @router.post("/sessions")
-def create_session(body: CreateSessionRequest, request: Request, x_user_id: str = Header("demo")) -> Session:
-    """The desktop starts a session. `client_token` goes on its WebSocket URL; `pair_token` goes in
-    the QR code for the phone."""
+def create_session(
+    request: Request, body: CreateSessionRequest | None = None, x_user_id: str = Header("demo")
+) -> Session:
+    """The desktop starts a session. `pair_token` goes in the QR code for the phone. Either token
+    opens the desktop's WebSocket."""
+    property_id = body.property_id if body else _default_property_id()
+    if property_id is None:
+        raise HTTPException(422, 'send {"property_id": "..."}: there is more than one property')
     try:
-        twin = get_twin(body.property_id)
+        twin = get_twin(property_id)
     except TwinNotFound as e:
         raise HTTPException(404, str(e)) from e
     hub: Hub = request.app.state.hub
-    return hub.create_session(user_id=x_user_id, property_id=body.property_id, timezone_name=twin.timezone)
+    return hub.create_session(user_id=x_user_id, property_id=property_id, timezone_name=twin.timezone)
 
 
 @router.post("/sessions/{session_id}/pair")
@@ -50,7 +64,7 @@ def join_session(session_id: str, body: JoinRequest, request: Request) -> JoinRe
 @router.websocket("/ws/sessions/{session_id}")
 async def session_socket(ws: WebSocket, session_id: str, client: ClientKind, token: str = "") -> None:
     hub: Hub = ws.app.state.hub
-    if hub.authorize(session_id, token) != client:
+    if not hub.authorize(session_id, client, token):
         await ws.close(code=4401, reason="bad session, client or token")
         return
     await ws.accept()
