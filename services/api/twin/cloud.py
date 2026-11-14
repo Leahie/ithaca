@@ -41,6 +41,24 @@ def load_cloud(model_id: str, voxel_m: float = 0.005) -> tuple[np.ndarray, np.nd
     return data["points"], data["colors"]
 
 
+def iter_points(model_id: str, chunk: int = 2_000_000, voxel_m: float = 0.005):
+    """The cloud's points in (chunk, 3) blocks, read straight from the npz without loading it whole."""
+    path = cloud_path(model_id, voxel_m)
+    if not path.exists():
+        extract_cloud(model_id, voxel_m)
+    with zipfile.ZipFile(path) as z, z.open("points.npy") as f:
+        version = np.lib.format.read_magic(f)
+        shape, fortran, dtype = np.lib.format._read_array_header(f, version)
+        if fortran or len(shape) != 2:
+            raise ValueError(f"unexpected points layout in {path}")
+        row = shape[1] * dtype.itemsize
+        left = shape[0]
+        while left:
+            n = min(chunk, left)
+            yield np.frombuffer(f.read(n * row), dtype=dtype).reshape(n, shape[1])
+            left -= n
+
+
 def thin(points: np.ndarray, colors: np.ndarray, voxel_m: float) -> tuple[np.ndarray, np.ndarray]:
     """One point per voxel (the first one seen)."""
     keys = np.zeros(len(points), np.int64)
