@@ -7,10 +7,9 @@ source: stream-b/agent-v0 @ 850c835
 ---
 # How the agent drives the UI, and what it needs from the desktop
 
-**Why:** the agent graph now exists (`services/api/agent/`). It emits UI events and reacts to app
-events. The WebSocket hub and `packages/schema/events.py` are not built yet, so nothing here is
-on the wire today. Build against the v0 event table in WORKSTREAMS.md section 2.3 with these
-points in mind.
+**Why:** the agent graph exists (`services/api/agent/`). It emits UI events and reacts to app
+events. These are the rules of that conversation. How to run and connect to the server is in
+`2026-11-14-from-b-hub-and-scripted-agent.md`.
 
 ## What you need to do
 - [ ] **Handle `viewer.goto` with `room_id` only.** The agent never sends `sweep_id`. Pick the
@@ -43,19 +42,19 @@ Not emitted yet: `design.showVariants`, `sound.setScenario` (they come with layo
 - The UI events above, in the order the agent made them, before the text that follows them.
 - `agent.message` with the final text. **Absent when the agent stays silent.**
 
-### Turn end (proposal, not in schema v0 yet)
-Because a turn can end with no `agent.message`, B plans to add an additive event
-`agent.turn {status: "started" | "ended"}` when the hub lands. Use it for the typing indicator.
-Until then, don't block the UI on a reply. Tell B if you want a different shape.
+### Turn end
+Because a turn can end with no `agent.message`, every turn is bracketed by
+`agent.turn {status: "started" | "ended"}` (additive to schema v0, in `packages/schema/events.py`).
+Use it for the typing indicator.
 
 ### App events the agent reacts to
-The hub will turn these into agent turns. No new event types for A:
+The server turns these into agent turns. No new event types for A:
 | Agent sees | Comes from |
 |---|---|
-| property opened | desktop joins a session (`session.joined`) |
-| room entered | desktop `viewer.goto {room_id}` (second item above) |
-| object ready | `job.progress` done for an object ingest |
-| layout chosen / rejected | `layout.select`, `POST /layouts/{id}/feedback` |
+| property opened | desktop joins a session for the first time (built) |
+| room entered | desktop or phone `viewer.goto {room_id}` to a different room (built; at most one comment per minute) |
+| object ready | `job.progress` done for an object ingest (not built) |
+| layout chosen / rejected | `layout.select`, `POST /layouts/{id}/feedback` (not built) |
 
 ### Memory files (for the `/me` editor, REST not built yet)
 `profile.md`, `preferences.md` (sections Hard / Soft / Style), `properties/<property_id>.md`,

@@ -43,5 +43,5 @@ does I/O beyond reading the fixture (database, network), cache it by `property_i
 
 ### Environment
 B's tests run in a Python 3.12 venv (`.venv`, `uv`). B's dependencies are in
-`services/api/agent/requirements.txt`. B added its keys to `.env.example`
+`services/api/requirements-b.txt`. B added its keys to `.env.example`
 (`LLM_PROVIDER`, `ANTHROPIC_API_KEY`, `OPENROUTER_API_KEY`, `AGENT_MODEL`).

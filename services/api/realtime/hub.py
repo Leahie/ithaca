@@ -1,0 +1,138 @@
+"""Session hub: the switchboard between desktop, phone and agent. Owner: B.
+
+One session = one house being viewed by one user. Everything that happens is an event (see
+packages/schema/events.py). The hub:
+- delivers every event, in order, to every client in the session, including the sender (B9);
+- keeps the latest ViewerState and sends it as `session.state` to a client when it joins (B9);
+- keeps no event history;
+- hands out pairing tokens: single use, 10 minutes, one session (B10).
+
+It knows nothing about the agent. The agent bridge subscribes with `hub.subscribe()`.
+
+State is in this process's memory. Redis pub/sub replaces the fan-out when there is more than one
+API process; the methods stay the same.
+"""
+
+from __future__ import annotations
+
+import asyncio
+import logging
+import secrets
+import uuid
+from collections.abc import Callable
+from dataclasses import dataclass, field
+from datetime import datetime, timedelta, timezone
+
+from packages.schema.events import Envelope, make_event
+from packages.schema.session import ClientKind, Session, ViewerState
+
+log = logging.getLogger(__name__)
+
+PAIR_TOKEN_TTL = timedelta(minutes=10)
+
+
+@dataclass(eq=False)
+class Connection:
+    session_id: str
+    client: ClientKind
+    queue: asyncio.Queue[Envelope] = field(default_factory=asyncio.Queue)
+
+
+@dataclass
+class SessionRoom:
+    session_id: str
+    user_id: str
+    property_id: str
+    state: ViewerState = field(default_factory=ViewerState)
+    connections: list[Connection] = field(default_factory=list)
+    pair_tokens: dict[str, datetime] = field(default_factory=dict)  # token -> expiry
+    client_tokens: dict[str, ClientKind] = field(default_factory=dict)
+
+
+def _apply(state: ViewerState, event: Envelope) -> None:
+    """Fold an event into the viewer state."""
+    p = event.payload
+    if event.type == "viewer.goto" and p.get("room_id"):
+        state.room_id = p["room_id"]
+    elif event.type == "viewer.setTime":
+        state.datetime = p["datetime"]
+    elif event.type == "viewer.setMode":
+        state.mode = p["mode"]
+    elif event.type == "sound.setScenario":
+        state.sound_scenario = p
+    elif event.type == "design.showVariants":
+        state.shown_layout_ids = p["layout_ids"]
+
+
+class Hub:
+    def __init__(self) -> None:
+        self.rooms: dict[str, SessionRoom] = {}
+        self._listeners: list[Callable[[SessionRoom, Envelope], None]] = []
+
+    # --- sessions and pairing (B10) -------------------------------------------------------------
+
+    def create_session(self, user_id: str, property_id: str) -> Session:
+        room = SessionRoom(session_id=uuid.uuid4().hex, user_id=user_id, property_id=property_id)
+        self.rooms[room.session_id] = room
+        client_token = secrets.token_urlsafe(24)
+        room.client_tokens[client_token] = "desktop"
+        return self.new_pair_token(room.session_id).model_copy(update={"client_token": client_token})
+
+    def new_pair_token(self, session_id: str, now: datetime | None = None) -> Session:
+        """A fresh token for the QR code. Raises KeyError for an unknown session."""
+        room = self.rooms[session_id]
+        expires = (now or datetime.now(timezone.utc)) + PAIR_TOKEN_TTL
+        token = secrets.token_urlsafe(16)
+        room.pair_tokens[token] = expires
+        return Session(session_id=session_id, pair_token=token, expires_at=expires)
+
+    def redeem_pair_token(self, session_id: str, pair_token: str, now: datetime | None = None) -> str | None:
+        """Trade a pairing token for a phone client_token. None if unknown, used, expired, or for
+        another session."""
+        room = self.rooms.get(session_id)
+        expires = room.pair_tokens.pop(pair_token, None) if room else None
+        if expires is None or (now or datetime.now(timezone.utc)) >= expires:
+            return None
+        client_token = secrets.token_urlsafe(24)
+        room.client_tokens[client_token] = "phone"
+        return client_token
+
+    def authorize(self, session_id: str, client_token: str) -> ClientKind | None:
+        room = self.rooms.get(session_id)
+        return room.client_tokens.get(client_token) if room else None
+
+    # --- connections and events (B9) ------------------------------------------------------------
+
+    def subscribe(self, listener: Callable[[SessionRoom, Envelope], None]) -> None:
+        """Call `listener(room, event)` for every published event, after the state is updated."""
+        self._listeners.append(listener)
+
+    def connect(self, session_id: str, client: ClientKind) -> Connection:
+        room = self.rooms[session_id]
+        conn = Connection(session_id, client)
+        conn.queue.put_nowait(make_event(session_id, "server", "session.state", room.state))
+        room.connections.append(conn)
+        self.publish(make_event(session_id, "server", "session.joined", {"client": client}))
+        return conn
+
+    def disconnect(self, conn: Connection) -> None:
+        room = self.rooms.get(conn.session_id)
+        if room and conn in room.connections:
+            room.connections.remove(conn)
+            self.publish(make_event(conn.session_id, "server", "session.left", {"client": conn.client}))
+
+    def publish(self, event: Envelope) -> None:
+        """Update the state and queue the event for every client. Call from the event loop only;
+        because nothing here awaits, events keep the order they were published in."""
+        room = self.rooms.get(event.session_id)
+        if room is None:
+            log.warning("event for unknown session %s dropped", event.session_id)
+            return
+        _apply(room.state, event)
+        for conn in room.connections:
+            conn.queue.put_nowait(event)
+        for listener in self._listeners:
+            try:
+                listener(room, event)
+            except Exception:
+                log.exception("hub listener failed on %s", event.type)

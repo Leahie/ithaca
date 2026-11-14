@@ -1,0 +1,478 @@
+{
+  "$defs": {
+    "Floor": {
+      "properties": {
+        "elevation_m": {
+          "title": "Elevation M",
+          "type": "number"
+        },
+        "floor_id": {
+          "title": "Floor Id",
+          "type": "string"
+        },
+        "index": {
+          "title": "Index",
+          "type": "integer"
+        },
+        "label": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Label"
+        }
+      },
+      "required": [
+        "floor_id",
+        "index",
+        "elevation_m"
+      ],
+      "title": "Floor",
+      "type": "object"
+    },
+    "Opening": {
+      "properties": {
+        "facade_azimuth_deg": {
+          "title": "Facade Azimuth Deg",
+          "type": "number"
+        },
+        "glazing": {
+          "enum": [
+            "none",
+            "single",
+            "double",
+            "triple"
+          ],
+          "title": "Glazing",
+          "type": "string"
+        },
+        "kind": {
+          "enum": [
+            "window",
+            "door",
+            "slider"
+          ],
+          "title": "Kind",
+          "type": "string"
+        },
+        "opening_id": {
+          "title": "Opening Id",
+          "type": "string"
+        },
+        "other_room_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Other Room Id"
+        },
+        "polygon": {
+          "items": {
+            "$ref": "#/$defs/Vec3"
+          },
+          "title": "Polygon",
+          "type": "array"
+        },
+        "room_id": {
+          "title": "Room Id",
+          "type": "string"
+        },
+        "stc": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Stc"
+        }
+      },
+      "required": [
+        "opening_id",
+        "room_id",
+        "kind",
+        "polygon",
+        "facade_azimuth_deg",
+        "glazing"
+      ],
+      "title": "Opening",
+      "type": "object"
+    },
+    "PropertyTwin": {
+      "properties": {
+        "address": {
+          "title": "Address",
+          "type": "string"
+        },
+        "assets": {
+          "$ref": "#/$defs/TwinAssets"
+        },
+        "floors": {
+          "items": {
+            "$ref": "#/$defs/Floor"
+          },
+          "title": "Floors",
+          "type": "array"
+        },
+        "interior_to_world": {
+          "items": {
+            "type": "number"
+          },
+          "maxItems": 16,
+          "minItems": 16,
+          "title": "Interior To World",
+          "type": "array"
+        },
+        "lat": {
+          "title": "Lat",
+          "type": "number"
+        },
+        "lon": {
+          "title": "Lon",
+          "type": "number"
+        },
+        "openings": {
+          "items": {
+            "$ref": "#/$defs/Opening"
+          },
+          "title": "Openings",
+          "type": "array"
+        },
+        "property_id": {
+          "title": "Property Id",
+          "type": "string"
+        },
+        "quality": {
+          "$ref": "#/$defs/TwinQuality"
+        },
+        "rooms": {
+          "items": {
+            "$ref": "#/$defs/Room"
+          },
+          "title": "Rooms",
+          "type": "array"
+        },
+        "sources": {
+          "$ref": "#/$defs/TwinSources"
+        },
+        "sweeps": {
+          "items": {
+            "$ref": "#/$defs/Sweep"
+          },
+          "title": "Sweeps",
+          "type": "array"
+        },
+        "timezone": {
+          "title": "Timezone",
+          "type": "string"
+        },
+        "version": {
+          "title": "Version",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "property_id",
+        "version",
+        "sources",
+        "address",
+        "lat",
+        "lon",
+        "timezone",
+        "interior_to_world",
+        "floors",
+        "rooms",
+        "openings",
+        "sweeps",
+        "assets",
+        "quality"
+      ],
+      "title": "PropertyTwin",
+      "type": "object"
+    },
+    "Room": {
+      "properties": {
+        "area_m2": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Area M2"
+        },
+        "floor_id": {
+          "title": "Floor Id",
+          "type": "string"
+        },
+        "floor_material": {
+          "title": "Floor Material",
+          "type": "string"
+        },
+        "floor_y": {
+          "title": "Floor Y",
+          "type": "number"
+        },
+        "height_m": {
+          "title": "Height M",
+          "type": "number"
+        },
+        "label": {
+          "title": "Label",
+          "type": "string"
+        },
+        "polygon": {
+          "items": {
+            "maxItems": 2,
+            "minItems": 2,
+            "prefixItems": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "number"
+              }
+            ],
+            "type": "array"
+          },
+          "title": "Polygon",
+          "type": "array"
+        },
+        "room_id": {
+          "title": "Room Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "room_id",
+        "floor_id",
+        "label",
+        "polygon",
+        "floor_y",
+        "height_m",
+        "floor_material"
+      ],
+      "title": "Room",
+      "type": "object"
+    },
+    "Sweep": {
+      "properties": {
+        "floor_id": {
+          "title": "Floor Id",
+          "type": "string"
+        },
+        "label": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Label"
+        },
+        "position": {
+          "$ref": "#/$defs/Vec3"
+        },
+        "room_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Room Id"
+        },
+        "sweep_id": {
+          "title": "Sweep Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "sweep_id",
+        "floor_id",
+        "room_id",
+        "position"
+      ],
+      "title": "Sweep",
+      "type": "object"
+    },
+    "TwinAssets": {
+      "properties": {
+        "context_glb": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Context Glb"
+        },
+        "interior_glb": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Interior Glb"
+        },
+        "obliques": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Obliques",
+          "type": "array"
+        },
+        "ortho": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Ortho"
+        }
+      },
+      "title": "TwinAssets",
+      "type": "object"
+    },
+    "TwinQuality": {
+      "properties": {
+        "alignment": {
+          "enum": [
+            "icp",
+            "georef",
+            "gps_only"
+          ],
+          "title": "Alignment",
+          "type": "string"
+        },
+        "context": {
+          "enum": [
+            "dsm",
+            "none"
+          ],
+          "title": "Context",
+          "type": "string"
+        },
+        "openings": {
+          "enum": [
+            "annotated",
+            "detected",
+            "none"
+          ],
+          "title": "Openings",
+          "type": "string"
+        },
+        "traffic": {
+          "enum": [
+            "aadt",
+            "class_default",
+            "none"
+          ],
+          "title": "Traffic",
+          "type": "string"
+        }
+      },
+      "required": [
+        "alignment",
+        "openings",
+        "context",
+        "traffic"
+      ],
+      "title": "TwinQuality",
+      "type": "object"
+    },
+    "TwinSources": {
+      "properties": {
+        "costar_listing_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Costar Listing Id"
+        },
+        "matterport_model_id": {
+          "title": "Matterport Model Id",
+          "type": "string"
+        },
+        "vexcel_parcel_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Vexcel Parcel Id"
+        }
+      },
+      "required": [
+        "matterport_model_id"
+      ],
+      "title": "TwinSources",
+      "type": "object"
+    },
+    "Vec3": {
+      "properties": {
+        "x": {
+          "title": "X",
+          "type": "number"
+        },
+        "y": {
+          "title": "Y",
+          "type": "number"
+        },
+        "z": {
+          "title": "Z",
+          "type": "number"
+        }
+      },
+      "required": [
+        "x",
+        "y",
+        "z"
+      ],
+      "title": "Vec3",
+      "type": "object"
+    }
+  },
+  "title": "twin"
+}

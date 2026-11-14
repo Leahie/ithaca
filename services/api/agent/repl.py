@@ -13,36 +13,20 @@ there in the next. Commands:
 from __future__ import annotations
 
 import argparse
-import sqlite3
 import uuid
-from pathlib import Path
 
-from langgraph.checkpoint.sqlite import SqliteSaver
-from langgraph.store.sqlite import SqliteStore
+from langgraph.store.base import BaseStore
 
 from services.api.agent.context import AgentContext
 from services.api.agent.graph import build_agent, memory_namespace
+from services.api.agent.provider import open_dev_storage
 from services.api.agent.runner import event_message, stream_turn
 from services.api.integrations.config import REPO_ROOT, IntegrationNotConfigured
 
 DIM, BOLD, RESET = "\033[2m", "\033[1m", "\033[0m"
 
 
-def open_dev_storage(db_dir: Path | None) -> tuple[SqliteStore, SqliteSaver]:
-    """Memory and chat history in two SQLite files (they can't share a connection: each manages
-    its own transactions). db_dir=None keeps both in RAM."""
-
-    def connect(name: str) -> sqlite3.Connection:
-        target = ":memory:" if db_dir is None else db_dir / name
-        return sqlite3.connect(target, check_same_thread=False, isolation_level=None)
-
-    store, saver = SqliteStore(connect("memory.sqlite")), SqliteSaver(connect("threads.sqlite"))
-    store.setup()
-    saver.setup()
-    return store, saver
-
-
-def print_memory(store: SqliteStore, user_id: str) -> None:
+def print_memory(store: BaseStore, user_id: str) -> None:
     items = store.search(memory_namespace(user_id), limit=100)
     if not items:
         print(f"{DIM}(no memory files yet){RESET}")
@@ -79,9 +63,7 @@ def main() -> None:
     parser.add_argument("--thread", default=None, help="resume a thread id; default is a new one")
     args = parser.parse_args()
 
-    db_dir = REPO_ROOT / "data" / "agent"
-    db_dir.mkdir(parents=True, exist_ok=True)
-    store, saver = open_dev_storage(db_dir)
+    store, saver = open_dev_storage()
 
     try:
         agent = build_agent(args.property, store=store, checkpointer=saver)

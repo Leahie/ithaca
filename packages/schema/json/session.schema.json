@@ -1,0 +1,104 @@
+{
+  "$defs": {
+    "Session": {
+      "properties": {
+        "client_token": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Client Token"
+        },
+        "expires_at": {
+          "format": "date-time",
+          "title": "Expires At",
+          "type": "string"
+        },
+        "pair_token": {
+          "title": "Pair Token",
+          "type": "string"
+        },
+        "session_id": {
+          "title": "Session Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "session_id",
+        "pair_token",
+        "expires_at"
+      ],
+      "title": "Session",
+      "type": "object"
+    },
+    "ViewerState": {
+      "description": "What the desktop is showing. The hub keeps the latest copy and sends it on join (B9).",
+      "properties": {
+        "datetime": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Datetime"
+        },
+        "mode": {
+          "default": "tour",
+          "enum": [
+            "tour",
+            "sun",
+            "sound",
+            "neighborhood",
+            "design"
+          ],
+          "title": "Mode",
+          "type": "string"
+        },
+        "room_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Room Id"
+        },
+        "shown_layout_ids": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Shown Layout Ids",
+          "type": "array"
+        },
+        "sound_scenario": {
+          "anyOf": [
+            {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Sound Scenario"
+        }
+      },
+      "title": "ViewerState",
+      "type": "object"
+    }
+  },
+  "title": "session"
+}
