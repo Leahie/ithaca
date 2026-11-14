@@ -210,12 +210,15 @@ const VIEWS: { view: RemoteView; label: string; icon: typeof IconTour }[] = [
 function RoomBlocks({ twin, onPicked }: { twin: PropertyTwin; onPicked(): void }) {
   const roomId = useSession((s) => s.viewer.room_id);
   const dispatch = useSession((s) => s.dispatch);
+  // The floor you are on comes first, then the rest from the ground up.
+  const here = twin.rooms.find((r) => r.room_id === roomId)?.floor_id;
+  const floors = [...twin.floors].sort((a, b) => Number(b.floor_id === here) - Number(a.floor_id === here) || a.index - b.index);
   return (
     <div className="space-y-5" data-testid="remote-rooms">
       <p className="text-sm text-muted">The map is on the big screen. Tap where you want to go.</p>
-      {[...twin.floors].sort((a, b) => a.index - b.index).map((floor) => (
+      {floors.map((floor) => (
         <section key={floor.floor_id}>
-          <h2 className="mb-2 text-[11px] font-semibold tracking-wider text-faint uppercase">{floor.label ?? `Floor ${floor.index + 1}`}</h2>
+          <h2 className="mb-2 text-[11px] font-semibold tracking-wider text-faint uppercase">{floor.label ?? `Floor ${floor.index + 1}`}{floor.floor_id === here && ' · you are here'}</h2>
           <div className="grid grid-cols-2 gap-2">
             {roomsOnFloor(twin, floor.floor_id).map((r) => (
               <button key={r.room_id} type="button" data-room-id={r.room_id} aria-pressed={r.room_id === roomId}
