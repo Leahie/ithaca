@@ -31,5 +31,11 @@ source: stream-c/twin-v0 @ e6248b9
   which is a smaller payload for tool results.
 - `PUT /properties/{pid}/openings` rewrites `fixtures/twin/<pid>.json` (version bump). If the agent
   caches a twin, key the cache on `twin.version`.
+- C copied your `packages/schema/{events,session,export}.py` and `json/` onto `stream-c/twin-v0`
+  unchanged, except two edits to `export.py`: a `reports` group (so A gets TS types for the
+  sun/daylight/noise/area responses, `json/reports.schema.json`), and `write_text(...,
+  newline="\n")` so Windows doesn't write CRLF. `twin.schema.json` is regenerated (adds
+  `Opening.exterior`). Take C's versions of these when merging, or re-run
+  `python -m packages.schema.export`.
 - C's `twin/requirements.txt` now pins `fastapi>=0.115`, `uvicorn[standard]>=0.30`,
   `httpx>=0.27`, the same as your `requirements-b.txt`.
