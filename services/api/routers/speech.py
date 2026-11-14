@@ -4,6 +4,7 @@ POST /api/speech/tts: the browser posts text (and voice: female | male) and play
 WS /ws/speech/listen: the browser streams microphone audio (16-bit PCM, mono, at
 ?sample_rate=) and gets back {"text", "final"} with the whole transcript so far; it sends
 {"type": "stop"} on release, and gets one message with final: true before the socket closes.
+With ?auto=1 the server ends it by itself when the speaker pauses (or after 8 s of nothing).
 
 The key stays on the server (I-G22). Without DEEPGRAM_API_KEY the route answers 503, the socket
 closes with code 4503, and the web app uses the browser's own speech.
@@ -14,6 +15,7 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import time
 from contextlib import suppress
 from typing import Literal
 from urllib.parse import urlencode
@@ -78,7 +80,14 @@ async def text_to_speech(body: SpeakRequest) -> Response:
     return Response(r.content, media_type="audio/mpeg", headers={"Cache-Control": "no-store"})
 
 
-def _deepgram_listen(sample_rate: int, key: str):
+# Hands-free listening (?auto=1): Deepgram marks the end of speech after this much silence, and
+# the socket then ends on its own, without waiting for the browser to say stop.
+ENDPOINT_SILENCE_MS = 900
+UTTERANCE_END_MS = 1400
+NOTHING_HEARD_S = 8.0  # give up if the microphone opened and nobody spoke
+
+
+def _deepgram_listen(sample_rate: int, key: str, auto: bool = False):
     params = {
         "model": env("DEEPGRAM_STT_MODEL") or DEFAULT_STT_MODEL,
         "language": env("DEEPGRAM_STT_LANGUAGE") or "en",
@@ -88,10 +97,12 @@ def _deepgram_listen(sample_rate: int, key: str):
         "smart_format": "true",
         "interim_results": "true",
     }
+    if auto:
+        params |= {"endpointing": ENDPOINT_SILENCE_MS, "utterance_end_ms": UTTERANCE_END_MS, "vad_events": "true"}
     return connect(f"{DEEPGRAM_LISTEN}?{urlencode(params)}", additional_headers={"Authorization": f"Token {key}"})
 
 
-async def listen_socket(ws: WebSocket, sample_rate: int = 48000) -> None:
+async def listen_socket(ws: WebSocket, sample_rate: int = 48000, auto: bool = False) -> None:
     await ws.accept()
     key = env("DEEPGRAM_API_KEY")
     if not key:
@@ -109,7 +120,8 @@ async def listen_socket(ws: WebSocket, sample_rate: int = 48000) -> None:
         return " ".join(t for t in [*finals, interim] if t).strip()
 
     try:
-        async with _deepgram_listen(sample_rate, key) as dg:
+        opened = time.monotonic()
+        async with _deepgram_listen(sample_rate, key, auto) as dg:
 
             async def relay_audio() -> None:
                 nonlocal gone
@@ -132,6 +144,8 @@ async def listen_socket(ws: WebSocket, sample_rate: int = 48000) -> None:
             try:
                 async for raw in dg:
                     data = json.loads(raw)
+                    if auto and data.get("type") == "UtteranceEnd" and transcript():
+                        break  # they stopped talking
                     if data.get("type") != "Results":
                         continue
                     text = data["channel"]["alternatives"][0]["transcript"].strip()
@@ -143,6 +157,10 @@ async def listen_socket(ws: WebSocket, sample_rate: int = 48000) -> None:
                         interim = text
                     if not gone:
                         await ws.send_json({"text": transcript(), "final": False})
+                    if auto and data.get("speech_final") and transcript():
+                        break  # a pause after speech: that was the whole question
+                    if auto and not transcript() and time.monotonic() - opened > NOTHING_HEARD_S:
+                        break  # nobody spoke
             finally:
                 audio.cancel()
         if not gone:

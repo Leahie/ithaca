@@ -184,3 +184,16 @@ matterport-viewer {
     animation: none;
   }
 }
+
+/* The microphone is open: a ring breathes out from the button. */
+@keyframes mic-live {
+  0% {
+    box-shadow: 0 0 0 0 rgb(43 220 134 / 0.55);
+  }
+  100% {
+    box-shadow: 0 0 0 14px rgb(43 220 134 / 0);
+  }
+}
+.mic-live {
+  animation: mic-live 1.2s ease-out infinite;
+}

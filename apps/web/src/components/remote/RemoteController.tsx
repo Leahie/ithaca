@@ -133,6 +133,7 @@ function Remote({ propertyId }: { propertyId: string }) {
   const dispatch = useSession((s) => s.dispatch);
   const { error: sessionError } = useSessionInfo();
   const ptt = usePushToTalk();
+  const heard = useSession((s) => s.interim?.text ?? '');
   const [text, setText] = useState('');
   const [view, setView] = useState<RemoteView>('move');
   // Handedness: the walking stick sits under the dominant thumb, the talk button on the other side.
@@ -223,7 +224,7 @@ function Remote({ propertyId }: { propertyId: string }) {
       <div className={cn('flex shrink-0 items-center gap-3 border-b border-line bg-ink/95 px-3 py-1', hand === 'left' && 'flex-row-reverse')} data-testid="remote-bar">
         <div className={cn('min-w-0 flex-1 truncate', hand === 'left' && 'text-right')} data-testid="remote-room">
           {ptt.listening || ptt.error ? (
-            <span className={cn('text-sm', ptt.error ? 'text-danger' : 'text-text')}>{ptt.error ?? 'Listening…'}</span>
+            <span className={cn('line-clamp-2 text-sm', ptt.error ? 'text-danger' : 'text-text')}>{ptt.error ?? (heard ? `“${heard}”` : 'Listening… talk, then pause')}</span>
           ) : twin.data && room ? (
             <>
               <span className="font-display text-[15px] font-semibold">{roomName(twin.data, room.room_id)}</span>
@@ -238,18 +239,13 @@ function Remote({ propertyId }: { propertyId: string }) {
           <button
             type="button"
             disabled={!ptt.supported}
-            aria-label="Hold to talk to the guide"
-            title={ptt.supported ? 'Hold to talk' : 'Speech recognition is not available in this browser'}
+            aria-label={ptt.listening ? 'Stop listening' : 'Talk to the guide'}
+            aria-pressed={ptt.listening}
+            title={ptt.supported ? 'Tap and talk. It stops when you do.' : 'Speech recognition is not available in this browser'}
             data-testid="ptt"
-            className={cn('flex h-9 w-9 touch-none items-center justify-center rounded-full transition-transform select-none disabled:opacity-40',
-              ptt.listening ? 'scale-110 bg-leaf text-main' : 'bg-main text-on-main')}
-            onPointerDown={(e) => {
-              e.currentTarget.setPointerCapture(e.pointerId);
-              ptt.start();
-            }}
-            onPointerUp={ptt.stop}
-            onPointerCancel={ptt.stop}
-            onContextMenu={(e) => e.preventDefault()}
+            className={cn('flex h-9 w-9 items-center justify-center rounded-full transition-transform select-none disabled:opacity-40',
+              ptt.listening ? 'mic-live scale-110 bg-leaf text-main' : 'bg-main text-on-main')}
+            onClick={ptt.toggle}
           >
             <IconMic width={18} height={18} />
           </button>
@@ -285,10 +281,9 @@ function Remote({ propertyId }: { propertyId: string }) {
                 <IconSend width={18} height={18} />
               </button>
             ) : (
-              <button type="button" disabled={!ptt.supported} aria-label="Hold to talk to the guide" data-testid="ptt-inline"
-                className={cn('flex h-11 w-11 shrink-0 touch-none items-center justify-center rounded-full select-none disabled:opacity-40', ptt.listening ? 'scale-110 bg-leaf text-main' : 'bg-main text-on-main')}
-                onPointerDown={(e) => { e.currentTarget.setPointerCapture(e.pointerId); ptt.start(); }}
-                onPointerUp={ptt.stop} onPointerCancel={ptt.stop} onContextMenu={(e) => e.preventDefault()}>
+              <button type="button" disabled={!ptt.supported} aria-label={ptt.listening ? 'Stop listening' : 'Talk to the guide'} aria-pressed={ptt.listening} data-testid="ptt-inline"
+                className={cn('flex h-11 w-11 shrink-0 items-center justify-center rounded-full select-none disabled:opacity-40', ptt.listening ? 'mic-live scale-110 bg-leaf text-main' : 'bg-main text-on-main')}
+                onClick={ptt.toggle}>
                 <IconMic width={20} height={20} />
               </button>
             )}

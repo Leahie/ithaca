@@ -123,7 +123,7 @@ def test_listen_streams_the_whole_transcript_then_one_final(client, monkeypatch)
     )
     opened = {}
 
-    def listen(sample_rate, key):
+    def listen(sample_rate, key, auto=False):
         opened.update(sample_rate=sample_rate, key=key)
         return fake
 

@@ -11,12 +11,20 @@ export interface ListenHandlers {
   onError(message: string): void;
 }
 
+export interface ListenOptions {
+  lang?: string;
+  auto?: boolean;
+}
+
 export interface SpeechProvider {
   readonly name: string;
   sttAvailable(): boolean;
   ttsAvailable(): boolean;
-  /** Start listening. Returns a function that stops and delivers the final transcript. */
-  listen(handlers: ListenHandlers, opts?: { lang?: string }): () => void;
+  /**
+   * Start listening. Returns a function that stops and delivers the final transcript. With
+   * `auto`, listening also ends by itself when the speaker pauses: no need to hold anything.
+   */
+  listen(handlers: ListenHandlers, opts?: ListenOptions): () => void;
   /** Say this now: whatever was being said, or was waiting to be said, is dropped. */
   speak(text: string, opts?: { lang?: string; rate?: number }): void;
   /** Say this after what is being said. For a reply that arrives sentence by sentence. */
@@ -69,7 +77,7 @@ export class WebSpeechProvider implements SpeechProvider {
     return typeof window !== 'undefined' && 'speechSynthesis' in window;
   }
 
-  listen(handlers: ListenHandlers, opts: { lang?: string } = {}): () => void {
+  listen(handlers: ListenHandlers, opts: ListenOptions = {}): () => void {
     const Ctor = recognitionCtor();
     if (!Ctor) {
       handlers.onError('Speech recognition is not available in this browser.');
@@ -77,7 +85,7 @@ export class WebSpeechProvider implements SpeechProvider {
     }
     const rec = new Ctor();
     rec.lang = opts.lang ?? navigator.language ?? 'en-US';
-    rec.continuous = true;
+    rec.continuous = !opts.auto; // not continuous: the browser ends it at the first pause
     rec.interimResults = true;
     let text = '';
     let failed = false;
@@ -251,7 +259,7 @@ export class DeepgramProvider implements SpeechProvider {
     return typeof window !== 'undefined' && (typeof Audio !== 'undefined' || this.browser.ttsAvailable());
   }
 
-  listen(handlers: ListenHandlers, opts?: { lang?: string }): () => void {
+  listen(handlers: ListenHandlers, opts?: ListenOptions): () => void {
     if (!this.streams()) return this.browser.listen(handlers, opts);
     // Created here, inside the press: Safari only starts audio from a user gesture.
     const ctx = new AudioContext();
@@ -305,7 +313,7 @@ export class DeepgramProvider implements SpeechProvider {
       ctx.createMediaStreamSource(stream).connect(node);
       node.connect(ctx.destination); // silent; keeps the node running
 
-      const socket = new WebSocket(`${wsOrigin()}/ws/speech/listen?sample_rate=${ctx.sampleRate}`);
+      const socket = new WebSocket(`${wsOrigin()}/ws/speech/listen?sample_rate=${ctx.sampleRate}${opts?.auto ? '&auto=1' : ''}`);
       ws = socket;
       socket.binaryType = 'arraybuffer';
       node.port.onmessage = (e: MessageEvent<ArrayBuffer>) => {
