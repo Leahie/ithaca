@@ -128,6 +128,11 @@ export function SessionProvider({ client, propertyId, join, householdId = null, 
         if (event.type === 'job.progress' && event.payload.status === 'done') {
           invalidate('inventory');
           invalidate('layouts:');
+        } else if (event.type === 'layout.changed') {
+          // Someone moved, added or removed furniture by hand, on this screen or another.
+          invalidate('inventory');
+          invalidate('layouts:');
+          invalidate('layout:');
         } else if (event.type === 'design.showVariants') {
           // New layouts often come with pieces the guide has just added: reload both.
           invalidate('inventory');

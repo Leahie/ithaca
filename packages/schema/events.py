@@ -130,6 +130,13 @@ class ViewerZoomPayload(Model):
     delta: float
 
 
+class LayoutChangedPayload(Model):
+    """Additive to v0. A client edited furniture by hand (moved, turned, added or removed a piece),
+    so every other screen in the session should load the layouts and the inventory again."""
+
+    layout_id: str | None = None
+
+
 class RemoteViewPayload(Model):
     """Additive to v0. Which screen the phone remote is on, so the big screen can follow it
     (it shows the floor plan while the phone is choosing a room)."""
@@ -225,6 +232,7 @@ EVENTS: dict[str, tuple[type[Model], frozenset[str]]] = {
     "viewer.look": (ViewerLookPayload, frozenset({"phone"})),
     "viewer.step": (ViewerStepPayload, frozenset({"phone"})),
     "viewer.zoom": (ViewerZoomPayload, frozenset({"phone"})),
+    "layout.changed": (LayoutChangedPayload, frozenset({"phone", "desktop"})),
     "remote.view": (RemoteViewPayload, frozenset({"phone"})),
     "design.showVariants": (DesignShowVariantsPayload, frozenset({"agent"})),
     "layout.select": (LayoutSelectPayload, frozenset({"agent", "phone", "desktop"})),

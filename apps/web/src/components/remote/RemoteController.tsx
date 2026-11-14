@@ -15,6 +15,7 @@ import { usePushToTalk } from '@/lib/speech/usePushToTalk';
 import { useFamily, useMemberName } from '@/lib/store/family';
 import { useSession } from '@/lib/store/session';
 import { RoomIcon } from '@/components/ui/RoomIcon';
+import { ArrangePanel } from '@/components/house/ArrangePanel';
 import { MovePad } from './MovePad';
 
 const AS_BUILT: NoiseScenario = { glazing: null, add_carpet: false, include_furniture: true };
@@ -362,7 +363,9 @@ function Remote({ propertyId }: { propertyId: string }) {
         {twin.data && view === 'rooms' && <RoomBlocks twin={twin.data} onPicked={() => setView('move')} />}
         {twin.data && view === 'furniture' && (
           <>
-            <Card title="Layouts" testId="remote-layouts">
+            {/* The room you are standing in, from above: drag, turn, add and remove pieces. */}
+            <ArrangePanel twin={twin.data} inline />
+            <Card title="Layout options from the guide" testId="remote-layouts">
               <Variants twin={twin.data} />
             </Card>
             <Card title="Add a piece from a photo">

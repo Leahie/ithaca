@@ -10,13 +10,17 @@ import { invalidate, useResource } from '@/lib/data/resource';
 import { bounds } from '@/lib/geometry/polygon';
 import { layoutForRoom } from '@/lib/layouts';
 import { roomName } from '@/lib/rooms';
+import { floorSweeps } from '@/lib/showcase/rooms';
 import { useSession } from '@/lib/store/session';
 
 /**
  * Floating panel over the 3D views: the furniture of the layout on screen, as a plan the user
  * can rearrange by hand. The Tour and the Sun Lab redraw from the stored layout after each change.
+ * `inline`: the same editor as a plain block, for the phone remote; every change is announced to
+ * the session (`layout.changed`) so the big screen redraws, and "Look at it" turns the big screen
+ * to the selected piece.
  */
-export function ArrangePanel({ twin, onClose }: { twin: PropertyTwin; onClose(): void }) {
+export function ArrangePanel({ twin, onClose, inline = false }: { twin: PropertyTwin; onClose?(): void; inline?: boolean }) {
   const layoutId = useSession((s) => s.viewer.selected_layout_id);
   const layouts = useLayouts(twin.property_id);
   const inventory = useInventory();
@@ -57,6 +61,7 @@ export function ArrangePanel({ twin, onClose }: { twin: PropertyTwin; onClose():
       invalidate('inventory');
       invalidate('layouts:');
       invalidate('layout:');
+      dispatch('layout.changed', { layout_id: null });
     } catch (err) {
       setPlaceError(err instanceof Error ? err.message : String(err));
     }
@@ -87,6 +92,7 @@ export function ArrangePanel({ twin, onClose }: { twin: PropertyTwin; onClose():
       last.current = result;
       invalidate('layouts:');
       invalidate('layout:');
+      dispatch('layout.changed', { layout_id: result.layout_id });
       if (result.layout_id !== layoutId) dispatch('layout.select', { layout_id: result.layout_id }); // a new layout: show it
       setBrowsing(false);
     } catch (err) {
@@ -95,8 +101,19 @@ export function ArrangePanel({ twin, onClose }: { twin: PropertyTwin; onClose():
     }
   };
 
+  /** Turn the big screen to a piece: stand at a scan position a few steps away and face it. */
+  const lookAt = (_itemId: string, at: { x: number; z: number }) => {
+    if (!targetRoom) return;
+    const away = (sw: { position: { x: number; z: number } }) => Math.hypot(sw.position.x - at.x, sw.position.z - at.z);
+    const here = floorSweeps(twin, targetRoom.room_id);
+    // Near, but not on top of it: a view from 1.5 to 3.5 m shows the whole piece.
+    const sweep = [...here].sort((a, b) => Math.abs(away(a) - 2.5) - Math.abs(away(b) - 2.5))[0];
+    if (!sweep) return;
+    dispatch('viewer.goto', { room_id: targetRoom.room_id, at_sweep_id: sweep.sweep_id, look_at: { x: at.x, y: sweep.position.y - 1.0, z: at.z } });
+  };
+
   return (
-    <section aria-label="Arrange furniture" className="absolute bottom-4 left-4 z-20 w-[min(26rem,calc(100%-2rem))] rounded-2xl border border-line bg-surface p-3 shadow-lg">
+    <section aria-label="Arrange furniture" className={inline ? 'rounded-2xl border border-line bg-surface p-3' : 'absolute bottom-4 left-4 z-20 w-[min(26rem,calc(100%-2rem))] rounded-2xl border border-line bg-surface p-3 shadow-lg'}>
       <header className="mb-2 flex items-center gap-2">
         <h2 className="font-display text-base font-semibold">
           {browsing ? 'Add furniture' : 'Arrange'}
@@ -105,14 +122,16 @@ export function ArrangePanel({ twin, onClose }: { twin: PropertyTwin; onClose():
         <button type="button" onClick={() => setBrowsing(!browsing)} aria-pressed={browsing} className="ml-auto rounded-full bg-ink px-2.5 py-1 text-sm font-semibold hover:bg-raised">
           {browsing ? 'Back to the plan' : 'Add furniture'}
         </button>
-        <button type="button" onClick={onClose} className="rounded-full px-2.5 py-1 text-sm text-muted hover:bg-ink hover:text-text" aria-label="Close the arrange panel">
-          Close
-        </button>
+        {!inline && (
+          <button type="button" onClick={onClose} className="rounded-full px-2.5 py-1 text-sm text-muted hover:bg-ink hover:text-text" aria-label="Close the arrange panel">
+            Close
+          </button>
+        )}
       </header>
       {browsing ? (
         <CatalogBrowser onAdded={place} />
       ) : layout && room ? (
-        <PlanEditor room={room} openings={openings} layout={layout} items={items} />
+        <PlanEditor room={room} openings={openings} layout={layout} items={items} onLookAt={inline ? lookAt : undefined} />
       ) : (
         <p className="text-sm text-muted">{layouts.data ? 'Nothing is placed in this room yet. Add furniture, or ask the guide to set it up.' : 'Loading…'}</p>
       )}

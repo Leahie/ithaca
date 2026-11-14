@@ -4,6 +4,7 @@ import type { InventoryItem, LayoutVariant, Opening, Placement, Room } from '@it
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { api } from '@/lib/api';
 import { invalidate } from '@/lib/data/resource';
+import { dispatch } from '@/lib/store/session';
 import { bounds, footprint, frontDirection } from '@/lib/geometry/polygon';
 
 const ITEM_COLORS = ['#8e98a6', '#b98d5c', '#c79a33', '#7fa58a', '#a58ab8', '#b07a7a'];
@@ -22,6 +23,8 @@ interface Props {
   layout: LayoutVariant;
   items: Map<string, InventoryItem>;
   className?: string;
+  /** Shows a "Look at it" button for the selected piece (the phone turns the big screen to it). */
+  onLookAt?(itemId: string, at: { x: number; z: number }): void;
 }
 
 type Drag = { kind: 'move'; id: string; dx: number; dz: number } | { kind: 'turn'; id: string };
@@ -36,7 +39,7 @@ const norm = (deg: number) => ((deg % 360) + 360) % 360;
  * keeps it and may answer with warnings (an overlap, a blocked door), which are shown but never
  * block. Seen from above: +X is right and +Z is down the page, as in PlanPreview.
  */
-export function PlanEditor({ room, openings, layout, items, className }: Props) {
+export function PlanEditor({ room, openings, layout, items, className, onLookAt }: Props) {
   const svg = useRef<SVGSVGElement>(null);
   const [poses, setPoses] = useState<Record<string, Pose>>({});
   const [selected, setSelected] = useState<string | null>(null);
@@ -88,6 +91,7 @@ export function PlanEditor({ room, openings, layout, items, className }: Props) 
         if (pending.current === 0) {
           invalidate('layouts:'); // the 3D views redraw from the stored layout
           invalidate('layout:');
+          dispatch('layout.changed', { layout_id: layout.layout_id }); // and so do the other screens
         }
       } catch (err) {
         pending.current -= 1;
@@ -140,6 +144,7 @@ export function PlanEditor({ room, openings, layout, items, className }: Props) 
       setNote(null);
       invalidate('layouts:');
       invalidate('layout:');
+      dispatch('layout.changed', { layout_id: layout.layout_id });
     } catch (err) {
       setNote({ tone: 'error', text: err instanceof Error ? err.message : String(err) });
     }
@@ -265,6 +270,11 @@ export function PlanEditor({ room, openings, layout, items, className }: Props) 
             <button type="button" className="rounded-full bg-ink px-2.5 py-1 hover:bg-raised" onClick={() => change(selected!, (p) => ({ ...p, yaw: norm(p.yaw + 90) }))} aria-label="Turn a quarter">
               90°
             </button>
+            {onLookAt && (
+              <button type="button" className="rounded-full bg-main px-2.5 py-1 font-semibold text-on-main" onClick={() => onLookAt(selected!, { x: selectedPose.x, z: selectedPose.z })}>
+                Look at it
+              </button>
+            )}
             <span className="ml-auto tabular-nums text-muted">{Math.round(norm(selectedPose.yaw))}°</span>
             <button type="button" className="rounded-full bg-ink px-2.5 py-1 hover:bg-raised" onClick={() => void remove(selected!)} title="Take this piece out of the room. It stays in your furniture.">
               Remove
