@@ -1,0 +1,867 @@
+{
+  "$defs": {
+    "Amenity": {
+      "properties": {
+        "category": {
+          "title": "Category",
+          "type": "string"
+        },
+        "distance_m": {
+          "title": "Distance M",
+          "type": "number"
+        },
+        "lat": {
+          "title": "Lat",
+          "type": "number"
+        },
+        "lon": {
+          "title": "Lon",
+          "type": "number"
+        },
+        "name": {
+          "title": "Name",
+          "type": "string"
+        },
+        "source": {
+          "enum": [
+            "vexcel",
+            "costar",
+            "osm"
+          ],
+          "title": "Source",
+          "type": "string"
+        }
+      },
+      "required": [
+        "name",
+        "category",
+        "lat",
+        "lon",
+        "distance_m",
+        "source"
+      ],
+      "title": "Amenity",
+      "type": "object"
+    },
+    "AreaProfile": {
+      "properties": {
+        "amenities": {
+          "items": {
+            "$ref": "#/$defs/Amenity"
+          },
+          "title": "Amenities",
+          "type": "array"
+        },
+        "comps": {
+          "items": {
+            "$ref": "#/$defs/Comp"
+          },
+          "title": "Comps",
+          "type": "array"
+        },
+        "markdown": {
+          "title": "Markdown",
+          "type": "string"
+        }
+      },
+      "required": [
+        "markdown",
+        "amenities",
+        "comps"
+      ],
+      "title": "AreaProfile",
+      "type": "object"
+    },
+    "Comp": {
+      "properties": {
+        "address": {
+          "title": "Address",
+          "type": "string"
+        },
+        "beds": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Beds"
+        },
+        "distance_m": {
+          "title": "Distance M",
+          "type": "number"
+        },
+        "price": {
+          "title": "Price",
+          "type": "integer"
+        },
+        "sold_date": {
+          "anyOf": [
+            {
+              "format": "date",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Sold Date"
+        },
+        "sqft": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Sqft"
+        }
+      },
+      "required": [
+        "address",
+        "price",
+        "distance_m"
+      ],
+      "title": "Comp",
+      "type": "object"
+    },
+    "DaylightMoment": {
+      "description": "Daylight (sky + sun + reflected) inside the house at one instant.",
+      "properties": {
+        "azimuth_deg": {
+          "title": "Azimuth Deg",
+          "type": "number"
+        },
+        "datetime": {
+          "format": "date-time",
+          "title": "Datetime",
+          "type": "string"
+        },
+        "dhi_w_m2": {
+          "title": "Dhi W M2",
+          "type": "number"
+        },
+        "dni_w_m2": {
+          "title": "Dni W M2",
+          "type": "number"
+        },
+        "elevation_deg": {
+          "title": "Elevation Deg",
+          "type": "number"
+        },
+        "ghi_w_m2": {
+          "title": "Ghi W M2",
+          "type": "number"
+        },
+        "height_m": {
+          "title": "Height M",
+          "type": "number"
+        },
+        "outdoor_lux": {
+          "title": "Outdoor Lux",
+          "type": "number"
+        },
+        "rooms": {
+          "items": {
+            "$ref": "#/$defs/RoomDaylight"
+          },
+          "title": "Rooms",
+          "type": "array"
+        },
+        "sky": {
+          "enum": [
+            "clear",
+            "typical"
+          ],
+          "title": "Sky",
+          "type": "string"
+        },
+        "sun_up": {
+          "title": "Sun Up",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "datetime",
+        "sky",
+        "azimuth_deg",
+        "elevation_deg",
+        "sun_up",
+        "dni_w_m2",
+        "dhi_w_m2",
+        "ghi_w_m2",
+        "outdoor_lux",
+        "height_m",
+        "rooms"
+      ],
+      "title": "DaylightMoment",
+      "type": "object"
+    },
+    "DaylightSpot": {
+      "description": "Daylight at one spot through one day.",
+      "properties": {
+        "date": {
+          "format": "date",
+          "title": "Date",
+          "type": "string"
+        },
+        "direct_sun": {
+          "items": {
+            "type": "boolean"
+          },
+          "title": "Direct Sun",
+          "type": "array"
+        },
+        "height_m": {
+          "title": "Height M",
+          "type": "number"
+        },
+        "lux": {
+          "items": {
+            "type": "number"
+          },
+          "title": "Lux",
+          "type": "array"
+        },
+        "point": {
+          "$ref": "#/$defs/Vec3"
+        },
+        "room_id": {
+          "title": "Room Id",
+          "type": "string"
+        },
+        "sky": {
+          "enum": [
+            "clear",
+            "typical"
+          ],
+          "title": "Sky",
+          "type": "string"
+        },
+        "times": {
+          "items": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "title": "Times",
+          "type": "array"
+        }
+      },
+      "required": [
+        "room_id",
+        "point",
+        "height_m",
+        "date",
+        "sky",
+        "times",
+        "lux",
+        "direct_sun"
+      ],
+      "title": "DaylightSpot",
+      "type": "object"
+    },
+    "LuxGrid": {
+      "properties": {
+        "cell_m": {
+          "title": "Cell M",
+          "type": "number"
+        },
+        "lux": {
+          "items": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "type": "array"
+          },
+          "title": "Lux",
+          "type": "array"
+        },
+        "origin_xz": {
+          "maxItems": 2,
+          "minItems": 2,
+          "prefixItems": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "number"
+            }
+          ],
+          "title": "Origin Xz",
+          "type": "array"
+        }
+      },
+      "required": [
+        "cell_m",
+        "origin_xz",
+        "lux"
+      ],
+      "title": "LuxGrid",
+      "type": "object"
+    },
+    "NoiseHour": {
+      "properties": {
+        "bands_db": {
+          "items": {
+            "type": "number"
+          },
+          "title": "Bands Db",
+          "type": "array"
+        },
+        "hour": {
+          "title": "Hour",
+          "type": "integer"
+        },
+        "laeq_dba": {
+          "title": "Laeq Dba",
+          "type": "number"
+        }
+      },
+      "required": [
+        "hour",
+        "laeq_dba",
+        "bands_db"
+      ],
+      "title": "NoiseHour",
+      "type": "object"
+    },
+    "NoiseReport": {
+      "properties": {
+        "hourly": {
+          "items": {
+            "$ref": "#/$defs/NoiseHour"
+          },
+          "title": "Hourly",
+          "type": "array"
+        },
+        "room_id": {
+          "title": "Room Id",
+          "type": "string"
+        },
+        "rt60_s": {
+          "title": "Rt60 S",
+          "type": "number"
+        },
+        "scenario": {
+          "$ref": "#/$defs/NoiseScenario"
+        },
+        "sources": {
+          "items": {
+            "$ref": "#/$defs/NoiseSource"
+          },
+          "title": "Sources",
+          "type": "array"
+        }
+      },
+      "required": [
+        "room_id",
+        "scenario",
+        "hourly",
+        "rt60_s",
+        "sources"
+      ],
+      "title": "NoiseReport",
+      "type": "object"
+    },
+    "NoiseScenario": {
+      "properties": {
+        "add_carpet": {
+          "default": false,
+          "title": "Add Carpet",
+          "type": "boolean"
+        },
+        "glazing": {
+          "anyOf": [
+            {
+              "enum": [
+                "single",
+                "double",
+                "triple"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Glazing"
+        },
+        "include_furniture": {
+          "default": true,
+          "title": "Include Furniture",
+          "type": "boolean"
+        }
+      },
+      "title": "NoiseScenario",
+      "type": "object"
+    },
+    "NoiseSource": {
+      "properties": {
+        "contribution_dba": {
+          "title": "Contribution Dba",
+          "type": "number"
+        },
+        "name": {
+          "title": "Name",
+          "type": "string"
+        }
+      },
+      "required": [
+        "name",
+        "contribution_dba"
+      ],
+      "title": "NoiseSource",
+      "type": "object"
+    },
+    "RoomDaylight": {
+      "properties": {
+        "grid": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/LuxGrid"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "level": {
+          "enum": [
+            "dark",
+            "dim",
+            "moderate",
+            "bright",
+            "very_bright"
+          ],
+          "title": "Level",
+          "type": "string"
+        },
+        "max_lux": {
+          "title": "Max Lux",
+          "type": "number"
+        },
+        "mean_lux": {
+          "title": "Mean Lux",
+          "type": "number"
+        },
+        "median_lux": {
+          "title": "Median Lux",
+          "type": "number"
+        },
+        "reflected_lux": {
+          "title": "Reflected Lux",
+          "type": "number"
+        },
+        "room_id": {
+          "title": "Room Id",
+          "type": "string"
+        },
+        "sun_area_m2": {
+          "title": "Sun Area M2",
+          "type": "number"
+        }
+      },
+      "required": [
+        "room_id",
+        "mean_lux",
+        "median_lux",
+        "max_lux",
+        "reflected_lux",
+        "sun_area_m2",
+        "level"
+      ],
+      "title": "RoomDaylight",
+      "type": "object"
+    },
+    "SunDay": {
+      "properties": {
+        "date": {
+          "format": "date",
+          "title": "Date",
+          "type": "string"
+        },
+        "direct_sun_hours": {
+          "title": "Direct Sun Hours",
+          "type": "number"
+        }
+      },
+      "required": [
+        "date",
+        "direct_sun_hours"
+      ],
+      "title": "SunDay",
+      "type": "object"
+    },
+    "SunHeatmap": {
+      "properties": {
+        "cell_m": {
+          "title": "Cell M",
+          "type": "number"
+        },
+        "hours": {
+          "items": {
+            "items": {
+              "type": "number"
+            },
+            "type": "array"
+          },
+          "title": "Hours",
+          "type": "array"
+        },
+        "origin_xz": {
+          "maxItems": 2,
+          "minItems": 2,
+          "prefixItems": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "number"
+            }
+          ],
+          "title": "Origin Xz",
+          "type": "array"
+        }
+      },
+      "required": [
+        "cell_m",
+        "origin_xz",
+        "hours"
+      ],
+      "title": "SunHeatmap",
+      "type": "object"
+    },
+    "SunInterval": {
+      "properties": {
+        "end": {
+          "format": "date-time",
+          "title": "End",
+          "type": "string"
+        },
+        "start": {
+          "format": "date-time",
+          "title": "Start",
+          "type": "string"
+        }
+      },
+      "required": [
+        "start",
+        "end"
+      ],
+      "title": "SunInterval",
+      "type": "object"
+    },
+    "SunMask": {
+      "properties": {
+        "cell_m": {
+          "title": "Cell M",
+          "type": "number"
+        },
+        "lit": {
+          "items": {
+            "items": {
+              "type": "boolean"
+            },
+            "type": "array"
+          },
+          "title": "Lit",
+          "type": "array"
+        },
+        "origin_xz": {
+          "maxItems": 2,
+          "minItems": 2,
+          "prefixItems": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "number"
+            }
+          ],
+          "title": "Origin Xz",
+          "type": "array"
+        }
+      },
+      "required": [
+        "cell_m",
+        "origin_xz",
+        "lit"
+      ],
+      "title": "SunMask",
+      "type": "object"
+    },
+    "SunMoment": {
+      "description": "Where direct sun is inside the house at one instant.",
+      "properties": {
+        "azimuth_deg": {
+          "title": "Azimuth Deg",
+          "type": "number"
+        },
+        "datetime": {
+          "format": "date-time",
+          "title": "Datetime",
+          "type": "string"
+        },
+        "direction_interior": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Vec3"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "elevation_deg": {
+          "title": "Elevation Deg",
+          "type": "number"
+        },
+        "height_m": {
+          "title": "Height M",
+          "type": "number"
+        },
+        "rooms": {
+          "items": {
+            "$ref": "#/$defs/SunPatch"
+          },
+          "title": "Rooms",
+          "type": "array"
+        },
+        "sun_up": {
+          "title": "Sun Up",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "datetime",
+        "azimuth_deg",
+        "elevation_deg",
+        "sun_up",
+        "direction_interior",
+        "height_m",
+        "rooms"
+      ],
+      "title": "SunMoment",
+      "type": "object"
+    },
+    "SunPatch": {
+      "properties": {
+        "lit_area_m2": {
+          "title": "Lit Area M2",
+          "type": "number"
+        },
+        "lit_fraction": {
+          "title": "Lit Fraction",
+          "type": "number"
+        },
+        "mask": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/SunMask"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "room_id": {
+          "title": "Room Id",
+          "type": "string"
+        },
+        "through_opening_ids": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Through Opening Ids",
+          "type": "array"
+        }
+      },
+      "required": [
+        "room_id",
+        "lit_area_m2",
+        "lit_fraction",
+        "through_opening_ids"
+      ],
+      "title": "SunPatch",
+      "type": "object"
+    },
+    "SunReport": {
+      "properties": {
+        "daily": {
+          "items": {
+            "$ref": "#/$defs/SunDay"
+          },
+          "title": "Daily",
+          "type": "array"
+        },
+        "end": {
+          "format": "date",
+          "title": "End",
+          "type": "string"
+        },
+        "heatmap": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/SunHeatmap"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "height_m": {
+          "default": 0.0,
+          "title": "Height M",
+          "type": "number"
+        },
+        "room_id": {
+          "title": "Room Id",
+          "type": "string"
+        },
+        "start": {
+          "format": "date",
+          "title": "Start",
+          "type": "string"
+        }
+      },
+      "required": [
+        "room_id",
+        "start",
+        "end",
+        "daily",
+        "heatmap"
+      ],
+      "title": "SunReport",
+      "type": "object"
+    },
+    "SunRoomDay": {
+      "description": "When direct sun reaches any part of a room on one day.",
+      "properties": {
+        "date": {
+          "format": "date",
+          "title": "Date",
+          "type": "string"
+        },
+        "height_m": {
+          "title": "Height M",
+          "type": "number"
+        },
+        "intervals": {
+          "items": {
+            "$ref": "#/$defs/SunInterval"
+          },
+          "title": "Intervals",
+          "type": "array"
+        },
+        "room_id": {
+          "title": "Room Id",
+          "type": "string"
+        },
+        "through_opening_ids": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Through Opening Ids",
+          "type": "array"
+        },
+        "total_hours": {
+          "title": "Total Hours",
+          "type": "number"
+        }
+      },
+      "required": [
+        "room_id",
+        "date",
+        "height_m",
+        "intervals",
+        "total_hours",
+        "through_opening_ids"
+      ],
+      "title": "SunRoomDay",
+      "type": "object"
+    },
+    "SunSpot": {
+      "description": "When direct sun reaches one spot on one day.",
+      "properties": {
+        "date": {
+          "format": "date",
+          "title": "Date",
+          "type": "string"
+        },
+        "height_m": {
+          "title": "Height M",
+          "type": "number"
+        },
+        "intervals": {
+          "items": {
+            "$ref": "#/$defs/SunInterval"
+          },
+          "title": "Intervals",
+          "type": "array"
+        },
+        "point": {
+          "$ref": "#/$defs/Vec3"
+        },
+        "room_id": {
+          "title": "Room Id",
+          "type": "string"
+        },
+        "total_hours": {
+          "title": "Total Hours",
+          "type": "number"
+        }
+      },
+      "required": [
+        "room_id",
+        "point",
+        "height_m",
+        "date",
+        "intervals",
+        "total_hours"
+      ],
+      "title": "SunSpot",
+      "type": "object"
+    },
+    "Vec3": {
+      "properties": {
+        "x": {
+          "title": "X",
+          "type": "number"
+        },
+        "y": {
+          "title": "Y",
+          "type": "number"
+        },
+        "z": {
+          "title": "Z",
+          "type": "number"
+        }
+      },
+      "required": [
+        "x",
+        "y",
+        "z"
+      ],
+      "title": "Vec3",
+      "type": "object"
+    }
+  },
+  "title": "reports"
+}

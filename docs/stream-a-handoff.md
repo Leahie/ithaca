@@ -16,9 +16,11 @@ For this house: 2 floors, 24 rooms, 96 sweeps (84 inside a room, 12 outdoor scan
 263° and 353°. CoStar lists the house as east-facing, which matches the widest exterior door
 (83°).
 
-Not ready yet: `GET /api/properties/{pid}/twin` (only the Python `get_twin()` exists), `context_glb`
-(neighbors and trees for shadows), `ortho` and `obliques`, `SunReport`, `NoiseReport`, `AreaProfile`,
-`PUT /openings`. Until the route exists, read the JSON file directly (fixture mode, A6).
+REST is live: twin, `PUT /openings`, `SunReport`, sun and daylight moments, and asset serving.
+See `docs/handoffs/stream-a/2026-11-14-from-c-rest-endpoints.md` (run with
+`uvicorn services.api.twin.app:app --port 8000` until B mounts the router). Not ready yet:
+`context_glb` (neighbors and trees for shadows), `ortho` and `obliques`, `NoiseReport` and
+`AreaProfile` (both return 503 "not configured").
 
 ## 2. Frames and units
 
@@ -85,9 +87,9 @@ Things to know:
 - **`quality`** tells the UI and the agent how much to trust things. `alignment: "georef"` means the
   world placement comes from Matterport's georeference (checked to within 0.5 m); `"icp"` will mean
   it was refined against Vexcel's aerial building outline.
-- **Asset paths are keys, not URLs yet.** `assets.interior_glb` is relative to `fixtures/`. In fixture
-  mode, serve `fixtures/` statically and prefix `/fixtures/`. When the API route lands, it will return
-  full URLs in these fields.
+- **Asset fields are URLs from the API, keys in the file.** `GET /api/properties/{pid}/twin` returns
+  full URLs (`http://.../api/assets/blobs/onXQLXhfyQv/interior.glb`). The raw JSON file holds keys
+  relative to `fixtures/`; only in fixture mode, serve `fixtures/` statically and prefix `/fixtures/`.
 
 ### Differences from WORKSTREAMS.md section 2.1
 
@@ -209,8 +211,9 @@ await mpSdk.Sweep.moveTo(sweepForRoom(roomId), { transition: mpSdk.Sweep.Transit
    tell C before placing any furniture. Everything in I-G9 depends on this.
 2. **Tell C if the meshopt GLB causes trouble** in any loader you use. C can ship an uncompressed
    GLB with smaller textures instead.
-3. **Annotation UI:** the openings already exist (section 3). Saving edits will go through
-   `PUT /api/properties/{pid}/openings` with `Opening[]`, the same shape as `twin.openings`.
+3. **Annotation UI:** the openings already exist (section 3). Save edits with
+   `PUT /api/properties/{pid}/openings` and the full `Opening[]` (same shape as `twin.openings`);
+   validation rules are in the REST endpoints handoff note.
 
 ## 7. Rebuilding (C does this; for reference)
 

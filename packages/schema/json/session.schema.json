@@ -1,0 +1,148 @@
+{
+  "$defs": {
+    "NoiseScenario": {
+      "properties": {
+        "add_carpet": {
+          "default": false,
+          "title": "Add Carpet",
+          "type": "boolean"
+        },
+        "glazing": {
+          "anyOf": [
+            {
+              "enum": [
+                "single",
+                "double",
+                "triple"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Glazing"
+        },
+        "include_furniture": {
+          "default": true,
+          "title": "Include Furniture",
+          "type": "boolean"
+        }
+      },
+      "title": "NoiseScenario",
+      "type": "object"
+    },
+    "Session": {
+      "properties": {
+        "client_token": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Client Token"
+        },
+        "expires_at": {
+          "format": "date-time",
+          "title": "Expires At",
+          "type": "string"
+        },
+        "pair_token": {
+          "title": "Pair Token",
+          "type": "string"
+        },
+        "session_id": {
+          "title": "Session Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "session_id",
+        "pair_token",
+        "expires_at"
+      ],
+      "title": "Session",
+      "type": "object"
+    },
+    "SoundSetScenarioPayload": {
+      "properties": {
+        "room_id": {
+          "title": "Room Id",
+          "type": "string"
+        },
+        "scenario": {
+          "$ref": "#/$defs/NoiseScenario"
+        }
+      },
+      "required": [
+        "room_id",
+        "scenario"
+      ],
+      "title": "SoundSetScenarioPayload",
+      "type": "object"
+    },
+    "ViewerState": {
+      "description": "Payload of ``session.state``: what the desktop is showing. The hub keeps the latest copy\nand sends it on join (B9).",
+      "properties": {
+        "datetime": {
+          "title": "Datetime",
+          "type": "string"
+        },
+        "mode": {
+          "enum": [
+            "tour",
+            "sun",
+            "sound",
+            "neighborhood",
+            "design"
+          ],
+          "title": "Mode",
+          "type": "string"
+        },
+        "room_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Room Id"
+        },
+        "shown_layout_ids": {
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "title": "Shown Layout Ids",
+          "type": "array"
+        },
+        "sound_scenario": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/SoundSetScenarioPayload"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "required": [
+        "mode",
+        "datetime"
+      ],
+      "title": "ViewerState",
+      "type": "object"
+    }
+  },
+  "title": "session"
+}

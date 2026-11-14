@@ -1,36 +1,38 @@
-"""Event envelope and v0 events (section 2.3). Owner: B. Consumer: A."""
+"""Event envelope and v0 events (WORKSTREAMS.md section 2.3). Owner: B. Consumer: A.
+
+Every message on the session WebSocket is an EventEnvelope. `type` selects the payload model in
+EVENTS. Unknown types and unknown fields are ignored, never an error (I-G7).
+"""
+
 from __future__ import annotations
 
+import uuid
+from datetime import datetime, timezone
 from typing import Any, Literal
-from uuid import UUID
 
 from pydantic import model_validator
 
 from .common import Model
-from .reports import NoiseScenario
+from .session import ClientKind, SoundSetScenarioPayload, ViewerMode, ViewerState
+from .twin import Vec3
 
 EVENT_VERSION = 1
 
 EventSource = Literal["desktop", "phone", "agent", "server"]
-ClientKind = Literal["desktop", "phone"]
-ViewerMode = Literal["tour", "sun", "sound", "neighborhood", "design"]
 JobStatus = Literal["queued", "running", "done", "failed"]
 
 
-class SoundSetScenarioPayload(Model):
-    room_id: str
-    scenario: NoiseScenario
+class EventEnvelope(Model):
+    v: int = EVENT_VERSION
+    id: str
+    ts: str
+    session_id: str
+    source: EventSource
+    type: str
+    payload: dict[str, Any]
 
 
-class ViewerState(Model):
-    """Payload of ``session.state``: the full viewer state snapshot."""
-
-    mode: ViewerMode
-    room_id: str | None = None
-    # I-G13.
-    datetime: str
-    sound_scenario: SoundSetScenarioPayload | None = None
-    shown_layout_ids: list[UUID] = []
+# --- payloads ---------------------------------------------------------------------------------
 
 
 class SessionPresencePayload(Model):
@@ -38,21 +40,34 @@ class SessionPresencePayload(Model):
 
 
 class ViewerGotoPayload(Model):
-    """Exactly one of room_id / sweep_id."""
+    """Exactly one of room_id / sweep_id. With room_id, `at_sweep_id` and `look_at` (both additive
+    to v0) say where to stand and what to face for the best view of the room."""
 
     room_id: str | None = None
     sweep_id: str | None = None
+    at_sweep_id: str | None = None
+    look_at: Vec3 | None = None  # interior frame
 
     @model_validator(mode="after")
-    def _exactly_one(self) -> "ViewerGotoPayload":
+    def _exactly_one(self):
         if (self.room_id is None) == (self.sweep_id is None):
-            raise ValueError("exactly one of room_id / sweep_id is required")
+            raise ValueError("exactly one of room_id, sweep_id")
         return self
 
 
+class ViewerWalkPayload(Model):
+    """Additive to v0. Walk the camera from one room to another, sweep by sweep."""
+
+    from_room_id: str
+    to_room_id: str
+    sweep_ids: list[str]  # in order; the first is in from_room_id, the last in to_room_id
+    look_at: Vec3  # what to face on arrival, interior frame
+    distance_m: float
+    duration_s: float  # at a walking pace; a guide for the animation, not a requirement
+
+
 class ViewerSetTimePayload(Model):
-    # I-G13.
-    datetime: str
+    datetime: str  # ISO 8601 with offset (I-G13)
 
 
 class ViewerSetModePayload(Model):
@@ -65,11 +80,11 @@ class ViewerLookPayload(Model):
 
 
 class DesignShowVariantsPayload(Model):
-    layout_ids: list[UUID]
+    layout_ids: list[str]
 
 
 class LayoutSelectPayload(Model):
-    layout_id: UUID
+    layout_id: str
 
 
 class CaptureUploadPayload(Model):
@@ -104,6 +119,12 @@ class AgentErrorPayload(Model):
     message: str
 
 
+class AgentTurnPayload(Model):
+    """Additive to v0. Brackets one agent turn, which may produce no agent.message at all."""
+
+    status: Literal["started", "ended"]
+
+
 class JobProgressPayload(Model):
     job_id: str
     kind: str
@@ -112,31 +133,37 @@ class JobProgressPayload(Model):
     result_ref: str | None = None
 
 
-# Event type -> payload model. This table is the registry the codegen reads.
-EVENT_PAYLOADS: dict[str, type[Model]] = {
-    "session.state": ViewerState,
-    "session.joined": SessionPresencePayload,
-    "session.left": SessionPresencePayload,
-    "viewer.goto": ViewerGotoPayload,
-    "viewer.setTime": ViewerSetTimePayload,
-    "viewer.setMode": ViewerSetModePayload,
-    "viewer.look": ViewerLookPayload,
-    "design.showVariants": DesignShowVariantsPayload,
-    "layout.select": LayoutSelectPayload,
-    "sound.setScenario": SoundSetScenarioPayload,
-    "capture.upload": CaptureUploadPayload,
-    "chat.user": ChatUserPayload,
-    "voice.transcript": VoiceTranscriptPayload,
-    "agent.token": AgentTokenPayload,
-    "agent.message": AgentMessagePayload,
-    "agent.action": AgentActionPayload,
-    "agent.error": AgentErrorPayload,
-    "job.progress": JobProgressPayload,
+# type -> (payload model, who may send it)
+EVENTS: dict[str, tuple[type[Model], frozenset[str]]] = {
+    "session.state": (ViewerState, frozenset({"server"})),
+    "session.joined": (SessionPresencePayload, frozenset({"server"})),
+    "session.left": (SessionPresencePayload, frozenset({"server"})),
+    "viewer.goto": (ViewerGotoPayload, frozenset({"agent", "phone", "desktop"})),
+    "viewer.walk": (ViewerWalkPayload, frozenset({"agent"})),
+    "viewer.setTime": (ViewerSetTimePayload, frozenset({"agent", "phone", "desktop"})),
+    "viewer.setMode": (ViewerSetModePayload, frozenset({"agent", "phone", "desktop"})),
+    "viewer.look": (ViewerLookPayload, frozenset({"phone"})),
+    "design.showVariants": (DesignShowVariantsPayload, frozenset({"agent"})),
+    "layout.select": (LayoutSelectPayload, frozenset({"phone", "desktop"})),
+    "sound.setScenario": (SoundSetScenarioPayload, frozenset({"agent", "phone", "desktop"})),
+    "capture.upload": (CaptureUploadPayload, frozenset({"phone", "desktop"})),
+    "chat.user": (ChatUserPayload, frozenset({"desktop", "phone"})),
+    "voice.transcript": (VoiceTranscriptPayload, frozenset({"desktop", "phone"})),
+    "agent.token": (AgentTokenPayload, frozenset({"agent"})),
+    "agent.message": (AgentMessagePayload, frozenset({"agent"})),
+    "agent.action": (AgentActionPayload, frozenset({"agent"})),
+    "agent.error": (AgentErrorPayload, frozenset({"agent"})),
+    "agent.turn": (AgentTurnPayload, frozenset({"agent"})),
+    "job.progress": (JobProgressPayload, frozenset({"server"})),
 }
+
+# Event type -> payload model. The TypeScript codegen reads this.
+EVENT_PAYLOADS: dict[str, type[Model]] = {t: model for t, (model, _) in EVENTS.items()}
 
 # Agent UI tools use snake_case names; each maps to one event.
 UI_TOOL_EVENTS: dict[str, str] = {
     "viewer_goto": "viewer.goto",
+    "viewer_walk": "viewer.walk",
     "viewer_set_time": "viewer.setTime",
     "viewer_set_mode": "viewer.setMode",
     "design_show_variants": "design.showVariants",
@@ -144,16 +171,34 @@ UI_TOOL_EVENTS: dict[str, str] = {
 }
 
 
-class EventEnvelope(Model):
-    v: int = EVENT_VERSION
-    id: str
-    ts: str
-    session_id: str
-    source: EventSource
-    type: str
-    payload: dict[str, Any]
+def make_event(session_id: str, source: EventSource, type: str, payload: dict | Model, id: str | None = None) -> EventEnvelope:
+    """Build a valid event. Raises on an unknown type or a payload that doesn't fit: for our own
+    code. Input from clients goes through parse_client_event, which never raises."""
+    model, senders = EVENTS[type]
+    if source not in senders:
+        raise ValueError(f"{source} may not send {type}")
+    data = payload.model_dump() if isinstance(payload, Model) else payload
+    clean = model.model_validate(data).model_dump(exclude_none=True)
+    return EventEnvelope(
+        id=id or uuid.uuid4().hex,
+        ts=datetime.now(timezone.utc).isoformat(timespec="milliseconds"),
+        session_id=session_id,
+        source=source,
+        type=type,
+        payload=clean,
+    )
 
-    def parsed_payload(self) -> Model | None:
-        """The typed payload, or None for an unknown event type (I-G7)."""
-        model = EVENT_PAYLOADS.get(self.type)
-        return model.model_validate(self.payload) if model else None
+
+def parse_client_event(raw: Any, session_id: str, source: EventSource) -> EventEnvelope | str:
+    """Check a message from a browser. Returns the event, or the reason it was dropped (I-G7).
+
+    session_id and source come from the connection, never from the message.
+    """
+    if not isinstance(raw, dict) or not isinstance(raw.get("type"), str):
+        return "not an event"
+    if raw["type"] not in EVENTS:
+        return f"unknown type {raw['type']!r}"
+    try:
+        return make_event(session_id, source, raw["type"], raw.get("payload") or {}, id=raw.get("id"))
+    except ValueError as e:  # includes pydantic.ValidationError
+        return str(e).splitlines()[0]

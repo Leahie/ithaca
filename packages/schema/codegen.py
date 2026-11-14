@@ -16,12 +16,12 @@ from pathlib import Path
 from typing import Any, get_args
 
 HERE = Path(__file__).resolve().parent
-sys.path.insert(0, str(HERE.parent))
+sys.path.insert(0, str(HERE.parents[1]))  # repo root: the models import each other as packages.schema.*
 
 from pydantic import BaseModel  # noqa: E402
 from pydantic.json_schema import models_json_schema  # noqa: E402
 
-from schema import common, events, inventory, layout, reports, session, twin  # noqa: E402
+from packages.schema import common, events, inventory, layout, reports, session, twin  # noqa: E402
 
 MODULES = [common, twin, reports, inventory, layout, session, events]
 OUT = HERE / "ts" / "index.ts"
@@ -33,8 +33,8 @@ ALIASES: dict[str, Any] = {
     "Glazing": twin.Opening.model_fields["glazing"].annotation,
     "TwinAlignment": twin.TwinQuality.model_fields["alignment"].annotation,
     "EventSource": events.EventSource,
-    "ClientKind": events.ClientKind,
-    "ViewerMode": events.ViewerMode,
+    "ClientKind": session.ClientKind,
+    "ViewerMode": session.ViewerMode,
     "JobStatus": events.JobStatus,
 }
 

@@ -44,6 +44,13 @@ export interface AgentTokenPayload {
   delta: string;
 }
 
+/**
+ * Additive to v0. Brackets one agent turn, which may produce no agent.message at all.
+ */
+export interface AgentTurnPayload {
+  status: "started" | "ended";
+}
+
 export interface Amenity {
   name: string;
   category: string;
@@ -74,6 +81,41 @@ export interface Comp {
   beds?: number | null;
   sold_date?: string | null;
   distance_m: number;
+}
+
+export interface CreateSessionRequest {
+  property_id: string;
+}
+
+/**
+ * Daylight (sky + sun + reflected) inside the house at one instant.
+ */
+export interface DaylightMoment {
+  datetime: string;
+  sky: "clear" | "typical";
+  azimuth_deg: number;
+  elevation_deg: number;
+  sun_up: boolean;
+  dni_w_m2: number;
+  dhi_w_m2: number;
+  ghi_w_m2: number;
+  outdoor_lux: number;
+  height_m: number;
+  rooms: RoomDaylight[];
+}
+
+/**
+ * Daylight at one spot through one day.
+ */
+export interface DaylightSpot {
+  room_id: string;
+  point: Vec3;
+  height_m: number;
+  date: string;
+  sky: "clear" | "typical";
+  times: string[];
+  lux: number[];
+  direct_sun: boolean[];
 }
 
 export interface DesignShowVariantsPayload {
@@ -142,6 +184,11 @@ export interface JoinRequest {
   pair_token: string;
 }
 
+export interface JoinResult {
+  ok: boolean;
+  client_token: string;
+}
+
 export interface LayoutFeedbackRequest {
   feedback: string;
 }
@@ -161,6 +208,12 @@ export interface LayoutVariant {
   status: "proposed" | "chosen" | "rejected";
   feedback?: string | null;
   thumbnail_url?: string | null;
+}
+
+export interface LuxGrid {
+  cell_m: number;
+  origin_xz: [number, number];
+  lux: ((number | null)[])[];
 }
 
 export interface NoiseHour {
@@ -205,6 +258,7 @@ export interface Opening {
   glazing: "none" | "single" | "double" | "triple";
   stc?: number | null;
   other_room_id?: string | null;
+  exterior?: boolean | null;
 }
 
 export interface Placement {
@@ -241,10 +295,22 @@ export interface Room {
   area_m2?: number | null;
 }
 
+export interface RoomDaylight {
+  room_id: string;
+  mean_lux: number;
+  median_lux: number;
+  max_lux: number;
+  reflected_lux: number;
+  sun_area_m2: number;
+  level: "dark" | "dim" | "moderate" | "bright" | "very_bright";
+  grid?: LuxGrid | null;
+}
+
 export interface Session {
   session_id: string;
   pair_token: string;
   expires_at: string;
+  client_token?: string | null;
 }
 
 export interface SessionPresencePayload {
@@ -267,12 +333,69 @@ export interface SunHeatmap {
   hours: number[][];
 }
 
+export interface SunInterval {
+  start: string;
+  end: string;
+}
+
+export interface SunMask {
+  cell_m: number;
+  origin_xz: [number, number];
+  lit: boolean[][];
+}
+
+/**
+ * Where direct sun is inside the house at one instant.
+ */
+export interface SunMoment {
+  datetime: string;
+  azimuth_deg: number;
+  elevation_deg: number;
+  sun_up: boolean;
+  direction_interior: Vec3 | null;
+  height_m: number;
+  rooms: SunPatch[];
+}
+
+export interface SunPatch {
+  room_id: string;
+  lit_area_m2: number;
+  lit_fraction: number;
+  through_opening_ids: string[];
+  mask?: SunMask | null;
+}
+
 export interface SunReport {
   room_id: string;
   start: string;
   end: string;
   daily: SunDay[];
-  heatmap?: SunHeatmap | null;
+  heatmap: SunHeatmap | null;
+  height_m?: number;
+}
+
+/**
+ * When direct sun reaches any part of a room on one day.
+ */
+export interface SunRoomDay {
+  room_id: string;
+  date: string;
+  height_m: number;
+  intervals: SunInterval[];
+  total_hours: number;
+  through_opening_ids: string[];
+}
+
+/**
+ * When direct sun reaches one spot on one day.
+ */
+export interface SunSpot {
+  room_id: string;
+  point: Vec3;
+  height_m: number;
+  date: string;
+  intervals: SunInterval[];
+  total_hours: number;
 }
 
 export interface Sweep {
@@ -315,11 +438,14 @@ export interface Vec3 {
 }
 
 /**
- * Exactly one of room_id / sweep_id.
+ * Exactly one of room_id / sweep_id. With room_id, `at_sweep_id` and `look_at` (both additive
+ * to v0) say where to stand and what to face for the best view of the room.
  */
 export interface ViewerGotoPayload {
   room_id?: string | null;
   sweep_id?: string | null;
+  at_sweep_id?: string | null;
+  look_at?: Vec3 | null;
 }
 
 export interface ViewerLookPayload {
@@ -336,7 +462,8 @@ export interface ViewerSetTimePayload {
 }
 
 /**
- * Payload of ``session.state``: the full viewer state snapshot.
+ * Payload of ``session.state``: what the desktop is showing. The hub keeps the latest copy
+ * and sends it on join (B9).
  */
 export interface ViewerState {
   mode: "tour" | "sun" | "sound" | "neighborhood" | "design";
@@ -344,6 +471,18 @@ export interface ViewerState {
   datetime: string;
   sound_scenario?: SoundSetScenarioPayload | null;
   shown_layout_ids?: string[];
+}
+
+/**
+ * Additive to v0. Walk the camera from one room to another, sweep by sweep.
+ */
+export interface ViewerWalkPayload {
+  from_room_id: string;
+  to_room_id: string;
+  sweep_ids: string[];
+  look_at: Vec3;
+  distance_m: number;
+  duration_s: number;
 }
 
 export interface VoiceTranscriptPayload {
@@ -357,6 +496,7 @@ export interface EventPayloads {
   "session.joined": SessionPresencePayload;
   "session.left": SessionPresencePayload;
   "viewer.goto": ViewerGotoPayload;
+  "viewer.walk": ViewerWalkPayload;
   "viewer.setTime": ViewerSetTimePayload;
   "viewer.setMode": ViewerSetModePayload;
   "viewer.look": ViewerLookPayload;
@@ -370,11 +510,12 @@ export interface EventPayloads {
   "agent.message": AgentMessagePayload;
   "agent.action": AgentActionPayload;
   "agent.error": AgentErrorPayload;
+  "agent.turn": AgentTurnPayload;
   "job.progress": JobProgressPayload;
 }
 
 export type EventType = keyof EventPayloads;
-export const EVENT_TYPES = ["session.state", "session.joined", "session.left", "viewer.goto", "viewer.setTime", "viewer.setMode", "viewer.look", "design.showVariants", "layout.select", "sound.setScenario", "capture.upload", "chat.user", "voice.transcript", "agent.token", "agent.message", "agent.action", "agent.error", "job.progress"] as const satisfies readonly EventType[];
+export const EVENT_TYPES = ["session.state", "session.joined", "session.left", "viewer.goto", "viewer.walk", "viewer.setTime", "viewer.setMode", "viewer.look", "design.showVariants", "layout.select", "sound.setScenario", "capture.upload", "chat.user", "voice.transcript", "agent.token", "agent.message", "agent.action", "agent.error", "agent.turn", "job.progress"] as const satisfies readonly EventType[];
 
 /** The typed envelope for one known event type. */
 export interface Event<T extends EventType = EventType> {
@@ -393,6 +534,7 @@ export type AnyEvent = { [T in EventType]: Event<T> }[EventType];
 /** Agent UI tool name -> the event it emits. */
 export const UI_TOOL_EVENTS = {
   "viewer_goto": "viewer.goto",
+  "viewer_walk": "viewer.walk",
   "viewer_set_time": "viewer.setTime",
   "viewer_set_mode": "viewer.setMode",
   "design_show_variants": "design.showVariants",

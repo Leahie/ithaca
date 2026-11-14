@@ -1,0 +1,686 @@
+{
+  "$defs": {
+    "AgentActionPayload": {
+      "properties": {
+        "summary": {
+          "title": "Summary",
+          "type": "string"
+        },
+        "tool": {
+          "title": "Tool",
+          "type": "string"
+        }
+      },
+      "required": [
+        "tool",
+        "summary"
+      ],
+      "title": "AgentActionPayload",
+      "type": "object"
+    },
+    "AgentErrorPayload": {
+      "properties": {
+        "message": {
+          "title": "Message",
+          "type": "string"
+        }
+      },
+      "required": [
+        "message"
+      ],
+      "title": "AgentErrorPayload",
+      "type": "object"
+    },
+    "AgentMessagePayload": {
+      "properties": {
+        "message_id": {
+          "title": "Message Id",
+          "type": "string"
+        },
+        "text": {
+          "title": "Text",
+          "type": "string"
+        }
+      },
+      "required": [
+        "message_id",
+        "text"
+      ],
+      "title": "AgentMessagePayload",
+      "type": "object"
+    },
+    "AgentTokenPayload": {
+      "properties": {
+        "delta": {
+          "title": "Delta",
+          "type": "string"
+        },
+        "message_id": {
+          "title": "Message Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "message_id",
+        "delta"
+      ],
+      "title": "AgentTokenPayload",
+      "type": "object"
+    },
+    "AgentTurnPayload": {
+      "description": "Additive to v0. Brackets one agent turn, which may produce no agent.message at all.",
+      "properties": {
+        "status": {
+          "enum": [
+            "started",
+            "ended"
+          ],
+          "title": "Status",
+          "type": "string"
+        }
+      },
+      "required": [
+        "status"
+      ],
+      "title": "AgentTurnPayload",
+      "type": "object"
+    },
+    "CaptureUploadPayload": {
+      "properties": {
+        "upload_id": {
+          "title": "Upload Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "upload_id"
+      ],
+      "title": "CaptureUploadPayload",
+      "type": "object"
+    },
+    "ChatUserPayload": {
+      "properties": {
+        "text": {
+          "title": "Text",
+          "type": "string"
+        }
+      },
+      "required": [
+        "text"
+      ],
+      "title": "ChatUserPayload",
+      "type": "object"
+    },
+    "DesignShowVariantsPayload": {
+      "properties": {
+        "layout_ids": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Layout Ids",
+          "type": "array"
+        }
+      },
+      "required": [
+        "layout_ids"
+      ],
+      "title": "DesignShowVariantsPayload",
+      "type": "object"
+    },
+    "EventEnvelope": {
+      "properties": {
+        "id": {
+          "title": "Id",
+          "type": "string"
+        },
+        "payload": {
+          "additionalProperties": true,
+          "title": "Payload",
+          "type": "object"
+        },
+        "session_id": {
+          "title": "Session Id",
+          "type": "string"
+        },
+        "source": {
+          "enum": [
+            "desktop",
+            "phone",
+            "agent",
+            "server"
+          ],
+          "title": "Source",
+          "type": "string"
+        },
+        "ts": {
+          "title": "Ts",
+          "type": "string"
+        },
+        "type": {
+          "title": "Type",
+          "type": "string"
+        },
+        "v": {
+          "default": 1,
+          "title": "V",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "id",
+        "ts",
+        "session_id",
+        "source",
+        "type",
+        "payload"
+      ],
+      "title": "EventEnvelope",
+      "type": "object"
+    },
+    "JobProgressPayload": {
+      "properties": {
+        "job_id": {
+          "title": "Job Id",
+          "type": "string"
+        },
+        "kind": {
+          "title": "Kind",
+          "type": "string"
+        },
+        "pct": {
+          "title": "Pct",
+          "type": "number"
+        },
+        "result_ref": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Result Ref"
+        },
+        "status": {
+          "enum": [
+            "queued",
+            "running",
+            "done",
+            "failed"
+          ],
+          "title": "Status",
+          "type": "string"
+        }
+      },
+      "required": [
+        "job_id",
+        "kind",
+        "pct",
+        "status"
+      ],
+      "title": "JobProgressPayload",
+      "type": "object"
+    },
+    "LayoutSelectPayload": {
+      "properties": {
+        "layout_id": {
+          "title": "Layout Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "layout_id"
+      ],
+      "title": "LayoutSelectPayload",
+      "type": "object"
+    },
+    "NoiseScenario": {
+      "properties": {
+        "add_carpet": {
+          "default": false,
+          "title": "Add Carpet",
+          "type": "boolean"
+        },
+        "glazing": {
+          "anyOf": [
+            {
+              "enum": [
+                "single",
+                "double",
+                "triple"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Glazing"
+        },
+        "include_furniture": {
+          "default": true,
+          "title": "Include Furniture",
+          "type": "boolean"
+        }
+      },
+      "title": "NoiseScenario",
+      "type": "object"
+    },
+    "SessionPresencePayload": {
+      "properties": {
+        "client": {
+          "enum": [
+            "desktop",
+            "phone"
+          ],
+          "title": "Client",
+          "type": "string"
+        }
+      },
+      "required": [
+        "client"
+      ],
+      "title": "SessionPresencePayload",
+      "type": "object"
+    },
+    "SoundSetScenarioPayload": {
+      "properties": {
+        "room_id": {
+          "title": "Room Id",
+          "type": "string"
+        },
+        "scenario": {
+          "$ref": "#/$defs/NoiseScenario"
+        }
+      },
+      "required": [
+        "room_id",
+        "scenario"
+      ],
+      "title": "SoundSetScenarioPayload",
+      "type": "object"
+    },
+    "Vec3": {
+      "properties": {
+        "x": {
+          "title": "X",
+          "type": "number"
+        },
+        "y": {
+          "title": "Y",
+          "type": "number"
+        },
+        "z": {
+          "title": "Z",
+          "type": "number"
+        }
+      },
+      "required": [
+        "x",
+        "y",
+        "z"
+      ],
+      "title": "Vec3",
+      "type": "object"
+    },
+    "ViewerGotoPayload": {
+      "description": "Exactly one of room_id / sweep_id. With room_id, `at_sweep_id` and `look_at` (both additive\nto v0) say where to stand and what to face for the best view of the room.",
+      "properties": {
+        "at_sweep_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "At Sweep Id"
+        },
+        "look_at": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Vec3"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "room_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Room Id"
+        },
+        "sweep_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Sweep Id"
+        }
+      },
+      "title": "ViewerGotoPayload",
+      "type": "object"
+    },
+    "ViewerLookPayload": {
+      "properties": {
+        "pitch_delta_deg": {
+          "title": "Pitch Delta Deg",
+          "type": "number"
+        },
+        "yaw_delta_deg": {
+          "title": "Yaw Delta Deg",
+          "type": "number"
+        }
+      },
+      "required": [
+        "yaw_delta_deg",
+        "pitch_delta_deg"
+      ],
+      "title": "ViewerLookPayload",
+      "type": "object"
+    },
+    "ViewerSetModePayload": {
+      "properties": {
+        "mode": {
+          "enum": [
+            "tour",
+            "sun",
+            "sound",
+            "neighborhood",
+            "design"
+          ],
+          "title": "Mode",
+          "type": "string"
+        }
+      },
+      "required": [
+        "mode"
+      ],
+      "title": "ViewerSetModePayload",
+      "type": "object"
+    },
+    "ViewerSetTimePayload": {
+      "properties": {
+        "datetime": {
+          "title": "Datetime",
+          "type": "string"
+        }
+      },
+      "required": [
+        "datetime"
+      ],
+      "title": "ViewerSetTimePayload",
+      "type": "object"
+    },
+    "ViewerState": {
+      "description": "Payload of ``session.state``: what the desktop is showing. The hub keeps the latest copy\nand sends it on join (B9).",
+      "properties": {
+        "datetime": {
+          "title": "Datetime",
+          "type": "string"
+        },
+        "mode": {
+          "enum": [
+            "tour",
+            "sun",
+            "sound",
+            "neighborhood",
+            "design"
+          ],
+          "title": "Mode",
+          "type": "string"
+        },
+        "room_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Room Id"
+        },
+        "shown_layout_ids": {
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "title": "Shown Layout Ids",
+          "type": "array"
+        },
+        "sound_scenario": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/SoundSetScenarioPayload"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "required": [
+        "mode",
+        "datetime"
+      ],
+      "title": "ViewerState",
+      "type": "object"
+    },
+    "ViewerWalkPayload": {
+      "description": "Additive to v0. Walk the camera from one room to another, sweep by sweep.",
+      "properties": {
+        "distance_m": {
+          "title": "Distance M",
+          "type": "number"
+        },
+        "duration_s": {
+          "title": "Duration S",
+          "type": "number"
+        },
+        "from_room_id": {
+          "title": "From Room Id",
+          "type": "string"
+        },
+        "look_at": {
+          "$ref": "#/$defs/Vec3"
+        },
+        "sweep_ids": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Sweep Ids",
+          "type": "array"
+        },
+        "to_room_id": {
+          "title": "To Room Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "from_room_id",
+        "to_room_id",
+        "sweep_ids",
+        "look_at",
+        "distance_m",
+        "duration_s"
+      ],
+      "title": "ViewerWalkPayload",
+      "type": "object"
+    },
+    "VoiceTranscriptPayload": {
+      "properties": {
+        "final": {
+          "title": "Final",
+          "type": "boolean"
+        },
+        "text": {
+          "title": "Text",
+          "type": "string"
+        }
+      },
+      "required": [
+        "text",
+        "final"
+      ],
+      "title": "VoiceTranscriptPayload",
+      "type": "object"
+    }
+  },
+  "title": "events",
+  "x-event-types": {
+    "agent.action": {
+      "payload": "AgentActionPayload",
+      "sent_by": [
+        "agent"
+      ]
+    },
+    "agent.error": {
+      "payload": "AgentErrorPayload",
+      "sent_by": [
+        "agent"
+      ]
+    },
+    "agent.message": {
+      "payload": "AgentMessagePayload",
+      "sent_by": [
+        "agent"
+      ]
+    },
+    "agent.token": {
+      "payload": "AgentTokenPayload",
+      "sent_by": [
+        "agent"
+      ]
+    },
+    "agent.turn": {
+      "payload": "AgentTurnPayload",
+      "sent_by": [
+        "agent"
+      ]
+    },
+    "capture.upload": {
+      "payload": "CaptureUploadPayload",
+      "sent_by": [
+        "desktop",
+        "phone"
+      ]
+    },
+    "chat.user": {
+      "payload": "ChatUserPayload",
+      "sent_by": [
+        "desktop",
+        "phone"
+      ]
+    },
+    "design.showVariants": {
+      "payload": "DesignShowVariantsPayload",
+      "sent_by": [
+        "agent"
+      ]
+    },
+    "job.progress": {
+      "payload": "JobProgressPayload",
+      "sent_by": [
+        "server"
+      ]
+    },
+    "layout.select": {
+      "payload": "LayoutSelectPayload",
+      "sent_by": [
+        "desktop",
+        "phone"
+      ]
+    },
+    "session.joined": {
+      "payload": "SessionPresencePayload",
+      "sent_by": [
+        "server"
+      ]
+    },
+    "session.left": {
+      "payload": "SessionPresencePayload",
+      "sent_by": [
+        "server"
+      ]
+    },
+    "session.state": {
+      "payload": "ViewerState",
+      "sent_by": [
+        "server"
+      ]
+    },
+    "sound.setScenario": {
+      "payload": "SoundSetScenarioPayload",
+      "sent_by": [
+        "agent",
+        "desktop",
+        "phone"
+      ]
+    },
+    "viewer.goto": {
+      "payload": "ViewerGotoPayload",
+      "sent_by": [
+        "agent",
+        "desktop",
+        "phone"
+      ]
+    },
+    "viewer.look": {
+      "payload": "ViewerLookPayload",
+      "sent_by": [
+        "phone"
+      ]
+    },
+    "viewer.setMode": {
+      "payload": "ViewerSetModePayload",
+      "sent_by": [
+        "agent",
+        "desktop",
+        "phone"
+      ]
+    },
+    "viewer.setTime": {
+      "payload": "ViewerSetTimePayload",
+      "sent_by": [
+        "agent",
+        "desktop",
+        "phone"
+      ]
+    },
+    "viewer.walk": {
+      "payload": "ViewerWalkPayload",
+      "sent_by": [
+        "agent"
+      ]
+    },
+    "voice.transcript": {
+      "payload": "VoiceTranscriptPayload",
+      "sent_by": [
+        "desktop",
+        "phone"
+      ]
+    }
+  }
+}

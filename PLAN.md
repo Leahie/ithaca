@@ -9,6 +9,8 @@ Decisions made: long-term architecture (not a hackathon throwaway); **hybrid vie
 
 The repo is empty (no commits), so everything below is greenfield.
 
+**Cross-stream handoffs (every coding agent: read this first).** Before starting work, read the open notes addressed to your stream in `docs/handoffs/stream-<a|b|c>/` on all remote branches, and act on them. When your change needs another stream to do or know something, add a note to their folder. The how-to is in [docs/handoffs/README.md](docs/handoffs/README.md).
+
 ---
 
 ## Architecture

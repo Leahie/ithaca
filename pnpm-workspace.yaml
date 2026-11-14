@@ -2,5 +2,6 @@ packages:
   - apps/*
   - packages/schema/ts
 allowBuilds:
+  '@matterport/sdk': true
   esbuild: true
   sharp: true
