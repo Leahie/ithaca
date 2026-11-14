@@ -1,0 +1,159 @@
+{
+ "markdown": "# Area profile\n\n> Stand-in fixture. These places and sales are placeholders, not CoStar or Vexcel results.\n\n## Day to day\n- **Groceries:** two options within a 10 minute walk, the closest about 480 m away.\n- **Green space:** a pocket park about 400 m north-west, and a bayou trail about 1 km south.\n- **Schools:** an elementary school within 600 m. The middle school is a short drive.\n\n## Evenings\n- A small cluster of restaurants and a cafe sits about 800 m to the north-east.\n- Nightlife is thin: one wine bar within 1.5 km. The street itself is quiet after 9 pm.\n\n## Market\n- Five recent comparable sales within 550 m, from $879k to $1.32M.\n- Larger homes (5 bedrooms, over 5,000 sq ft) sold above $1.1M.",
+ "amenities": [
+  {
+   "name": "Pocket park",
+   "category": "park",
+   "lat": 29.680945,
+   "lon": -95.464659,
+   "distance_m": 397,
+   "source": "vexcel"
+  },
+  {
+   "name": "Elementary school",
+   "category": "school",
+   "lat": 29.675914,
+   "lon": -95.456387,
+   "distance_m": 599,
+   "source": "osm"
+  },
+  {
+   "name": "Corner market",
+   "category": "grocery store",
+   "lat": 29.673579,
+   "lon": -95.465486,
+   "distance_m": 621,
+   "source": "osm"
+  },
+  {
+   "name": "Neighborhood grocery",
+   "category": "grocery store",
+   "lat": 29.681933,
+   "lon": -95.45556,
+   "distance_m": 743,
+   "source": "vexcel"
+  },
+  {
+   "name": "Pharmacy",
+   "category": "pharmacy",
+   "lat": 29.682382,
+   "lon": -95.45587,
+   "distance_m": 748,
+   "source": "vexcel"
+  },
+  {
+   "name": "Coffee roaster",
+   "category": "cafe",
+   "lat": 29.681394,
+   "lon": -95.454733,
+   "distance_m": 783,
+   "source": "costar"
+  },
+  {
+   "name": "Community gym",
+   "category": "fitness",
+   "lat": 29.682741,
+   "lon": -95.455146,
+   "distance_m": 828,
+   "source": "costar"
+  },
+  {
+   "name": "Bakery cafe",
+   "category": "cafe",
+   "lat": 29.676992,
+   "lon": -95.470449,
+   "distance_m": 832,
+   "source": "costar"
+  },
+  {
+   "name": "Taqueria",
+   "category": "restaurant",
+   "lat": 29.682202,
+   "lon": -95.454112,
+   "distance_m": 878,
+   "source": "costar"
+  },
+  {
+   "name": "Neighborhood bistro",
+   "category": "restaurant",
+   "lat": 29.680136,
+   "lon": -95.471276,
+   "distance_m": 924,
+   "source": "costar"
+  },
+  {
+   "name": "Bayou greenway trailhead",
+   "category": "park",
+   "lat": 29.669446,
+   "lon": -95.460109,
+   "distance_m": 996,
+   "source": "vexcel"
+  },
+  {
+   "name": "Middle school",
+   "category": "school",
+   "lat": 29.683999,
+   "lon": -95.473861,
+   "distance_m": 1316,
+   "source": "osm"
+  },
+  {
+   "name": "Wine bar",
+   "category": "nightlife",
+   "lat": 29.682921,
+   "lon": -95.448736,
+   "distance_m": 1382,
+   "source": "costar"
+  },
+  {
+   "name": "Public library branch",
+   "category": "library",
+   "lat": 29.675555,
+   "lon": -95.476446,
+   "distance_m": 1432,
+   "source": "osm"
+  }
+ ],
+ "comps": [
+  {
+   "address": "9400 block, same street (stand-in)",
+   "price": 1185000,
+   "sqft": 5400,
+   "beds": 5,
+   "sold_date": "2026-08-12",
+   "distance_m": 90
+  },
+  {
+   "address": "One block north (stand-in)",
+   "price": 965000,
+   "sqft": 4300,
+   "beds": 4,
+   "sold_date": "2026-06-30",
+   "distance_m": 210
+  },
+  {
+   "address": "Two blocks east (stand-in)",
+   "price": 1320000,
+   "sqft": 6100,
+   "beds": 5,
+   "sold_date": "2026-05-04",
+   "distance_m": 380
+  },
+  {
+   "address": "Cul-de-sac to the south (stand-in)",
+   "price": 879000,
+   "sqft": 3900,
+   "beds": 4,
+   "sold_date": "2026-03-19",
+   "distance_m": 460
+  },
+  {
+   "address": "Corner lot to the west (stand-in)",
+   "price": 1049000,
+   "sqft": 4800,
+   "beds": 5,
+   "sold_date": null,
+   "distance_m": 520
+  }
+ ]
+}

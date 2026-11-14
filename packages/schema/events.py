@@ -1,7 +1,7 @@
 """Event envelope and v0 events (WORKSTREAMS.md section 2.3). Owner: B. Consumer: A.
 
-Every message on the session WebSocket is an Envelope. `type` selects the payload model in EVENTS.
-Unknown types and unknown fields are ignored, never an error (I-G7).
+Every message on the session WebSocket is an EventEnvelope. `type` selects the payload model in
+EVENTS. Unknown types and unknown fields are ignored, never an error (I-G7).
 """
 
 from __future__ import annotations
@@ -10,35 +10,37 @@ import uuid
 from datetime import datetime, timezone
 from typing import Any, Literal
 
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import model_validator
 
-from packages.schema.session import ClientKind, ViewerMode, ViewerState
+from .common import Model
+from .session import ClientKind, SoundSetScenarioPayload, ViewerMode, ViewerState
 
-Source = Literal["desktop", "phone", "agent", "server"]
+EVENT_VERSION = 1
+
+EventSource = Literal["desktop", "phone", "agent", "server"]
+JobStatus = Literal["queued", "running", "done", "failed"]
 
 
-class Payload(BaseModel):
-    model_config = ConfigDict(extra="ignore")
-
-
-class Envelope(Payload):
-    v: int = 1
-    id: str = Field(default_factory=lambda: uuid.uuid4().hex)
-    ts: str = Field(default_factory=lambda: datetime.now(timezone.utc).isoformat(timespec="milliseconds"))
+class EventEnvelope(Model):
+    v: int = EVENT_VERSION
+    id: str
+    ts: str
     session_id: str
-    source: Source
+    source: EventSource
     type: str
-    payload: dict[str, Any] = Field(default_factory=dict)
+    payload: dict[str, Any]
 
 
 # --- payloads ---------------------------------------------------------------------------------
 
 
-class SessionPresence(Payload):
+class SessionPresencePayload(Model):
     client: ClientKind
 
 
-class ViewerGoto(Payload):
+class ViewerGotoPayload(Model):
+    """Exactly one of room_id / sweep_id."""
+
     room_id: str | None = None
     sweep_id: str | None = None
 
@@ -49,114 +51,128 @@ class ViewerGoto(Payload):
         return self
 
 
-class ViewerSetTime(Payload):
+class ViewerSetTimePayload(Model):
     datetime: str  # ISO 8601 with offset (I-G13)
 
 
-class ViewerSetMode(Payload):
+class ViewerSetModePayload(Model):
     mode: ViewerMode
 
 
-class ViewerLook(Payload):
+class ViewerLookPayload(Model):
     yaw_delta_deg: float
     pitch_delta_deg: float
 
 
-class DesignShowVariants(Payload):
+class DesignShowVariantsPayload(Model):
     layout_ids: list[str]
 
 
-class LayoutSelect(Payload):
+class LayoutSelectPayload(Model):
     layout_id: str
 
 
-class SoundSetScenario(Payload):
-    room_id: str
-    scenario: dict[str, Any]  # NoiseScenario; typed once C ships packages/schema/reports.py
-
-
-class CaptureUpload(Payload):
+class CaptureUploadPayload(Model):
     upload_id: str
 
 
-class ChatUser(Payload):
+class ChatUserPayload(Model):
     text: str
 
 
-class VoiceTranscript(Payload):
+class VoiceTranscriptPayload(Model):
     text: str
     final: bool
 
 
-class AgentToken(Payload):
+class AgentTokenPayload(Model):
     message_id: str
     delta: str
 
 
-class AgentMessage(Payload):
+class AgentMessagePayload(Model):
     message_id: str
     text: str
 
 
-class AgentAction(Payload):
+class AgentActionPayload(Model):
     tool: str
     summary: str
 
 
-class AgentError(Payload):
+class AgentErrorPayload(Model):
     message: str
 
 
-class AgentTurn(Payload):
+class AgentTurnPayload(Model):
     """Additive to v0. Brackets one agent turn, which may produce no agent.message at all."""
 
     status: Literal["started", "ended"]
 
 
-class JobProgress(Payload):
+class JobProgressPayload(Model):
     job_id: str
     kind: str
     pct: float
-    status: Literal["queued", "running", "done", "failed"]
+    status: JobStatus
     result_ref: str | None = None
 
 
 # type -> (payload model, who may send it)
-EVENTS: dict[str, tuple[type[Payload], frozenset[str]]] = {
+EVENTS: dict[str, tuple[type[Model], frozenset[str]]] = {
     "session.state": (ViewerState, frozenset({"server"})),
-    "session.joined": (SessionPresence, frozenset({"server"})),
-    "session.left": (SessionPresence, frozenset({"server"})),
-    "viewer.goto": (ViewerGoto, frozenset({"agent", "phone", "desktop"})),
-    "viewer.setTime": (ViewerSetTime, frozenset({"agent", "phone", "desktop"})),
-    "viewer.setMode": (ViewerSetMode, frozenset({"agent", "phone", "desktop"})),
-    "viewer.look": (ViewerLook, frozenset({"phone"})),
-    "design.showVariants": (DesignShowVariants, frozenset({"agent"})),
-    "layout.select": (LayoutSelect, frozenset({"phone", "desktop"})),
-    "sound.setScenario": (SoundSetScenario, frozenset({"agent", "phone", "desktop"})),
-    "capture.upload": (CaptureUpload, frozenset({"phone", "desktop"})),
-    "chat.user": (ChatUser, frozenset({"desktop", "phone"})),
-    "voice.transcript": (VoiceTranscript, frozenset({"desktop", "phone"})),
-    "agent.token": (AgentToken, frozenset({"agent"})),
-    "agent.message": (AgentMessage, frozenset({"agent"})),
-    "agent.action": (AgentAction, frozenset({"agent"})),
-    "agent.error": (AgentError, frozenset({"agent"})),
-    "agent.turn": (AgentTurn, frozenset({"agent"})),
-    "job.progress": (JobProgress, frozenset({"server"})),
+    "session.joined": (SessionPresencePayload, frozenset({"server"})),
+    "session.left": (SessionPresencePayload, frozenset({"server"})),
+    "viewer.goto": (ViewerGotoPayload, frozenset({"agent", "phone", "desktop"})),
+    "viewer.setTime": (ViewerSetTimePayload, frozenset({"agent", "phone", "desktop"})),
+    "viewer.setMode": (ViewerSetModePayload, frozenset({"agent", "phone", "desktop"})),
+    "viewer.look": (ViewerLookPayload, frozenset({"phone"})),
+    "design.showVariants": (DesignShowVariantsPayload, frozenset({"agent"})),
+    "layout.select": (LayoutSelectPayload, frozenset({"phone", "desktop"})),
+    "sound.setScenario": (SoundSetScenarioPayload, frozenset({"agent", "phone", "desktop"})),
+    "capture.upload": (CaptureUploadPayload, frozenset({"phone", "desktop"})),
+    "chat.user": (ChatUserPayload, frozenset({"desktop", "phone"})),
+    "voice.transcript": (VoiceTranscriptPayload, frozenset({"desktop", "phone"})),
+    "agent.token": (AgentTokenPayload, frozenset({"agent"})),
+    "agent.message": (AgentMessagePayload, frozenset({"agent"})),
+    "agent.action": (AgentActionPayload, frozenset({"agent"})),
+    "agent.error": (AgentErrorPayload, frozenset({"agent"})),
+    "agent.turn": (AgentTurnPayload, frozenset({"agent"})),
+    "job.progress": (JobProgressPayload, frozenset({"server"})),
+}
+
+# Event type -> payload model. The TypeScript codegen reads this.
+EVENT_PAYLOADS: dict[str, type[Model]] = {t: model for t, (model, _) in EVENTS.items()}
+
+# Agent UI tools use snake_case names; each maps to one event.
+UI_TOOL_EVENTS: dict[str, str] = {
+    "viewer_goto": "viewer.goto",
+    "viewer_set_time": "viewer.setTime",
+    "viewer_set_mode": "viewer.setMode",
+    "design_show_variants": "design.showVariants",
+    "sound_set_scenario": "sound.setScenario",
 }
 
 
-def make_event(session_id: str, source: Source, type: str, payload: dict | Payload, id: str | None = None) -> Envelope:
+def make_event(session_id: str, source: EventSource, type: str, payload: dict | Model, id: str | None = None) -> EventEnvelope:
     """Build a valid event. Raises on an unknown type or a payload that doesn't fit: for our own
     code. Input from clients goes through parse_client_event, which never raises."""
     model, senders = EVENTS[type]
     if source not in senders:
         raise ValueError(f"{source} may not send {type}")
-    data = payload.model_dump() if isinstance(payload, Payload) else payload
+    data = payload.model_dump() if isinstance(payload, Model) else payload
     clean = model.model_validate(data).model_dump(exclude_none=True)
-    return Envelope(session_id=session_id, source=source, type=type, payload=clean, **({"id": id} if id else {}))
+    return EventEnvelope(
+        id=id or uuid.uuid4().hex,
+        ts=datetime.now(timezone.utc).isoformat(timespec="milliseconds"),
+        session_id=session_id,
+        source=source,
+        type=type,
+        payload=clean,
+    )
 
 
-def parse_client_event(raw: Any, session_id: str, source: Source) -> Envelope | str:
+def parse_client_event(raw: Any, session_id: str, source: EventSource) -> EventEnvelope | str:
     """Check a message from a browser. Returns the event, or the reason it was dropped (I-G7).
 
     session_id and source come from the connection, never from the message.

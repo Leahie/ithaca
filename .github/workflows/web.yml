@@ -1,0 +1,43 @@
+name: web
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    paths:
+      - 'apps/web/**'
+      - 'packages/schema/**'
+      - 'fixtures/**'
+      - 'pnpm-lock.yaml'
+      - '.github/workflows/web.yml'
+
+jobs:
+  web:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          lfs: true
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+      - uses: astral-sh/setup-uv@v5
+      - run: pnpm install --frozen-lockfile
+      # I-G5: the committed TS types match the pydantic models.
+      - run: pnpm schema:check
+      - run: pnpm typecheck
+      - run: pnpm test
+      # I-G20: fixture mode only. No live API is called.
+      - run: pnpm --filter @ithaca/web exec playwright install --with-deps chromium
+      - run: pnpm e2e
+        env:
+          CI: '1'
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: playwright-report
+          path: apps/web/playwright-report
+          retention-days: 7

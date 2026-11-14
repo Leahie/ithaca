@@ -1,0 +1,13 @@
+{
+  "name": "@ithaca/schema",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "types": "./index.ts",
+  "exports": { ".": "./index.ts" },
+  "scripts": {
+    "codegen": "cd .. && uv run python codegen.py",
+    "check": "cd .. && uv run python codegen.py --check"
+  },
+  "devDependencies": {}
+}

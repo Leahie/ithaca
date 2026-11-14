@@ -22,9 +22,10 @@ import uuid
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
+from zoneinfo import ZoneInfo
 
-from packages.schema.events import Envelope, make_event
-from packages.schema.session import ClientKind, Session, ViewerState
+from packages.schema.events import EventEnvelope, make_event
+from packages.schema.session import ClientKind, Session, SoundSetScenarioPayload, ViewerState
 
 log = logging.getLogger(__name__)
 
@@ -35,7 +36,7 @@ PAIR_TOKEN_TTL = timedelta(minutes=10)
 class Connection:
     session_id: str
     client: ClientKind
-    queue: asyncio.Queue[Envelope] = field(default_factory=asyncio.Queue)
+    queue: asyncio.Queue[EventEnvelope] = field(default_factory=asyncio.Queue)
 
 
 @dataclass
@@ -43,13 +44,13 @@ class SessionRoom:
     session_id: str
     user_id: str
     property_id: str
-    state: ViewerState = field(default_factory=ViewerState)
+    state: ViewerState
     connections: list[Connection] = field(default_factory=list)
     pair_tokens: dict[str, datetime] = field(default_factory=dict)  # token -> expiry
     client_tokens: dict[str, ClientKind] = field(default_factory=dict)
 
 
-def _apply(state: ViewerState, event: Envelope) -> None:
+def _apply(state: ViewerState, event: EventEnvelope) -> None:
     """Fold an event into the viewer state."""
     p = event.payload
     if event.type == "viewer.goto" and p.get("room_id"):
@@ -59,7 +60,7 @@ def _apply(state: ViewerState, event: Envelope) -> None:
     elif event.type == "viewer.setMode":
         state.mode = p["mode"]
     elif event.type == "sound.setScenario":
-        state.sound_scenario = p
+        state.sound_scenario = SoundSetScenarioPayload.model_validate(p)
     elif event.type == "design.showVariants":
         state.shown_layout_ids = p["layout_ids"]
 
@@ -67,12 +68,16 @@ def _apply(state: ViewerState, event: Envelope) -> None:
 class Hub:
     def __init__(self) -> None:
         self.rooms: dict[str, SessionRoom] = {}
-        self._listeners: list[Callable[[SessionRoom, Envelope], None]] = []
+        self._listeners: list[Callable[[SessionRoom, EventEnvelope], None]] = []
 
     # --- sessions and pairing (B10) -------------------------------------------------------------
 
-    def create_session(self, user_id: str, property_id: str) -> Session:
-        room = SessionRoom(session_id=uuid.uuid4().hex, user_id=user_id, property_id=property_id)
+    def create_session(self, user_id: str, property_id: str, timezone_name: str = "UTC") -> Session:
+        """timezone_name: the property's IANA timezone, for the viewer's starting date and time."""
+        now = datetime.now(ZoneInfo(timezone_name)).isoformat(timespec="seconds")
+        room = SessionRoom(
+            session_id=uuid.uuid4().hex, user_id=user_id, property_id=property_id, state=ViewerState(mode="tour", datetime=now)
+        )
         self.rooms[room.session_id] = room
         client_token = secrets.token_urlsafe(24)
         room.client_tokens[client_token] = "desktop"
@@ -103,7 +108,7 @@ class Hub:
 
     # --- connections and events (B9) ------------------------------------------------------------
 
-    def subscribe(self, listener: Callable[[SessionRoom, Envelope], None]) -> None:
+    def subscribe(self, listener: Callable[[SessionRoom, EventEnvelope], None]) -> None:
         """Call `listener(room, event)` for every published event, after the state is updated."""
         self._listeners.append(listener)
 
@@ -121,7 +126,7 @@ class Hub:
             room.connections.remove(conn)
             self.publish(make_event(conn.session_id, "server", "session.left", {"client": conn.client}))
 
-    def publish(self, event: Envelope) -> None:
+    def publish(self, event: EventEnvelope) -> None:
         """Update the state and queue the event for every client. Call from the event loop only;
         because nothing here awaits, events keep the order they were published in."""
         room = self.rooms.get(event.session_id)

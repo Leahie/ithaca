@@ -10,6 +10,7 @@ build the agent dock, action chips and viewer reactions with no API key. Known p
 
 from __future__ import annotations
 
+import json
 import time
 from collections.abc import Iterator
 from datetime import datetime
@@ -18,14 +19,17 @@ from zoneinfo import ZoneInfo
 
 from services.api.agent import prompts
 from services.api.agent.context import AgentContext
+from services.api.integrations.config import fixtures_dir
 from services.api.twin.service import get_twin
 
-# The layout fixtures (GET /layouts) will use these ids.
-DEMO_LAYOUT_IDS = [
-    "00000000-0000-4000-8000-000000000001",
-    "00000000-0000-4000-8000-000000000002",
-    "00000000-0000-4000-8000-000000000003",
-]
+
+
+def demo_layout_ids(property_id: str) -> list[str]:
+    """Ids of the hand-placed layouts in fixtures/layouts/<property_id>.json (Stream A's stand-ins)."""
+    path = fixtures_dir() / "layouts" / f"{property_id}.json"
+    return [row["layout_id"] for row in json.loads(path.read_text(encoding="utf-8"))] if path.exists() else []
+
+
 TOKEN_DELAY_S = 0.04
 
 
@@ -61,8 +65,9 @@ def stream_turn_scripted(text: str, context: AgentContext, thread_id: str) -> It
     if "layout" in said:
         yield ("action", "viewer_set_mode", {"mode": "design"})
         yield ("ui", {"type": "viewer.setMode", "payload": {"mode": "design"}})
-        yield ("action", "design_show_variants", {"layout_ids": DEMO_LAYOUT_IDS})
-        yield ("ui", {"type": "design.showVariants", "payload": {"layout_ids": DEMO_LAYOUT_IDS}})
+        layout_ids = demo_layout_ids(context.property_id)
+        yield ("action", "design_show_variants", {"layout_ids": layout_ids})
+        yield ("ui", {"type": "design.showVariants", "payload": {"layout_ids": layout_ids}})
         yield from _say("Here are three ways to arrange the room. Pick one, or tell me what to change.")
         return
 

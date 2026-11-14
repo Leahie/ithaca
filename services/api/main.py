@@ -33,6 +33,9 @@ app = FastAPI(title="Ithaca API", lifespan=lifespan)
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
 app.include_router(sessions.router, prefix="/api")
 app.include_router(properties.router, prefix="/api")
+# The WebSocket is also served without the prefix (/ws/sessions/{sid}), which is the path in
+# WORKSTREAMS.md 2.4 and the one the web app connects to directly on port 8000.
+app.add_api_websocket_route("/ws/sessions/{session_id}", sessions.session_socket)
 
 
 @app.get("/api/health")

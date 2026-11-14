@@ -21,7 +21,7 @@ OUT = Path(__file__).parent / "json"
 
 
 def build() -> dict[str, str]:
-    event_models = [events.Envelope, *dict.fromkeys(model for model, _ in events.EVENTS.values())]
+    event_models = [events.EventEnvelope, *dict.fromkeys(model for model, _ in events.EVENTS.values())]
     groups = {
         "events": event_models,
         "session": [session.Session, session.ViewerState],

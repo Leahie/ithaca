@@ -7,10 +7,8 @@ import json
 import logging
 
 from fastapi import APIRouter, Header, HTTPException, Request, WebSocket, WebSocketDisconnect
-from pydantic import BaseModel
-
 from packages.schema.events import parse_client_event
-from packages.schema.session import ClientKind, Session
+from packages.schema.session import ClientKind, CreateSessionRequest, JoinRequest, JoinResult, Session
 from services.api.realtime.hub import Hub
 from services.api.twin.service import TwinNotFound, get_twin
 
@@ -18,29 +16,16 @@ log = logging.getLogger(__name__)
 router = APIRouter()
 
 
-class CreateSession(BaseModel):
-    property_id: str
-
-
-class JoinSession(BaseModel):
-    pair_token: str
-
-
-class JoinResult(BaseModel):
-    ok: bool
-    client_token: str
-
-
 @router.post("/sessions")
-def create_session(body: CreateSession, request: Request, x_user_id: str = Header("demo")) -> Session:
+def create_session(body: CreateSessionRequest, request: Request, x_user_id: str = Header("demo")) -> Session:
     """The desktop starts a session. `client_token` goes on its WebSocket URL; `pair_token` goes in
     the QR code for the phone."""
     try:
-        get_twin(body.property_id)
+        twin = get_twin(body.property_id)
     except TwinNotFound as e:
         raise HTTPException(404, str(e)) from e
     hub: Hub = request.app.state.hub
-    return hub.create_session(user_id=x_user_id, property_id=body.property_id)
+    return hub.create_session(user_id=x_user_id, property_id=body.property_id, timezone_name=twin.timezone)
 
 
 @router.post("/sessions/{session_id}/pair")
@@ -53,7 +38,7 @@ def new_pair_token(session_id: str, request: Request) -> Session:
 
 
 @router.post("/sessions/{session_id}/join")
-def join_session(session_id: str, body: JoinSession, request: Request) -> JoinResult:
+def join_session(session_id: str, body: JoinRequest, request: Request) -> JoinResult:
     """The phone trades the pairing token from the QR code for its own client_token."""
     hub: Hub = request.app.state.hub
     client_token = hub.redeem_pair_token(session_id, body.pair_token)

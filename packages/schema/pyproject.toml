@@ -1,0 +1,6 @@
+[project]
+name = "ithaca-schema"
+version = "0.0.0"
+description = "Shared domain + event schemas (pydantic is the source; TS is generated into ts/)"
+requires-python = ">=3.11"
+dependencies = ["pydantic>=2.7"]

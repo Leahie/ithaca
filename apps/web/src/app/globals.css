@@ -1,0 +1,71 @@
+@import 'tailwindcss';
+
+@theme {
+  --color-ink: #0e0d0b;
+  --color-surface: #171512;
+  --color-raised: #201d19;
+  --color-line: #2f2b25;
+  --color-line-strong: #453f36;
+  --color-text: #ece7df;
+  --color-muted: #a59c8f;
+  --color-faint: #756d62;
+  --color-sun: #f2b84b;
+  --color-sun-deep: #c98a1b;
+  --color-sky: #6fb6e8;
+  --color-leaf: #6fbf8a;
+  --color-danger: #e5705f;
+  --font-sans: ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', sans-serif;
+  --font-mono: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+}
+
+html,
+body {
+  height: 100%;
+}
+
+body {
+  background: var(--color-ink);
+  color: var(--color-text);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  overscroll-behavior: none;
+}
+
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-line-strong) transparent;
+}
+
+:focus-visible {
+  outline: 2px solid var(--color-sun);
+  outline-offset: 2px;
+}
+
+input[type='range'] {
+  accent-color: var(--color-sun);
+}
+
+matterport-viewer {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+@keyframes caret {
+  50% {
+    opacity: 0;
+  }
+}
+.streaming-caret::after {
+  content: '▍';
+  margin-left: 1px;
+  color: var(--color-sun);
+  animation: caret 1s steps(1) infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}

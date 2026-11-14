@@ -1,5 +1,38 @@
 {
   "$defs": {
+    "NoiseScenario": {
+      "properties": {
+        "add_carpet": {
+          "default": false,
+          "title": "Add Carpet",
+          "type": "boolean"
+        },
+        "glazing": {
+          "anyOf": [
+            {
+              "enum": [
+                "single",
+                "double",
+                "triple"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Glazing"
+        },
+        "include_furniture": {
+          "default": true,
+          "title": "Include Furniture",
+          "type": "boolean"
+        }
+      },
+      "title": "NoiseScenario",
+      "type": "object"
+    },
     "Session": {
       "properties": {
         "client_token": {
@@ -36,23 +69,31 @@
       "title": "Session",
       "type": "object"
     },
+    "SoundSetScenarioPayload": {
+      "properties": {
+        "room_id": {
+          "title": "Room Id",
+          "type": "string"
+        },
+        "scenario": {
+          "$ref": "#/$defs/NoiseScenario"
+        }
+      },
+      "required": [
+        "room_id",
+        "scenario"
+      ],
+      "title": "SoundSetScenarioPayload",
+      "type": "object"
+    },
     "ViewerState": {
-      "description": "What the desktop is showing. The hub keeps the latest copy and sends it on join (B9).",
+      "description": "Payload of ``session.state``: what the desktop is showing. The hub keeps the latest copy\nand sends it on join (B9).",
       "properties": {
         "datetime": {
-          "anyOf": [
-            {
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "title": "Datetime"
+          "title": "Datetime",
+          "type": "string"
         },
         "mode": {
-          "default": "tour",
           "enum": [
             "tour",
             "sun",
@@ -76,6 +117,7 @@
           "title": "Room Id"
         },
         "shown_layout_ids": {
+          "default": [],
           "items": {
             "type": "string"
           },
@@ -85,17 +127,19 @@
         "sound_scenario": {
           "anyOf": [
             {
-              "additionalProperties": true,
-              "type": "object"
+              "$ref": "#/$defs/SoundSetScenarioPayload"
             },
             {
               "type": "null"
             }
           ],
-          "default": null,
-          "title": "Sound Scenario"
+          "default": null
         }
       },
+      "required": [
+        "mode",
+        "datetime"
+      ],
       "title": "ViewerState",
       "type": "object"
     }

@@ -1,0 +1,11 @@
+**/node_modules
+**/.next
+**/.venv
+**/__pycache__
+.git
+.cache
+.env
+**/.env.local
+apps/web/public/matterport-assets
+apps/web/test-results
+apps/web/playwright-report

@@ -1,9 +1,20 @@
-data
+node_modules/
+.next/
 out/
-
+dist/
+data
+.cache/
 .env
 .env.local
 .env.*.local
-
+*.tsbuildinfo
+next-env.d.ts
 __pycache__/
+*.pyc
+.venv/
 .pytest_cache/
+test-results/
+playwright-report/
+.DS_Store
+# Matterport bundle assets are copied from node_modules at install time
+apps/web/public/matterport-assets/

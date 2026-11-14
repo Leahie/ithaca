@@ -24,7 +24,7 @@ import time
 import uuid
 from collections.abc import Callable
 
-from packages.schema.events import Envelope, make_event
+from packages.schema.events import EventEnvelope, make_event
 from services.api.agent.context import AgentContext
 from services.api.agent.provider import TurnRunner
 from services.api.agent.runner import event_message
@@ -74,7 +74,7 @@ class AgentBridge:
         self._tasks: set[asyncio.Task] = set()
         hub.subscribe(self.on_event)
 
-    def on_event(self, room: SessionRoom, event: Envelope) -> None:
+    def on_event(self, room: SessionRoom, event: EventEnvelope) -> None:
         sid, p = room.session_id, event.payload
         by_user = event.source in ("desktop", "phone")
         log_ = TOUR_LOGS.setdefault(sid, TourLog())

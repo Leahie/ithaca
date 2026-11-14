@@ -1,6 +1,6 @@
 {
   "$defs": {
-    "AgentAction": {
+    "AgentActionPayload": {
       "properties": {
         "summary": {
           "title": "Summary",
@@ -15,10 +15,10 @@
         "tool",
         "summary"
       ],
-      "title": "AgentAction",
+      "title": "AgentActionPayload",
       "type": "object"
     },
-    "AgentError": {
+    "AgentErrorPayload": {
       "properties": {
         "message": {
           "title": "Message",
@@ -28,10 +28,10 @@
       "required": [
         "message"
       ],
-      "title": "AgentError",
+      "title": "AgentErrorPayload",
       "type": "object"
     },
-    "AgentMessage": {
+    "AgentMessagePayload": {
       "properties": {
         "message_id": {
           "title": "Message Id",
@@ -46,10 +46,10 @@
         "message_id",
         "text"
       ],
-      "title": "AgentMessage",
+      "title": "AgentMessagePayload",
       "type": "object"
     },
-    "AgentToken": {
+    "AgentTokenPayload": {
       "properties": {
         "delta": {
           "title": "Delta",
@@ -64,10 +64,10 @@
         "message_id",
         "delta"
       ],
-      "title": "AgentToken",
+      "title": "AgentTokenPayload",
       "type": "object"
     },
-    "AgentTurn": {
+    "AgentTurnPayload": {
       "description": "Additive to v0. Brackets one agent turn, which may produce no agent.message at all.",
       "properties": {
         "status": {
@@ -82,10 +82,10 @@
       "required": [
         "status"
       ],
-      "title": "AgentTurn",
+      "title": "AgentTurnPayload",
       "type": "object"
     },
-    "CaptureUpload": {
+    "CaptureUploadPayload": {
       "properties": {
         "upload_id": {
           "title": "Upload Id",
@@ -95,10 +95,10 @@
       "required": [
         "upload_id"
       ],
-      "title": "CaptureUpload",
+      "title": "CaptureUploadPayload",
       "type": "object"
     },
-    "ChatUser": {
+    "ChatUserPayload": {
       "properties": {
         "text": {
           "title": "Text",
@@ -108,10 +108,10 @@
       "required": [
         "text"
       ],
-      "title": "ChatUser",
+      "title": "ChatUserPayload",
       "type": "object"
     },
-    "DesignShowVariants": {
+    "DesignShowVariantsPayload": {
       "properties": {
         "layout_ids": {
           "items": {
@@ -124,10 +124,10 @@
       "required": [
         "layout_ids"
       ],
-      "title": "DesignShowVariants",
+      "title": "DesignShowVariantsPayload",
       "type": "object"
     },
-    "Envelope": {
+    "EventEnvelope": {
       "properties": {
         "id": {
           "title": "Id",
@@ -167,14 +167,17 @@
         }
       },
       "required": [
+        "id",
+        "ts",
         "session_id",
         "source",
-        "type"
+        "type",
+        "payload"
       ],
-      "title": "Envelope",
+      "title": "EventEnvelope",
       "type": "object"
     },
-    "JobProgress": {
+    "JobProgressPayload": {
       "properties": {
         "job_id": {
           "title": "Job Id",
@@ -217,10 +220,10 @@
         "pct",
         "status"
       ],
-      "title": "JobProgress",
+      "title": "JobProgressPayload",
       "type": "object"
     },
-    "LayoutSelect": {
+    "LayoutSelectPayload": {
       "properties": {
         "layout_id": {
           "title": "Layout Id",
@@ -230,10 +233,43 @@
       "required": [
         "layout_id"
       ],
-      "title": "LayoutSelect",
+      "title": "LayoutSelectPayload",
       "type": "object"
     },
-    "SessionPresence": {
+    "NoiseScenario": {
+      "properties": {
+        "add_carpet": {
+          "default": false,
+          "title": "Add Carpet",
+          "type": "boolean"
+        },
+        "glazing": {
+          "anyOf": [
+            {
+              "enum": [
+                "single",
+                "double",
+                "triple"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Glazing"
+        },
+        "include_furniture": {
+          "default": true,
+          "title": "Include Furniture",
+          "type": "boolean"
+        }
+      },
+      "title": "NoiseScenario",
+      "type": "object"
+    },
+    "SessionPresencePayload": {
       "properties": {
         "client": {
           "enum": [
@@ -247,29 +283,28 @@
       "required": [
         "client"
       ],
-      "title": "SessionPresence",
+      "title": "SessionPresencePayload",
       "type": "object"
     },
-    "SoundSetScenario": {
+    "SoundSetScenarioPayload": {
       "properties": {
         "room_id": {
           "title": "Room Id",
           "type": "string"
         },
         "scenario": {
-          "additionalProperties": true,
-          "title": "Scenario",
-          "type": "object"
+          "$ref": "#/$defs/NoiseScenario"
         }
       },
       "required": [
         "room_id",
         "scenario"
       ],
-      "title": "SoundSetScenario",
+      "title": "SoundSetScenarioPayload",
       "type": "object"
     },
-    "ViewerGoto": {
+    "ViewerGotoPayload": {
+      "description": "Exactly one of room_id / sweep_id.",
       "properties": {
         "room_id": {
           "anyOf": [
@@ -296,10 +331,10 @@
           "title": "Sweep Id"
         }
       },
-      "title": "ViewerGoto",
+      "title": "ViewerGotoPayload",
       "type": "object"
     },
-    "ViewerLook": {
+    "ViewerLookPayload": {
       "properties": {
         "pitch_delta_deg": {
           "title": "Pitch Delta Deg",
@@ -314,10 +349,10 @@
         "yaw_delta_deg",
         "pitch_delta_deg"
       ],
-      "title": "ViewerLook",
+      "title": "ViewerLookPayload",
       "type": "object"
     },
-    "ViewerSetMode": {
+    "ViewerSetModePayload": {
       "properties": {
         "mode": {
           "enum": [
@@ -334,10 +369,10 @@
       "required": [
         "mode"
       ],
-      "title": "ViewerSetMode",
+      "title": "ViewerSetModePayload",
       "type": "object"
     },
-    "ViewerSetTime": {
+    "ViewerSetTimePayload": {
       "properties": {
         "datetime": {
           "title": "Datetime",
@@ -347,26 +382,17 @@
       "required": [
         "datetime"
       ],
-      "title": "ViewerSetTime",
+      "title": "ViewerSetTimePayload",
       "type": "object"
     },
     "ViewerState": {
-      "description": "What the desktop is showing. The hub keeps the latest copy and sends it on join (B9).",
+      "description": "Payload of ``session.state``: what the desktop is showing. The hub keeps the latest copy\nand sends it on join (B9).",
       "properties": {
         "datetime": {
-          "anyOf": [
-            {
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "title": "Datetime"
+          "title": "Datetime",
+          "type": "string"
         },
         "mode": {
-          "default": "tour",
           "enum": [
             "tour",
             "sun",
@@ -390,6 +416,7 @@
           "title": "Room Id"
         },
         "shown_layout_ids": {
+          "default": [],
           "items": {
             "type": "string"
           },
@@ -399,21 +426,23 @@
         "sound_scenario": {
           "anyOf": [
             {
-              "additionalProperties": true,
-              "type": "object"
+              "$ref": "#/$defs/SoundSetScenarioPayload"
             },
             {
               "type": "null"
             }
           ],
-          "default": null,
-          "title": "Sound Scenario"
+          "default": null
         }
       },
+      "required": [
+        "mode",
+        "datetime"
+      ],
       "title": "ViewerState",
       "type": "object"
     },
-    "VoiceTranscript": {
+    "VoiceTranscriptPayload": {
       "properties": {
         "final": {
           "title": "Final",
@@ -428,83 +457,83 @@
         "text",
         "final"
       ],
-      "title": "VoiceTranscript",
+      "title": "VoiceTranscriptPayload",
       "type": "object"
     }
   },
   "title": "events",
   "x-event-types": {
     "agent.action": {
-      "payload": "AgentAction",
+      "payload": "AgentActionPayload",
       "sent_by": [
         "agent"
       ]
     },
     "agent.error": {
-      "payload": "AgentError",
+      "payload": "AgentErrorPayload",
       "sent_by": [
         "agent"
       ]
     },
     "agent.message": {
-      "payload": "AgentMessage",
+      "payload": "AgentMessagePayload",
       "sent_by": [
         "agent"
       ]
     },
     "agent.token": {
-      "payload": "AgentToken",
+      "payload": "AgentTokenPayload",
       "sent_by": [
         "agent"
       ]
     },
     "agent.turn": {
-      "payload": "AgentTurn",
+      "payload": "AgentTurnPayload",
       "sent_by": [
         "agent"
       ]
     },
     "capture.upload": {
-      "payload": "CaptureUpload",
+      "payload": "CaptureUploadPayload",
       "sent_by": [
         "desktop",
         "phone"
       ]
     },
     "chat.user": {
-      "payload": "ChatUser",
+      "payload": "ChatUserPayload",
       "sent_by": [
         "desktop",
         "phone"
       ]
     },
     "design.showVariants": {
-      "payload": "DesignShowVariants",
+      "payload": "DesignShowVariantsPayload",
       "sent_by": [
         "agent"
       ]
     },
     "job.progress": {
-      "payload": "JobProgress",
+      "payload": "JobProgressPayload",
       "sent_by": [
         "server"
       ]
     },
     "layout.select": {
-      "payload": "LayoutSelect",
+      "payload": "LayoutSelectPayload",
       "sent_by": [
         "desktop",
         "phone"
       ]
     },
     "session.joined": {
-      "payload": "SessionPresence",
+      "payload": "SessionPresencePayload",
       "sent_by": [
         "server"
       ]
     },
     "session.left": {
-      "payload": "SessionPresence",
+      "payload": "SessionPresencePayload",
       "sent_by": [
         "server"
       ]
@@ -516,7 +545,7 @@
       ]
     },
     "sound.setScenario": {
-      "payload": "SoundSetScenario",
+      "payload": "SoundSetScenarioPayload",
       "sent_by": [
         "agent",
         "desktop",
@@ -524,7 +553,7 @@
       ]
     },
     "viewer.goto": {
-      "payload": "ViewerGoto",
+      "payload": "ViewerGotoPayload",
       "sent_by": [
         "agent",
         "desktop",
@@ -532,13 +561,13 @@
       ]
     },
     "viewer.look": {
-      "payload": "ViewerLook",
+      "payload": "ViewerLookPayload",
       "sent_by": [
         "phone"
       ]
     },
     "viewer.setMode": {
-      "payload": "ViewerSetMode",
+      "payload": "ViewerSetModePayload",
       "sent_by": [
         "agent",
         "desktop",
@@ -546,7 +575,7 @@
       ]
     },
     "viewer.setTime": {
-      "payload": "ViewerSetTime",
+      "payload": "ViewerSetTimePayload",
       "sent_by": [
         "agent",
         "desktop",
@@ -554,7 +583,7 @@
       ]
     },
     "voice.transcript": {
-      "payload": "VoiceTranscript",
+      "payload": "VoiceTranscriptPayload",
       "sent_by": [
         "desktop",
         "phone"
