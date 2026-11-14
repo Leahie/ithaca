@@ -4,16 +4,16 @@ import { useEffect, useRef, useState } from 'react';
 import { dispatch } from '@/lib/store/session';
 
 /** Degrees of camera turn per pixel of a slow drag. */
-const DRAG_SENSITIVITY = 0.3;
+export const DRAG_SENSITIVITY = 0.3;
 /** A quick flick turns further than a slow drag of the same length, as a trackpad does. */
 const ACCEL_PER_PX = 0.035;
 const ACCEL_MAX = 2.4;
 /** After the finger lifts, the view glides on: the share of speed kept each 16 ms. */
 const GLIDE = 0.9;
 /** Zoom levels per doubling of the distance between two fingers. */
-const PINCH_GAIN = 1.4;
+export const PINCH_GAIN = 1.4;
 /** How often gathered look motion is sent. */
-const SEND_MS = 20;
+export const SEND_MS = 20;
 /** While the stick is held over, a step goes out this often (a hop on the big screen takes ~650 ms). */
 const STEP_MS = 720;
 const STICK = 132;

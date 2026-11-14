@@ -39,7 +39,7 @@ export function onSessionEvent(cb: EventListener): () => void {
 }
 
 function core(s: SessionStore): CoreState {
-  return { viewer: s.viewer, chat: s.chat, interim: s.interim, jobs: s.jobs, peers: s.peers, members: s.members, sweepRooms: s.sweepRooms, remoteView: s.remoteView };
+  return { viewer: s.viewer, chat: s.chat, interim: s.interim, jobs: s.jobs, peers: s.peers, members: s.members, sweepRooms: s.sweepRooms, remoteView: s.remoteView, remoteFloor: s.remoteFloor };
 }
 
 export const useSession = create<SessionStore>((set, get) => ({

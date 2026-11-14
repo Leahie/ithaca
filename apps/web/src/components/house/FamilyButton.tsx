@@ -3,7 +3,7 @@
 import { QRCodeSVG } from 'qrcode.react';
 import { useEffect, useState } from 'react';
 import { useSessionInfo } from '@/components/session/SessionProvider';
-import { Button, Notice, cn } from '@/components/ui';
+import { Button, GLASS, GLASS_PANEL, cn, glassButton } from '@/components/ui';
 import { IconPhone } from '@/components/ui/icons';
 import { publicOrigin } from '@/lib/config';
 import { useFamily } from '@/lib/store/family';
@@ -65,7 +65,7 @@ export function FamilyButton({ propertyId, avatar = false }: { propertyId: strin
     <div className="relative">
       {avatar ? (
         <button type="button" onClick={() => setOpen(!open)} aria-expanded={open} aria-label="Connect a phone" data-testid="guide-avatar"
-          className="flex items-center gap-2 rounded-full border border-white/30 bg-black/35 py-1 pr-3.5 pl-1 text-sm text-white shadow-lg backdrop-blur-md">
+          className={`flex items-center gap-2 rounded-full py-1 pr-3.5 pl-1 text-sm ${GLASS}`}>
           <span className="flex h-8 w-8 items-center justify-center rounded-full bg-leaf font-display text-sm font-semibold text-main">G</span>
           {here > 0 ? `${here} phone${here === 1 ? '' : 's'} connected` : 'Connect a phone'}
         </button>
@@ -76,7 +76,7 @@ export function FamilyButton({ propertyId, avatar = false }: { propertyId: strin
         </Button>
       )}
       {open && (
-        <div role="dialog" aria-label="Family phones" className="absolute top-12 right-0 z-30 w-[320px] rounded-[var(--radius-card)] border border-line bg-raised p-4 shadow-float">
+        <div role="dialog" aria-label="Family phones" className={`absolute top-12 right-0 z-30 w-[320px] rounded-3xl p-4 ${GLASS_PANEL}`}>
           {!household ? (
             <form
               className="space-y-3"
@@ -87,7 +87,7 @@ export function FamilyButton({ propertyId, avatar = false }: { propertyId: strin
             >
               <div>
                 <div className="font-display text-lg font-semibold">Look at this house together</div>
-                <p className="mt-1 text-[13.5px] leading-5 text-muted">Everyone joins from their own phone and gets their own agent. The agents compare notes and ask each other, and it all shows here.</p>
+                <p className="mt-1 text-[13.5px] leading-5 text-white/75">Everyone joins from their own phone and gets their own agent. The agents compare notes and ask each other, and it all shows here.</p>
               </div>
               <label className="block space-y-1" htmlFor="family-name">
                 <span className="text-sm font-semibold">Family name</span>
@@ -97,35 +97,35 @@ export function FamilyButton({ propertyId, avatar = false }: { propertyId: strin
                   maxLength={40}
                   onChange={(e) => setName(e.target.value)}
                   placeholder="The Riveras"
-                  className="h-11 w-full rounded-full border-2 border-text bg-surface px-4 text-[15px] outline-none placeholder:text-faint focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-text"
+                  className="h-11 w-full rounded-full border border-white/40 bg-white/10 px-4 text-[15px] text-white outline-none placeholder:text-white/50 focus-visible:border-leaf"
                 />
               </label>
-              <Button type="submit" variant="primary" className="w-full" disabled={busy}>
+              <button type="submit" className={cn(glassButton(true), 'w-full')} disabled={busy}>
                 {busy ? 'Starting…' : 'Show the family code'}
-              </Button>
+              </button>
               {error && (
-                <Notice tone="error" title="Could not start the family">
-                  {error}
-                </Notice>
+                <p role="alert" className="text-[13px] leading-5 text-coral">
+                  Could not start the family. {error}
+                </p>
               )}
             </form>
           ) : (
             <div className="space-y-3">
               <div className="flex items-baseline justify-between gap-3">
                 <div className="truncate font-display text-lg font-semibold">{household.name}</div>
-                <span className="shrink-0 text-[13px] text-muted">{here} of {household.members?.length ?? 0} here</span>
+                <span className="shrink-0 text-[13px] text-white/75">{here} of {household.members?.length ?? 0} here</span>
               </div>
               {sessionError && (
-                <Notice tone="error" title="No live session">
-                  {sessionError}
-                </Notice>
+                <p role="alert" className="text-[13px] leading-5 text-coral">
+                  No live session. {sessionError}
+                </p>
               )}
-              <div className="flex justify-center rounded-[var(--radius-frame)] bg-white p-3">
+              <div className="flex justify-center rounded-2xl bg-white p-3">
                 <QRCodeSVG value={url} size={196} marginSize={0} data-testid="family-qr" />
               </div>
-              <p className="text-[13.5px] leading-5 text-muted">Everyone scans this with their phone camera and types their name. The code works for {hoursLeft} more hours.</p>
+              <p className="text-[13.5px] leading-5 text-white/75">Everyone scans this with their phone camera and types their name. The code works for {hoursLeft} more hours.</p>
               {isLocalhost && (
-                <p className="text-[13px] leading-5 text-sun-deep">
+                <p className="text-[13px] leading-5 text-sun">
                   This code points at localhost, which a phone can't reach. Set NEXT_PUBLIC_PUBLIC_ORIGIN to this computer's address on your Wi-Fi.
                 </p>
               )}
@@ -135,10 +135,10 @@ export function FamilyButton({ propertyId, avatar = false }: { propertyId: strin
                     const on = connected[m.member_id]?.connected ?? false;
                     return (
                       <li key={m.member_id} className="flex items-center gap-2.5 text-[15px]">
-                        <span className="grid h-8 w-8 place-items-center rounded-full bg-main font-display text-xs font-semibold text-on-main">{initials(m.name)}</span>
+                        <span className="grid h-8 w-8 place-items-center rounded-full bg-white/15 font-display text-xs font-semibold">{initials(m.name)}</span>
                         <span className="flex-1 truncate">{m.name}</span>
-                        <span className={cn('flex items-center gap-1.5 text-[13px]', on ? 'text-leaf-deep' : 'text-muted')}>
-                          <i aria-hidden className={cn('h-2 w-2 rounded-full', on ? 'bg-leaf' : 'bg-line-strong')} />
+                        <span className={cn('flex items-center gap-1.5 text-[13px]', on ? 'text-leaf' : 'text-white/60')}>
+                          <i aria-hidden className={cn('h-2 w-2 rounded-full', on ? 'bg-leaf' : 'bg-white/40')} />
                           {on ? 'here' : 'away'}
                         </span>
                       </li>
@@ -146,13 +146,13 @@ export function FamilyButton({ propertyId, avatar = false }: { propertyId: strin
                   })}
                 </ul>
               )}
-              <div className="flex items-center justify-between gap-2 border-t border-line pt-3">
-                <button type="button" onClick={leave} className="min-h-11 text-[13px] text-muted underline hover:text-text">
+              <div className="flex items-center justify-between gap-2 border-t border-white/20 pt-3">
+                <button type="button" onClick={leave} className="min-h-11 text-[13px] text-white/75 underline hover:text-white">
                   Start a new family
                 </button>
-                <Button size="sm" onClick={() => void newCode()}>
+                <button type="button" className={glassButton()} onClick={() => void newCode()}>
                   New code
-                </Button>
+                </button>
               </div>
             </div>
           )}

@@ -1,10 +1,48 @@
 'use client';
 
-import type { ButtonHTMLAttributes, ReactNode } from 'react';
+import { useEffect, type ButtonHTMLAttributes, type ReactNode } from 'react';
 
 export function cn(...parts: (string | false | null | undefined)[]): string {
   return parts.filter(Boolean).join(' ');
 }
+
+/**
+ * A modal's dimmed, blurred backdrop. `touch-none` and `overscroll-none`: a drag anywhere outside the
+ * modal's scroll area moves nothing, here or underneath.
+ */
+export const MODAL_BACKDROP = 'fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-3 backdrop-blur-sm touch-none overscroll-none';
+/**
+ * A modal's scrolling body. The panel around it needs a definite height (`h-…`, not only `max-h-…`):
+ * mobile Safari will not shrink a flex child to a max-height, so the list would be clipped, not
+ * scrolled. It is its own scroll container, so it pans despite the backdrop's `touch-none`, and
+ * `overscroll-contain` keeps a fling at either end from scrolling the page.
+ */
+export const MODAL_SCROLL = 'min-h-0 flex-1 touch-pan-y overflow-y-auto overscroll-contain';
+
+/** While a modal is open, the page under it does not scroll. */
+export function useScrollLock(active = true) {
+  useEffect(() => {
+    if (!active) return;
+    const root = document.documentElement;
+    const prev = root.style.overflow;
+    root.style.overflow = 'hidden';
+    return () => {
+      root.style.overflow = prev;
+    };
+  }, [active]);
+}
+
+/** Everything floating over the house (tour, big screen) is dark glass with white text, never a paper card. See docs/style.md. */
+export const GLASS = 'border border-white/30 bg-black/35 text-white shadow-lg backdrop-blur-md';
+/** Glass for larger panels: a little darker, so text and drawings stay legible over a bright room. */
+export const GLASS_PANEL = 'border border-white/25 bg-black/55 text-white shadow-lg backdrop-blur-xl';
+/** Green on glass is a tint with a leaf edge, never solid leaf (too neon over a dark room). */
+const GLASS_GREEN = 'bg-leaf/25 text-white ring-1 ring-leaf/60 ring-inset hover:bg-leaf/35';
+/** A control on glass; `on` is the pressed state, in the green tint. */
+export const glassToggle = (on: boolean) => (on ? GLASS_GREEN : 'text-white hover:bg-white/15');
+/** A pill button on glass; `primary` is the one green action. */
+export const glassButton = (primary = false) =>
+  cn('inline-flex h-9 shrink-0 items-center justify-center rounded-full px-4 text-sm font-semibold transition-colors disabled:opacity-45', primary ? GLASS_GREEN : 'border border-white/40 text-white hover:bg-white/15');
 
 type ButtonVariant = 'primary' | 'subtle' | 'ghost' | 'danger';
 
@@ -110,6 +148,18 @@ const TONE: Record<Tone, string> = {
 export function Badge({ tone = 'neutral', children, title, className }: { tone?: Tone; children: ReactNode; title?: string; className?: string }) {
   return (
     <span title={title} className={cn('inline-flex items-center gap-1 rounded-full border px-2.5 py-0.5 text-xs leading-5 font-semibold whitespace-nowrap', TONE[tone], className)}>
+      {children}
+    </span>
+  );
+}
+
+const DOT: Record<Tone, string> = { neutral: 'bg-white/50', sun: 'bg-sun', sky: 'bg-sky', leaf: 'bg-leaf', danger: 'bg-coral' };
+
+/** A badge over the house: glass, with its tone as a dot. */
+export function GlassBadge({ tone = 'neutral', children, title }: { tone?: Tone; children: ReactNode; title?: string }) {
+  return (
+    <span title={title} className={cn('inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-semibold whitespace-nowrap', GLASS)}>
+      <i aria-hidden className={cn('h-2 w-2 rounded-full', DOT[tone])} />
       {children}
     </span>
   );

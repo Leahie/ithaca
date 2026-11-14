@@ -2,7 +2,7 @@
 
 import type { NoiseScenario, PropertyTwin } from '@ithaca/schema';
 import { useEffect, useRef, useState } from 'react';
-import { Button, cn } from '@/components/ui';
+import { cn, GLASS_PANEL, glassToggle } from '@/components/ui';
 import { IconPause, IconPlay, IconSound } from '@/components/ui/icons';
 import { AURALIZATION } from '@/lib/audio/auralizer';
 import { noiseAt } from '@/lib/audio/levels';
@@ -30,6 +30,7 @@ const energySum = (levels: (SoundLevel | null)[]): number => {
 
 const RANGE =
   'relative block h-6 w-full cursor-pointer appearance-none bg-transparent [&::-moz-range-thumb]:h-4 [&::-moz-range-thumb]:w-4 [&::-moz-range-thumb]:rounded-full [&::-moz-range-thumb]:border-2 [&::-moz-range-thumb]:border-main [&::-moz-range-thumb]:bg-raised [&::-webkit-slider-thumb]:h-4 [&::-webkit-slider-thumb]:w-4 [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:border-2 [&::-webkit-slider-thumb]:border-main [&::-webkit-slider-thumb]:bg-raised';
+const TOGGLE = 'inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-white/40 transition-colors';
 
 /**
  * A day of outside noise, heard from wherever the tour is: the room you stand in, or the
@@ -165,23 +166,23 @@ export function SoundTimelapse({ twin, active }: { twin: PropertyTwin; active: b
 
   return (
     <div
-      className="w-[min(560px,calc(100%-24px))] rounded-[var(--radius-card)] border border-line bg-raised px-4 py-3 shadow-float"
+      className={`w-[min(560px,calc(100%-24px))] rounded-3xl px-4 py-3 ${GLASS_PANEL}`}
       data-testid="sound-timelapse"
       data-listening={listening}
       data-playing={playing}
       data-laeq={level?.laeq_dba.toFixed(1)}
     >
       <div className="flex items-center gap-2">
-        <Button variant={listening ? 'primary' : 'subtle'} square aria-pressed={listening} aria-label={listening ? 'Stop listening' : 'Listen to the outside from here'} onClick={toggleListening}>
+        <button type="button" aria-pressed={listening} aria-label={listening ? 'Stop listening' : 'Listen to the outside from here'} onClick={toggleListening} className={cn(TOGGLE, glassToggle(listening))}>
           <IconSound />
-        </Button>
-        <Button variant={playing ? 'primary' : 'subtle'} square aria-pressed={playing} aria-label={playing ? 'Pause the day' : 'Play a day timelapse'} onClick={togglePlaying}>
+        </button>
+        <button type="button" aria-pressed={playing} aria-label={playing ? 'Pause the day' : 'Play a day timelapse'} onClick={togglePlaying} className={cn(TOGGLE, glassToggle(playing))}>
           {playing ? <IconPause /> : <IconPlay />}
-        </Button>
+        </button>
         <div className="ml-1 min-w-0 flex-1">
           <div className="flex items-baseline justify-between gap-3">
             <span className="font-mono text-lg font-medium tabular-nums">{formatClock(minutes)}</span>
-            <span className="truncate text-xs text-muted" data-testid="sound-timelapse-status">
+            <span className="truncate text-xs text-white/75" data-testid="sound-timelapse-status">
               {status}
             </span>
           </div>
@@ -194,7 +195,7 @@ export function SoundTimelapse({ twin, active }: { twin: PropertyTwin; active: b
                     key={h.hour}
                     data-hour={h.hour}
                     data-dba={h.laeq_dba.toFixed(1)}
-                    className={cn('flex-1 rounded-t-sm', !color && (h.hour === hour ? 'bg-main' : 'bg-line'))}
+                    className={cn('flex-1 rounded-t-sm', !color && (h.hour === hour ? 'bg-white' : 'bg-white/25'))}
                     style={{ height: h.laeq_dba > 0 ? `${12 + (88 * (h.laeq_dba - low)) / span}%` : '4%', backgroundColor: color, opacity: color ? (h.hour === hour ? 1 : 0.45) : undefined }}
                   />
                 );
@@ -214,10 +215,10 @@ export function SoundTimelapse({ twin, active }: { twin: PropertyTwin; active: b
           </div>
         </div>
       </div>
-      <div className="mt-2 flex items-center gap-3 border-t border-line pt-2">
+      <div className="mt-2 flex items-center gap-3 border-t border-white/20 pt-2">
         <div className="min-w-0 flex-1 space-y-1">
           {soundscape && sounds.length > 0 && (
-            <div className="flex flex-wrap gap-x-2.5 gap-y-0.5 text-[11px] text-muted" data-testid="sound-legend">
+            <div className="flex flex-wrap gap-x-2.5 gap-y-0.5 text-[11px] text-white/75" data-testid="sound-legend">
               {SOUND_LAYERS.filter((l) => sounds.includes(l.id)).map((l) => (
                 <span key={l.id} className="inline-flex items-center gap-1">
                   <i className="inline-block h-2 w-2 rounded-full" style={{ backgroundColor: l.color }} />
@@ -226,16 +227,16 @@ export function SoundTimelapse({ twin, active }: { twin: PropertyTwin; active: b
               ))}
             </div>
           )}
-          <p className="text-[11px] leading-4 text-faint">
+          <p className="text-[11px] leading-4 text-white/60">
             A typical {season} {weekend ? 'weekend day' : 'weekday'}.
           </p>
         </div>
-        <label className="flex shrink-0 items-center gap-1.5 text-[11px] text-muted">
+        <label className="flex shrink-0 items-center gap-1.5 text-[11px] text-white/75">
           Volume
-          <input type="range" min={0} max={40} step={1} value={volume} onChange={(e) => setVolume(Number(e.target.value))} className="w-20" aria-valuetext={`loudest hour ${volume - 30} dB from full scale`} />
+          <input type="range" min={0} max={40} step={1} value={volume} onChange={(e) => setVolume(Number(e.target.value))} className="w-20 accent-white" aria-valuetext={`loudest hour ${volume - 30} dB from full scale`} />
         </label>
       </div>
-      {audioError && <p className="mt-1 text-xs text-danger">{audioError}</p>}
+      {audioError && <p className="mt-1 text-xs text-coral">{audioError}</p>}
     </div>
   );
 }

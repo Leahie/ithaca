@@ -79,46 +79,57 @@ const VIEWS: { view: RemoteView; label: string; icon: typeof IconTour }[] = [
   { view: 'light', label: 'Env', icon: IconSun },
 ];
 
-/** Big blocks to tap, floor by floor. The map itself is on the big screen while this is open. */
-function RoomBlocks({ twin, onPicked }: { twin: PropertyTwin; onPicked(): void }) {
+/** The floor shown on the Rooms screen: the one picked there, else the one you are on. */
+function shownFloor(twin: PropertyTwin, picked: string | null, roomId: string | null): string | undefined {
+  return picked ?? twin.rooms.find((r) => r.room_id === roomId)?.floor_id ?? [...twin.floors].sort((a, b) => a.index - b.index)[0]?.floor_id;
+}
+
+/** Big blocks to tap, one floor at a time. That floor's map is on the big screen while this is open. */
+function RoomBlocks({ twin, floorId, onFloor, onPicked }: { twin: PropertyTwin; floorId: string | undefined; onFloor(floorId: string): void; onPicked(): void }) {
   const roomId = useSession((s) => s.viewer.room_id);
   const dispatch = useSession((s) => s.dispatch);
-  // The floor you are on comes first, then the rest from the ground up.
-  const here = twin.rooms.find((r) => r.room_id === roomId)?.floor_id;
-  const floors = [...twin.floors].sort((a, b) => Number(b.floor_id === here) - Number(a.floor_id === here) || a.index - b.index);
+  const floors = [...twin.floors].sort((a, b) => a.index - b.index);
+  const floor = floors.find((f) => f.floor_id === floorId);
+  const rooms = floor ? roomsOnFloor(twin, floor.floor_id) : [];
   return (
-    <div className="space-y-5" data-testid="remote-rooms">
-      {floors.map((floor) => {
-        const rooms = roomsOnFloor(twin, floor.floor_id);
-        return (
-          <section key={floor.floor_id}>
-            <h2 className="mb-2 flex items-baseline justify-between px-0.5">
-              <span className="font-display text-[15px] font-semibold">{floor.label ?? `Floor ${floor.index + 1}`}</span>
-              <span className="text-xs text-faint">{rooms.length} room{rooms.length === 1 ? '' : 's'}</span>
-            </h2>
-            <div className="grid grid-cols-2 gap-2.5">
-              {rooms.map((r) => {
-                const on = r.room_id === roomId;
-                return (
-                  <button key={r.room_id} type="button" data-room-id={r.room_id} aria-pressed={on}
-                    onClick={() => { dispatch('viewer.goto', { room_id: r.room_id }); onPicked(); }}
-                    className={cn('relative flex min-h-[92px] flex-col justify-between gap-3 rounded-2xl border p-3 text-left transition-transform active:scale-[0.97]',
-                      on ? ON : 'border-line bg-raised text-text active:bg-ink')}>
-                    <span className={cn('flex h-9 w-9 items-center justify-center rounded-xl', on ? 'bg-leaf/25' : 'bg-leaf/15 text-leaf-deep')}>
-                      <RoomIcon label={r.label} width={20} height={20} />
-                    </span>
-                    {on && <span className="absolute top-3 right-3 rounded-full bg-leaf-deep px-2 py-0.5 text-[10px] font-semibold tracking-wide text-white uppercase">Here</span>}
-                    <span className="min-w-0">
-                      <span className="line-clamp-2 text-[15px] leading-tight font-semibold">{roomName(twin, r.room_id)}</span>
-                      <span className="mt-0.5 block font-mono text-[11px] text-muted">{roomArea(r).toFixed(0)} m²</span>
-                    </span>
-                  </button>
-                );
-              })}
-            </div>
-          </section>
-        );
-      })}
+    <div className="space-y-4" data-testid="remote-rooms">
+      {floors.length > 1 && (
+        <Segmented<string>
+          className="w-full [&>button]:flex-1 [&>button]:justify-center"
+          label="Floor"
+          value={floorId ?? ''}
+          options={floors.map((f) => ({ value: f.floor_id, label: f.label ?? `Floor ${f.index + 1}` }))}
+          onChange={onFloor}
+        />
+      )}
+      {floor && (
+        <section data-floor-id={floor.floor_id}>
+          <h2 className="mb-2 flex items-baseline justify-between px-0.5">
+            <span className="font-display text-[15px] font-semibold">{floor.label ?? `Floor ${floor.index + 1}`}</span>
+            <span className="text-xs text-faint">{rooms.length} room{rooms.length === 1 ? '' : 's'}</span>
+          </h2>
+          <div className="grid grid-cols-2 gap-2.5">
+            {rooms.map((r) => {
+              const on = r.room_id === roomId;
+              return (
+                <button key={r.room_id} type="button" data-room-id={r.room_id} aria-pressed={on}
+                  onClick={() => { dispatch('viewer.goto', { room_id: r.room_id }); onPicked(); }}
+                  className={cn('relative flex min-h-[92px] flex-col justify-between gap-3 rounded-2xl border p-3 text-left transition-transform active:scale-[0.97]',
+                    on ? ON : 'border-line bg-raised text-text active:bg-ink')}>
+                  <span className={cn('flex h-9 w-9 items-center justify-center rounded-xl', on ? 'bg-leaf/25' : 'bg-leaf/15 text-leaf-deep')}>
+                    <RoomIcon label={r.label} width={20} height={20} />
+                  </span>
+                  {on && <span className="absolute top-3 right-3 rounded-full bg-leaf-deep px-2 py-0.5 text-[10px] font-semibold tracking-wide text-white uppercase">Here</span>}
+                  <span className="min-w-0">
+                    <span className="line-clamp-2 text-[15px] leading-tight font-semibold">{roomName(twin, r.room_id)}</span>
+                    <span className="mt-0.5 block font-mono text-[11px] text-muted">{roomArea(r).toFixed(0)} m²</span>
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+        </section>
+      )}
     </div>
   );
 }
@@ -153,10 +164,12 @@ function Remote({ propertyId }: { propertyId: string }) {
   const room = twin.data?.rooms.find((r) => r.room_id === roomId);
   const playback = useSession((s) => s.viewer.playback);
 
-  // The big screen follows the phone: it shows the floor plan while a room is being chosen.
+  // The big screen follows the phone: it shows the floor plan, of the floor picked here, while a room is being chosen.
+  const [pickedFloor, setPickedFloor] = useState<string | null>(null);
+  const floorId = twin.data ? shownFloor(twin.data, pickedFloor, roomId) : undefined;
   useEffect(() => {
-    if (status === 'open') dispatch('remote.view', { view });
-  }, [view, status, dispatch]);
+    if (status === 'open') dispatch('remote.view', view === 'rooms' && floorId ? { view, floor_id: floorId } : { view });
+  }, [view, floorId, status, dispatch]);
 
   // sweep -> room lookup comes from the twin, as on the desktop.
   useEffect(() => {
@@ -307,7 +320,9 @@ function Remote({ propertyId }: { propertyId: string }) {
           </Notice>
         )}
         {!twin.data && !twin.error && <Spinner label="Loading the home…" />}
-        {twin.data && view === 'rooms' && <RoomBlocks twin={twin.data} onPicked={() => setView('move')} />}
+        {twin.data && view === 'rooms' && (
+          <RoomBlocks twin={twin.data} floorId={floorId} onFloor={setPickedFloor} onPicked={() => { setPickedFloor(null); setView('move'); }} />
+        )}
         {twin.data && view === 'light' && (
           <>
             <LightPanel twin={twin.data} />

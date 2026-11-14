@@ -96,3 +96,19 @@ export function rotationToward(from: P3, to: P3): { x: number; y: number } {
   const deg = 180 / Math.PI;
   return { x: Math.max(-35, Math.min(35, Math.atan2(dy, flat) * deg)), y: Math.atan2(-dx, -dz) * deg };
 }
+
+const AERIAL_PITCH_DEG = 60;
+
+/**
+ * The dollhouse camera for arranging furniture: above `target`, looking down at it and facing -Z,
+ * so the screen is turned like the phone's plan (+X right, +Z down the page) and "up" on the phone
+ * is up on the screen. `span` is the room's longest side: a bigger room is seen from further away.
+ */
+export function aerialView(target: P3, span: number): { position: P3; rotation: { x: number; y: number } } {
+  const distance = Math.min(9, Math.max(5.5, span * 0.6));
+  const pitch = (AERIAL_PITCH_DEG * Math.PI) / 180;
+  return {
+    position: { x: target.x, y: target.y + distance * Math.sin(pitch), z: target.z + distance * Math.cos(pitch) },
+    rotation: { x: -AERIAL_PITCH_DEG, y: 0 },
+  };
+}
