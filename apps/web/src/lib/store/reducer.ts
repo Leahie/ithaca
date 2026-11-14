@@ -133,6 +133,8 @@ export function applyEvent(state: CoreState, event: AnyEvent): CoreState {
       return { ...state, jobs: { ...state.jobs, [event.payload.job_id]: event.payload } };
     case 'viewer.look':
     case 'capture.upload':
+    case 'sound.placeSource': // TODO(A): C's place-a-sound demo (docs/handoffs/stream-a)
+    case 'sound.clearSource':
     case 'viewer.walk': // TODO(A): play the walk (see docs/handoffs/stream-a); for now only the chip shows
     case 'agent.turn': // brackets one agent turn; nothing stored yet (use it for a typing indicator)
       return state; // transient: handled by event listeners, not stored

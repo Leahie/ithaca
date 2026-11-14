@@ -49,6 +49,10 @@ def action_summary(tool: str, args: dict) -> str:
     return {
         "viewer_goto": "Moving the view",
         "viewer_walk": "Walking you there",
+        "area_profile": "Looking up the listing and nearby homes",
+        "area_search": f"Searching nearby for {args.get('query', 'places')}",
+        "sound_heard_from": "Working out how far the sound carries",
+        "sound_place_source": "Placing a sound in the room",
         "viewer_set_mode": f"Switching to the {args.get('mode', '')} view",
         "viewer_set_time": "Setting the time of day",
         "sun_by_room": "Checking where the sun falls",

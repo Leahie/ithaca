@@ -25,6 +25,17 @@ class SoundSetScenarioPayload(Model):
     scenario: NoiseScenario
 
 
+class SoundPlaceSourcePayload(Model):
+    """A sound placed in the house (C's sound_field computes what each room hears). Additive to v0."""
+
+    room_id: str
+    x: float  # interior frame, meters
+    z: float
+    preset_id: str  # from GET /sound/presets; "recording" = the user's own clip
+    level_dba: float | None = None  # required with preset_id "recording"
+    upload_id: str | None = None
+
+
 class ViewerState(Model):
     """Payload of ``session.state``: what the desktop is showing. The hub keeps the latest copy
     and sends it on join (B9)."""
@@ -33,6 +44,7 @@ class ViewerState(Model):
     room_id: str | None = None
     datetime: str  # ISO 8601 with the property's offset (I-G13)
     sound_scenario: SoundSetScenarioPayload | None = None
+    sound_source: SoundPlaceSourcePayload | None = None  # additive to v0
     shown_layout_ids: list[str] = []
 
 

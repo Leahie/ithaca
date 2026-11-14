@@ -25,7 +25,7 @@ from langgraph.store.base import BaseStore
 from services.api.agent import prompts
 from services.api.agent.context import AgentContext
 from services.api.agent.models import get_model
-from services.api.agent.tools import PROPERTY_TOOLS, SUN_TOOLS, UI_TOOLS
+from services.api.agent.tools import AREA_TOOLS, PROPERTY_TOOLS, SOUND_TOOLS, SUN_TOOLS, UI_TOOLS
 from services.api.twin.service import get_twin
 
 MEMORY_ROOT = "/memories/"
@@ -79,7 +79,7 @@ def build_agent(
     )
     return create_deep_agent(
         model=model or get_model("main"),
-        tools=[*PROPERTY_TOOLS, *SUN_TOOLS, *UI_TOOLS],
+        tools=[*PROPERTY_TOOLS, *SUN_TOOLS, *AREA_TOOLS, *SOUND_TOOLS, *UI_TOOLS],
         system_prompt=prompts.main_persona(subagents=False),  # no designer/analyst/scout yet
         middleware=[PropertyContextMiddleware()],
         memory=memory_files(property_id),

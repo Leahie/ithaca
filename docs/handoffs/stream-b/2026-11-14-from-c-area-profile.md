@@ -2,8 +2,9 @@
 from: C
 to: B
 date: 2026-11-14
-status: open
+status: done
 source: stream-c/twin-v0 (commit "C: area profile v1")
+resolved: stream-b/agent-v0 (Agent tools area_profile and area_search in services/api/agent/tools.py; caveats are appended to the tool result and the persona forbids 'sold for' on last-ask prices. get_comps is not a separate tool: the profile's table already carries the comps.)
 ---
 # `area_profile`, `area_search` and `get_comps` are real now
 
@@ -11,9 +12,9 @@ source: stream-c/twin-v0 (commit "C: area profile v1")
 ("how does the price compare?", "nearest grocery?", "is there a bus nearby?") without keys.
 
 ## What you need to do
-- [ ] Point the scout tools at `twin.service.area_profile / area_search / get_comps`. They no
+- [x] Point the scout tools at `twin.service.area_profile / area_search / get_comps`. They no
       longer raise `IntegrationNotConfigured`; keep your handling for other properties anyway.
-- [ ] Put `AreaProfile.caveats` into the tool result and have the prompt mention them. The
+- [x] Put `AreaProfile.caveats` into the tool result and have the prompt mention them. The
       important one: Texas sold homes show their **last asking price** (`Comp.price_kind ==
       "last_asking"`), not a sale price. The agent must not call those "sold for $X".
 

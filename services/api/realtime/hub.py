@@ -25,7 +25,7 @@ from datetime import datetime, timedelta, timezone
 from zoneinfo import ZoneInfo
 
 from packages.schema.events import EventEnvelope, make_event
-from packages.schema.session import ClientKind, Session, SoundSetScenarioPayload, ViewerState
+from packages.schema.session import ClientKind, Session, SoundPlaceSourcePayload, SoundSetScenarioPayload, ViewerState
 
 log = logging.getLogger(__name__)
 
@@ -65,6 +65,10 @@ def _apply(state: ViewerState, event: EventEnvelope) -> None:
         state.mode = p["mode"]
     elif event.type == "sound.setScenario":
         state.sound_scenario = SoundSetScenarioPayload.model_validate(p)
+    elif event.type == "sound.placeSource":
+        state.sound_source = SoundPlaceSourcePayload.model_validate(p)
+    elif event.type == "sound.clearSource":
+        state.sound_source = None
     elif event.type == "design.showVariants":
         state.shown_layout_ids = p["layout_ids"]
 

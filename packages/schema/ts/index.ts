@@ -58,12 +58,15 @@ export interface Amenity {
   lon: number;
   distance_m: number;
   source: "vexcel" | "costar" | "osm";
+  kind?: string | null;
 }
 
 export interface AreaProfile {
   markdown: string;
   amenities: Amenity[];
   comps: Comp[];
+  listing?: ListingFacts | null;
+  caveats?: string[];
 }
 
 export interface CaptureUploadPayload {
@@ -81,6 +84,14 @@ export interface Comp {
   beds?: number | null;
   sold_date?: string | null;
   distance_m: number;
+  status?: "active" | "pending" | "sold" | null;
+  price_kind?: "sale" | "asking" | "last_asking" | null;
+  baths?: number | null;
+  year_built?: number | null;
+  price_per_sqft?: number | null;
+  lat?: number | null;
+  lon?: number | null;
+  listing_id?: string | null;
 }
 
 export interface CreateSessionRequest {
@@ -137,6 +148,19 @@ export interface Floor {
   index: number;
   elevation_m: number;
   label?: string | null;
+}
+
+/**
+ * An open stairwell or open-to-below space (Matterport "Void") joining rooms on two floors.
+ */
+export interface FloorOpening {
+  floor_opening_id: string;
+  floor_id: string;
+  polygon: [number, number][];
+  area_m2: number;
+  room_ids: string[];
+  via_opening_ids: string[];
+  other_floor_room_ids: string[];
 }
 
 export interface InventoryItem {
@@ -210,6 +234,28 @@ export interface LayoutVariant {
   thumbnail_url?: string | null;
 }
 
+/**
+ * The property's own listing (CoStar residential listings).
+ */
+export interface ListingFacts {
+  listing_id: string;
+  status: "active" | "pending" | "sold" | "off_market";
+  price?: number | null;
+  price_kind?: "sale" | "asking" | "last_asking" | null;
+  list_date?: string | null;
+  days_on_market?: number | null;
+  sqft?: number | null;
+  beds?: number | null;
+  baths?: number | null;
+  year_built?: number | null;
+  lot_acres?: number | null;
+  hoa_monthly?: number | null;
+  subdivision?: string | null;
+  neighborhood?: string | null;
+  zip?: string | null;
+  highlights?: string[];
+}
+
 export interface LuxGrid {
   cell_m: number;
   origin_xz: [number, number];
@@ -259,6 +305,7 @@ export interface Opening {
   stc?: number | null;
   other_room_id?: string | null;
   exterior?: boolean | null;
+  leaf?: boolean | null;
 }
 
 export interface Placement {
@@ -279,6 +326,8 @@ export interface PropertyTwin {
   floors: Floor[];
   rooms: Room[];
   openings: Opening[];
+  walls?: Wall[];
+  floor_openings?: FloorOpening[];
   sweeps: Sweep[];
   assets: TwinAssets;
   quality: TwinQuality;
@@ -317,9 +366,75 @@ export interface SessionPresencePayload {
   client: "desktop" | "phone";
 }
 
+export interface SoundCatalog {
+  presets: SoundPreset[];
+  loudness_dba: Record<string, number>;
+}
+
+/**
+ * Additive to v0. Removes the placed sound.
+ */
+export interface SoundClearSourcePayload {
+}
+
+export interface SoundField {
+  source: SoundSource;
+  doors: "closed" | "open";
+  include_furniture: boolean;
+  rooms: SoundRoom[];
+  listener?: SoundListener | null;
+}
+
+export interface SoundListener {
+  room_id: string;
+  position: Vec3;
+  distance_m: number | null;
+  laeq_dba: number;
+  bands_db: number[];
+  gain_db: number[];
+  direct_fraction: number;
+  rt60_s: number;
+}
+
+/**
+ * A sound placed in the house (C's sound_field computes what each room hears). Additive to v0.
+ */
+export interface SoundPlaceSourcePayload {
+  room_id: string;
+  x: number;
+  z: number;
+  preset_id: string;
+  level_dba?: number | null;
+  upload_id?: string | null;
+}
+
+export interface SoundPreset {
+  preset_id: string;
+  label: string;
+  level_dba: number;
+  bands_db: number[];
+}
+
+export interface SoundRoom {
+  room_id: string;
+  laeq_dba: number;
+  bands_db: number[];
+  gain_db: number[];
+  rt60_s: number;
+  rt60_bands_s: number[];
+}
+
 export interface SoundSetScenarioPayload {
   room_id: string;
   scenario: NoiseScenario;
+}
+
+export interface SoundSource {
+  room_id: string;
+  position: Vec3;
+  preset_id: string;
+  level_dba: number;
+  bands_db: number[];
 }
 
 export interface SunDay {
@@ -418,6 +533,7 @@ export interface TwinQuality {
   openings: "annotated" | "detected" | "none";
   context: "dsm" | "none";
   traffic: "aadt" | "class_default" | "none";
+  walls?: "annotated" | "inferred" | "none";
 }
 
 export interface TwinSources {
@@ -470,6 +586,7 @@ export interface ViewerState {
   room_id?: string | null;
   datetime: string;
   sound_scenario?: SoundSetScenarioPayload | null;
+  sound_source?: SoundPlaceSourcePayload | null;
   shown_layout_ids?: string[];
 }
 
@@ -490,6 +607,20 @@ export interface VoiceTranscriptPayload {
   final: boolean;
 }
 
+/**
+ * A wall centerline from the floor plan. Sound and (later) the layout solver use these.
+ */
+export interface Wall {
+  wall_id: string;
+  floor_id: string;
+  ends: [[number, number], [number, number]];
+  thickness_m: number;
+  room_ids: string[];
+  exterior: boolean;
+  assembly: string;
+  opening_ids?: string[];
+}
+
 /** Event type -> payload type (section 2.3). */
 export interface EventPayloads {
   "session.state": ViewerState;
@@ -503,6 +634,8 @@ export interface EventPayloads {
   "design.showVariants": DesignShowVariantsPayload;
   "layout.select": LayoutSelectPayload;
   "sound.setScenario": SoundSetScenarioPayload;
+  "sound.placeSource": SoundPlaceSourcePayload;
+  "sound.clearSource": SoundClearSourcePayload;
   "capture.upload": CaptureUploadPayload;
   "chat.user": ChatUserPayload;
   "voice.transcript": VoiceTranscriptPayload;
@@ -515,7 +648,7 @@ export interface EventPayloads {
 }
 
 export type EventType = keyof EventPayloads;
-export const EVENT_TYPES = ["session.state", "session.joined", "session.left", "viewer.goto", "viewer.walk", "viewer.setTime", "viewer.setMode", "viewer.look", "design.showVariants", "layout.select", "sound.setScenario", "capture.upload", "chat.user", "voice.transcript", "agent.token", "agent.message", "agent.action", "agent.error", "agent.turn", "job.progress"] as const satisfies readonly EventType[];
+export const EVENT_TYPES = ["session.state", "session.joined", "session.left", "viewer.goto", "viewer.walk", "viewer.setTime", "viewer.setMode", "viewer.look", "design.showVariants", "layout.select", "sound.setScenario", "sound.placeSource", "sound.clearSource", "capture.upload", "chat.user", "voice.transcript", "agent.token", "agent.message", "agent.action", "agent.error", "agent.turn", "job.progress"] as const satisfies readonly EventType[];
 
 /** The typed envelope for one known event type. */
 export interface Event<T extends EventType = EventType> {
@@ -538,5 +671,6 @@ export const UI_TOOL_EVENTS = {
   "viewer_set_time": "viewer.setTime",
   "viewer_set_mode": "viewer.setMode",
   "design_show_variants": "design.showVariants",
-  "sound_set_scenario": "sound.setScenario"
+  "sound_set_scenario": "sound.setScenario",
+  "sound_place_source": "sound.placeSource"
 } as const satisfies Record<string, EventType>;
