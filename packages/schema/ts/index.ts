@@ -84,6 +84,15 @@ export interface CatalogAddRequest {
 }
 
 /**
+ * Additive to v0. The user clicked a suggested piece; the app added and placed it.
+ */
+export interface CatalogPickedPayload {
+  catalog_id: string;
+  item_id: string;
+  room_id?: string | null;
+}
+
+/**
  * A ready-made piece the user can add to their inventory without a photo.
  */
 export interface CatalogPiece {
@@ -93,6 +102,17 @@ export interface CatalogPiece {
   dims_m: ItemDims;
   thumbnail_url: string;
   source: string;
+}
+
+/**
+ * Additive to v0. The agent shows catalog pieces as picture cards in the chat; the user adds
+ * one by clicking it.
+ */
+export interface CatalogSuggestPayload {
+  property_id: string;
+  room_id?: string | null;
+  near_item_id?: string | null;
+  pieces: CatalogPiece[];
 }
 
 export interface ChatUserPayload {
@@ -805,6 +825,8 @@ export interface EventPayloads {
   "sound.setScenario": SoundSetScenarioPayload;
   "sound.placeSource": SoundPlaceSourcePayload;
   "sound.clearSource": SoundClearSourcePayload;
+  "catalog.suggest": CatalogSuggestPayload;
+  "catalog.picked": CatalogPickedPayload;
   "capture.upload": CaptureUploadPayload;
   "chat.user": ChatUserPayload;
   "voice.transcript": VoiceTranscriptPayload;
@@ -820,7 +842,7 @@ export interface EventPayloads {
 }
 
 export type EventType = keyof EventPayloads;
-export const EVENT_TYPES = ["session.state", "session.joined", "session.left", "viewer.goto", "viewer.walk", "viewer.setTime", "viewer.setMode", "viewer.look", "design.showVariants", "layout.select", "sound.setScenario", "sound.placeSource", "sound.clearSource", "capture.upload", "chat.user", "voice.transcript", "agent.token", "agent.message", "agent.action", "agent.error", "agent.turn", "job.progress", "family.note", "family.ask", "family.answer"] as const satisfies readonly EventType[];
+export const EVENT_TYPES = ["session.state", "session.joined", "session.left", "viewer.goto", "viewer.walk", "viewer.setTime", "viewer.setMode", "viewer.look", "design.showVariants", "layout.select", "sound.setScenario", "sound.placeSource", "sound.clearSource", "catalog.suggest", "catalog.picked", "capture.upload", "chat.user", "voice.transcript", "agent.token", "agent.message", "agent.action", "agent.error", "agent.turn", "job.progress", "family.note", "family.ask", "family.answer"] as const satisfies readonly EventType[];
 
 /** The typed envelope for one known event type. */
 export interface Event<T extends EventType = EventType> {

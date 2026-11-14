@@ -1,5 +1,6 @@
 'use client';
 
+import { CatalogSuggestion } from './CatalogSuggestion';
 import { useEffect, useRef, useState } from 'react';
 import { Badge, Button, Notice, cn } from '@/components/ui';
 import { IconCheck, IconMic, IconSend } from '@/components/ui/icons';
@@ -74,6 +75,8 @@ function Item({ item, nameOf }: { item: ChatItem; nameOf: (id: string | null | u
           </Notice>
         </div>
       );
+    case 'catalog':
+      return <CatalogSuggestion propertyId={item.property_id} roomId={item.room_id} nearItemId={item.near_item_id} pieces={item.pieces} />;
     case 'note':
       return (
         <div data-testid="family-note" className="rounded-[var(--radius-frame)] border border-line bg-raised px-3 py-2.5">

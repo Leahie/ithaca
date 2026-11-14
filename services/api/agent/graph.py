@@ -29,6 +29,7 @@ from services.api.agent.models import get_model
 from services.api.agent.design_tools import (
     catalog_add,
     catalog_search,
+    catalog_suggest,
     delete_from_inventory,
     design_apply_layout,
     design_show_variants,
@@ -101,7 +102,7 @@ def build_agent(
     }
     return create_deep_agent(
         model=model or get_model("main"),
-        tools=[*PROPERTY_TOOLS, *SUN_TOOLS, *AREA_TOOLS, *SOUND_TOOLS, inventory_search, *UI_TOOLS, design_show_variants, design_apply_layout, catalog_search, catalog_add, remove_from_room, delete_from_inventory, *FAMILY_TOOLS],
+        tools=[*PROPERTY_TOOLS, *SUN_TOOLS, *AREA_TOOLS, *SOUND_TOOLS, inventory_search, *UI_TOOLS, design_show_variants, design_apply_layout, catalog_search, catalog_suggest, catalog_add, remove_from_room, delete_from_inventory, *FAMILY_TOOLS],
         system_prompt=prompts.main_persona(subagents=("designer",)),  # analyst and scout don't exist yet
         subagents=[designer],
         middleware=[PropertyContextMiddleware(), FamilyContextMiddleware()],

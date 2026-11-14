@@ -66,3 +66,21 @@ def test_guide_delegates_to_the_designer_and_shows_valid_layouts(furniture):
     assert [e["type"] for e in shown] == ["design.showVariants", "layout.select", "viewer.goto"]
     assert sorted(shown[0]["payload"]["layout_ids"]) == sorted(str(l.layout_id) for l in layouts)
     assert shown[1]["payload"]["layout_id"] == shown[0]["payload"]["layout_ids"][0] and shown[2]["payload"]["room_id"] == LIVING_ROOM
+
+
+def test_suggested_catalog_pieces_reach_the_chat_as_cards(furniture):
+    """catalog_suggest sends the pieces with pictures and sizes; it adds nothing by itself."""
+    model = ScriptedModel(
+        script=[
+            call("catalog_suggest", catalog_ids=["dining_chair_02", "mid_century_lounge_chair", "made-up"], room_id=LIVING_ROOM),
+            call("catalog_suggest", catalog_ids=["dining_chair_02", "mid_century_lounge_chair"], room_id=LIVING_ROOM, near_item_id="desk-1"),
+            AIMessage(content="Two chairs that would suit a desk."),
+        ]
+    )
+    out = run(model, InMemoryStore(), user="alice", thread="t1", text="add a chair behind the desk")
+    assert model.tool_results[0].startswith("Error")  # an unknown id shows nothing
+    (card,) = [e[1] for e in out if e[0] == "ui"]
+    assert card["type"] == "catalog.suggest" and card["payload"]["near_item_id"] == "desk-1"
+    assert [p["catalog_id"] for p in card["payload"]["pieces"]] == ["dining_chair_02", "mid_century_lounge_chair"]
+    assert all(p["thumbnail_url"].startswith("https://") and p["dims_m"]["w"] > 0 for p in card["payload"]["pieces"])
+    assert len(furniture.list_items("alice")) == 3  # only the seeded pieces: showing is not adding

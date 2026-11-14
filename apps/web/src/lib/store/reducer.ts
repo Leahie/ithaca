@@ -1,4 +1,4 @@
-import type { AnyEvent, ClientKind, EventSource, JobProgressPayload, SoundSetScenarioPayload, ViewerMode, ViewerState } from '@ithaca/schema';
+import type { AnyEvent, CatalogPiece, ClientKind, EventSource, JobProgressPayload, SoundSetScenarioPayload, ViewerMode, ViewerState } from '@ithaca/schema';
 
 /**
  * Viewer state and its reducer (A1). Every change to what the viewer shows is an event:
@@ -28,6 +28,8 @@ export type ChatItem =
   | { kind: 'agent'; id: string; text: string; streaming: boolean; member_id: string | null }
   | { kind: 'action'; id: string; tool: string; summary: string; member_id: string | null }
   | { kind: 'error'; id: string; message: string; member_id: string | null }
+  /** Catalog pieces the agent suggested, shown as picture cards the user can click to add. */
+  | { kind: 'catalog'; id: string; property_id: string; room_id: string | null; near_item_id: string | null; pieces: CatalogPiece[]; member_id: string | null }
   /** A note one member's agent shared on the family board. */
   | { kind: 'note'; id: string; text: string; room_id: string | null; member_id: string }
   /** One member's agent asked another's; `answer` arrives later. */
@@ -176,6 +178,11 @@ export function applyEvent(state: CoreState, event: AnyEvent): CoreState {
     }
     case 'job.progress':
       return { ...state, jobs: { ...state.jobs, [event.payload.job_id]: event.payload } };
+    case 'catalog.suggest': {
+      const p = event.payload;
+      return { ...state, chat: push(state.chat, { kind: 'catalog', id: event.id, property_id: p.property_id, room_id: p.room_id ?? null, near_item_id: p.near_item_id ?? null, pieces: p.pieces, member_id: event.member_id ?? null }) };
+    }
+    case 'catalog.picked': // the user's click; the agent is told by the server
     case 'viewer.look':
     case 'capture.upload':
     case 'sound.placeSource': // TODO(A): C's place-a-sound demo (docs/handoffs/stream-a)

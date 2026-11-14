@@ -59,6 +59,38 @@ def catalog_search(runtime: Runtime, query: str = "") -> str:
 
 
 @tool
+def catalog_suggest(catalog_ids: list[str], runtime: Runtime, room_id: str | None = None, near_item_id: str | None = None) -> str:
+    """Show catalog pieces to the user as picture cards in the chat. They add one with a click, and
+    it is placed in the room at once. Use this whenever you recommend catalog pieces: two to four
+    good candidates, best first. Do not list them in words as well.
+
+    room_id: the room the piece is for (default: the room the user is in).
+    near_item_id: one of the user's pieces already in that room to put the new piece next to, e.g.
+    the desk when they asked for a desk chair.
+    """
+    from services.api.objects.providers import catalog
+
+    unknown = [c for c in catalog_ids if c not in catalog.BY_ID]
+    if unknown or not catalog_ids:
+        return f"Error: unknown catalog_ids {unknown}. Use catalog_ids from catalog_search."
+    pieces = [
+        {
+            "catalog_id": cid, "label": label, "item_class": cls, "dims_m": {"w": w, "d": d, "h": h},
+            "thumbnail_url": catalog.thumbnail_url(cid), "source": catalog.SOURCE,
+        }
+        for cid, cls, label, w, d, h in (catalog.BY_ID[c] for c in catalog_ids[:4])
+    ]
+    runtime.stream_writer({
+        "type": "catalog.suggest",
+        "payload": {"property_id": runtime.context.property_id, "room_id": room_id, "near_item_id": near_item_id, "pieces": pieces},
+    })
+    return (
+        f"The user now sees {len(pieces)} picture card(s) and can add one with a click. Say in one sentence why these, "
+        "and do not call catalog_add for them: the click adds and places the piece."
+    )
+
+
+@tool
 def catalog_add(catalog_id: str, runtime: Runtime) -> str:
     """Add a catalog piece to the user's furniture so it can be placed in a room. Ask first unless
     they told you to add it. Returns the new item_id. catalog_id comes from catalog_search."""

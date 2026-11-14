@@ -98,6 +98,121 @@
       "title": "CaptureUploadPayload",
       "type": "object"
     },
+    "CatalogPickedPayload": {
+      "description": "Additive to v0. The user clicked a suggested piece; the app added and placed it.",
+      "properties": {
+        "catalog_id": {
+          "title": "Catalog Id",
+          "type": "string"
+        },
+        "item_id": {
+          "title": "Item Id",
+          "type": "string"
+        },
+        "room_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Room Id"
+        }
+      },
+      "required": [
+        "catalog_id",
+        "item_id"
+      ],
+      "title": "CatalogPickedPayload",
+      "type": "object"
+    },
+    "CatalogPiece": {
+      "description": "A ready-made piece the user can add to their inventory without a photo.",
+      "properties": {
+        "catalog_id": {
+          "title": "Catalog Id",
+          "type": "string"
+        },
+        "dims_m": {
+          "$ref": "#/$defs/ItemDims"
+        },
+        "item_class": {
+          "title": "Item Class",
+          "type": "string"
+        },
+        "label": {
+          "title": "Label",
+          "type": "string"
+        },
+        "source": {
+          "title": "Source",
+          "type": "string"
+        },
+        "thumbnail_url": {
+          "title": "Thumbnail Url",
+          "type": "string"
+        }
+      },
+      "required": [
+        "catalog_id",
+        "label",
+        "item_class",
+        "dims_m",
+        "thumbnail_url",
+        "source"
+      ],
+      "title": "CatalogPiece",
+      "type": "object"
+    },
+    "CatalogSuggestPayload": {
+      "description": "Additive to v0. The agent shows catalog pieces as picture cards in the chat; the user adds\none by clicking it.",
+      "properties": {
+        "near_item_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Near Item Id"
+        },
+        "pieces": {
+          "items": {
+            "$ref": "#/$defs/CatalogPiece"
+          },
+          "title": "Pieces",
+          "type": "array"
+        },
+        "property_id": {
+          "title": "Property Id",
+          "type": "string"
+        },
+        "room_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Room Id"
+        }
+      },
+      "required": [
+        "property_id",
+        "pieces"
+      ],
+      "title": "CatalogSuggestPayload",
+      "type": "object"
+    },
     "ChatUserPayload": {
       "properties": {
         "text": {
@@ -281,6 +396,30 @@
         "text"
       ],
       "title": "FamilyNotePayload",
+      "type": "object"
+    },
+    "ItemDims": {
+      "description": "Item space: w along X, d along Z, h along Y. Meters.",
+      "properties": {
+        "d": {
+          "title": "D",
+          "type": "number"
+        },
+        "h": {
+          "title": "H",
+          "type": "number"
+        },
+        "w": {
+          "title": "W",
+          "type": "number"
+        }
+      },
+      "required": [
+        "w",
+        "d",
+        "h"
+      ],
+      "title": "ItemDims",
       "type": "object"
     },
     "JobProgressPayload": {
@@ -790,6 +929,19 @@
       "sent_by": [
         "desktop",
         "phone"
+      ]
+    },
+    "catalog.picked": {
+      "payload": "CatalogPickedPayload",
+      "sent_by": [
+        "desktop",
+        "phone"
+      ]
+    },
+    "catalog.suggest": {
+      "payload": "CatalogSuggestPayload",
+      "sent_by": [
+        "agent"
       ]
     },
     "chat.user": {
