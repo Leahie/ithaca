@@ -8,7 +8,7 @@ import type { InventoryItem, PropertyTwin } from '@ithaca/schema';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { HouseLoader } from '@/components/house/HouseLoader';
 import { SoundTimelapse } from '@/components/sound/SoundTimelapse';
-import { GlassBadge, Notice, ViewState } from '@/components/ui';
+import { GLASS, GlassBadge, Notice, ViewState, cn, glassToggle } from '@/components/ui';
 import { api } from '@/lib/api';
 import { config } from '@/lib/config';
 import { useHouseFurniture, useInventory, useLayouts } from '@/lib/data/hooks';
@@ -46,6 +46,8 @@ const HAND_TOUR = { yawDegPerView: 160, pitchDegPerView: 90, speedDegPerS: 900, 
 // Phone look and zoom are eased: quick off the mark, soft landing (an ease-out bezier).
 const LOOK_EASE = cubicBezier(0.22, 0.8, 0.3, 1);
 const LOOK_EASE_MS = 170;
+/** Facing a spot on the phone's plan from the scan point the camera already stands on. */
+const TURN_IN_PLACE_DEG_PER_S = 140;
 const ZOOM_EASE_MS = 280;
 
 const exposeForTests =(key: string, value: unknown) => {
@@ -57,6 +59,38 @@ function poseNode(node: MpSdk.Scene.INode, x: number, y: number, z: number, yawD
   node.position.set(x, y, z);
   const half = (yawDeg * Math.PI) / 360;
   node.quaternion.set(0, Math.sin(half), 0, Math.cos(half));
+}
+
+/** The selected piece: each material `mix` of the way to this blue, plus `glow` of it lit from within so dark wood shows it too. */
+const SELECTED_TINT = { r: 0.23, g: 0.51, b: 0.96, mix: 0.45, glow: 0.35 };
+
+type Rgb = { r: number; g: number; b: number; setRGB(r: number, g: number, b: number): unknown };
+type TintMaterial = { color?: Rgb; emissive?: Rgb };
+type TintRoot = { traverse(fn: (o: { material?: TintMaterial | TintMaterial[] }) => void): void };
+const untinted = new WeakMap<TintMaterial, { color?: [number, number, number]; emissive?: [number, number, number] }>();
+
+/** Tint a loaded glTF blue, or put its own colours back. */
+function tintPiece(root: TintRoot, on: boolean) {
+  const { r, g, b, mix: k, glow } = SELECTED_TINT;
+  root.traverse((o) => {
+    for (const m of ([] as TintMaterial[]).concat(o.material ?? [])) {
+      let own = untinted.get(m);
+      if (!own) {
+        own = { color: m.color && [m.color.r, m.color.g, m.color.b], emissive: m.emissive && [m.emissive.r, m.emissive.g, m.emissive.b] };
+        untinted.set(m, own);
+      }
+      if (m.color && own.color) {
+        const [cr, cg, cb] = own.color;
+        if (on) m.color.setRGB(cr + (r - cr) * k, cg + (g - cg) * k, cb + (b - cb) * k);
+        else m.color.setRGB(cr, cg, cb);
+      }
+      if (m.emissive && own.emissive) {
+        const [er, eg, eb] = own.emissive;
+        if (on) m.emissive.setRGB(er + r * glow, eg + g * glow, eb + b * glow);
+        else m.emissive.setRGB(er, eg, eb);
+      }
+    }
+  });
 }
 
 /** After a drag ends, the saved pose arrives with the furniture reload; a refused move must still go back. */
@@ -107,6 +141,8 @@ export function TourTab({ twin, active }: { twin: PropertyTwin; active: boolean 
   const here = useRef<string | null>(null);
   /** The view from above while arranging furniture: what it shows (see aerialKey), or null. */
   const aerial = useRef<string | null>(null);
+  /** The viewer's mode as it last reported it (inside, dollhouse, …). */
+  const viewMode = useRef<string | null>(null);
   /** A view from above that a goto, walk, step or "Outside" took over from: not shown again. */
   const aerialDismissed = useRef<string | null>(null);
 
@@ -153,12 +189,39 @@ export function TourTab({ twin, active }: { twin: PropertyTwin; active: boolean 
     if (!sdk) return;
     exposeForTests('tourSdk', sdk);
     // The view from above while arranging is the dollhouse too, but it is still the room.
-    const sub = sdk.Mode.current.subscribe((mode) => useTour.getState().setPlace(mode === sdk.Mode.Mode.DOLLHOUSE && aerial.current ? 'inside' : placeOf(mode)));
+    const sub = sdk.Mode.current.subscribe((mode) => {
+      viewMode.current = mode;
+      useTour.getState().setPlace(mode === sdk.Mode.Mode.DOLLHOUSE && aerial.current ? 'inside' : placeOf(mode));
+    });
     return () => {
       sub.cancel();
       useTour.getState().setPlace(null);
     };
   }, [sdk]);
+
+  // No furniture by default: the model's defurnished view, the seller's furniture painted out of
+  // the scan photos. The camera stays where it is. Models without one stay as they are.
+  const defurnished = useTour((s) => s.defurnished);
+  const [canDefurnish, setCanDefurnish] = useState(false);
+  useEffect(() => {
+    if (!sdk?.View?.views) return;
+    let live = true;
+    const sub = sdk.View.views.subscribe({
+      onCollectionUpdated(collection) {
+        const c = collection as unknown as Iterable<[string, MpSdk.View.View]> | Record<string, MpSdk.View.View>;
+        const views = Symbol.iterator in c ? [...(c as Iterable<[string, MpSdk.View.View]>)].map(([, v]) => v) : Object.values(c);
+        const painted = views.find((v) => v.type === sdk.View.ViewType.DEFURNISH);
+        const base = views.find((v) => v.type === sdk.View.ViewType.BASE || v.type === sdk.View.ViewType.LAYERED_BASE);
+        if (live) setCanDefurnish(!!painted);
+        const want = defurnished ? painted : base;
+        if (want && !want.active) want.setActive(false).catch((err: unknown) => console.warn('[tour] could not switch the furniture view', err));
+      },
+    });
+    return () => {
+      live = false;
+      sub.cancel();
+    };
+  }, [sdk, defurnished]);
 
   // "Outside" from the room list: orbit and zoom around the building.
   useEffect(() => {
@@ -229,6 +292,19 @@ export function TourTab({ twin, active }: { twin: PropertyTwin; active: boolean 
       if (!sdk) return;
       if (moving.current) {
         queued.current = { target, instant, attempt: 0, facing };
+        return;
+      }
+      // Already standing there: a move would not turn the camera, so just turn it.
+      if (facing && target === here.current && viewMode.current === sdk.Mode.Mode.INSIDE) {
+        moving.current = true;
+        sdk.Camera.setRotation(facing, { speed: TURN_IN_PLACE_DEG_PER_S })
+          .catch((err: unknown) => console.warn('[tour] could not turn', err))
+          .finally(() => {
+            moving.current = false;
+            const next = queued.current;
+            queued.current = null;
+            if (next) moveTo(next.target, next.instant, next.attempt, next.facing);
+          });
         return;
       }
       moving.current = true;
@@ -567,7 +643,7 @@ export function TourTab({ twin, active }: { twin: PropertyTwin; active: boolean 
   // One scene object per piece, kept between changes: a piece that only moved or turned is
   // re-posed where it stands, a new one is loaded, one that left is taken out. Nothing else is
   // touched, so the rest of the room does not blink while one piece is edited.
-  const pieces = useRef(new Map<string, { url: string; object: MpSdk.Scene.IObject; node: MpSdk.Scene.INode }>());
+  const pieces = useRef(new Map<string, { url: string; object: MpSdk.Scene.IObject; node: MpSdk.Scene.INode; loader: MpSdk.Scene.IComponent }>());
   const sceneLights = useRef<MpSdk.Scene.IObject | null>(null);
   const placeRun = useRef(0);
   useEffect(() => {
@@ -610,10 +686,10 @@ export function TourTab({ twin, active }: { twin: PropertyTwin; active: boolean 
             continue;
           }
           const node = object.addNode();
-          node.addComponent('mp.gltfLoader', { url: p.url, colliderEnabled: false });
+          const loader = node.addComponent('mp.gltfLoader', { url: p.url, colliderEnabled: false });
           pose(node, p);
           object.start();
-          have.set(p.item_id, { url: p.url, object, node });
+          have.set(p.item_id, { url: p.url, object, node, loader });
         }
         setPlaced({ count: placements.length, error: null });
         exposeForTests('tourPlacedItemIds', placements.map((p) => p.item_id));
@@ -622,33 +698,34 @@ export function TourTab({ twin, active }: { twin: PropertyTwin; active: boolean 
       }
     })();
   }, [sdk, placements]);
-  // furniture.select: the piece selected on the phone's plan swells and settles, over and over,
-  // so it can be found in the room. Leaving the phone's furniture screen ends it.
+  // furniture.select: the piece selected on a plan is tinted blue, so it can be found in the room.
+  // Leaving the phone's furniture screen ends it. A piece still loading is tinted once it is in.
   useEffect(() => {
     if (!sdk) return;
     let id: string | null = null;
-    const settle = () => {
-      const node = id ? pieces.current.get(id)?.node : undefined;
-      node?.scale.set(1, 1, 1);
+    let wait: ReturnType<typeof setInterval> | null = null;
+    const root = (key: string | null) => (key ? (pieces.current.get(key)?.loader.outputs.objectRoot as TintRoot | null | undefined) : null);
+    const select = (next: string | null) => {
+      if (wait) clearInterval(wait);
+      wait = null;
+      const was = root(id);
+      if (was) tintPiece(was, false);
+      id = next;
+      if (!id) return;
+      let tries = 0;
+      const apply = () => {
+        const now = root(id);
+        if (now) tintPiece(now, true);
+        return !!now || ++tries > 40;
+      };
+      if (!apply()) wait = setInterval(() => apply() && wait && clearInterval(wait), 250);
     };
-    const beat = setInterval(() => {
-      const node = id ? pieces.current.get(id)?.node : undefined;
-      if (!node) return;
-      const k = 1 + 0.045 * (0.5 + 0.5 * Math.sin(performance.now() / 260));
-      node.scale.set(k, k, k);
-    }, 40);
     const off = onSessionEvent((event) => {
-      if (event.type === 'furniture.select') {
-        settle();
-        id = event.payload.item_id ?? null;
-      } else if (event.type === 'remote.view' && event.payload.view !== 'furniture') {
-        settle();
-        id = null;
-      }
+      if (event.type === 'furniture.select') select(event.payload.item_id ?? null);
+      else if (event.type === 'remote.view' && event.payload.view !== 'furniture') select(null);
     });
     return () => {
-      clearInterval(beat);
-      settle();
+      select(null);
       off();
     };
   }, [sdk]);
@@ -687,10 +764,11 @@ export function TourTab({ twin, active }: { twin: PropertyTwin; active: boolean 
     };
   }, [sdk]);
 
-  // Arranging from the phone: while a piece is selected on its plan, a layout is being tried in a
-  // room, or the phone asked for the room from above, the big screen looks down on it, turned like
-  // the phone's plan, and follows the piece each time it is moved or turned. Letting go of it goes
-  // back inside, to where the camera stood. A goto, walk or step takes the camera from it at once.
+  // Arranging from the phone: while the phone asks for the room from above, or a layout is being
+  // tried in a room, the big screen looks down on it, turned like the phone's plan, and follows the
+  // selected piece each time it is moved or turned. Turning it off goes back inside, to where the
+  // camera stood. A goto, walk or step takes the camera from it at once. Inside, the phone moves
+  // the camera itself (a viewer.goto to the scan point nearest what was tapped).
   const [arranging, setArranging] = useState<string | null>(null);
   const [overview, setOverview] = useState<string | null>(null);
   useEffect(
@@ -710,7 +788,7 @@ export function TourTab({ twin, active }: { twin: PropertyTwin; active: boolean 
   );
   /** What to look down on: a key that changes when the view must, where, and in which room. 'wait': a piece just added is not loaded yet. */
   const aerialTarget = useMemo(() => {
-    if (arranging) {
+    if (overview && arranging) {
       const p = placements.find((x) => x.item_id === arranging);
       const room = p && twin.rooms.find((r) => r.room_id === p.room_id);
       if (!p || !room) return 'wait' as const;
@@ -862,6 +940,15 @@ export function TourTab({ twin, active }: { twin: PropertyTwin; active: boolean 
           </GlassBadge>
         )}
       </div>
+      {sdk && revealed && canDefurnish && (
+        <div className={cn(GLASS, 'absolute right-3 bottom-4 z-10 rounded-full p-1')}>
+          <button type="button" aria-pressed={defurnished} onClick={() => useTour.getState().setDefurnished(!defurnished)} data-testid="defurnish-toggle"
+            title={defurnished ? "Show the seller's furniture in the scan" : "Paint the seller's furniture out of the scan"}
+            className={cn('h-8 rounded-full px-3.5 text-sm font-semibold transition-colors', glassToggle(defurnished))}>
+            No furniture
+          </button>
+        </div>
+      )}
       {config.features.has('sound') && sdk && revealed && (
         <div className="pointer-events-none absolute inset-x-0 bottom-4 z-10 flex justify-center [&>*]:pointer-events-auto">
           <SoundTimelapse twin={twin} active={active} />
