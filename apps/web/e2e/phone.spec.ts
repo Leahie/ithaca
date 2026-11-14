@@ -4,7 +4,7 @@ import { agentReply, openHouse, openTab, pairPhone, sunAzimuth } from './helpers
 /** Phone controller (M0, M4, A2). In fixture mode both pages share a local session. */
 test.describe('phone controller', () => {
   test('the phone changes the desktop tab (M0)', async ({ page, context }) => {
-    await openHouse(page);
+    await openHouse(page, 'phone', 'agent', 'sun', 'sound', 'design');
     const phone = await pairPhone(page, context);
     await phone.locator('[data-tab=sound]').click();
     await expect(page.getByTestId('house')).toHaveAttribute('data-mode', 'sound');
@@ -12,7 +12,7 @@ test.describe('phone controller', () => {
   });
 
   test('scrubbing time on the phone turns the sun in the Sun Lab', async ({ page, context }) => {
-    await openHouse(page);
+    await openHouse(page, 'phone', 'agent', 'sun', 'sound', 'design');
     await openTab(page, 'sun');
     const phone = await pairPhone(page, context);
     await expect(phone.getByTestId('remote')).toHaveAttribute('data-mode', 'sun'); // rebuilt from session.state
@@ -26,7 +26,7 @@ test.describe('phone controller', () => {
   });
 
   test('typing to the agent on the phone moves the desktop, and the phone sees the reply', async ({ page, context }) => {
-    await openHouse(page);
+    await openHouse(page, 'phone', 'agent', 'sun', 'sound', 'design');
     const phone = await pairPhone(page, context);
     await phone.getByLabel('Message the agent').fill('take me to the office');
     await phone.getByLabel('Message the agent').press('Enter');
@@ -36,7 +36,7 @@ test.describe('phone controller', () => {
   });
 
   test('a room tapped on the phone is the room on the desktop', async ({ page, context }) => {
-    await openHouse(page);
+    await openHouse(page, 'phone', 'agent', 'sun', 'sound', 'design');
     const phone = await pairPhone(page, context);
     const room = phone.getByTestId('remote-rooms').locator('button').first();
     const label = await room.textContent();
@@ -45,7 +45,7 @@ test.describe('phone controller', () => {
   });
 
   test('swiping to a layout on the phone places it on the desktop', async ({ page, context }) => {
-    await openHouse(page);
+    await openHouse(page, 'phone', 'agent', 'sun', 'sound', 'design');
     await openTab(page, 'design');
     const phone = await pairPhone(page, context);
     const second = phone.getByTestId('variant-swiper').locator('article').nth(1);
@@ -55,7 +55,7 @@ test.describe('phone controller', () => {
   });
 
   test('killing the phone does not break the desktop (A2)', async ({ page, context }) => {
-    await openHouse(page);
+    await openHouse(page, 'phone', 'agent', 'sun', 'sound', 'design');
     const phone = await pairPhone(page, context);
     await phone.locator('[data-tab=sun]').click();
     await expect(page.getByTestId('house')).toHaveAttribute('data-mode', 'sun');

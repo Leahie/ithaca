@@ -1,21 +1,16 @@
 'use client';
 
 import type { InventoryItem, LayoutVariant, PropertyTwin } from '@ithaca/schema';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Badge, Notice, Spinner, ViewState } from '@/components/ui';
 import { api } from '@/lib/api';
 import { config } from '@/lib/config';
 import { useInventory, useLayouts } from '@/lib/data/hooks';
-import { sweepForRoom } from '@/lib/showcase/rooms';
+import { defaultStartSweep, sweepForRoom } from '@/lib/showcase/rooms';
 import type { MpSdk } from '@/lib/showcase/sdk-types';
+import { mountShowcase, type ShowcaseHandle } from '@/lib/showcase/viewer';
 import { onSessionEvent, useSession } from '@/lib/store/session';
-
-interface ViewerElement extends HTMLElement {
-  /** Resolves when the SDK is connected (app phase "starting"). */
-  sdkPromise: Promise<MpSdk>;
-  /** Resolves when the tour is interactive (app phase "playing"). */
-  playingPromise: Promise<MpSdk>;
-}
+import { useTour, type TourPlace } from '@/lib/store/tour';
 
 interface SdkSweep {
   id: string;
@@ -41,17 +36,36 @@ const exposeForTests = (key: string, value: unknown) => {
 };
 
 /**
- * Photoreal tour: the Matterport Showcase (Bundle SDK via the web component).
- * `viewer.goto` moves the camera; the chosen layout's furniture is placed with
- * `Scene.createObjects` + `mp.gltfLoader` using the stored poses as they are (A5).
+ * Showcase view modes, as this app names them. In the current viewer the "Outside" view is
+ * the dollhouse mode, drawn with the exterior capture when the model has one.
+ */
+function placeOf(mode: string | null | undefined): TourPlace {
+  switch (mode) {
+    case 'mode.inside':
+      return 'inside';
+    case 'mode.dollhouse':
+    case 'mode.outside':
+      return 'outside';
+    case 'mode.floorplan':
+      return 'floorplan';
+    case 'mode.transitioning':
+      return 'moving';
+    default:
+      return null;
+  }
+}
+
+/**
+ * Photoreal tour: the Matterport Showcase. `viewer.goto` moves the camera indoors; the room
+ * list can also ask for the outside view. With the bundle viewer, the chosen layout's furniture
+ * is placed with `Scene.createObjects` + `mp.gltfLoader`, using the stored poses as they are (A5).
  */
 export function TourTab({ twin, active }: { twin: PropertyTwin; active: boolean }) {
   const hostRef = useRef<HTMLDivElement | null>(null);
-  const viewerRef = useRef<ViewerElement | null>(null);
-  const removeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const handleRef = useRef<{ handle: ShowcaseHandle; modelId: string } | null>(null);
+  const disposeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   /** The SDK as soon as it is connected: model data is readable before the tour can move. */
   const [connected, setConnected] = useState<MpSdk | null>(null);
-  const [ready, setReady] = useState(false);
   const [sdk, setSdk] = useState<MpSdk | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [frame, setFrame] = useState<FrameCheck | null>(null);
@@ -65,72 +79,54 @@ export function TourTab({ twin, active }: { twin: PropertyTwin; active: boolean 
   const selectedLayoutId = useSession((s) => s.viewer.selected_layout_id);
   const layouts = useLayouts(twin.property_id);
   const inventory = useInventory();
+  const outsideSeq = useTour((s) => s.outsideSeq);
+  const canPlaceObjects = config.matterportViewer === 'bundle';
 
   const modelId = twin.sources.matterport_model_id; // I-G16: never assume it equals property_id
 
-  // The web component touches `window` on import, so load it on the client only.
-  useEffect(() => {
-    let live = true;
-    import('@matterport/webcomponent').then(
-      () => live && setReady(true),
-      (err: unknown) => live && setError(`The Matterport viewer failed to load: ${err instanceof Error ? err.message : String(err)}`),
-    );
-    return () => {
-      live = false;
-    };
-  }, []);
-
   useEffect(() => {
     const host = hostRef.current;
-    if (!ready || !host) return;
-    // Built by hand: the viewer reads its config from attributes, and React 19 would set
-    // them as properties on a custom element (the model id then arrives empty).
-    // One element per model, kept across effect re-runs: the Showcase bundle does not start a
-    // second time on a page where a first instance was just torn down (React StrictMode
-    // mounts effects twice in development).
-    if (removeTimer.current) clearTimeout(removeTimer.current);
-    removeTimer.current = null;
-    let node = viewerRef.current;
-    if (!node || node.getAttribute('m') !== modelId) {
-      node?.remove();
-      node = document.createElement('matterport-viewer') as ViewerElement;
-      const attrs: Record<string, string> = {
-        m: modelId,
-        'application-key': config.matterportSdkKey,
-        'asset-base': '/matterport-assets',
-        qs: '1',
-        play: '1',
-        brand: '0',
-        title: '0',
-        help: '0',
-        search: '0',
-      };
-      for (const [k, v] of Object.entries(attrs)) node.setAttribute(k, v);
-      host.appendChild(node);
-      viewerRef.current = node;
+    if (!host || !config.matterportSdkKey) return;
+    // One viewer per model, kept across effect re-runs: React StrictMode mounts effects twice
+    // in development, and a viewer that is torn down and rebuilt at once does not start.
+    if (disposeTimer.current) clearTimeout(disposeTimer.current);
+    disposeTimer.current = null;
+    if (!handleRef.current || handleRef.current.modelId !== modelId) {
+      handleRef.current?.handle.dispose();
+      handleRef.current = { handle: mountShowcase(host, modelId), modelId };
     }
-    const viewer = node;
+    const { handle } = handleRef.current;
     let live = true;
-    const onError = (ev: Event) => setError((ev as CustomEvent<{ error: Error }>).detail?.error?.message ?? 'The Matterport viewer reported an error.');
-    viewer.addEventListener('mpViewerError', onError);
-    viewer.sdkPromise.then(
-      (s) => live && setConnected(s),
-      () => {},
-    );
-    viewer.playingPromise.then(
-      (s) => live && setSdk(s),
-      (err: unknown) => live && setError(err instanceof Error ? err.message : String(err)),
-    );
+    const fail = (err: unknown) => live && setError(err instanceof Error ? err.message : typeof err === 'string' ? err : 'The Matterport viewer could not start.');
+    handle.connected.then((s) => live && setConnected(s), fail);
+    handle.playing.then((s) => live && setSdk(s), fail);
     return () => {
       live = false;
-      viewer.removeEventListener('mpViewerError', onError);
-      // Remove on a real unmount only: a StrictMode re-run cancels this timer first.
-      removeTimer.current = setTimeout(() => {
-        viewer.remove();
-        if (viewerRef.current === viewer) viewerRef.current = null;
+      // Dispose on a real unmount only: a StrictMode re-run cancels this timer first.
+      disposeTimer.current = setTimeout(() => {
+        handle.dispose();
+        if (handleRef.current?.handle === handle) handleRef.current = null;
       }, 0);
     };
-  }, [ready, modelId]);
+  }, [modelId]);
+
+  // Where the camera is: inside, outside, dollhouse. The room list shows it.
+  useEffect(() => {
+    if (!sdk) return;
+    exposeForTests('tourSdk', sdk);
+    const sub = sdk.Mode.current.subscribe((mode) => useTour.getState().setPlace(placeOf(mode)));
+    return () => {
+      sub.cancel();
+      useTour.getState().setPlace(null);
+    };
+  }, [sdk]);
+
+  // "Outside" from the room list: orbit and zoom around the building.
+  useEffect(() => {
+    if (!sdk || outsideSeq === 0) return;
+    queued.current = null; // a room move that was waiting is superseded
+    sdk.Mode.moveTo(sdk.Mode.Mode.DOLLHOUSE).catch((err: unknown) => console.warn('[tour] could not go outside', err));
+  }, [sdk, outsideSeq]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // The SDK's own sweep list and the frame check. Available as soon as the SDK connects.
   useEffect(() => {
@@ -176,10 +172,45 @@ export function TourTab({ twin, active }: { twin: PropertyTwin; active: boolean 
     return () => currentSub.cancel();
   }, [sdk, twin]);
 
-  // viewer.goto -> Sweep.moveTo
+  // One camera move at a time. The viewer rejects a move that starts while another move or a
+  // mode change (inside <-> outside) is in flight, so a request waits and is tried again; a
+  // newer request replaces a waiting one, so the last request wins.
+  const moving = useRef(false);
+  const queued = useRef<{ target: string; instant: boolean; attempt: number } | null>(null);
+  const moveTo = useCallback(
+    (target: string, instant: boolean, attempt = 0) => {
+      if (!sdk) return;
+      if (moving.current) {
+        queued.current = { target, instant, attempt: 0 };
+        return;
+      }
+      moving.current = true;
+      programmatic.current = target;
+      const options = instant ? { transition: sdk.Sweep.Transition.INSTANT } : { transition: sdk.Sweep.Transition.FLY, transitionTime: 1400 };
+      sdk.Sweep.moveTo(target, options)
+        .catch((err: unknown) => {
+          programmatic.current = null;
+          if (attempt < 4 && !queued.current) queued.current = { target, instant, attempt: attempt + 1 };
+          else if (!queued.current) console.warn('[tour] moveTo failed', err);
+          return new Promise((resolve) => setTimeout(resolve, 700));
+        })
+        .finally(() => {
+          moving.current = false;
+          const next = queued.current;
+          queued.current = null;
+          if (next) moveTo(next.target, next.instant, next.attempt);
+        });
+    },
+    [sdk],
+  );
+
+  // viewer.goto -> Sweep.moveTo. Also runs once when the tour becomes interactive: it goes to
+  // the room the session already names. With neither, the hosted viewer keeps the model's own
+  // start view; the bundle viewer starts indoors (its start view is the missing outside one).
   useEffect(() => {
-    if (!sdk || gotoSeq === 0) return;
-    const wanted = sweepId ?? (roomId ? sweepForRoom(twin, roomId)?.sweep_id : undefined);
+    if (!sdk) return;
+    const first = gotoSeq === 0;
+    const wanted = sweepId ?? (roomId ? sweepForRoom(twin, roomId)?.sweep_id : undefined) ?? (first && canPlaceObjects ? defaultStartSweep(twin)?.sweep_id : undefined);
     if (!wanted) return;
     let target = wanted;
     if (sdkSweeps.current.size && !sdkSweeps.current.has(wanted)) {
@@ -196,11 +227,7 @@ export function TourTab({ twin, active }: { twin: PropertyTwin; active: boolean 
       }
       console.warn(`[tour] sweep ${wanted} is not in the Showcase model; using the nearest sweep ${target} (${best.toFixed(2)} m away)`);
     }
-    programmatic.current = target;
-    sdk.Sweep.moveTo(target, { transition: sdk.Sweep.Transition.FLY, transitionTime: 1400 }).catch((err: unknown) => {
-      programmatic.current = null;
-      console.warn('[tour] moveTo failed', err);
-    });
+    moveTo(target, first);
     // The sweep list is read at the moment of the move; it is not a trigger.
   }, [sdk, gotoSeq]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -225,7 +252,7 @@ export function TourTab({ twin, active }: { twin: PropertyTwin; active: boolean 
   }, [layouts.data, inventory.data, selectedLayoutId]);
 
   useEffect(() => {
-    if (!sdk) return;
+    if (!sdk || !canPlaceObjects) return;
     let cancelled = false;
     let stop: (() => void) | null = null;
     exposeForTests('tourPlacedItemIds', []);
@@ -263,6 +290,14 @@ export function TourTab({ twin, active }: { twin: PropertyTwin; active: boolean 
     };
   }, [sdk, placements]);
 
+  // A tour that never becomes interactive must say so, not sit there looking broken.
+  const [slow, setSlow] = useState(false);
+  useEffect(() => {
+    if (sdk) return setSlow(false);
+    const t = setTimeout(() => setSlow(true), 30_000);
+    return () => clearTimeout(t);
+  }, [sdk]);
+
   if (!config.matterportSdkKey) {
     return (
       <ViewState>
@@ -287,20 +322,34 @@ export function TourTab({ twin, active }: { twin: PropertyTwin; active: boolean 
 
   return (
     <div className="relative h-full w-full bg-black" data-testid="tour" data-sdk-ready={!!sdk} data-active={active}>
-      <div ref={hostRef} className="h-full w-full" />
+      <div ref={hostRef} className="h-full w-full" data-viewer={config.matterportViewer} />
       {!sdk && (
         <div className="pointer-events-none absolute right-3 bottom-3 rounded-lg border border-line bg-ink/85 px-3 py-2">
           <Spinner label={connected ? 'Loading the tour…' : 'Starting the tour…'} />
         </div>
       )}
-      <div className="pointer-events-none absolute top-3 left-3 flex flex-wrap gap-1.5">
-        {frame && (
+      {slow && !sdk && (
+        <div className="absolute top-12 left-3 w-[360px] max-w-[90%]">
+          <Notice tone="warn" title="The tour is not responding">
+            The Matterport viewer has been loading for over 30 seconds. Reload the page. If it keeps happening, this model may use a feature the bundled viewer cannot load; the Sun Lab still shows the scanned
+            interior.
+          </Notice>
+        </div>
+      )}
+      <div className="pointer-events-none absolute top-3 right-3 flex flex-wrap justify-end gap-1.5">
+        {/* The frame check runs always (see window.__ITHACA__.frameCheck); it shows only when it fails. */}
+        {frame && !frameOk && (
           <Badge
             tone={frameOk ? 'leaf' : 'sun'}
             className="bg-ink/80"
             title="Compares the twin's sweep positions with the positions the Showcase SDK reports. They must match for furniture to land where the layout says (I-G9)."
           >
             Frame check: {frame.matched} of {frame.total} sweeps match, max {(frame.maxError * 100).toFixed(1)} cm apart
+          </Badge>
+        )}
+        {!canPlaceObjects && placements.length > 0 && (
+          <Badge className="bg-ink/80" title="The hosted Matterport viewer cannot add 3D objects. Set NEXT_PUBLIC_MATTERPORT_VIEWER=bundle to place furniture in the tour, or see it in the Sun Lab.">
+            Furniture is not shown in this viewer
           </Badge>
         )}
         {placed.count > 0 && (

@@ -11,7 +11,7 @@ import { Button, Notice, Spinner, Toggle, cn } from '@/components/ui';
 import { api } from '@/lib/api';
 import { useInventory, useLayouts } from '@/lib/data/hooks';
 import { invalidate } from '@/lib/data/resource';
-import { roomName } from '@/lib/rooms';
+import { defaultRoom, roomName } from '@/lib/rooms';
 import type { V3 } from '@/lib/geometry/frames';
 import { compassToInterior } from '@/lib/geometry/frames';
 import { useSession } from '@/lib/store/session';
@@ -28,6 +28,7 @@ export function SunLabTab({ twin, active }: { twin: PropertyTwin; active: boolea
   const roomId = useSession((s) => s.viewer.room_id);
   const gotoSeq = useSession((s) => s.viewer.goto_seq);
   const selectedLayoutId = useSession((s) => s.viewer.selected_layout_id);
+  const dispatch = useSession((s) => s.dispatch);
   const layouts = useLayouts(twin.property_id);
   const inventory = useInventory();
 
@@ -174,8 +175,18 @@ export function SunLabTab({ twin, active }: { twin: PropertyTwin; active: boolea
         <Button size="sm" variant={view.kind === 'overview' ? 'primary' : 'subtle'} onClick={() => setView({ kind: 'overview', seq: Date.now() })}>
           Outside
         </Button>
-        <Button size="sm" variant={view.kind === 'room' ? 'primary' : 'subtle'} disabled={!room} title={room ? `Fly into ${roomName(twin, room.room_id)}` : 'Pick a room first'} onClick={() => room && setView({ kind: 'room', room, seq: Date.now() })}>
-          {room ? `Inside ${roomName(twin, room.room_id)}` : 'Inside'}
+        <Button
+          size="sm"
+          variant={view.kind === 'room' ? 'primary' : 'subtle'}
+          title={room ? `Fly into ${roomName(twin, room.room_id)}` : 'Fly into the house'}
+          onClick={() => {
+            if (room) return setView({ kind: 'room', room, seq: Date.now() });
+            // No room chosen yet: go into the main room. It is a viewer.goto like any other (A1).
+            const target = defaultRoom(twin);
+            if (target) dispatch('viewer.goto', { room_id: target.room_id });
+          }}
+        >
+          {room ? `Inside ${roomName(twin, room.room_id)}` : 'Go inside'}
         </Button>
       </div>
 

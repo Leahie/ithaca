@@ -142,13 +142,49 @@ Still open for C:
    tests pass once it is installed.
 4. A Draco-compressed GLB would need a decoder that drei loads from a CDN. meshopt needs nothing.
 
+## What the house page shows
+
+By default the house page is the tour alone: the Matterport viewer with the room list beside
+it. Everything else is built and tested but switched off. `NEXT_PUBLIC_FEATURES` turns parts on:
+
+| Value | Adds |
+|---|---|
+| `tour` (default) | The Matterport tour and the room list |
+| `sun`, `sound`, `neighborhood`, `design` | That view, as a tab |
+| `agent` | The chat dock |
+| `phone` | QR pairing for the phone controller |
+| `me` | The link to `/me` |
+| `all` | Everything |
+
+Example: `NEXT_PUBLIC_FEATURES=tour,sun,agent`. The E2E suite starts its server with `all`;
+against a server with less switched on, the tests for the missing parts skip themselves.
+
+## The Tour: indoors and outdoors
+
+The Tour shows the space with one of two Matterport viewers (`NEXT_PUBLIC_MATTERPORT_VIEWER`):
+
+- **`embed` (default):** Matterport's hosted viewer in an iframe, driven by the SDK for Embeds
+  (`@matterport/sdk`). It is always the current viewer, so it shows everything the model has,
+  including the exterior capture. The room list's **Outside** entry goes there (the viewer's
+  dollhouse mode, drawn with the exterior capture): drag to orbit the building, scroll to zoom.
+  A room on the list takes you back in. This viewer cannot add 3D objects.
+- **`bundle`:** the Bundle SDK from `@matterport/webcomponent`. It can add 3D objects
+  (`Scene.createObjects`), which the Design view needs to place furniture in the tour. The newest
+  bundle on npm (26.5.4) cannot load exterior splat captures and would wait for them forever, so
+  `src/lib/showcase/splatShim.ts` answers its `GetSplats` request with an empty list. The tour
+  then starts, without the outside view. Nothing in the vendor bundle is changed.
+  `NEXT_PUBLIC_MATTERPORT_SPLATS=1` turns the shim off once a newer bundle is installed.
+
+"Outside" is not an event in schema v0 (`viewer.goto` names a room or a sweep), so it is local
+to the tab for now (`src/lib/store/tour.ts`).
+
+Checked in a browser against the real model (`e2e/tabs.spec.ts`): the tour becomes interactive,
+a drag turns the camera, a room on the list moves the camera into that room, and Outside shows
+the house from outside and a room brings you back in. With `bundle`, `e2e/design.spec.ts` checks
+that a chosen layout's items are in the Showcase scene.
+
 ## Not verified yet
 
-- **The Showcase in a headless browser.** The SDK connects and returns model data, but the
-  bundle stays in its loading phase under headless Chromium here, also on Matterport's own
-  `showcase.html`. `Sweep.moveTo`, `Camera.rotate` and furniture placement in the Showcase are
-  written against the SDK types and need a check in a normal browser. The matching E2E test
-  skips itself when the Showcase does not start.
 - **A real phone**, and full-stack mode: there is no backend on this branch yet.
 - **Second property** (M6): nothing in `src/` names a property id, but only one twin exists.
 - Speech: only the Web Speech provider exists behind `SpeechProvider`.

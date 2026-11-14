@@ -8,7 +8,7 @@ import { SessionProvider, useSessionInfo } from '@/components/session/SessionPro
 import { Badge, Notice, Spinner, ViewState, cn } from '@/components/ui';
 import { IconDesign, IconMap, IconSound, IconSun, IconTour, IconUser } from '@/components/ui/icons';
 import { ApiError } from '@/lib/api';
-import { config } from '@/lib/config';
+import { config, type Feature } from '@/lib/config';
 import { useLayouts, useTwin } from '@/lib/data/hooks';
 import { useSession } from '@/lib/store/session';
 import { sunPosition } from '@/lib/sun/position';
@@ -56,14 +56,22 @@ function QualityBadges({ twin }: { twin: PropertyTwin }) {
   );
 }
 
+const has = (f: Feature) => config.features.has(f);
+/** Views that are switched on, in tab order. The page shows no tab bar when there is one. */
+const VIEWS = TABS.filter((t) => has(t.mode));
+/** The session (agent, phone, saved choices) is only needed when something uses it. */
+const NEEDS_SESSION = has('agent') || has('phone') || has('design');
+
 function House({ propertyId }: { propertyId: string }) {
   const twin = useTwin(propertyId);
-  const layouts = useLayouts(propertyId);
-  const mode = useSession((s) => s.viewer.mode);
+  const layouts = useLayouts(has('design') ? propertyId : null);
+  const stateMode = useSession((s) => s.viewer.mode);
+  // A view that is switched off cannot be shown, whatever the session says.
+  const mode: ViewerMode = has(stateMode) ? stateMode : (VIEWS[0]?.mode ?? 'tour');
   const dispatch = useSession((s) => s.dispatch);
   const { error: sessionError } = useSessionInfo();
   const [visited, setVisited] = useState<Set<ViewerMode>>(() => new Set());
-  const [dockOpen, setDockOpen] = useState(true);
+  const [dockOpen, setDockOpen] = useState(has('agent'));
   const initialised = useRef<string | null>(null);
 
   // Values that come from the twin, not from a user action.
@@ -113,7 +121,7 @@ function House({ propertyId }: { propertyId: string }) {
   const t = twin.data;
 
   return (
-    <div className="flex h-dvh flex-col" data-testid="house" data-mode={mode}>
+    <div className="flex h-dvh flex-col" data-testid="house" data-mode={mode} data-features={[...config.features].join(' ')}>
       <header className="flex h-13 shrink-0 items-center gap-4 border-b border-line bg-surface px-4">
         <Link href="/" className="flex items-center gap-2 text-sm font-semibold tracking-wide">
           <span className="h-2.5 w-2.5 rounded-full bg-sun" />
@@ -121,37 +129,45 @@ function House({ propertyId }: { propertyId: string }) {
         </Link>
         <div className="hidden min-w-0 items-center gap-2 lg:flex">
           <span className="truncate text-sm text-muted">{t.address}</span>
-          <QualityBadges twin={t} />
+          {(has('sun') || has('sound')) && <QualityBadges twin={t} />}
           {config.useFixtures && <Badge tone="sky" title="NEXT_PUBLIC_USE_FIXTURES=1: data comes from the fixtures folder and the agent is scripted.">Fixture mode</Badge>}
         </div>
-        <nav aria-label="Views" className="mx-auto flex rounded-lg border border-line bg-ink p-0.5" role="tablist">
-          {TABS.map(({ mode: m, label, icon: Icon }) => (
-            <button
-              key={m}
-              type="button"
-              role="tab"
-              aria-selected={m === mode}
-              data-tab={m}
-              onClick={() => dispatch('viewer.setMode', { mode: m })}
-              className={cn(
-                'flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm transition-colors',
-                m === mode ? 'bg-raised text-text shadow-[inset_0_0_0_1px_var(--color-line-strong)]' : 'text-muted hover:text-text',
-              )}
-            >
-              <Icon />
-              <span className="hidden md:inline">{label}</span>
-            </button>
-          ))}
-        </nav>
+        {VIEWS.length > 1 ? (
+          <nav aria-label="Views" className="mx-auto flex rounded-lg border border-line bg-ink p-0.5" role="tablist">
+            {VIEWS.map(({ mode: m, label, icon: Icon }) => (
+              <button
+                key={m}
+                type="button"
+                role="tab"
+                aria-selected={m === mode}
+                data-tab={m}
+                onClick={() => dispatch('viewer.setMode', { mode: m })}
+                className={cn(
+                  'flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm transition-colors',
+                  m === mode ? 'bg-raised text-text shadow-[inset_0_0_0_1px_var(--color-line-strong)]' : 'text-muted hover:text-text',
+                )}
+              >
+                <Icon />
+                <span className="hidden md:inline">{label}</span>
+              </button>
+            ))}
+          </nav>
+        ) : (
+          <div className="mx-auto" />
+        )}
         <div className="flex items-center gap-1">
-          <PairingButton propertyId={propertyId} />
-          <Link href="/me" className="inline-flex h-9 items-center gap-1.5 rounded-md px-3 text-sm text-muted hover:bg-raised hover:text-text">
-            <IconUser />
-            <span className="hidden xl:inline">Me</span>
-          </Link>
-          <button type="button" onClick={() => setDockOpen(!dockOpen)} aria-pressed={dockOpen} className="inline-flex h-9 items-center rounded-md px-3 text-sm text-muted hover:bg-raised hover:text-text">
-            {dockOpen ? 'Hide agent' : 'Agent'}
-          </button>
+          {has('phone') && <PairingButton propertyId={propertyId} />}
+          {has('me') && (
+            <Link href="/me" className="inline-flex h-9 items-center gap-1.5 rounded-md px-3 text-sm text-muted hover:bg-raised hover:text-text">
+              <IconUser />
+              <span className="hidden xl:inline">Me</span>
+            </Link>
+          )}
+          {has('agent') && (
+            <button type="button" onClick={() => setDockOpen(!dockOpen)} aria-pressed={dockOpen} className="inline-flex h-9 items-center rounded-md px-3 text-sm text-muted hover:bg-raised hover:text-text">
+              {dockOpen ? 'Hide agent' : 'Agent'}
+            </button>
+          )}
         </div>
       </header>
 
@@ -164,16 +180,16 @@ function House({ propertyId }: { propertyId: string }) {
       )}
 
       <div className="flex min-h-0 flex-1">
-        {mode !== 'neighborhood' && <RoomRail twin={t} />}
+        {mode !== 'neighborhood' && <RoomRail twin={t} tour={mode === 'tour'} />}
         <main className="relative min-w-0 flex-1">
           {/* The two 3D views stay mounted once opened: reloading them is slow. An inactive one is
               faded out, not display:none, so its canvas keeps its size. */}
-          {(visited.has('tour') || mode === 'tour') && (
+          {has('tour') && (visited.has('tour') || mode === 'tour') && (
             <div className={cn('absolute inset-0', mode === 'tour' ? 'z-10' : 'pointer-events-none z-0 opacity-0')} aria-hidden={mode !== 'tour'} inert={mode !== 'tour'}>
               <TourTab twin={t} active={mode === 'tour'} />
             </div>
           )}
-          {(visited.has('sun') || mode === 'sun') && (
+          {has('sun') && (visited.has('sun') || mode === 'sun') && (
             <div className={cn('absolute inset-0', mode === 'sun' ? 'z-10' : 'pointer-events-none z-0 opacity-0')} aria-hidden={mode !== 'sun'} inert={mode !== 'sun'}>
               <SunLabTab twin={t} active={mode === 'sun'} />
             </div>
@@ -186,13 +202,14 @@ function House({ propertyId }: { propertyId: string }) {
             </div>
           )}
         </main>
-        {dockOpen && <AgentDock />}
+        {has('agent') && dockOpen && <AgentDock />}
       </div>
     </div>
   );
 }
 
 export function HouseExperience({ propertyId }: { propertyId: string }) {
+  if (!NEEDS_SESSION) return <House propertyId={propertyId} />;
   return (
     <SessionProvider client="desktop" propertyId={propertyId}>
       <House propertyId={propertyId} />

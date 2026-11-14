@@ -1,15 +1,31 @@
 import { expect, test } from '@playwright/test';
-import { agentReply, ask, openHouse, openTab, sunAzimuth } from './helpers';
+import { PID, agentReply, ask, interactiveTour, openHouse, openTab, sunAzimuth, tourCamera } from './helpers';
 
 /** The agent drives the site (M1, M3, M5). In fixture mode the agent is the scripted one. */
 test.describe('agent dock', () => {
-  test.beforeEach(async ({ page }) => openHouse(page));
+  test.beforeEach(async ({ page }) => openHouse(page, 'agent', 'sun', 'sound'));
 
   test('"take me to the kitchen" moves the viewer and shows a chip (M1, A8)', async ({ page }) => {
     await ask(page, 'Take me to the kitchen');
     await expect(page.getByTestId('agent-action').first()).toContainText(/kitchen/i);
     await expect(page.locator('nav[aria-label=Rooms] button[aria-current=true]')).toHaveAttribute('aria-label', /kitchen/i);
     expect(await agentReply(page)).toMatch(/kitchen/i);
+  });
+
+  test('"take me to the kitchen" moves the Showcase camera into the kitchen (M1)', async ({ page }) => {
+    await interactiveTour(page);
+    const twin = (await (await page.request.get(`/fixtures/twin/${PID}.json`)).json()) as { sweeps: { sweep_id: string; room_id: string | null }[]; rooms: { room_id: string; label: string }[] };
+    await ask(page, 'Take me to the kitchen');
+    await expect
+      .poll(
+        async () => {
+          const { sweep } = await tourCamera(page);
+          const room = twin.sweeps.find((s) => s.sweep_id === sweep)?.room_id;
+          return twin.rooms.find((r) => r.room_id === room)?.label;
+        },
+        { timeout: 20_000 },
+      )
+      .toBe('Kitchen');
   });
 
   test('"show me December morning" opens the Sun Lab and sets the time (M3)', async ({ page }) => {

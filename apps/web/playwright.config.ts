@@ -40,6 +40,8 @@ export default defineConfig({
         timeout: 120_000,
         env: {
           NEXT_PUBLIC_USE_FIXTURES: '1',
+          // Everything on: the suite covers views that the default (tour only) leaves off.
+          NEXT_PUBLIC_FEATURES: process.env.NEXT_PUBLIC_FEATURES ?? 'all',
           NEXT_PUBLIC_DEFAULT_PROPERTY_ID: 'onXQLXhfyQv',
           // The Tour needs the network and a key; without one it shows "not configured" (I-G21).
           NEXT_PUBLIC_MATTERPORT_SDK_KEY: process.env.NEXT_PUBLIC_MATTERPORT_SDK_KEY ?? '',

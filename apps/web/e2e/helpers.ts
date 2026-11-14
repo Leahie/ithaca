@@ -1,12 +1,42 @@
-import { expect, type BrowserContext, type Page } from '@playwright/test';
+import { expect, test, type BrowserContext, type Page } from '@playwright/test';
 
 /** I-G19: the property id lives in config and tests, never in app code. */
 export const PID = process.env.E2E_PROPERTY_ID ?? 'onXQLXhfyQv';
 export const FIXTURE_MODE = !process.env.E2E_BASE_URL;
 
-export async function openHouse(page: Page): Promise<void> {
+export type Feature = 'tour' | 'sun' | 'sound' | 'neighborhood' | 'design' | 'agent' | 'phone' | 'me';
+
+/**
+ * Open the house page. `needs` names the features a test depends on; the test is skipped when
+ * the server under test has them switched off (NEXT_PUBLIC_FEATURES; the default is the tour alone).
+ */
+export async function openHouse(page: Page, ...needs: Feature[]): Promise<void> {
   await page.goto(`/house/${PID}`);
-  await expect(page.getByTestId('house')).toBeVisible();
+  const house = page.getByTestId('house');
+  await expect(house).toBeVisible();
+  const on = ((await house.getAttribute('data-features')) ?? '').split(' ');
+  const missing = needs.filter((f) => !on.includes(f));
+  test.skip(missing.length > 0, `needs NEXT_PUBLIC_FEATURES to include: ${missing.join(', ')}`);
+}
+
+/** The Showcase SDK of the Tour tab, for reading the camera in tests. */
+export const tourCamera = (page: Page) =>
+  page.evaluate(
+    () =>
+      new Promise<{ mode: string; sweep: string; yaw: number }>((resolve) => {
+        type Pose = { mode: string; sweep: string; rotation: { y: number } };
+        const sdk = window.__ITHACA__!.tourSdk as { Camera: { pose: { subscribe(cb: (p: Pose) => void): { cancel(): void } } } };
+        const sub = sdk.Camera.pose.subscribe((p) => {
+          resolve({ mode: p.mode, sweep: p.sweep, yaw: p.rotation.y });
+          queueMicrotask(() => sub.cancel());
+        });
+      }),
+  );
+
+declare global {
+  interface Window {
+    __ITHACA__?: Record<string, unknown>;
+  }
 }
 
 export async function openTab(page: Page, mode: 'tour' | 'sun' | 'sound' | 'neighborhood' | 'design'): Promise<void> {
@@ -41,3 +71,16 @@ export async function pairPhone(desktop: Page, context: BrowserContext): Promise
 }
 
 export const sunAzimuth = async (page: Page) => Number(await page.getByTestId('sun-lab').getAttribute('data-sun-azimuth'));
+
+/**
+ * The Tour's Showcase viewer, once it is interactive. Skips the test when the Tour is not
+ * configured (no SDK key); fails it when the viewer is there but never starts.
+ */
+export async function interactiveTour(page: Page) {
+  const tour = page.getByTestId('tour');
+  const notConfigured = page.getByText('The tour is not configured');
+  await expect(tour.or(notConfigured)).toBeVisible();
+  test.skip(await notConfigured.isVisible(), 'needs NEXT_PUBLIC_MATTERPORT_SDK_KEY');
+  await expect(tour).toHaveAttribute('data-sdk-ready', 'true', { timeout: 60_000 });
+  return tour;
+}

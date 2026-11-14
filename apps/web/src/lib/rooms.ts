@@ -44,3 +44,10 @@ export function roomsOnFloor(twin: PropertyTwin, floorId: string): Room[] {
   const names = roomNames(twin);
   return twin.rooms.filter((r) => r.floor_id === floorId).sort((a, b) => (names.get(a.room_id) ?? '').localeCompare(names.get(b.room_id) ?? '', 'en', { numeric: true }));
 }
+
+/** The room to enter when none is chosen: the largest one on the lowest floor. */
+export function defaultRoom(twin: PropertyTwin): Room | undefined {
+  const lowest = [...twin.floors].sort((a, b) => a.index - b.index)[0];
+  const onFloor = twin.rooms.filter((r) => !lowest || r.floor_id === lowest.floor_id);
+  return [...(onFloor.length ? onFloor : twin.rooms)].sort((a, b) => roomArea(b) - roomArea(a))[0];
+}

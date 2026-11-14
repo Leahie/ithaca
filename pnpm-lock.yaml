@@ -180,6 +180,9 @@ importers:
       '@ithaca/schema':
         specifier: workspace:*
         version: link:../../packages/schema/ts
+      '@matterport/sdk':
+        specifier: ^1.6.2
+        version: 1.6.2
       '@matterport/webcomponent':
         specifier: ^0.1.47
         version: 0.1.47(three@0.184.0)
@@ -614,6 +617,10 @@ packages:
 
   '@lit/reactive-element@1.6.3':
     resolution: {integrity: sha512-QuTgnG52Poic7uM1AN5yJ09QMe0O28e10XzSvWDz02TJiiKee4stsiownEIadWm8nYzyDAyT+gKzUoZmiWQtsQ==}
+
+  '@matterport/sdk@1.6.2':
+    resolution: {integrity: sha512-e5MUQPf6Enu+na2OmQs8nXw6SfnfRClZZQba+y6hYLyohXFwS53O1MhuLTrPKBmnt1m/pDC6FjzhVn0HLfxnjQ==}
+    hasBin: true
 
   '@matterport/webcomponent@0.1.47':
     resolution: {integrity: sha512-rIwtHRHMBmFddoeF4A9dpdPnRvXZ736H77YFx3CdkVRCJkqUoxWoZW8lddCLdNF0CC0U8wyVSjX/J7UJUOIvDg==}
@@ -1970,6 +1977,8 @@ snapshots:
   '@lit/reactive-element@1.6.3':
     dependencies:
       '@lit-labs/ssr-dom-shim': 1.6.0
+
+  '@matterport/sdk@1.6.2': {}
 
   '@matterport/webcomponent@0.1.47(three@0.184.0)':
     dependencies:

@@ -2,7 +2,27 @@
  * Runtime config from the environment. A missing key disables a feature; it never stops
  * startup (I-G21). The Showcase SDK key is the only secret the frontend holds (I-G22).
  */
+/** Parts of the app that can be switched on. The default is the tour alone. */
+export const FEATURES = ['tour', 'sun', 'sound', 'neighborhood', 'design', 'agent', 'phone', 'me'] as const;
+export type Feature = (typeof FEATURES)[number];
+
+function parseFeatures(raw: string | undefined): ReadonlySet<Feature> {
+  const wanted = (raw ?? 'tour').split(',').map((s) => s.trim().toLowerCase()).filter(Boolean);
+  if (wanted.includes('all')) return new Set(FEATURES);
+  const set = new Set(FEATURES.filter((f) => wanted.includes(f)));
+  // At least one view must exist.
+  if (!(['tour', 'sun', 'sound', 'neighborhood', 'design'] as const).some((v) => set.has(v))) set.add('tour');
+  return set;
+}
+
 export const config = {
+  /**
+   * What the house page shows: any of tour, sun, sound, neighborhood, design (views), agent
+   * (chat dock), phone (pairing), me (link to /me); or "all". Default: "tour".
+   */
+  features: parseFeatures(process.env.NEXT_PUBLIC_FEATURES),
+  /** "embed" (hosted viewer, has the outside view) or "bundle" (can place 3D objects). */
+  matterportViewer: process.env.NEXT_PUBLIC_MATTERPORT_VIEWER === 'bundle' ? ('bundle' as const) : ('embed' as const),
   /** A6: render every tab from fixtures with no backend running. */
   useFixtures: process.env.NEXT_PUBLIC_USE_FIXTURES === '1',
   /** REST base. The default is same-origin, proxied to the API by next.config.ts. */

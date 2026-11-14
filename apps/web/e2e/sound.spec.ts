@@ -4,7 +4,7 @@ import { openHouse, openTab } from './helpers';
 /** Sound tab: scenario toggles change the report, and the audio follows the report (A4, M5). */
 test.describe('sound', () => {
   test.beforeEach(async ({ page }) => {
-    await openHouse(page);
+    await openHouse(page, 'sound', 'sun');
     await openTab(page, 'sound');
     await expect(page.getByTestId('laeq')).toBeVisible();
   });
