@@ -106,6 +106,8 @@ class AgentBridge:
         by_user = event.source in ("desktop", "phone")
         log_ = TOUR_LOGS.setdefault(sid, TourLog())
 
+        if event.type == "voice.transcript" and p.get("final") and not p.get("text", "").strip():
+            return  # the microphone closed without hearing anything: not a turn
         if event.type == "chat.user" or (event.type == "voice.transcript" and p.get("final")):
             log_.heard(p["text"])
             self._signal(room)

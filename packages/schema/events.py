@@ -204,6 +204,13 @@ class VoiceTranscriptPayload(Model):
     final: bool
 
 
+class VoiceSpokenPayload(Model):
+    """Additive to v0. The big screen has finished saying a reply aloud. A phone waits for this
+    before it opens its microphone for the answer, so it does not hear the guide."""
+
+    message_id: str
+
+
 class AgentTokenPayload(Model):
     message_id: str
     delta: str
@@ -267,6 +274,7 @@ EVENTS: dict[str, tuple[type[Model], frozenset[str]]] = {
     "capture.upload": (CaptureUploadPayload, frozenset({"phone", "desktop"})),
     "chat.user": (ChatUserPayload, frozenset({"desktop", "phone"})),
     "voice.transcript": (VoiceTranscriptPayload, frozenset({"desktop", "phone"})),
+    "voice.spoken": (VoiceSpokenPayload, frozenset({"desktop"})),
     "agent.token": (AgentTokenPayload, frozenset({"agent"})),
     "agent.message": (AgentMessagePayload, frozenset({"agent"})),
     "agent.action": (AgentActionPayload, frozenset({"agent"})),

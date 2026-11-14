@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect } from 'react';
-import { onSessionEvent } from '@/lib/store/session';
+import { dispatch, onSessionEvent } from '@/lib/store/session';
 import { speechProvider } from './provider';
 
 export const canSpeak = () => speechProvider().ttsAvailable();
@@ -33,6 +33,7 @@ export function useSpeakGuide(enabled: boolean): void {
     const written = new Map<string, string>(); // message_id -> text so far
     const said = new Map<string, number>(); // message_id -> characters already sent to the voice
     const muted = new Set<string>(); // replies the user talked over
+    const waits = new Set<number>();
     const off = onSessionEvent((event) => {
       if (event.type === 'chat.user' || event.type === 'voice.transcript') {
         for (const id of written.keys()) muted.add(id);
@@ -54,6 +55,15 @@ export function useSpeakGuide(enabled: boolean): void {
         // A reply that streamed: say its tail. One that came whole: say all of it.
         const text = written.get(id) ?? event.payload.text;
         if (!muted.has(id)) voice.enqueue(text.slice(said.get(id) ?? 0));
+        // Tell the phones when this reply has been said to the end: one of them may be waiting
+        // to open its microphone for the answer.
+        const wait = window.setInterval(() => {
+          if (voice.isSpeaking()) return;
+          window.clearInterval(wait);
+          waits.delete(wait);
+          dispatch('voice.spoken', { message_id: id });
+        }, 200);
+        waits.add(wait);
         written.delete(id);
         said.delete(id);
         muted.delete(id);
@@ -61,6 +71,7 @@ export function useSpeakGuide(enabled: boolean): void {
     });
     return () => {
       off();
+      waits.forEach((w) => window.clearInterval(w));
       voice.cancelSpeech();
     };
   }, [enabled]);

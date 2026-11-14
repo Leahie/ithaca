@@ -32,6 +32,10 @@ export interface SpeechProvider {
   /** Say this after what is being said. For a reply that arrives sentence by sentence. */
   enqueue(text: string, opts?: { lang?: string; rate?: number }): void;
   cancelSpeech(): void;
+  /** Something is being said, or is waiting to be said. */
+  isSpeaking(): boolean;
+  /** Listening can start now without a tap (the microphone is still open from the last time). */
+  canListenUntapped(): boolean;
 }
 
 interface RecognitionResult {
@@ -136,6 +140,14 @@ export class WebSpeechProvider implements SpeechProvider {
   cancelSpeech(): void {
     if (this.ttsAvailable()) window.speechSynthesis.cancel();
   }
+
+  isSpeaking(): boolean {
+    return this.ttsAvailable() && (window.speechSynthesis.speaking || window.speechSynthesis.pending);
+  }
+
+  canListenUntapped(): boolean {
+    return false; // the browser's own recognition needs a tap every time on a phone
+  }
 }
 
 export type VoiceKind = 'female' | 'male';
@@ -203,6 +215,18 @@ export function speechChunks(text: string, max = 1000): string[] {
 
 class VoiceUnavailable extends Error {}
 
+/** How long the microphone stays open after a question, ready for the next one without a tap. */
+const KEEP_MIC_MS = 120_000;
+
+interface OpenMic {
+  ctx: AudioContext;
+  stream: MediaStream;
+  nodes: AudioNode[];
+  /** Where blocks of samples go while someone is listening. */
+  sink: ((pcm: Int16Array) => void) | null;
+  apple: boolean;
+}
+
 /** Closes the listen socket: the API has no Deepgram key. */
 const NOT_CONFIGURED = 4503;
 
@@ -248,6 +272,9 @@ export class DeepgramProvider implements SpeechProvider {
   private speaking: string | null = null;
   private queue: { text: string; audio: Promise<Blob> }[] = [];
   private draining = false;
+  /** The open microphone, kept for a while between questions. */
+  private mic: OpenMic | null = null;
+  private micIdle = 0;
 
   private streams(): boolean {
     return !this.sttUnavailable && typeof AudioWorkletNode !== 'undefined' && !!navigator.mediaDevices?.getUserMedia;
@@ -261,16 +288,89 @@ export class DeepgramProvider implements SpeechProvider {
     return typeof window !== 'undefined' && (typeof Audio !== 'undefined' || this.browser.ttsAvailable());
   }
 
+  /** The microphone is open and running from an earlier tap, so listening can start without one. */
+  canListenUntapped(): boolean {
+    const m = this.mic;
+    return !!m && m.ctx.state === 'running' && m.stream.getAudioTracks()[0]?.readyState === 'live';
+  }
+
+  private closeMic(): void {
+    clearTimeout(this.micIdle);
+    const m = this.mic;
+    this.mic = null;
+    if (!m) return;
+    m.sink = null;
+    m.stream.getTracks().forEach((t) => t.stop());
+    m.nodes.forEach((n) => n.disconnect());
+    if (m.ctx.state !== 'closed') void m.ctx.close();
+  }
+
+  /**
+   * Open the microphone into `ctx` and keep it: blocks of 16-bit samples go to whoever is
+   * listening (`sink`), and to nobody in between. The nodes are held in the object on purpose:
+   * audio nodes nothing refers to can be collected by the browser, and the microphone then reads
+   * as silence.
+   */
+  private async openMic(ctx: AudioContext, apple: boolean): Promise<OpenMic> {
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: { channelCount: 1, echoCancellation: true, noiseSuppression: true } });
+    const mic: OpenMic = { ctx, stream, nodes: [], sink: null, apple };
+    // Opening the microphone switches an iPhone's audio route, which can interrupt the context.
+    if (ctx.state !== 'running') await Promise.race([ctx.resume(), new Promise((r) => setTimeout(r, 800))]);
+    const source = ctx.createMediaStreamSource(stream);
+    let tap: AudioNode;
+    if (apple) {
+      // iPhone and iPad: the old script node. Their audio worklet stops being called a moment
+      // after the microphone opens; this one keeps running.
+      const node = ctx.createScriptProcessor(4096, 1, 1);
+      node.onaudioprocess = (e) => {
+        if (!mic.sink) return;
+        const f = e.inputBuffer.getChannelData(0);
+        const pcm = new Int16Array(f.length);
+        for (let i = 0; i < f.length; i++) {
+          const v = Math.max(-1, Math.min(1, f[i]!));
+          pcm[i] = v < 0 ? v * 0x8000 : v * 0x7fff;
+        }
+        mic.sink(pcm);
+      };
+      tap = node;
+    } else {
+      const url = URL.createObjectURL(new Blob([PCM_WORKLET], { type: 'text/javascript' }));
+      try {
+        await ctx.audioWorklet.addModule(url);
+      } finally {
+        URL.revokeObjectURL(url);
+      }
+      const node = new AudioWorkletNode(ctx, 'pcm16');
+      node.port.onmessage = (e: MessageEvent<ArrayBuffer>) => mic.sink?.(new Int16Array(e.data));
+      tap = node;
+    }
+    // Through a silent gain to the output: a node only runs while it leads somewhere.
+    const mute = ctx.createGain();
+    mute.gain.value = 0;
+    source.connect(tap);
+    tap.connect(mute);
+    mute.connect(ctx.destination);
+    mic.nodes = [source, tap, mute];
+    return mic;
+  }
+
   listen(handlers: ListenHandlers, opts?: ListenOptions): () => void {
     if (!this.streams()) return this.browser.listen(handlers, opts);
     const apple = /iPhone|iPad|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
-    // Made and started here, inside the tap: an iPhone only lets audio start from a user gesture.
-    // (A context made later reports "running" there, but its processing stalls after a moment.)
-    const ctx = new AudioContext();
-    void ctx.resume().catch(() => {});
+    clearTimeout(this.micIdle);
+    // A microphone still open from the last question is used again: that needs no tap, which is
+    // what lets the phone listen by itself when the guide asks something. Otherwise the audio
+    // context is made and started here, inside the tap: an iPhone only lets audio start from a
+    // user gesture (a context made later reports "running" but stalls after a moment).
+    let mic = this.canListenUntapped() ? this.mic : null;
+    let fresh: AudioContext | null = null;
+    if (!mic) {
+      this.closeMic();
+      fresh = new AudioContext();
+      void fresh.resume().catch(() => {});
+    }
     let frames = 0;
     let watchdog = 0;
-    let stream: MediaStream | null = null;
     let ws: WebSocket | null = null;
     let fallback: (() => void) | null = null;
     let text = '';
@@ -278,21 +378,18 @@ export class DeepgramProvider implements SpeechProvider {
     let done = false;
     let timer = 0;
 
-    const release = () => {
-      stream?.getTracks().forEach((t) => t.stop());
-      stream = null;
+    /** Stop feeding this question; the microphone stays open for a while in case there is another. */
+    const rest = () => {
       clearTimeout(watchdog);
-      source?.disconnect();
-      tap?.disconnect();
-      mute?.disconnect();
-      source = tap = mute = null;
-      if (ctx.state !== 'closed') void ctx.close();
+      if (this.mic) this.mic.sink = null;
+      clearTimeout(this.micIdle);
+      this.micIdle = window.setTimeout(() => this.closeMic(), KEEP_MIC_MS);
     };
     const finish = (final: string) => {
       if (done) return;
       done = true;
       clearTimeout(timer);
-      release();
+      rest();
       ws?.close();
       handlers.onTranscript(final, true);
     };
@@ -300,29 +397,28 @@ export class DeepgramProvider implements SpeechProvider {
       if (done) return;
       done = true;
       clearTimeout(timer);
-      release();
+      clearTimeout(watchdog);
+      this.closeMic(); // whatever went wrong, start clean next time
+      if (fresh && fresh.state !== 'closed') void fresh.close();
       ws?.close();
       handlers.onError(message);
     };
     const sendStop = () => ws?.send(JSON.stringify({ type: 'stop' }));
 
-    // Kept in variables on purpose: audio nodes nothing refers to can be collected by the browser,
-    // and the microphone then reads as silence.
-    let source: MediaStreamAudioSourceNode | null = null;
-    let tap: AudioNode | null = null;
-    let mute: GainNode | null = null;
-
     void (async () => {
-      try {
-        stream = await navigator.mediaDevices.getUserMedia({ audio: { channelCount: 1, echoCancellation: true, noiseSuppression: true } });
-      } catch (err) {
-        return fail(micError(err));
+      if (!mic) {
+        try {
+          mic = await this.openMic(fresh!, apple);
+        } catch (err) {
+          return fail(micError(err));
+        }
+        this.mic = mic;
       }
+      const open = mic;
       if (stopping) return finish(''); // stopped before the microphone opened
-      const track = stream.getAudioTracks()[0];
-      // Opening the microphone switches an iPhone's audio route, which can interrupt the context.
-      if (ctx.state !== 'running') await Promise.race([ctx.resume(), new Promise((r) => setTimeout(r, 800))]);
-      const facts = () => `microphone ${track?.muted ? 'muted' : 'live'} at ${track?.getSettings().sampleRate ?? '?'} Hz, audio ${ctx.state} at ${ctx.sampleRate} Hz, ${apple ? 'script' : 'worklet'} capture`;
+      const { ctx } = open;
+      const track = open.stream.getAudioTracks()[0];
+      const facts = () => `microphone ${track?.muted ? 'muted' : 'live'} at ${track?.getSettings().sampleRate ?? '?'} Hz, audio ${ctx.state} at ${ctx.sampleRate} Hz, ${open.apple ? 'script' : 'worklet'} capture${fresh ? '' : ', microphone kept open'}`;
 
       const socket = new WebSocket(`${wsOrigin()}/ws/speech/listen?sample_rate=${ctx.sampleRate}${opts?.auto ? '&auto=1' : ''}`);
       ws = socket;
@@ -330,8 +426,7 @@ export class DeepgramProvider implements SpeechProvider {
       let loudest = 0;
       let lastFrame = performance.now();
       const started = lastFrame;
-      /** One block of 16-bit samples from the microphone. */
-      const onPcm = (pcm: Int16Array) => {
+      open.sink = (pcm) => {
         if (done) return;
         frames += 1;
         lastFrame = performance.now();
@@ -341,40 +436,6 @@ export class DeepgramProvider implements SpeechProvider {
         handlers.onLevel?.(Math.min(1, peak / 9000));
         if (socket.readyState === WebSocket.OPEN && !stopping) socket.send(pcm.buffer as ArrayBuffer);
       };
-
-      source = ctx.createMediaStreamSource(stream);
-      if (apple) {
-        // iPhone and iPad: the old script node. Their audio worklet stops being called a moment
-        // after the microphone opens; this one keeps running.
-        const node = ctx.createScriptProcessor(4096, 1, 1);
-        node.onaudioprocess = (e) => {
-          const f = e.inputBuffer.getChannelData(0);
-          const pcm = new Int16Array(f.length);
-          for (let i = 0; i < f.length; i++) {
-            const v = Math.max(-1, Math.min(1, f[i]!));
-            pcm[i] = v < 0 ? v * 0x8000 : v * 0x7fff;
-          }
-          onPcm(pcm);
-        };
-        tap = node;
-      } else {
-        const url = URL.createObjectURL(new Blob([PCM_WORKLET], { type: 'text/javascript' }));
-        try {
-          await ctx.audioWorklet.addModule(url);
-        } finally {
-          URL.revokeObjectURL(url);
-        }
-        if (stopping || done) return finish('');
-        const node = new AudioWorkletNode(ctx, 'pcm16');
-        node.port.onmessage = (e: MessageEvent<ArrayBuffer>) => onPcm(new Int16Array(e.data));
-        tap = node;
-      }
-      // Through a silent gain to the output: a node only runs while it leads somewhere.
-      mute = ctx.createGain();
-      mute.gain.value = 0;
-      source.connect(tap);
-      tap.connect(mute);
-      mute.connect(ctx.destination);
 
       // The microphone has to keep delivering: no blocks at all, blocks that stop coming, or
       // blocks of exact zeros (a real microphone is never exactly silent) all mean it is broken.
@@ -406,7 +467,8 @@ export class DeepgramProvider implements SpeechProvider {
           this.sttUnavailable = true;
           if (stopping) return finish('');
           done = true;
-          release();
+          clearTimeout(watchdog);
+          this.closeMic();
           fallback = this.browser.listen(handlers, opts);
         } else if (stopping) finish(text);
         else fail(`Speech recognition stopped: the connection to the server was lost (${frames} blocks of sound sent).`);
@@ -418,11 +480,16 @@ export class DeepgramProvider implements SpeechProvider {
       if (stopping) return;
       stopping = true;
       if (!ws) return; // still opening the microphone; that path finishes
-      release();
+      if (this.mic) this.mic.sink = null;
       if (ws.readyState === WebSocket.OPEN) sendStop();
       // The last words arrive within a second or so; don't wait forever for them.
       timer = window.setTimeout(() => finish(text), 4000);
     };
+  }
+
+  /** Something is being said, or is waiting to be said. */
+  isSpeaking(): boolean {
+    return this.draining || this.queue.length > 0 || this.audio !== null || this.browser.isSpeaking();
   }
 
   speak(text: string, opts: { lang?: string; rate?: number } = {}): void {

@@ -880,6 +880,14 @@ export interface ViewerZoomPayload {
   delta: number;
 }
 
+/**
+ * Additive to v0. The big screen has finished saying a reply aloud. A phone waits for this
+ * before it opens its microphone for the answer, so it does not hear the guide.
+ */
+export interface VoiceSpokenPayload {
+  message_id: string;
+}
+
 export interface VoiceTranscriptPayload {
   text: string;
   final: boolean;
@@ -926,6 +934,7 @@ export interface EventPayloads {
   "capture.upload": CaptureUploadPayload;
   "chat.user": ChatUserPayload;
   "voice.transcript": VoiceTranscriptPayload;
+  "voice.spoken": VoiceSpokenPayload;
   "agent.token": AgentTokenPayload;
   "agent.message": AgentMessagePayload;
   "agent.action": AgentActionPayload;
@@ -938,7 +947,7 @@ export interface EventPayloads {
 }
 
 export type EventType = keyof EventPayloads;
-export const EVENT_TYPES = ["session.state", "session.joined", "session.left", "viewer.goto", "viewer.walk", "viewer.setTime", "viewer.setMode", "viewer.look", "viewer.step", "viewer.zoom", "viewer.playback", "layout.changed", "furniture.select", "remote.view", "design.showVariants", "layout.select", "layout.confirm", "sound.setScenario", "sound.placeSource", "sound.clearSource", "catalog.suggest", "catalog.picked", "capture.upload", "chat.user", "voice.transcript", "agent.token", "agent.message", "agent.action", "agent.error", "agent.turn", "job.progress", "family.note", "family.ask", "family.answer"] as const satisfies readonly EventType[];
+export const EVENT_TYPES = ["session.state", "session.joined", "session.left", "viewer.goto", "viewer.walk", "viewer.setTime", "viewer.setMode", "viewer.look", "viewer.step", "viewer.zoom", "viewer.playback", "layout.changed", "furniture.select", "remote.view", "design.showVariants", "layout.select", "layout.confirm", "sound.setScenario", "sound.placeSource", "sound.clearSource", "catalog.suggest", "catalog.picked", "capture.upload", "chat.user", "voice.transcript", "voice.spoken", "agent.token", "agent.message", "agent.action", "agent.error", "agent.turn", "job.progress", "family.note", "family.ask", "family.answer"] as const satisfies readonly EventType[];
 
 /** The typed envelope for one known event type. */
 export interface Event<T extends EventType = EventType> {

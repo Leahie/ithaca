@@ -3,10 +3,11 @@
 import type { PropertyTwin } from '@ithaca/schema';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { SessionProvider, useSessionInfo } from '@/components/session/SessionProvider';
-import { Badge, Notice, Segmented, Spinner, cn } from '@/components/ui';
+import { Badge, cn, Notice, Segmented, Spinner, Toggle } from '@/components/ui';
 import { IconChat, IconDesign, IconMap, IconMic, IconMute, IconPause, IconPlay, IconSend, IconSound, IconSun, IconTour } from '@/components/ui/icons';
 import { useTwin } from '@/lib/data/hooks';
 import { roomArea, roomName, roomsOnFloor, sweepRooms } from '@/lib/rooms';
+import { useAnswerMic } from '@/lib/speech/useAnswerMic';
 import { usePushToTalk } from '@/lib/speech/usePushToTalk';
 import { useFamily, useMemberName } from '@/lib/store/family';
 import { useSession } from '@/lib/store/session';
@@ -134,6 +135,20 @@ function Remote({ propertyId }: { propertyId: string }) {
   const { error: sessionError } = useSessionInfo();
   const ptt = usePushToTalk();
   const heard = useSession((s) => s.interim?.text ?? '');
+  // Hands-free answers: when the guide asks something, the microphone opens by itself.
+  const [handsFree, setHandsFree] = useState(true);
+  useEffect(() => {
+    try {
+      if (localStorage.getItem('ithaca.handsfree') === 'off') setHandsFree(false);
+    } catch {}
+  }, []);
+  const chooseHandsFree = (on: boolean) => {
+    setHandsFree(on);
+    try {
+      localStorage.setItem('ithaca.handsfree', on ? 'on' : 'off');
+    } catch {}
+  };
+  const answering = useAnswerMic({ enabled: handsFree, memberId: me?.member_id ?? null, listening: ptt.listening, start: ptt.start });
   const [text, setText] = useState('');
   const [view, setView] = useState<RemoteView>('move');
   // Handedness: the walking stick sits under the dominant thumb, the talk button on the other side.
@@ -208,6 +223,10 @@ function Remote({ propertyId }: { propertyId: string }) {
             onChange={chooseHand}
           />
           <p className="text-xs text-muted">The talk, play and sound buttons sit in the top corner on that side.</p>
+          <div className="pt-2">
+            <Toggle label="Open the mic when the guide asks a question" checked={handsFree} onChange={chooseHandsFree} />
+            <p className="mt-1 text-xs text-muted">After your first tap on the mic, it opens by itself for your answer and closes when you stop talking.</p>
+          </div>
           <div className="pt-2 text-sm font-semibold">The guide&apos;s voice</div>
           <Segmented<'female' | 'male'>
             className="w-full [&>button]:flex-1 [&>button]:justify-center"
@@ -223,9 +242,9 @@ function Remote({ propertyId }: { propertyId: string }) {
       {/* Where you are on one side; talk, play the day and sound in the top corner on the dominant hand's side. */}
       <div className={cn('flex shrink-0 items-center gap-3 border-b border-line bg-ink/95 px-3 py-1', hand === 'left' && 'flex-row-reverse')} data-testid="remote-bar">
         <div className={cn('min-w-0 flex-1 truncate', hand === 'left' && 'text-right')} data-testid="remote-room">
-          {ptt.listening || ptt.error ? (
+          {ptt.listening || ptt.error || answering ? (
             <span className={cn('block text-sm', ptt.error ? 'text-danger' : 'text-text')} data-testid="mic-status">
-              <span className="line-clamp-2">{ptt.error ?? (heard ? `“${heard}”` : ptt.level === null ? 'Opening the microphone…' : 'Listening… talk, then pause')}</span>
+              <span className="line-clamp-2">{ptt.error ?? (heard ? `“${heard}”` : !ptt.listening ? 'The guide is asking. The mic opens when it finishes.' : ptt.level === null ? 'Opening the microphone…' : 'Listening… talk, then pause')}</span>
               {/* Proof the microphone hears you: the bar moves with your voice. */}
               {!ptt.error && ptt.level !== null && (
                 <span className="mt-1 block h-1 w-24 overflow-hidden rounded-full bg-line">
