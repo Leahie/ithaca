@@ -13,7 +13,7 @@ from pydantic import BaseModel
 
 import mimetypes
 
-from packages.schema.inventory import InventoryItem
+from packages.schema.inventory import InventoryItem, ResizeItem
 from packages.schema.layout import HousePiece, LayoutVariant, PlacePiece
 from packages.schema.session import JobRef, LayoutFeedbackRequest, RoomFromPhotoRequest
 from services.api.agent import memory_files
@@ -80,6 +80,13 @@ def place_piece(property_id: str, item_id: str, body: PlacePiece, x_user_id: str
     flag comes back in `warnings` (F9); `snap: true` asks for the nearest spot that breaks no rule.
     409 `outside_room` or `no_room` when there is nowhere to put it."""
     return _call(house.place, x_user_id, property_id, item_id, body, x_person_id or x_user_id)
+
+
+@router.put("/properties/{property_id}/furniture/{item_id}/scale")
+def resize_piece(property_id: str, item_id: str, body: ResizeItem, x_user_id: str = Header("demo")) -> InventoryItem:
+    """Resize a piece: drawn at `scale` times its model's own size (0.2 to 5); dims_m follow.
+    The piece itself changes, so it is that size wherever it stands."""
+    return _call(house.resize_item, x_user_id, item_id, body.scale)
 
 
 @router.delete("/properties/{property_id}/furniture/{item_id}", status_code=204)

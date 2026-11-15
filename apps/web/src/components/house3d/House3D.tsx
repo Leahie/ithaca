@@ -44,6 +44,8 @@ export interface PlacedItem {
   url: string;
   position: Vec3;
   yaw_deg: number;
+  /** Times the model's own size (InventoryItem.scale); 1 if unset. */
+  scale?: number;
 }
 
 export type RebuiltHouse = { url: string; info: HouseInfo };
@@ -620,10 +622,12 @@ export function Furniture({ item, selected = false, onObject, onLoaded }: { item
 
   // A5: the stored pose, as it is. A view may move the piece itself in between (a drag).
   const { x, y, z } = item.position;
+  const scale = item.scale ?? 1;
   useLayoutEffect(() => {
     poseObject(scene, x, y, z, item.yaw_deg);
+    scene.scale.setScalar(scale); // resized by hand; a drag only poses it, so this stays
     lighting.invalidate(); // a piece that appears or moves changes the shadows
-  }, [scene, x, y, z, item.yaw_deg, lighting]);
+  }, [scene, x, y, z, item.yaw_deg, scale, lighting]);
   useEffect(() => () => lighting.invalidate(), [lighting, scene]);
 
   const frame = useThree((s) => s.invalidate);

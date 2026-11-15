@@ -5,10 +5,10 @@ import { OrbitControls, useGLTF } from '@react-three/drei';
 import { Canvas } from '@react-three/fiber';
 import { Component, Suspense, useMemo, type ReactNode } from 'react';
 
-function Model({ url }: { url: string }) {
+function Model({ url, scale = 1 }: { url: string; scale?: number }) {
   const gltf = useGLTF(url);
   const scene = useMemo(() => gltf.scene.clone(true), [gltf]);
-  return <primitive object={scene} />;
+  return <primitive object={scene} scale={scale} />;
 }
 
 class Boundary extends Component<{ fallback: ReactNode; children: ReactNode }, { failed: boolean }> {
@@ -34,7 +34,7 @@ export function ItemPreview({ item }: { item: InventoryItem }) {
           <directionalLight position={[-4, 2, -3]} intensity={0.5} />
           <gridHelper args={[4, 8, '#5a5348', '#34302a']} />
           <Suspense fallback={null}>
-            <Model url={item.glb_url} />
+            <Model url={item.glb_url} scale={item.scale ?? 1} />
           </Suspense>
           <OrbitControls autoRotate autoRotateSpeed={1.2} enablePan={false} target={[0, h / 2, 0]} minDistance={r * 0.8} maxDistance={r * 6} />
         </Canvas>

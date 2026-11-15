@@ -447,6 +447,7 @@ export interface InventoryItem {
   price?: number | null;
   product_url?: string | null;
   tag?: string | null;
+  scale?: number;
 }
 
 export interface ItemAttributes {
@@ -828,6 +829,13 @@ export interface ResetResult {
   ok: boolean;
   deleted: ResetCounts;
   failed?: ResetFailure[];
+}
+
+/**
+ * Body of PUT /properties/{property_id}/furniture/{item_id}/scale: draw a piece at this many times its model's size.
+ */
+export interface ResizeItem {
+  scale: number;
 }
 
 export interface Room {

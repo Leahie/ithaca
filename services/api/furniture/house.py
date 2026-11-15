@@ -66,6 +66,28 @@ def delete_item(user_id: str, item_id: str, via: str = HAND) -> InventoryItem:
     return item
 
 
+MIN_SCALE = 0.2
+MAX_SCALE = 5.0
+
+
+def resize_item(user_id: str, item_id: str, scale: float) -> InventoryItem:
+    """Draw a piece at `scale` times its model's own size (anyone in the family may, as they may
+    move it), or anyone arranging the house it stands in. Its dims_m follow, so the plan, the
+    rules and the solver see the new size."""
+    item = pool_item(user_id, item_id)
+    if item is None and furniture_store().stands_in_house(user_id, item_id):
+        item = furniture_store().get_item(str(item_id))
+    if item is None:
+        raise FurnitureError(404, "no such item")
+    if not (scale > 0):
+        raise FurnitureError(422, "scale must be above 0")
+    scale = min(MAX_SCALE, max(MIN_SCALE, scale))
+    k = scale / (item.scale or 1.0)
+    dims = item.dims_m.model_copy(update={"w": item.dims_m.w * k, "d": item.dims_m.d * k, "h": item.dims_m.h * k})
+    stored = furniture_store().put_item(item.model_copy(update={"scale": scale, "dims_m": dims}))
+    return stored.model_copy(update={"owner_name": item.owner_name})
+
+
 # --- where a spot is (F4) -----------------------------------------------------------------------
 
 

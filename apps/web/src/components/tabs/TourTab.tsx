@@ -463,7 +463,7 @@ export function TourTab({
     () =>
       furnitureOnScreen(furniture.data, previewLayout(layouts.data, selectedLayoutId)).flatMap((p) => {
         const item = itemsById.get(p.item_id);
-        return item ? [{ ...p, url: api().assetUrl(item.glb_url) }] : [];
+        return item ? [{ ...p, url: api().assetUrl(item.glb_url), scale: item.scale ?? 1 }] : [];
       }),
     [furniture.data, layouts.data, itemsById, selectedLayoutId],
   );

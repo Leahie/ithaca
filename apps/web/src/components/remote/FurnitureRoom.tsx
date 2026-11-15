@@ -6,7 +6,7 @@ import { createPortal } from 'react-dom';
 import { CARD, CARD_NAME, CARD_SUB, CardImage, CatalogBrowser, SearchBox, matches } from '@/components/design/CatalogBrowser';
 import { OwnRoom } from '@/components/design/OwnRoom';
 import { PhotoButtons, TapToPick, preparePhoto } from '@/components/design/PhotoPiece';
-import { PlanEditor, type PlanControls } from '@/components/design/PlanEditor';
+import { PlanEditor, SIZE_STEP, type PlanControls } from '@/components/design/PlanEditor';
 import { furnitureChanged } from '@/components/house/ArrangePanel';
 import { JobRows, useObjectUpload } from '@/components/me/InventorySection';
 import { MODAL_BACKDROP, MODAL_SCROLL, Spinner, cn, useScrollLock } from '@/components/ui';
@@ -413,6 +413,15 @@ export function FurnitureRoom({ twin, talk }: { twin: PropertyTwin; talk?: Talk 
                   <RoundButton label="Move left" onClick={() => controls.current?.nudge(-NUDGE_M, 0)} className="col-start-1"><IconArrowUp width={16} height={16} className="-rotate-90" /></RoundButton>
                   <RoundButton label="Move down the plan" onClick={() => controls.current?.nudge(0, NUDGE_M)}><IconArrowUp width={16} height={16} className="rotate-180" /></RoundButton>
                   <RoundButton label="Move right" onClick={() => controls.current?.nudge(NUDGE_M, 0)}><IconArrowUp width={16} height={16} className="rotate-90" /></RoundButton>
+                </div>
+              </ToolGroup>
+              <div className="w-px self-stretch bg-line" aria-hidden />
+              <ToolGroup title={`Size · ${Math.round((selectedItem.scale ?? 1) * 100)}%`}>
+                <div className="grid grid-cols-1 gap-1.5">
+                  <button type="button" aria-label="Make it bigger" onClick={() => controls.current?.resize(SIZE_STEP)}
+                    className={cn('h-10 w-10 rounded-full border text-lg font-semibold transition-transform active:scale-95', OFF)}>+</button>
+                  <button type="button" aria-label="Make it smaller" onClick={() => controls.current?.resize(1 / SIZE_STEP)}
+                    className={cn('h-10 w-10 rounded-full border text-lg font-semibold transition-transform active:scale-95', OFF)}>−</button>
                 </div>
               </ToolGroup>
             </div>

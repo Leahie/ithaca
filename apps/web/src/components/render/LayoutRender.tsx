@@ -24,7 +24,7 @@ const DEG = Math.PI / 180;
 const MOMENT = { year: 2026, month: 3, day: 20, hour: 10, minute: 0 };
 
 function GlbItem({ item, placement, onLoaded }: { item: InventoryItem; placement: Placement; onLoaded(): void }) {
-  return <Furniture item={{ item_id: item.item_id, url: item.glb_url, position: placement.position, yaw_deg: placement.yaw_deg }} onLoaded={onLoaded} />;
+  return <Furniture item={{ item_id: item.item_id, url: item.glb_url, position: placement.position, yaw_deg: placement.yaw_deg, scale: item.scale ?? 1 }} onLoaded={onLoaded} />;
 }
 
 class ItemBoundary extends Component<{ fallback: ReactNode; onFailed(): void; children: ReactNode }, { failed: boolean }> {
