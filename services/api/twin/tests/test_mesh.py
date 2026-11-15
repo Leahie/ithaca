@@ -8,7 +8,7 @@ from services.api.twin.mesh import interior_glb_path
 from services.api.twin.service import get_twin
 
 PROPERTY_ID = "onXQLXhfyQv"
-# Extensions the Sun Lab's three.js GLTFLoader handles (meshopt needs MeshoptDecoder).
+# Extensions the web app's three.js GLTFLoader handles (meshopt needs MeshoptDecoder).
 SUPPORTED_EXTENSIONS = {"KHR_mesh_quantization", "EXT_meshopt_compression", "KHR_texture_transform"}
 
 

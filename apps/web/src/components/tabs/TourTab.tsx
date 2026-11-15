@@ -6,6 +6,7 @@ import { Canvas } from '@react-three/fiber';
 import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { Object3D, Vector3 } from 'three';
 import { AssetBoundary, Furniture, Ground, HouseLight, HouseModel, RoomShells, houseBounds, poseObject, useHouseLighting, useRebuiltHouse, useSun } from '@/components/house3d/House3D';
+import { HouseAO } from '@/components/house3d/HouseAO';
 import { LiveArrangeMinimap } from '@/components/house/ArrangeMinimap';
 import { HouseLoader } from '@/components/house/HouseLoader';
 import { HousePlan } from '@/components/house/HousePlan';
@@ -780,8 +781,9 @@ export function TourTab({ twin, active, soundBar = true }: { twin: PropertyTwin;
       <Canvas flat frameloop={active ? 'always' : 'never'} dpr={dpr} camera={{ fov: 72, near: 0.05, far: 3000 }} className="touch-none">
         <PerformanceMonitor flipflops={3} onChange={({ factor }) => setDprFactor(Math.round(factor * 4) / 4)} onFallback={() => setDprFactor(0)} />
         {known && (
-          <HouseLight twin={twin} openings={twin.openings} sun={sun} cutOpenings={!rebuilt}>
+          <HouseLight twin={twin} openings={twin.openings} sun={sun} cutOpenings={!rebuilt} lamps="work">
             <ShadowHandle invalidate={shadows} />
+            <HouseAO enabled={lid.inside} />
             <TourCamera rig={rigRef} house={houseRef} center={bounds3.center} radius={bounds3.radius} active={active} onPick={onPick} onLid={setLid} />
             {rebuilt ? (
               <HouseModel url={rebuilt.url} info={rebuilt.info} inside={lid.inside} topStorey={lid.topStorey} onAssetError={setError} onHouse={onHouse} />

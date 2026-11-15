@@ -37,6 +37,17 @@ const SHADOW_BIAS_M = 0.02;
 const MAX_OPENINGS = 96;
 /** A hole is cut this far to each side of the wall line: walls are thick and outlines a little off. */
 const OPENING_DEPTH_M = 0.5;
+/** Haze at the ground, per meter of air: the next block over is about half hidden. */
+const FOG_DENSITY = 0.005;
+
+// The two lights by time of day (docs/specs/lighting.md, 2): the sun warm, the sky cool, and the
+// gap between them widest near sunset.
+const SUN_NOON = new Color(1.0, 0.96, 0.88);
+const SUN_GOLDEN = new Color(1.0, 0.62, 0.32);
+const SKY_NOON = new Color(0.78, 0.82, 0.9);
+const SKY_GOLDEN = new Color(0.42, 0.55, 0.88);
+const SKY_BLUE_HOUR = new Color(0.16, 0.24, 0.48);
+const SKY_NIGHT = new Color(0.09, 0.15, 0.19);
 
 /** Uniforms every lit material declares. */
 export const SUN_PARS = /* glsl */ `
@@ -47,7 +58,35 @@ export const SUN_PARS = /* glsl */ `
   uniform vec3 sunColor;   // zero when the sun is down
   uniform vec3 sunSky;
   uniform float sunTexel;
-  uniform float sunBias;   // in the shadow map's depth units`;
+  uniform float sunBias;   // in the shadow map's depth units
+  uniform float sunGolden;   // 0 with the sun high, 1 with it near the horizon
+  uniform float sunBlueHour; // 1 just after sunset, 0 by day and in full night
+  uniform float sunNight;    // 0 by day, 1 at night
+  uniform float sunWork;     // working-hours lights: 1 when they are fully on (set from House3D, not by update())
+  uniform vec3 hazeColor;   // the haze lit by the sky: cool
+  uniform vec3 hazeSun;     // the haze toward the sun: warm, strongest when the sun is low
+  uniform float hazeDensity; // per meter, at the ground
+  uniform float hazeBase;   // height of the ground the haze lies on
+
+  // Air between the eye and a point: how much of the point is hidden, and the haze in its place.
+  // Denser near the ground, thinning upward (it halves about every 17 m); the first few meters
+  // are clear, so a room is not milky but the far side of the block fades.
+  vec3 houseFog(vec3 color, vec3 world) {
+    vec3 ray = world - cameraPosition;
+    float dist = length(ray);
+    float clear = max(dist - 6.0, 0.0);
+    if (hazeDensity <= 0.0 || clear <= 0.0) return color;
+    const float FALL = 0.04;
+    float h0 = max(cameraPosition.y - hazeBase, 0.0);
+    float h1 = max(world.y - hazeBase, 0.0);
+    float dh = h1 - h0;
+    float layer = abs(dh) > 0.01 ? (exp(-FALL * h0) - exp(-FALL * h1)) / (FALL * dh) : exp(-FALL * h0);
+    float amount = 1.0 - exp(-hazeDensity * clear * layer);
+    vec3 view = ray / max(dist, 1e-3);
+    float toward = max(dot(view, sunDirection), 0.0);
+    vec3 haze = hazeColor + hazeSun * (pow(toward, 6.0) * 0.8 + pow(toward, 32.0) * 0.6);
+    return mix(color, haze, amount);
+  }`;
 
 /** A window or glass door in a wall that has no hole for it (room outlines only): the sun goes through. */
 export interface SunOpening {
@@ -77,6 +116,14 @@ export class SunLight {
     sunSky: { value: new Color(1, 1, 1) },
     sunTexel: { value: 1 / SHADOW_PX },
     sunBias: { value: 0.0005 },
+    sunGolden: { value: 0 },
+    sunBlueHour: { value: 0 },
+    sunNight: { value: 0 },
+    sunWork: { value: 0 },
+    hazeColor: { value: new Color(0.72, 0.77, 0.84) },
+    hazeSun: { value: new Color(0, 0, 0) },
+    hazeDensity: { value: FOG_DENSITY },
+    hazeBase: { value: 0 },
   };
   /** How bright the sky is now (and anything the sun does not reach). */
   readonly sky = new Color(1, 1, 1);
@@ -161,26 +208,50 @@ export class SunLight {
     const u = this.uniforms;
     if (!toSun) {
       u.sunOn!.value = 0;
+      u.sunGolden!.value = u.sunBlueHour!.value = u.sunNight!.value = 0;
       this.sky.setRGB(1, 1, 1);
+      (u.hazeColor!.value as Color).setRGB(0.72, 0.77, 0.84);
+      (u.hazeSun!.value as Color).setRGB(0, 0, 0);
+      u.hazeDensity!.value = FOG_DENSITY;
       this.on = false;
       return;
     }
     this.on = true;
-    // Brightness of the day: full by day, dim at dusk, dark at night.
+    // The time of day, as three numbers every lit material reads (docs/specs/lighting.md, 1).
+    const golden = 1 - MathUtils.smoothstep(elevationDeg, 4, 45);
+    const blueHour = MathUtils.smoothstep(elevationDeg, -10, -2) * (1 - MathUtils.smoothstep(elevationDeg, -2, 3));
+    const night = 1 - MathUtils.smoothstep(elevationDeg, -8, 2);
+    u.sunGolden!.value = golden;
+    u.sunBlueHour!.value = blueHour;
+    u.sunNight!.value = night;
+
+    // The sky, the light on everything the sun does not reach: barely cool at noon, blue as the
+    // sun gets low, deep blue after sunset, dark at night. Its brightness stays what it was (a
+    // grey of 0.8 by day); only its colour moves.
     const day = MathUtils.smoothstep(elevationDeg, -6, 12);
-    this.sky.setRGB(0.05, 0.065, 0.11).lerp(new Color(0.8, 0.8, 0.8), day);
+    const hue = SKY_NOON.clone().lerp(SKY_GOLDEN, golden);
+    hue.multiplyScalar(2.4 / (hue.r + hue.g + hue.b)); // the same brightness as a grey of 0.8
+    this.sky.copy(SKY_NIGHT).lerp(hue, day).lerp(SKY_BLUE_HOUR, blueHour * 0.85);
     (u.sunSky!.value as Color).copy(this.sky);
-    // Direct sun: off below the horizon, warm and weak when low, near white when high.
+    // Direct sun: off below the horizon; near white high up, amber near the horizon.
     const strength = MathUtils.smoothstep(elevationDeg, 0, 10) * 0.95;
-    (u.sunColor!.value as Color)
-      .setRGB(1.0, 0.55, 0.3)
-      .lerp(new Color(1.0, 0.94, 0.82), MathUtils.smoothstep(elevationDeg, 2, 30))
-      .multiplyScalar(strength);
+    (u.sunColor!.value as Color).copy(SUN_NOON).lerp(SUN_GOLDEN, golden).multiplyScalar(strength);
     const direction = toSun.clone().normalize();
     (u.sunDirection!.value as Vector3).copy(direction);
     u.sunOn!.value = 1;
 
+    // The haze: blue-grey where it is lit by the sky, warm toward the sun. Low sun (morning,
+    // evening) means more air to light through: thicker, bluer away from the sun, amber toward it.
+    (u.hazeColor!.value as Color)
+      .setRGB(0.74, 0.79, 0.86)
+      .lerp(new Color(0.5, 0.58, 0.74), golden)
+      .lerp(new Color(0.12, 0.17, 0.34), blueHour)
+      .lerp(new Color(0.05, 0.085, 0.1), night * (1 - blueHour));
+    (u.hazeSun!.value as Color).copy(u.sunColor!.value as Color).multiplyScalar(0.5 + 0.9 * golden);
+    u.hazeDensity!.value = FOG_DENSITY * (1 + 0.8 * golden - 0.3 * night);
+
     const bounds = this.host.bounds();
+    if (bounds) u.hazeBase!.value = bounds.min.y;
     if (strength > 0 && bounds) this.renderShadowMap(direction, bounds);
   }
 

@@ -1,15 +1,16 @@
 'use client';
 
-import type { Opening, PropertyTwin, Room, Vec3 } from '@ithaca/schema';
+import type { FloorOpening, Opening, PropertyTwin, Room, Vec3 } from '@ithaca/schema';
 import { useGLTF } from '@react-three/drei';
 import { useFrame, useThree, type ThreeEvent } from '@react-three/fiber';
 import { Component, createContext, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState, type MutableRefObject, type ReactNode } from 'react';
-import { Box3, Color, DoubleSide, FrontSide, MeshBasicMaterial, Vector3, type Camera, type IUniform, type Material, type Mesh, type MeshStandardMaterial, type Object3D, type Scene as ThreeScene, type WebGLRenderer } from 'three';
+import { Box3, BufferAttribute, BufferGeometry, Color, DoubleSide, FrontSide, Group, Mesh as ThreeMesh, MeshBasicMaterial, Vector3, type Camera, type IUniform, type Material, type Mesh, type MeshStandardMaterial, type Object3D, type Scene as ThreeScene, type WebGLRenderer } from 'three';
 import { compassToInterior, type V3 } from '@/lib/geometry/frames';
-import { bounds } from '@/lib/geometry/polygon';
-import { House, loadHouseInfo, plainLight, shadePlain, type HouseInfo } from '@/lib/house/house';
+import { bounds, pointInPolygon } from '@/lib/geometry/polygon';
+import { House, loadHouseInfo, plainLamps, plainLight, shadePlain, type HouseInfo } from '@/lib/house/house';
 import { SunLight, sunToward, type SunOpening } from '@/lib/house/sun';
 import { sunPosition } from '@/lib/sun/position';
+import { zonedParts } from '@/lib/time';
 import { floorGeometry, wallGeometry } from '@/lib/three/roomShell';
 
 /**
@@ -34,6 +35,8 @@ export interface SunState {
   elevation_deg: number;
   /** Unit vector toward the sun, interior frame. */
   direction: V3;
+  /** The house's local time of day, in hours (0 to 24). */
+  hour: number;
 }
 
 export interface PlacedItem {
@@ -88,7 +91,8 @@ export function sunAt(twin: PropertyTwin, house: RebuiltHouse | null, instant: D
   const pos = sunPosition(instant, twin.lat, twin.lon);
   const north = house?.info.orientation?.north;
   const direction = north ? sunToward(pos.azimuth_deg, pos.elevation_deg, north) : compassToInterior(twin.interior_to_world, pos.azimuth_deg, pos.elevation_deg);
-  return { ...pos, direction: direction as V3 };
+  const local = zonedParts(instant, twin.timezone);
+  return { ...pos, direction: direction as V3, hour: local.hour + local.minute / 60 };
 }
 
 export function useSun(twin: PropertyTwin, house: RebuiltHouse | null, datetime: string): SunState {
@@ -101,8 +105,10 @@ export function useSun(twin: PropertyTwin, house: RebuiltHouse | null, datetime:
 
 interface Lighting {
   sun: SunLight;
-  /** Around furniture and room outlines: a room's usual light. */
+  /** Around furniture and room outlines: a room's usual daylight. */
   indoor: IUniform<Color>;
+  /** Around furniture and room outlines: the lamps, and the glow of a room the sun shines into. */
+  indoorWarm: IUniform<Color>;
   /** On plain open ground. */
   outdoor: IUniform<Color>;
   house: MutableRefObject<House | null>;
@@ -119,6 +125,15 @@ export function useHouseLighting(): Lighting {
   return lighting;
 }
 
+const BLACK = new Color(0, 0, 0);
+
+/** The rooms' lights, by view (HouseLight's `lamps`). */
+export type LampsMode = 'work' | 'sun';
+/** How long the rooms' lights take to come on or go down when the view changes (s). */
+const LAMPS_EASE_S = 0.4;
+/** The rooms' lights are switched on from 8 am to 5 pm; outside those hours only daylight (or the night) lights the house. */
+const LAMPS_ON_HOURS = [8, 17] as const;
+const lampsSwitchedOn = (hour: number) => (hour >= LAMPS_ON_HOURS[0] && hour < LAMPS_ON_HOURS[1] ? 1 : 0);
 const NIGHT = new Color('#0a0e18');
 const DUSK = new Color('#d98a5a');
 const DAY = new Color('#a9c9e6');
@@ -127,7 +142,7 @@ const DAY = new Color('#a9c9e6');
  * Draw only what casts a shadow (meshes marked `userData.caster`), with the shadow map's
  * material. The house's ceilings, roof and upper storeys cast shadows whether or not they are drawn.
  */
-function renderOccluders(gl: WebGLRenderer, scene: ThreeScene, material: Material, camera: Camera, house: House | null): void {
+function renderOccluders(gl: WebGLRenderer, scene: ThreeScene, material: Material, camera: Camera, house: House | null, seal: Object3D | null): void {
   const hidden: Object3D[] = [];
   house?.setEverything(true);
   scene.traverse((o) => {
@@ -135,6 +150,10 @@ function renderOccluders(gl: WebGLRenderer, scene: ThreeScene, material: Materia
     if (drawn && o.visible && !o.userData.caster) hidden.push(o);
   });
   for (const o of hidden) o.visible = false;
+  // The rebuilt house's walls, ceilings and roof are separate sheets that do not quite meet:
+  // the sun would get in along a wall's top. A lid over each room, a little wider than it, closes
+  // that for the sun only (it is never drawn on screen).
+  if (seal && house) seal.visible = true;
   const background = scene.background;
   scene.background = null;
   scene.overrideMaterial = material;
@@ -142,7 +161,88 @@ function renderOccluders(gl: WebGLRenderer, scene: ThreeScene, material: Materia
   scene.overrideMaterial = null;
   scene.background = background;
   for (const o of hidden) o.visible = true;
+  if (seal) seal.visible = false;
   house?.setEverything(false);
+}
+
+/** How far past a room's outline its lid for the sun reaches (m): about a wall's thickness, no eave. */
+const SEAL_OVERHANG_M = 0.15;
+/** The lid is built of square cells this wide (m), so openings of any shape can be left out of it. */
+const SEAL_CELL_M = 0.1;
+
+/** A room's outline pushed out by `d` metres (mitred corners, a long miter cut short). */
+function grow(polygon: Room['polygon'], d: number): Room['polygon'] {
+  const n = polygon.length;
+  let area = 0;
+  for (let i = 0; i < n; i++) {
+    const [x0, z0] = polygon[i]!;
+    const [x1, z1] = polygon[(i + 1) % n]!;
+    area += x0 * z1 - x1 * z0;
+  }
+  const out = area >= 0 ? 1 : -1;
+  const normal = (a: readonly [number, number], b: readonly [number, number]) => {
+    const dx = b[0] - a[0];
+    const dz = b[1] - a[1];
+    const len = Math.hypot(dx, dz) || 1;
+    return [(dz / len) * out, (-dx / len) * out] as const;
+  };
+  return polygon.map((p, i) => {
+    const n1 = normal(polygon[(i + n - 1) % n]!, p);
+    const n2 = normal(p, polygon[(i + 1) % n]!);
+    let mx = n1[0] + n2[0];
+    let mz = n1[1] + n2[1];
+    const ml = Math.hypot(mx, mz) || 1;
+    mx /= ml;
+    mz /= ml;
+    const k = d / Math.max(mx * n1[0] + mz * n1[1], 0.35);
+    return [p[0] + mx * k, p[1] + mz * k] as [number, number];
+  }) as Room['polygon'];
+}
+
+/**
+ * The lids over the rooms, for the sun's shadow map only. A lid sits at the room's ceiling, or
+ * just above its highest window or glass door if one reaches higher (the sun must still get in
+ * through the top of it), and leaves out the holes between storeys (a stairwell, a double-height
+ * space), through which the sun comes down from the upper windows.
+ */
+function makeSeal(rooms: Room[], openings: Opening[], floorOpenings: FloorOpening[]): Group {
+  const group = new Group();
+  const material = new MeshBasicMaterial();
+  const floorOf = new Map(rooms.map((r) => [r.room_id, r.floor_y]));
+  for (const room of rooms) {
+    if (room.polygon.length < 3) continue;
+    const glassTop = Math.max(
+      -Infinity,
+      ...openings.filter((o) => passesLight(o) && (o.room_id === room.room_id || o.other_room_id === room.room_id)).flatMap((o) => o.polygon.map((q) => q.y)),
+    );
+    const top = Math.max(room.floor_y + room.height_m, glassTop + 0.05) - 0.03;
+    // Holes on this room's level: an opening belongs to the level of the rooms it opens out of.
+    const holes = floorOpenings
+      .filter((f) => f.room_ids.some((id) => Math.abs((floorOf.get(id) ?? Infinity) - room.floor_y) < 0.5))
+      .map((f) => f.polygon);
+    const outline = grow(room.polygon, SEAL_OVERHANG_M);
+    const b = bounds(outline);
+    const cells: number[] = [];
+    const h = SEAL_CELL_M / 2;
+    for (let x = b.minX + h; x < b.maxX; x += SEAL_CELL_M) {
+      for (let z = b.minZ + h; z < b.maxZ; z += SEAL_CELL_M) {
+        if (!pointInPolygon([x, z], outline) || holes.some((hole) => pointInPolygon([x, z], hole))) continue;
+        cells.push(x - h, top, z - h, x + h, top, z - h, x + h, top, z + h, x - h, top, z - h, x + h, top, z + h, x - h, top, z + h);
+      }
+    }
+    if (!cells.length) continue;
+    const geometry = new BufferGeometry();
+    geometry.setAttribute('position', new BufferAttribute(new Float32Array(cells), 3));
+    geometry.computeBoundingSphere();
+    const mesh = new ThreeMesh(geometry, material);
+    mesh.userData.caster = true;
+    mesh.frustumCulled = false;
+    mesh.raycast = () => {};
+    group.add(mesh);
+  }
+  group.visible = false;
+  group.userData.caster = true;
+  return group;
 }
 
 /** Windows and sliders pass light. A door passes light only if it is glazed. */
@@ -180,7 +280,25 @@ export function houseBounds(twin: PropertyTwin): { center: Vector3; radius: numb
  * The light the house is drawn in. `openings` are cut into the shadow map when the walls have no
  * holes of their own (`cutOpenings`: rooms drawn from their outlines).
  */
-export function HouseLight({ twin, openings, sun, cutOpenings, children }: { twin: PropertyTwin; openings: Opening[]; sun: SunState; cutOpenings: boolean; children: ReactNode }) {
+export function HouseLight({
+  twin,
+  openings,
+  sun,
+  cutOpenings,
+  lamps,
+  children,
+}: {
+  twin: PropertyTwin;
+  openings: Opening[];
+  sun: SunState;
+  cutOpenings: boolean;
+  /**
+   * The rooms' lights. 'work': all on, bright and even, at any hour (walking through and placing
+   * furniture). 'sun': the dimmer lamps of the time of day (watching the sun move).
+   */
+  lamps: LampsMode;
+  children: ReactNode;
+}) {
   const gl = useThree((s) => s.gl);
   const scene = useThree((s) => s.scene);
   const frame = useThree((s) => s.invalidate);
@@ -188,6 +306,12 @@ export function HouseLight({ twin, openings, sun, cutOpenings, children }: { twi
   const dirty = useRef(true);
   const sunRef = useRef(sun);
   sunRef.current = sun;
+  // The rooms' lights (docs/specs/lighting.md, 9): eased toward the view's choice over LAMPS_EASE_S.
+  const work = useRef(lamps === 'work' ? 1 : 0);
+  const lampsRef = useRef(lamps);
+  lampsRef.current = lamps;
+  // Switched on or off by the hour, eased the same way.
+  const lit = useRef(lampsSwitchedOn(sun.hour));
   // Without a rebuilt house: the shadow map covers the rooms' outlines and a margin.
   const outline = useMemo(() => {
     const h = houseBounds(twin);
@@ -195,17 +319,31 @@ export function HouseLight({ twin, openings, sun, cutOpenings, children }: { twi
   }, [twin]);
   const outlineRef = useRef(outline);
   outlineRef.current = outline;
+  const sealRef = useRef<Group | null>(null);
+  useEffect(() => {
+    const seal = makeSeal(twin.rooms, twin.openings, twin.floor_openings ?? []);
+    scene.add(seal);
+    sealRef.current = seal;
+    dirty.current = true;
+    return () => {
+      scene.remove(seal);
+      for (const m of seal.children as Mesh[]) m.geometry.dispose();
+      ((seal.children[0] as Mesh | undefined)?.material as Material | undefined)?.dispose();
+      sealRef.current = null;
+    };
+  }, [scene, twin.rooms, twin.openings, twin.floor_openings]);
 
   // Made in an effect, not in useMemo: a render React throws away would leave a render target behind.
   const [lighting, setLighting] = useState<Lighting | null>(null);
   useEffect(() => {
     const light = new SunLight(gl, {
-      renderOccluders: (material, camera) => renderOccluders(gl, scene, material, camera, houseRef.current),
+      renderOccluders: (material, camera) => renderOccluders(gl, scene, material, camera, houseRef.current, sealRef.current),
       bounds: () => houseRef.current?.bounds ?? outlineRef.current,
     });
     setLighting({
       sun: light,
       indoor: { value: new Color(1, 1, 1) },
+      indoorWarm: { value: new Color(0, 0, 0) },
       outdoor: { value: new Color(1, 1, 1) },
       house: houseRef,
       invalidate: () => {
@@ -237,18 +375,30 @@ export function HouseLight({ twin, openings, sun, cutOpenings, children }: { twi
 
   // The sun is worked out again (and its shadow map redrawn) only when it moved or a caster changed.
   const last = useRef('');
-  useFrame(() => {
+  useFrame((_, delta) => {
     if (!lighting) return;
-    const { direction, elevation_deg: el } = sunRef.current;
-    const key = `${direction.join(',')}|${el}`;
+    const { direction, elevation_deg: el, hour } = sunRef.current;
+    const step = Math.min(delta, 0.1) / LAMPS_EASE_S;
+    const ease = (value: MutableRefObject<number>, target: number) => {
+      if (value.current === target) return;
+      value.current = target > value.current ? Math.min(target, value.current + step) : Math.max(target, value.current - step);
+      frame(); // a view drawn on demand keeps drawing until the lights have settled
+    };
+    ease(work, lampsRef.current === 'work' ? 1 : 0);
+    ease(lit, lampsSwitchedOn(hour));
+    const key = `${direction.join(',')}|${el}|${work.current.toFixed(3)}|${lit.current.toFixed(3)}`;
     if (!dirty.current && key === last.current) return;
     dirty.current = false;
     last.current = key;
     const toSun = new Vector3(direction[0], direction[1], direction[2]);
     lighting.sun.update(toSun, el);
-    houseRef.current?.setLight(lighting.sun.sky, toSun, lighting.sun.uniforms.sunColor!.value as Color);
+    const sunWork = lighting.sun.uniforms.sunWork; // sun.ts declares it (docs/specs/lighting.md, 9)
+    const on = lit.current * lit.current * (3 - 2 * lit.current);
+    if (sunWork) sunWork.value = work.current * work.current * (3 - 2 * work.current) * on;
+    houseRef.current?.setLight(lighting.sun.sky, toSun, lighting.sun.uniforms.sunColor!.value as Color, on);
     plainLight(lighting.sun.sky, true, true, lighting.indoor.value);
     plainLight(lighting.sun.sky, true, false, lighting.outdoor.value);
+    plainLamps(lighting.sun.uniforms.sunNight!.value as number, on, lighting.indoorWarm.value).add(houseRef.current?.glow ?? BLACK);
     // Seen only where the house's own sky is not there (a twin without a rebuilt house).
     background.copy(NIGHT).lerp(DUSK, smoothstep(-8, 1, el) * (1 - smoothstep(4, 18, el)) * 0.7).lerp(DAY, smoothstep(-2, 16, el));
   });
@@ -368,7 +518,7 @@ export function RoomShells({ rooms, onWallClick, onReady }: { rooms: Room[]; onW
   const { floors, walls, floorMaterial, wallMaterial } = useMemo(() => {
     const make = (color: string, side: typeof FrontSide | typeof DoubleSide) => {
       const m = new MeshBasicMaterial({ color, side });
-      shadePlain(m, lighting.indoor, lighting.sun.uniforms);
+      shadePlain(m, lighting.indoor, lighting.sun.uniforms, lighting.indoorWarm);
       return m;
     };
     return {
@@ -453,7 +603,7 @@ export function Furniture({ item, selected = false, onObject, onLoaded }: { item
         // A photo texture is the surface color; untextured meshes keep their own color.
         const own = map ? new Color('#ffffff') : (src?.color?.clone() ?? new Color('#d8d4cc'));
         const material = new MeshBasicMaterial({ color: own.clone(), map, side: src?.side ?? FrontSide, transparent: src?.transparent ?? false, opacity: src?.opacity ?? 1, alphaTest: src?.alphaTest ?? 0 });
-        shadePlain(material, lighting.indoor, lighting.sun.uniforms);
+        shadePlain(material, lighting.indoor, lighting.sun.uniforms, lighting.indoorWarm);
         entry = { material, own };
         if (src) made.set(src.uuid, entry);
       }
@@ -496,7 +646,7 @@ export function FurnitureBox({ position, yaw_deg, dims }: { position: Vec3; yaw_
   const lighting = useHouseLighting();
   const material = useMemo(() => {
     const m = new MeshBasicMaterial({ color: '#9aa3ad' });
-    shadePlain(m, lighting.indoor, lighting.sun.uniforms);
+    shadePlain(m, lighting.indoor, lighting.sun.uniforms, lighting.indoorWarm);
     return m;
   }, [lighting]);
   useEffect(() => () => material.dispose(), [material]);
