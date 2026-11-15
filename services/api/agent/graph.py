@@ -8,8 +8,9 @@ Files the agent writes go to one of these places (PLAN.md section 3):
 - anything else      -> StateBackend. Scratch space that lives only in the current thread.
 
 On every model call the agent is shown, read fresh: the property, its family, its person's memory
-files (LiveMemoryMiddleware) and what stands in the house (HouseRegisterMiddleware). Nothing about
-the person or the furniture is answered from a copy made earlier in the conversation.
+files (LiveMemoryMiddleware), the family board of what each person wants (FamilyBoardMiddleware,
+agent/family.py) and what stands in the house (HouseRegisterMiddleware). Nothing about the person,
+the family's wishes or the furniture is answered from a copy made earlier in the conversation.
 /memories/inventory.md is derived from the DB, so the agent can't write it (B3).
 
 `store` and `checkpointer` are injected, so the REPL can use SQLite and the API can use Postgres.
@@ -33,7 +34,7 @@ from langgraph.store.base import BaseStore
 from services.api.agent import memory_files as memory_io
 from services.api.agent import prompts
 from services.api.agent.context import AgentContext
-from services.api.agent.family import FamilyContextMiddleware, family_tools
+from services.api.agent.family import BOARD_TOOLS, FamilyBoardMiddleware, FamilyContextMiddleware, family_tools
 from services.api.agent.models import get_model
 from services.api.agent.design_tools import (
     ask_choice,
@@ -44,6 +45,7 @@ from services.api.agent.design_tools import (
     delete_from_inventory,
     design_apply_layout,
     design_in_background,
+    furnish_room,
     furnish_with_set,
     design_show_variants,
     inventory_search,
@@ -182,12 +184,16 @@ def build_agent(
         model=model or get_model("main"),
         tools=[
             *PROPERTY_TOOLS, *SUN_TOOLS, *AREA_TOOLS, *SOUND_TOOLS, inventory_search, *UI_TOOLS, ask_choice,
-            design_in_background, design_show_variants, design_apply_layout, catalog_sets, furnish_with_set, catalog_search,
+            design_in_background, design_show_variants, design_apply_layout, furnish_room, catalog_sets, furnish_with_set, catalog_search,
             catalog_suggest, catalog_add, place_piece, remove_from_room, delete_from_inventory, *family_tools(),
+            *BOARD_TOOLS,  # every guide keeps its own person's card on the family board
         ],
         system_prompt=prompts.main_persona(subagents=()),  # no helpers through `task`: the designer runs in the background
         # In this order: what changes least comes first, so more of the prompt stays cached.
-        middleware=[PropertyContextMiddleware(), FamilyContextMiddleware(), LiveMemoryMiddleware(), HouseRegisterMiddleware(prompts.BEFORE_YOU_ANSWER)],
+        middleware=[
+            PropertyContextMiddleware(), FamilyContextMiddleware(), LiveMemoryMiddleware(), FamilyBoardMiddleware(),
+            HouseRegisterMiddleware(prompts.BEFORE_YOU_ANSWER),
+        ],
         permissions=READ_ONLY,
         backend=memory_backend(),
         context_schema=AgentContext,
@@ -205,7 +211,8 @@ def build_designer(property_id: str, *, store: BaseStore, model: BaseChatModel |
         model=model or get_model("designer"),
         tools=[inventory_search, *PROPERTY_TOOLS, sun_by_room, propose_layouts],
         system_prompt=prompts.DESIGNER_PROMPT,
-        middleware=[PropertyContextMiddleware(), HouseRegisterMiddleware()],
+        # The board: the rooms are shared, so the designer reads what everyone wants, not only the brief.
+        middleware=[PropertyContextMiddleware(), FamilyBoardMiddleware(designer=True), HouseRegisterMiddleware()],
         context_schema=AgentContext,
         store=store,
         name="designer",

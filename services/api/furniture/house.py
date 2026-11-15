@@ -18,7 +18,7 @@ from packages.schema.layout import HousePiece, LayoutVariant, Placement, PlacePi
 from packages.schema.twin import PropertyTwin, Room, Vec3
 from services.api.agent import views
 from services.api.furniture.store import HAND, furniture_store, norm_yaw, now
-from services.api.objects.classes import MIN_TOP_M, NO_TOP, RESTS_ON_FURNITURE
+from services.api.objects.classes import HANGS_FROM_CEILING, MIN_TOP_M, NO_TOP, RESTS_ON_FURNITURE, top_height
 from services.api.realtime.households import households
 from services.api.sim import layout_solver
 from services.api.twin.service import get_twin
@@ -168,13 +168,28 @@ def place(house_user_id: str, property_id: str, item_id: str, body: PlacePiece, 
 
     key = str(item.item_id)
 
+    # The server picks the spot by what the piece is: a rug under the seating, a lamp on a free
+    # table, a picture over the main piece, a ceiling light overhead (furniture/dress.py).
+    if body.auto:
+        auto_room = hint or room_at(twin, body.x, body.z, floor)
+        if auto_room is None:
+            raise FurnitureError(409, {"error": "outside_room", "violations": ["That spot is not inside a room"]})
+        near = store.house_piece(house_user_id, property_id, body.near_item_id) if body.near_item_id else None
+        placed = place_by(house_user_id, property_id, item, auto_room, str(near.item_id), by, via) if near is not None and near.room_id == auto_room.room_id else None
+        placed = placed or _auto(twin, house_user_id, property_id, item, auto_room, by, via)
+        if placed is not None:
+            return placed
+        body = body.model_copy(update={"snap": True, "room_id": auto_room.room_id})
+        hint = auto_room
+
     # F12. Put down on a piece of furniture, a small thing rests on it: no floor rules apply.
     spot_room = room_at(twin, body.x, body.z, floor) or hint
     resting_on = support_at(house_user_id, property_id, spot_room.room_id, item, body.x, body.z) if spot_room is not None else None
     if resting_on is not None:
         support, support_item = resting_on
         yaw = body.yaw_deg if body.yaw_deg is not None else (current.yaw_deg if current else support.yaw_deg)
-        resting = _piece(twin, property_id, key, room_by_id(twin, support.room_id) or spot_room, body.x, body.z, yaw, by, str(support.item_id), support_item.dims_m.h)
+        top = top_height(support_item.item_class, support_item.dims_m.h)  # the seat of a sofa, not the top of its back
+        resting = _piece(twin, property_id, key, room_by_id(twin, support.room_id) or spot_room, body.x, body.z, yaw, by, str(support.item_id), top)
         return store.put_piece(house_user_id, resting, via)
     # Hanging on a wall, a thing keeps its height when it is slid along by hand.
     if current is not None and current.lift_m > 0 and not current.on_item_id and not body.snap:
@@ -209,6 +224,98 @@ def place(house_user_id: str, property_id: str, item_id: str, body: PlacePiece, 
     return saved.model_copy(update={"warnings": warnings or None})
 
 
+def _auto(twin: PropertyTwin, house_user_id: str, property_id: str, item: InventoryItem, room: Room, by: str, via: str) -> HousePiece | None:
+    """Put a piece into a room at the spot its kind calls for (PlacePiece.auto). None for floor
+    furniture, and for a thing with no such spot: the caller then stands it at the nearest free
+    place, as before."""
+    from services.api.furniture import dress
+
+    if dress.kind_of(item) == "solve":
+        return _auto_floor(twin, house_user_id, property_id, item, room, by, via)
+    key = str(item.item_id)
+    now = dress.in_house(house_user_id, property_id, twin, room, without=key)
+    if not now.place(item):
+        if item.item_class in HANGS_FROM_CEILING:  # a chandelier on the floor is worse than a refusal
+            raise FurnitureError(409, {"error": "no_room", "violations": [now.left[-1].split(": ", 1)[-1].capitalize()]})
+        return None
+    spot = now.spots[key]
+    return furniture_store().put_piece(house_user_id, _piece(twin, property_id, key, room, spot.x, spot.z, spot.yaw, by, spot.on_item_id, spot.lift), via)
+
+
+def place_by(house_user_id: str, property_id: str, item: InventoryItem, room: Room, target_item_id: str, by: str, via: str = HAND) -> HousePiece | None:
+    """Put a thing with a piece standing in the room, as its kind calls for: a lamp or a vase on
+    it, a picture or a mirror on the wall over it, a rug under it, a floor lamp at its end, a
+    ceiling light above it. None for floor furniture (the caller stands it next to the piece),
+    and when there is no such place by that piece."""
+    from services.api.furniture import dress
+
+    if dress.kind_of(item) in ("solve", "corner", "lean"):
+        return None
+    key = str(item.item_id)
+    now = dress.in_house(house_user_id, property_id, get_twin(property_id), room, without=key)
+    if target_item_id not in now.poses or not now.place(item, target_item_id) or key not in now.spots:
+        return None
+    spot = now.spots[key]
+    return furniture_store().put_piece(house_user_id, _piece(get_twin(property_id), property_id, key, room, spot.x, spot.z, spot.yaw, by, spot.on_item_id, spot.lift), via)
+
+
+def _auto_floor(twin: PropertyTwin, house_user_id: str, property_id: str, item: InventoryItem, room: Room, by: str, via: str) -> HousePiece | None:
+    """Stand a piece of floor furniture where such a piece goes in this room as it is furnished
+    now: a coffee table before the sofa, a bedside table beside the bed, a chair at the desk or
+    the dining table, a sofa or a bookcase with its back on the longest free stretch of solid
+    wall. None when none of those spots is free."""
+    from services.api.furniture import arrange
+
+    key = str(item.item_id)
+    items, poses = _room_state(house_user_id, property_id, room.room_id, without=key)
+    standing = {k: i for k in poses if (i := furniture_store().get_item(k)) is not None}
+    mine = [w for w in arrange.auto_wishes([*standing.values(), item], []) if w.item == key]
+    faces = {w.target for w in mine if w.kind == "faces"}
+    tries: list[tuple[float, float, float | None, float]] = []  # x, z, the way to face (None: any), how far to look around
+    for w in mine:
+        if w.target not in poses:
+            continue
+        at, other = poses[w.target], standing[w.target]
+        (fx, fz), (rx, rz) = at.front, at.right
+        if w.kind == "in_front_of":
+            gap = 0.1 if item.item_class in ("chair", "stool") else 0.4  # a chair is pulled up to its desk; a table leaves room for legs
+            out = other.dims_m.d / 2 + item.dims_m.d / 2 + gap
+            tries.append((at.x + fx * out, at.z + fz * out, (at.yaw + 180) % 360 if w.target in faces else at.yaw, 0.8))
+        elif w.kind == "beside":
+            back = other.dims_m.d / 2 - item.dims_m.d / 2  # their backs in one line
+            tries += [
+                (at.x + side * rx * (other.dims_m.w / 2 + item.dims_m.w / 2 + 0.08) - fx * back, at.z + side * rz * (other.dims_m.w / 2 + item.dims_m.w / 2 + 0.08) - fz * back, at.yaw, 0.6)
+                for side in (1, -1)
+            ]
+        elif w.kind == "near":
+            tries.append((at.x, at.z, None, 2.0))
+    table = next((k for k, i in standing.items() if i.item_class == "dining_table"), None)
+    if item.item_class == "chair" and table:  # a free seat at the table: along its long sides, then its ends
+        at, other = poses[table], standing[table]
+        (fx, fz), (rx, rz) = at.front, at.right
+        per_side = max(1, int(other.dims_m.w // (item.dims_m.w + 0.08)))
+        out, end = other.dims_m.d / 2 + item.dims_m.d / 2 + 0.06, other.dims_m.w / 2 + item.dims_m.d / 2 + 0.06
+        for n in range(per_side):
+            along = (n - (per_side - 1) / 2) * (other.dims_m.w / per_side)
+            tries += [(at.x + fx * out + rx * along, at.z + fz * out + rz * along, (at.yaw + 180) % 360, 0.0),
+                      (at.x - fx * out + rx * along, at.z - fz * out + rz * along, at.yaw, 0.0)]
+        tries += [(at.x + rx * end, at.z + rz * end, (at.yaw - 90) % 360, 0.0), (at.x - rx * end, at.z - rz * end, (at.yaw + 90) % 360, 0.0)]
+    solver_room = _solver_room(twin, room)
+    if any(w.kind == "against_wall" for w in mine) or item.item_class in layout_solver.WALL_PIECES:
+        scene = layout_solver._scene(solver_room, twin.openings, twin.walls, twin.sweeps)
+        for wall, part in sorted(scene.solid, key=lambda wp: -wp[1].length):
+            if part.length >= item.dims_m.w:
+                middle = part.interpolate(0.5, normalized=True)
+                off = item.dims_m.d / 2 + layout_solver.WALL_GAP_M + 0.02
+                tries.append((middle.x + wall.normal[0] * off, middle.y + wall.normal[1] * off, None, 1.2))
+    me = _solver_item(item)
+    for x, z, yaw, reach in tries:
+        pose = layout_solver.nearest_valid_pose(solver_room, twin.openings, items + [me], poses, key, x, z, walls=twin.walls, reach_m=max(reach, 0.15), sweeps=twin.sweeps, yaw=yaw)
+        if pose is not None:
+            return furniture_store().put_piece(house_user_id, _piece(twin, property_id, key, room, pose.x, pose.z, pose.yaw, by), via)
+    return None
+
+
 def remove(house_user_id: str, property_id: str, item_id: str, by: str | None = None) -> None:
     """Take a piece out of the house (F7). It stays in storage."""
     if not furniture_store().remove_piece(house_user_id, property_id, item_id, by=by):
@@ -237,7 +344,12 @@ def apply(house_user_id: str, layout_id: str, by: str) -> LayoutVariant:
             continue
         # F4: the proposal's room, unless a nested room on the same floor holds the spot
         here = room_at(twin, p.position.x, p.position.z, room.floor_id) or room
-        pieces.append(_piece(twin, layout.property_id, str(p.item_id), here, p.position.x, p.position.z, p.yaw_deg, by))
+        pieces.append(_piece(
+            twin, layout.property_id, str(p.item_id), here, p.position.x, p.position.z, p.yaw_deg, by,
+            str(p.on_item_id) if p.on_item_id else None, p.lift_m,
+        ))
+    # What stands on the floor first: a lamp's table must be in the house before the lamp is put on it.
+    pieces.sort(key=lambda piece: bool(piece.on_item_id or piece.lift_m))
     return store.apply_proposal(house_user_id, layout, pieces, by)
 
 

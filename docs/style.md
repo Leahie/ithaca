@@ -39,19 +39,23 @@ Errors on glass use `text-coral`, not `text-danger` (too dark to read).
 - Scrolling inside a modal never moves what is underneath. Use `MODAL_BACKDROP` (`touch-none overscroll-none`), `MODAL_SCROLL` for the scrolling body (`touch-pan-y overflow-y-auto overscroll-contain`) and `useScrollLock()` while it is open.
 - The panel around a scrolling body has a definite height (`h-[min(85dvh,44rem)]`), not only a `max-h`: mobile Safari will not shrink a flex child to a max-height, so the list gets clipped instead of scrolling. A sheet without a fixed height puts the `max-h` on the scroller itself.
 - On the phone, a modal's panel is paper (`bg-surface`, `rounded-3xl`) over the same dimmed, blurred backdrop. The phone's Add furniture is a modal, not a sheet stacked in the room view.
+- A modal that deletes for good (Reset everything, on the Me page) says in plain words what goes, what is kept, and that it cannot be undone. The way out ("Keep my data") has the focus, so Enter keeps. The delete button is a filled danger pill (`bg-danger`, white text); while it runs it says so, and Escape and the backdrop do nothing. An error is shown in the modal, where the click was.
+- The big screen's furniture menu is a paper modal too. Glass is for what floats over a house you are still looking at; a window that dims and blurs the whole house is a page of its own, and a page is paper.
 
 ## Tabs
 
 - When a view has distinct sources, split them into tabs instead of stacking sections ("Your furniture" above "From the catalog" was wrong).
 - Tabs are icons in a pill track (`bg-ink`); the active tab is paper (`bg-raised`) and also shows its label. Each tab has an `aria-label` and `title`.
-- Icons: backpack = furniture you own, people = the rest of the family's, shopping bag = the catalog.
+- Icons: backpack = furniture you own, people = the rest of the family's, shopping bag = the catalog and the library, sparkle = a whole room furnished in a look, camera = from a photo.
+- Where there is room (the top bar, the furniture menu from `lg` up) the other tabs show their labels too.
 - The family tab groups pieces by owner under small uppercase headers ("MAYA · 3"); the host's pieces, which have no member name, are "Shared".
 
 ## Filtering
 
 - Filter with a search box (`SearchBox` in `CatalogBrowser.tsx`), never a wall of filter chips. Every word typed must match the name, kind or owner.
-- The catalog is grouped by look (Farmhouse, Industrial, Coastal…) under small section headings, and its search also matches a look or a set by name ("glam", "Parson"). The headings are labels, not buttons: narrowing is still the search box's job.
-- Say so when nothing matches, quoting the search.
+- The library (thousands of pieces) is too large for a search box alone, so its sections are a menu: a rail on the big screen (an icon, the name and the count on each row), one row of pills that scrolls sideways on the phone, "All" first. The collections are a second, shorter list under the rail. That is the whole menu: looks, colours and materials are words in the search box, never chips.
+- The search covers the whole library, waits for a pause in typing, and keeps the chosen section and collection. The counts follow the search; a section the search finds nothing in fades, it does not go away, so the menu never moves.
+- Say so when nothing matches, quoting the search, and name the section and collection it was kept to, with one button to drop them.
 
 ## Popovers
 
@@ -77,6 +81,22 @@ Errors on glass use `text-coral`, not `text-danger` (too dark to read).
 - The picture carries the state: a small `+` in the top-right corner, "Adding…" over a faded picture while it adds, then a leaf `✓` once added.
 - Cards press in slightly when tapped (`active:scale-[0.97]`) and get a darker border on hover.
 - Deleting is a mode, not a second button on every card: a Manage pill in the modal header (gear, then a check and "Done") turns the corner `+` into a red trash can. Tapping a card then turns it into an in-place confirmation ("Delete Sofa? It leaves every house." with Delete and Keep). Cards you may not delete fade out (`opacity-45`) and say whose they are.
+- A library card (`LibraryCard`) also shows up to three small dots from the piece's palette, at the right of the size line. A design that comes in several colours is one card with a small "5 colours" pill on the bottom-left of its picture; the pill opens those colours in place of the grid, with Back, and the grid comes back where it was. The pill sits on the picture so every card keeps the same height.
+- Small things are sized in centimetres ("12×12×30 cm"), furniture in meters.
+- Pictures sit in fixed square boxes and load lazily; the first page shows as card outlines of the same size, more pages load before the end of the grid is reached, and a new search dims the old cards until its own arrive. Nothing jumps.
+- A piece's model is fetched the first time it is used, which can take 20 seconds: the card says "Adding…" and one line under the grid says what is being fetched. On the big screen cards tapped meanwhile wait their turn; an added card keeps its check and can be tapped again for a second one.
+
+## Furniture menu
+
+- The way in is one solid pill, "Furniture" with a sofa icon, the first thing in the top bar's right group and the bar's only solid button. Its word always shows. On the clean screen (no top bar) it is a glass pill with the same icon and word, beside "Controls".
+- It opens a large paper modal (`FurnitureMenu`): the title, one line that states the size of the library from the data ("7,412 pieces from 2 open 3D libraries"), a wide search box, "Adding to: Living Room", Close. Under it four icon tabs: Browse, Furnish this room, Yours, From a photo.
+- Typing in the search box always shows Browse, except under Yours, where it filters your own pieces (the placeholder says which).
+- It stays open while pieces are added, and it is hidden, not thrown away, when closed: the search, the section and the scroll are there the next time.
+- A piece added from a menu or from storage goes into the room in view at a spot the server picks by what it is (`auto`). In no room it goes to storage, and one line says so.
+- One line under the grid is always there (so nothing moves when it changes): what is being fetched, what became of the last piece, or where pieces will go.
+- Furnish this room: the looks are large cards (four pictures, the name, palette dots, two lines of text); how full the room should be is a `Segmented` (Essentials, Fully furnished, Lavish); a look in your own words is one line with the modal's one solid button. The progress replaces the looks; when the room is done the menu closes and the Arrange panel opens with the options to keep.
+- A job the menu started (a room being furnished, a photo being rebuilt) shows as a glass pill at the top of the house while the menu is closed; pressing it opens the menu on that tab.
+- The Arrange panel keeps the plan, the Keep bar and storage as chips. Its "Add furniture" opens the menu. With several options on show for the room, its Keep bar letters them (A, B, C) to try each before keeping one, as the phone does.
 
 ## Arranging on the big screen
 
@@ -89,6 +109,14 @@ Errors on glass use `text-coral`, not `text-danger` (too dark to read).
 - The phone's cube button (beside the compass) switches the big screen to the room from above (`furniture.overview`); it is a round toggle, leaf when on. Only then does the big screen look down on the selected piece and follow it.
 - Inside (cube off), tapping the plan moves the big screen to the scan point nearest the spot (at least a meter away) and faces it; tapping a piece does the same for the piece.
 - In the bottom-right corner, a look stick (`LookStick`) turns the big screen. It is drawn exactly like the Move screen's walk stick (`bg-ink/80` base with a `border-line-strong/50` ring, `bg-main` knob with `shadow-float`), just a little smaller. Push it and the view keeps turning that way, faster the further it is pushed. It replaced a two-finger drag on the plan, which fought with moving furniture.
+
+## Family board
+
+- The Family view is a paper page, like Design and Neighborhood: it is about people, not something over the house. Its tab is the people icon, after Design.
+- One paper card per person (`--radius-card`), the big screen's own card first. A member's card has a dot for their phone: leaf and "here", or grey and "away".
+- A card reads in a fixed order: Must-haves, Style and likes, Avoid, About, then Rooms, with each wish under its room's name. Section titles are small uppercase labels.
+- An entry is one line, with who wrote it ("guide" or "by hand") and when under it in faint text. Its trash can turns the line into a question in place ("Delete …?" with Delete and Keep), as on furniture cards.
+- Each section ends in a one-line box that adds an entry; Rooms has a room picker before the box. Nothing opens a modal.
 
 ## Shape
 
@@ -111,3 +139,13 @@ Errors on glass use `text-coral`, not `text-danger` (too dark to read).
 - 2026-11-14: When the guide asks the user to choose (a room, a look, a piece, a layout), the options come up on the phone as a modal of picture cards over whatever screen it is on (`GuidePopup`): paper panel, dimmed backdrop, rises into place. A room is drawn as its plan, a furniture set as four of its pieces. The same cards show in the chat on the big screen and in the phone's Guide screen. A piece's own number (`#4821`) is shown in grey monospace beside its name wherever pieces are listed.
 - 2026-11-14: The Sun Lab page is gone. The Tour already draws the house under the sun of the moment; the time bar under it, the phone and the guide set the moment.
 - 2026-11-14: "My room from a photo" is a paper card with two steps (take or pick the photo; look at it and say yes), because it replaces what stands in the room. On the phone it is the first thing under the backpack tab of Add furniture; on the big screen it is at the top of Arrange, Add furniture. Its progress stays in view after the Add window is closed.
+- 2026-11-15: A Family view (people icon, after Design): a paper board with one card per person, saying what each wants from a home. The guides write the entries; anyone at the big screen adds a line in place or deletes one with an in-place confirmation.
+- 2026-11-15: Furniture gets its own way in: a solid "Furniture" pill with a sofa icon in the top bar (a glass pill on the clean screen), opening a large paper modal, the furniture menu. Adding furniture was hidden behind Arrange, Add furniture; that button now opens the menu.
+- 2026-11-15: The menu is paper although it is over the house: a modal that dims and blurs the whole house is a page of its own. What still floats over a visible house stays glass (the pill for a running job).
+- 2026-11-15: The menu browses the library (thousands of 3D models from open collections), not the 160-piece catalog. Its sections are a rail with icons and counts, its collections a second short list; on the phone the sections are one row of pills that scrolls sideways. This is the one exception to "a search box, never chips", because nobody can search for what they do not know is there. The catalog's grouping by look is gone from the browser: a look is a word in the search box, or a whole room under Furnish this room.
+- 2026-11-15: Library cards show colour dots, and a "5 colours" pill on the picture that opens a design's colours in place. Small things are sized in centimetres. Grids load a page of 60 at a time as they are scrolled, behind card outlines of the same size.
+- 2026-11-15: The menu stays open after an add (the card keeps its check) and is only hidden when closed, so it comes back as it was left. Pieces go into the room in view where the server sees fit for what they are (`auto`), from the menu, from storage and on the phone; in no room they go to storage.
+- 2026-11-15: Furnish this room: looks as large cards, a three-way "how full" switch, a look in your own words. Its progress shows in place of the looks; done, the menu closes and Arrange opens. The Arrange panel's Keep bar letters several options (A, B, C), as the phone's does.
+- 2026-11-15: "My room from a photo" and a single piece from a photo moved from Arrange, Add furniture into the menu's From a photo tab, side by side. Their progress, and a room being furnished, show as a glass pill at the top of the house while the menu is closed.
+- 2026-11-15: Storage on the big screen is the menu's Yours tab: cards to place with a tap, grouped by owner when there are several, with the Manage mode for deleting. The Arrange panel keeps its storage chips as a shortcut.
+- 2026-11-15: Reset everything: a danger button in the Me page's header opens a paper modal that lists what goes (with counts), what is kept, and that it cannot be undone. "Keep my data" has the focus; "Delete everything" is a filled danger pill, says "Deleting…" while it runs and cannot be closed or pressed again meanwhile. Every other screen then shows a plain paper page ("Everything was reset") in place of what was there. The family popover carries a quiet text link to it, last, in tertiary white.

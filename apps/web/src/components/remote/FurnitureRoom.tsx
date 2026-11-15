@@ -201,12 +201,16 @@ export function FurnitureRoom({ twin, talk }: { twin: PropertyTwin; talk?: Talk 
     return () => window.clearTimeout(t);
   }, [waitingForWords, talk?.listening]);
 
-  /** Put a piece in this room: the server finds the nearest spot to the middle that breaks no rule. */
+  /**
+   * Put a piece in this room. `auto`: the server picks the spot by what the piece is (a rug under
+   * the seating, a lamp on a free table, a picture on the wall), and anything else goes to the
+   * nearest spot to the middle that breaks no rule. It is then selected, to be dragged from there.
+   */
   const place = async (item: InventoryItem) => {
     if (!room) return;
     const b = bounds(room.polygon);
     try {
-      const placed = await api().placePiece(twin.property_id, item.item_id, { x: (b.minX + b.maxX) / 2, z: (b.minZ + b.maxZ) / 2, room_id: room.room_id, floor_id: room.floor_id, snap: true });
+      const placed = await api().placePiece(twin.property_id, item.item_id, { x: (b.minX + b.maxX) / 2, z: (b.minZ + b.maxZ) / 2, room_id: room.room_id, floor_id: room.floor_id, snap: true, auto: true });
       if (trying) dispatch('layout.select', { layout_id: null });
       furnitureChanged(twin.property_id);
       setSheet(null);

@@ -73,6 +73,13 @@ class FamilyAnswerPayload(Model):
     answer: str
 
 
+class BoardChangedPayload(Model):
+    """Additive to v0. The family board changed (packages/schema/board.py): a guide posted, edited
+    or removed an entry, or someone did by hand. Every screen in the session loads the board again."""
+
+    person_id: str | None = None  # whose card changed, when the sender knows
+
+
 class ViewerGotoPayload(Model):
     """Exactly one of room_id / sweep_id. With room_id, `at_sweep_id` and `look_at` (both additive
     to v0) say where to stand and what to face for the best view of the room."""
@@ -300,6 +307,14 @@ class JobProgressPayload(Model):
     note: str | None = None
 
 
+class AppResetPayload(Model):
+    """Additive to v0. Everything was deleted from the big screen ("Reset everything"): this
+    session is over and the server hangs up after sending it. A screen that gets it forgets what
+    it stored (the family, who it is, its session) and does not connect again."""
+
+    reason: str = "reset"
+
+
 # type -> (payload model, who may send it)
 EVENTS: dict[str, tuple[type[Model], frozenset[str]]] = {
     "session.state": (ViewerState, frozenset({"server"})),
@@ -319,8 +334,8 @@ EVENTS: dict[str, tuple[type[Model], frozenset[str]]] = {
     "furniture.overview": (FurnitureOverviewPayload, frozenset({"phone", "desktop"})),
     "remote.view": (RemoteViewPayload, frozenset({"phone"})),
     # the agent's layouts, or the placement options a phone or the desktop asked the server for
-    "design.showVariants": (DesignShowVariantsPayload, frozenset({"agent", "phone", "desktop"})),
-    "layout.select": (LayoutSelectPayload, frozenset({"agent", "phone", "desktop"})),
+    "design.showVariants": (DesignShowVariantsPayload, frozenset({"agent", "phone", "desktop", "server"})),
+    "layout.select": (LayoutSelectPayload, frozenset({"agent", "phone", "desktop", "server"})),
     # Additive to v0. layout.select only previews an option in the room; layout.confirm is the user
     # saying "keep this one": the server puts it in the house, and the agent records it.
     "layout.confirm": (LayoutConfirmPayload, frozenset({"phone", "desktop"})),
@@ -341,9 +356,11 @@ EVENTS: dict[str, tuple[type[Model], frozenset[str]]] = {
     "agent.error": (AgentErrorPayload, frozenset({"agent"})),
     "agent.turn": (AgentTurnPayload, frozenset({"agent"})),
     "job.progress": (JobProgressPayload, frozenset({"server"})),
+    "app.reset": (AppResetPayload, frozenset({"server"})),
     "family.note": (FamilyNotePayload, frozenset({"agent"})),
     "family.ask": (FamilyAskPayload, frozenset({"agent"})),
     "family.answer": (FamilyAnswerPayload, frozenset({"agent"})),
+    "board.changed": (BoardChangedPayload, frozenset({"agent", "phone", "desktop", "server"})),
 }
 
 # Event type -> payload model. The TypeScript codegen reads this.

@@ -1,11 +1,12 @@
 'use client';
 
+import Link from 'next/link';
 import { QRCodeSVG } from 'qrcode.react';
 import { useEffect, useState } from 'react';
 import { useSessionInfo } from '@/components/session/SessionProvider';
 import { Button, GLASS, GLASS_PANEL, cn, glassButton } from '@/components/ui';
 import { IconPhone } from '@/components/ui/icons';
-import { publicOrigin } from '@/lib/config';
+import { config, publicOrigin } from '@/lib/config';
 import { useFamily } from '@/lib/store/family';
 import { useSession } from '@/lib/store/session';
 
@@ -155,6 +156,14 @@ export function FamilyButton({ propertyId, avatar = false }: { propertyId: strin
                 </button>
               </div>
             </div>
+          )}
+          {/* Kept quiet and last: the button itself is on the Me page, which opens its window on arrival. */}
+          {config.features.has('me') && (
+            <p className="mt-3 border-t border-white/20 pt-2.5 text-center">
+              <Link href="/me#reset" className="text-xs text-white/60 underline hover:text-white">
+                Reset everything
+              </Link>
+            </p>
           )}
         </div>
       )}

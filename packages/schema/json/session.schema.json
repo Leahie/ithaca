@@ -203,7 +203,8 @@
             "tour",
             "sound",
             "neighborhood",
-            "design"
+            "design",
+            "family"
           ],
           "title": "Mode",
           "type": "string"

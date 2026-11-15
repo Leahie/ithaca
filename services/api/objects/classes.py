@@ -37,6 +37,8 @@ TYPICAL_SIZE_M: dict[str, tuple[float, float, float]] = {
     "mirror": (0.60, 0.05, 1.20),
     "wall_art": (0.60, 0.04, 0.45),
     "decor": (0.25, 0.25, 0.30),
+    # A chandelier or pendant: it hangs from the ceiling and takes up no floor.
+    "ceiling_light": (0.60, 0.60, 0.55),
     "other": (0.80, 0.60, 0.80),
 }
 
@@ -45,11 +47,22 @@ FURNITURE_CLASSES = tuple(TYPICAL_SIZE_M)
 # Things that may stand on top of a piece of furniture (docs/specs/furniture.md, F12).
 RESTS_ON_FURNITURE = frozenset({"table_lamp", "decor", "plant", "mirror", "wall_art", "other"})
 # What a small thing cannot be put down on: these have no top to stand on.
-NO_TOP = frozenset({"rug", "plant", "floor_lamp", "table_lamp", "decor", "mirror", "wall_art", "chair", "stool"})
+NO_TOP = frozenset({"rug", "plant", "floor_lamp", "table_lamp", "decor", "mirror", "wall_art", "chair", "stool", "ceiling_light"})
 MIN_TOP_M = 0.25  # nothing rests on a piece lower than this
 # Their typical size says little (a vase and a guitar are both "decor"): a size worked out from
 # the photo always stands for these.
-NO_TYPICAL_SIZE = frozenset({"table_lamp", "mirror", "wall_art", "decor", "other"})
+NO_TYPICAL_SIZE = frozenset({"table_lamp", "mirror", "wall_art", "decor", "ceiling_light", "other"})
+# Things that hang: flat on a wall, or from the ceiling. They take up no floor (F12).
+HANGS_ON_WALL = frozenset({"wall_art", "mirror"})
+HANGS_FROM_CEILING = frozenset({"ceiling_light"})
+# Where a thing put down on a piece comes to rest when that is lower than the piece's full height:
+# on the seat of a sofa, on the mattress of a bed, not on top of the back or the headboard.
+TOP_M: dict[str, float] = {"sofa": 0.45, "loveseat": 0.45, "sectional": 0.45, "armchair": 0.45, "bed": 0.6, "crib": 0.5}
+
+
+def top_height(item_class: str, height_m: float) -> float:
+    """How high above the floor the surface of a piece is that things are put down on."""
+    return min(height_m, TOP_M.get(item_class, height_m))
 # Furniture whose typical size is steady enough to tell how far off a photo's scale is.
 SIZE_ANCHORS = frozenset({"bed", "desk", "chair", "nightstand", "dresser", "wardrobe", "sofa", "loveseat", "armchair", "dining_table",
                           "bookshelf", "cabinet", "tv_stand", "side_table", "coffee_table", "console_table", "bench", "stool", "crib"})

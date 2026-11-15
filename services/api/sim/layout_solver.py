@@ -58,7 +58,9 @@ WALL_PIECES = {"sofa", "loveseat", "sectional", "bed", "crib", "bookshelf", "cab
 class Constraint(BaseModel):
     """One wish from the designer. `item` and item-valued `target`s are item_ids."""
 
-    kind: Literal["against_wall", "faces", "near", "in_front_of", "beside", "away_from"]
+    # The last three are not the solver's: they say which piece a lamp stands on, a picture hangs
+    # above or a rug lies under, and are carried out by furniture/dress.py once the floor is arranged.
+    kind: Literal["against_wall", "faces", "near", "in_front_of", "beside", "away_from", "on", "above", "under"]
     item: str
     # against_wall: "any" | "longest" | "window" (a wall with a window) | "solid" (a wall without)
     #   | "north" | "east" | "south" | "west" (the wall on that side of the room; needs solve(compass=...))
@@ -77,6 +79,9 @@ class Constraint(BaseModel):
             "in_front_of": f"{name(self.item)} in front of {name(self.target)}",
             "beside": f"{name(self.item)} beside {name(self.target)}",
             "away_from": f"{name(self.item)} away from the {self.target}s",
+            "on": f"{name(self.item)} on {name(self.target)}",
+            "above": f"{name(self.item)} on the wall above {name(self.target)}",
+            "under": f"{name(self.item)} under {name(self.target)}",
         }[self.kind]
 
 
@@ -593,11 +598,13 @@ def _floating(scene: _Scene, items: list[Item], shapes: dict[str, Polygon], off_
     for i in solid:
         r = root(i.item_id)
         nearest[r] = min(nearest.get(r, math.inf), wall_gap[i.item_id])
-    # a group is anchored by a wall piece whose back is on solid wall, or any other piece touching a wall
+    # a group is anchored by a wall piece whose back is on solid wall, or any other piece touching a
+    # wall. A dining table is anchored where it stands: it belongs in the open, with room to walk round it.
     anchored = {
         root(i.item_id)
         for i in solid
-        if (_off_wall(scene, i, shapes[i.item_id], off_cache) == 0.0 if i.item_class in WALL_PIECES else wall_gap[i.item_id] <= 0.15)
+        if i.item_class == "dining_table"
+        or (_off_wall(scene, i, shapes[i.item_id], off_cache) == 0.0 if i.item_class in WALL_PIECES else wall_gap[i.item_id] <= 0.15)
     }
     return {i.item_id: 0.0 if root(i.item_id) in anchored else max(0.3, min(1.0, nearest[root(i.item_id)] / 1.2)) for i in solid}
 
@@ -748,7 +755,7 @@ def solve(
     if not items:
         return SolveResult([], "no items to place")
     by_id = {i.item_id: i for i in items}
-    constraints = [c for c in constraints if c.item in by_id]
+    constraints = [c for c in constraints if c.item in by_id and c.kind not in ("on", "above", "under")]
     walled = {c.item for c in constraints if c.kind == "against_wall"}
     followers = {c.item for c in constraints if c.kind in ("in_front_of", "beside")}
     constraints = constraints + [

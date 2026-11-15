@@ -14,6 +14,12 @@ class Placement(Model):
     position: Vec3
     # I-G12.
     yaw_deg: float
+    # F12, additive. A small thing standing on another piece of the proposal (a lamp on a side
+    # table): that piece. None for what stands on the floor, hangs on a wall or from the ceiling.
+    on_item_id: UUID | None = None
+    # How far above the room's floor its underside is (the top of the piece under it, the height a
+    # picture hangs at, a ceiling light's underside). 0 on the floor. position.y already includes it.
+    lift_m: float = 0.0
 
 
 class LayoutVariant(Model):
@@ -67,3 +73,21 @@ class PlacePiece(Model):
     floor_id: str | None = None  # the floor of the spot; None: the piece's floor, else any floor
     room_id: str | None = None  # with snap: the room to look in, when the spot itself is not in it
     snap: bool = False  # True: the nearest spot within 2 m that breaks no rule; False: exactly here
+    # Additive. True: the server picks the spot in `room_id` by what the piece is: a rug under the
+    # seating, a lamp on a free table, a picture on the wall over the main piece, a ceiling light
+    # overhead, anything else at the nearest free spot to (x, z). For a piece new to the room.
+    auto: bool = False
+    # With auto: a piece standing in the room that this one goes with. It is then put on it, over
+    # it, under it or beside it, as its kind calls for (a lamp on that table, a picture over that sofa).
+    near_item_id: str | None = None
+
+
+class FurnishRoomRequest(Model):
+    """Body of POST /properties/{property_id}/furnish: have the designer furnish one room from the
+    furniture library, in a look. A job: follow `job.progress` (kind `furnish_room`)."""
+
+    room_id: str
+    look: str | None = None  # a LibraryLook.key, or words of the user's own ("emerald velvet, brass"); None: the designer picks
+    # essential: the pieces the room needs. full: those, and lamps, a rug, art and plants.
+    # lavish: everything a magazine room has.
+    level: Literal["essential", "full", "lavish"] = "full"

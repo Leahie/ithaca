@@ -4,11 +4,12 @@ import type { PropertyTwin, ViewerMode } from '@ithaca/schema';
 import dynamic from 'next/dynamic';
 import Link from 'next/link';
 import { useEffect, useRef, useState } from 'react';
+import { FurnitureMenu } from '@/components/design/FurnitureMenu';
 import { HandsButton, HandsOverlay } from '@/components/hands/HandControl';
 import { DesktopSession } from '@/components/session/DesktopSession';
 import { useSessionInfo } from '@/components/session/SessionProvider';
-import { Badge, Notice, Spinner, ViewState, cn } from '@/components/ui';
-import { IconDesign, IconMap, IconSound, IconTour, IconUser } from '@/components/ui/icons';
+import { Badge, Button, Notice, Spinner, ViewState, cn } from '@/components/ui';
+import { IconDesign, IconMap, IconPeople, IconSofa, IconSound, IconTour, IconUser } from '@/components/ui/icons';
 import { ApiError } from '@/lib/api';
 import { config, type Feature } from '@/lib/config';
 import { useLayouts, useTwin } from '@/lib/data/hooks';
@@ -39,12 +40,14 @@ const TourTab = dynamic(() => import('@/components/tabs/TourTab').then((m) => m.
 const SoundTab = dynamic(() => import('@/components/tabs/SoundTab').then((m) => m.SoundTab), { ssr: false, loading });
 const NeighborhoodTab = dynamic(() => import('@/components/tabs/NeighborhoodTab').then((m) => m.NeighborhoodTab), { ssr: false, loading });
 const DesignTab = dynamic(() => import('@/components/tabs/DesignTab').then((m) => m.DesignTab), { ssr: false, loading });
+const FamilyTab = dynamic(() => import('@/components/tabs/FamilyTab').then((m) => m.FamilyTab), { ssr: false, loading });
 
 const TABS: { mode: ViewerMode; label: string; icon: typeof IconTour }[] = [
   { mode: 'tour', label: 'Tour', icon: IconTour },
   { mode: 'sound', label: 'Sound', icon: IconSound },
   { mode: 'neighborhood', label: 'Neighborhood', icon: IconMap },
   { mode: 'design', label: 'Design', icon: IconDesign },
+  { mode: 'family', label: 'Family', icon: IconPeople },
 ];
 
 /** Caveats the twin carries when a data source was missing (C3). */
@@ -85,6 +88,13 @@ function House({ propertyId }: { propertyId: string }) {
   const [visited, setVisited] = useState<Set<ViewerMode>>(() => new Set());
   const [dockOpen, setDockOpen] = useState(has('agent'));
   const [arranging, setArranging] = useState(false);
+  // The furniture menu (the library, a whole room in a look, storage, photos) belongs to the views
+  // that show furniture. It shuts when another view takes over, so it is not there on the way back.
+  const [furnitureOpen, setFurnitureOpen] = useState(false);
+  const canFurnish = (has('design') || has('agent')) && (mode === 'tour' || mode === 'design');
+  useEffect(() => {
+    if (!canFurnish) setFurnitureOpen(false);
+  }, [canFurnish]);
   // With a phone connected, the phone is the remote and the big screen is only the house: the top
   // bar, the room list and the chat dock stay away until "Controls" is pressed. Alone, the screen
   // is the whole app. Either way the user's own choice wins (lib/store/guide.ts).
@@ -147,8 +157,8 @@ function House({ propertyId }: { propertyId: string }) {
         if (!has('tour')) return;
         const now = useSession.getState().viewer.mode;
         // Walking and arranging happen in the tour. A room picked on the phone also moves the
-        // Sound view's ear, so that view stays.
-        if (moves ? now !== 'tour' : now === 'neighborhood' || now === 'design') useSession.getState().dispatch('viewer.setMode', { mode: 'tour' });
+        // Sound view's ear, so that view stays. The family board is a page, like the other two.
+        if (moves ? now !== 'tour' : now === 'neighborhood' || now === 'design' || now === 'family') useSession.getState().dispatch('viewer.setMode', { mode: 'tour' });
       }),
     [],
   );
@@ -208,6 +218,13 @@ function House({ propertyId }: { propertyId: string }) {
           <div className="mx-auto" />
         )}
         <div className="flex items-center gap-1">
+          {/* The one solid button of the bar, its word always showing: nobody should have to find the furniture. */}
+          {canFurnish && (
+            <Button variant="primary" onClick={() => setFurnitureOpen(true)} aria-haspopup="dialog" data-testid="furniture-open" title="Browse the furniture library, furnish this room in a look, or add your own" className="mr-1">
+              <IconSofa width={18} height={18} />
+              Furniture
+            </Button>
+          )}
           {(has('design') || has('agent')) && mode === 'tour' && (
             <button type="button" onClick={() => setArranging(!arranging)} aria-pressed={arranging} className="inline-flex h-10 items-center rounded-full px-3.5 font-display font-semibold text-muted hover:bg-ink hover:text-text">
               {arranging ? 'Done arranging' : 'Arrange'}
@@ -244,7 +261,7 @@ function House({ propertyId }: { propertyId: string }) {
       )}
 
       <div className="flex min-h-0 flex-1">
-        {mode !== 'neighborhood' && !clean && <RoomRail twin={t} tour={mode === 'tour'} />}
+        {mode !== 'neighborhood' && mode !== 'family' && !clean && <RoomRail twin={t} tour={mode === 'tour'} />}
         <main className="relative min-w-0 flex-1">
           {/* The tour stays mounted once opened: reloading it is slow. While another view is open it
               is faded out, not display:none, so its canvas keeps its size. */}
@@ -253,17 +270,33 @@ function House({ propertyId }: { propertyId: string }) {
               <TourTab twin={t} active={mode === 'tour'} soundBar={!clean && !arranging} />
             </div>
           )}
-          {(mode === 'sound' || mode === 'neighborhood' || mode === 'design') && (
+          {(mode === 'sound' || mode === 'neighborhood' || mode === 'design' || mode === 'family') && (
             <div className="absolute inset-0 z-10 bg-surface">
               {mode === 'sound' && <SoundTab twin={t} />}
               {mode === 'neighborhood' && <NeighborhoodTab twin={t} />}
               {mode === 'design' && <DesignTab twin={t} />}
+              {mode === 'family' && <FamilyTab twin={t} />}
             </div>
           )}
-          {arranging && mode === 'tour' && <ArrangePanel twin={t} onClose={() => setArranging(false)} />}
+          {arranging && mode === 'tour' && <ArrangePanel twin={t} onClose={() => setArranging(false)} onAddFurniture={() => setFurnitureOpen(true)} />}
+          {(has('design') || has('agent')) && (
+            <FurnitureMenu
+              twin={t}
+              open={furnitureOpen && canFurnish}
+              overHouse={mode === 'tour'}
+              onOpen={() => setFurnitureOpen(true)}
+              onClose={() => setFurnitureOpen(false)}
+              onFurnished={() => {
+                // The options to keep are in the room now, and on this screen the Arrange panel is what keeps one.
+                setFurnitureOpen(false);
+                if (mode !== 'tour' && has('tour')) dispatch('viewer.setMode', { mode: 'tour' });
+                setArranging(true);
+              }}
+            />
+          )}
           {has('hands') && <HandsOverlay />}
           {clean && (
-            <CleanOverlay twin={t} onShowControls={() => setScreen('controls')}
+            <CleanOverlay twin={t} onShowControls={() => setScreen('controls')} onFurniture={canFurnish ? () => setFurnitureOpen(true) : undefined}
               pairing={has('family') ? <FamilyButton propertyId={propertyId} avatar /> : <PairingButton propertyId={propertyId} avatar />} />
           )}
         </main>

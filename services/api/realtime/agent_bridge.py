@@ -74,10 +74,11 @@ def action_summary(tool: str, args: dict) -> str:
         "design_in_background": "Starting on the room layout",
         "catalog_sets": "Looking at the furniture sets",
         "furnish_with_set": "Furnishing the room with a set",
+        "furnish_room": "Choosing furniture for the room",
         "task": f"Asking the {args.get('subagent_type', 'helper')}",
         "inventory_search": "Looking at your furniture",
         "propose_layouts": "Arranging the room",
-        "catalog_search": "Looking through the furniture catalog",
+        "catalog_search": "Looking through the furniture library",
         "catalog_add": "Adding a piece to your furniture",
         "place_piece": "Placing a piece in the room",
         "ask_choice": "Showing you the options",
@@ -101,6 +102,9 @@ def action_summary(tool: str, args: dict) -> str:
         "family_post_note": "Posting to the family board",
         "family_read_board": "Reading the family board",
         "family_ask_member": f"Asking {args.get('name', 'a family member')}'s agent",
+        "board_post": "Writing it on the family board",
+        "board_edit": "Updating the family board",
+        "board_remove": "Taking a line off the family board",
     }.get(tool, tool.replace("_", " "))
 
 
@@ -350,8 +354,42 @@ class AgentBridge:
             household_id=room.household_id,
         )
 
+    # --- reset everything (routers/reset.py) ----------------------------------------------------
+
+    def wipe(self) -> None:
+        """Stop what is in flight and forget every session. Call from the event loop.
+
+        A turn that is running is told to stop, as when the user speaks over it; a designer still
+        at work has its thoughts, layouts and report dropped when it comes back (`current()` in
+        _design_in_background finds its run gone). Their threads cannot be killed: each ends at
+        its next step, and `settle` waits for that."""
+        for stop in self._running.values():
+            stop.set()
+        self._running.clear()
+        self._design_runs.clear()
+        self._phone_screen.clear()
+        self._signals.clear()
+        self._last_observed.clear()
+        self._observing.clear()
+        self._locks.clear()
+        self._last_room.clear()
+        self._last_proactive.clear()
+        TOUR_LOGS.clear()  # what each session's visitor did and said, kept for the observer
+
+    async def settle(self, timeout_s: float) -> int:
+        """Wait, at most `timeout_s`, for the work that was in flight to end. Returns how many
+        pieces of it are still running: what they write after this is not undone by anyone."""
+        deadline = time.monotonic() + timeout_s
+        while self._tasks and (left := deadline - time.monotonic()) > 0:
+            # A stopped turn hands its worker thread over as one more task on its way out, so
+            # the set is read again after every wait.
+            await asyncio.wait(set(self._tasks), timeout=left)
+        return len(self._tasks)
+
     def _start(self, room: SessionRoom, text: str, proactive: bool, member_id: str | None = None, interrupts: bool = False) -> None:
         sid = room.session_id
+        if self.hub.rooms.get(sid) is not room:
+            return  # the session has ended (a reset): work that finishes late starts no new turn for it
         if not room.household_id:
             member_id = None  # outside a household a phone speaks for the session's user, as before
         key = f"{sid}:{member_id}" if member_id else sid
@@ -376,6 +414,8 @@ class AgentBridge:
 
         key = turn_key
         async with lock:
+            if self.hub.rooms.get(sid) is not room:
+                return  # the session ended (a reset) while this turn waited for the one before it
             s = room.state
             phone = self._phone_screen.get((sid, member_id), "")
             where = f'<viewer mode="{s.mode}" room_id="{s.room_id or ""}" datetime="{s.datetime or ""}" phone="{phone}"/>\n'
@@ -455,12 +495,15 @@ class AgentBridge:
                 await worker
             emit("agent.turn", {"status": "ended"})
 
-    def _design_in_background(self, room: SessionRoom, member_id: str | None, key: str, room_id: str, brief: str) -> None:
+    def _design_in_background(self, room: SessionRoom, member_id: str | None, key: str, room_id: str, brief: str, furnish: dict | None = None) -> None:
         """Run the designer off to the side. While it works, its short thoughts go to the user as
         guide messages and each set of layouts it solves is shown at once; when it is done the
         guide gets an event turn with its report, queued like any other turn. A new request for the
         same room (say, after the user answered a question) replaces a run still going: the old
-        run's thoughts, layouts and report are dropped."""
+        run's thoughts, layouts and report are dropped.
+        furnish: the room is furnished from the library first (the guide's `furnish_room`): the
+        pieces are chosen in that look and added to the person's furniture, and the designer is
+        then told to arrange exactly those (furniture/furnish.py)."""
         if self.design is None:
             design_gate.dropped(design_gate.key(room.session_id, self._context(room, member_id).user_id), room_id)
             self._start(room, event_message("layouts_failed", "The designer is not available in this setup."), proactive=False, member_id=member_id)
@@ -493,7 +536,25 @@ class AgentBridge:
         async def run() -> None:
             conversation = design_gate.key(room.session_id, context.user_id)
             try:
-                report = await asyncio.to_thread(self.design, context, room_id, brief, progress)
+                words = brief
+                if furnish is not None:
+                    from services.api.agent import memory_files
+                    from services.api.agent.provider import memory_store
+                    from services.api.furniture import furnish as furnishing
+                    from services.api.furniture.store import furniture_store
+
+                    chosen = await asyncio.to_thread(
+                        furnishing.gather, context.user_id, context.furniture_user, context.property_id, room_id, furnish.get("look") or None,
+                        furnish.get("level") or "full", furnish.get("use"), furnish.get("keep_item_ids") or (), furnish.get("avoid") or (),
+                    )
+                    if not chosen.items:
+                        raise RuntimeError(chosen.note or "the library had nothing that fits this room")
+                    memory_files.sync_inventory(memory_store(), context.user_id, furniture_store().list_items(context.user_id))
+                    loop.call_soon_threadsafe(publish, "layout.changed", {})  # the new pieces show in everyone's furniture
+                    words = furnishing.brief(chosen, brief)
+                    if chosen.failed:
+                        words += "\nCould not be added, tell the guide: " + "; ".join(chosen.failed)
+                report = await asyncio.to_thread(self.design, context, room_id, words, progress)
             except Exception as e:
                 log.exception("background designer failed")
                 if not current():

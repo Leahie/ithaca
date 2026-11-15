@@ -34,3 +34,10 @@ export const useSoundField = (propertyId: string, source: SoundPlaceSourcePayloa
 
 export const useMemoryList = () => useResource('memory:list', () => api().listMemory());
 export const useMemoryFile = (path: string | null) => useResource(path ? `memory:file:${path}` : null, () => api().getMemory(path!));
+
+/**
+ * The family board for the house on screen: what each person wants. `householdId`: the family on
+ * this big screen (none: the user's own board). Loaded again on `board.changed` (SessionProvider).
+ */
+export const useBoard = (propertyId: string | null, householdId?: string | null) =>
+  useResource(propertyId ? `board:${propertyId}:${householdId ?? ''}` : null, () => api().getBoard({ propertyId, householdId }));

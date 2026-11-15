@@ -267,12 +267,14 @@ export function applyEvent(state: CoreState, event: AnyEvent): CoreState {
     case 'viewer.step': // a camera move, like viewer.look
     case 'viewer.zoom':
     case 'layout.changed': // other screens reload the layouts (SessionProvider)
+    case 'board.changed': // screens showing the family board reload it (SessionProvider)
     case 'furniture.select': // the tour points the piece out
     case 'voice.spoken': // a phone opens its microphone for the answer
     case 'furniture.drag': // the tour moves the piece with the finger
     case 'furniture.overview': // the tour looks down on the room
     case 'viewer.look':
     case 'capture.upload':
+    case 'app.reset': // everything was deleted: the screen forgets what it kept and stops (SessionProvider)
     case 'agent.turn': // brackets one agent turn; nothing stored yet (use it for a typing indicator)
       return state; // transient: handled by event listeners, not stored
     default: {

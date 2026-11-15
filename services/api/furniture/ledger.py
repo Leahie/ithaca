@@ -28,6 +28,7 @@ from packages.schema.inventory import InventoryItem
 from packages.schema.twin import PropertyTwin, Room
 from services.api.agent import prompts
 from services.api.furniture.store import GUIDE, LAYOUT, PHOTO, furniture_store, house_key
+from services.api.objects.classes import HANGS_FROM_CEILING
 from services.api.realtime.households import households
 from services.api.twin.service import get_twin
 
@@ -145,6 +146,10 @@ def register(house_user_id: str, property_id: str, keyed: bool = False) -> dict:
         if p.on_item_id and (under := pool.get(str(p.on_item_id))) is not None:
             return f"on #{under.tag} {under.label}"
         on_floor = where(twin, room, p.position.x, p.position.z, p.yaw_deg, item)
+        if p.lift_m > 0.05 and item is not None and item.item_class in HANGS_FROM_CEILING:
+            over = next((u for o in pieces if o.room_id == p.room_id and not o.lift_m and not o.on_item_id and (u := pool.get(str(o.item_id))) is not None
+                         and u.item_class != "rug" and math.hypot(o.position.x - p.position.x, o.position.z - p.position.z) < 0.5), None)
+            return f"hanging from the ceiling over #{over.tag} {over.label}" if over else f"hanging from the ceiling, {on_floor.split(',')[0]}"
         if p.lift_m > 0.05:
             wall = on_floor.split(",")[0].replace("against the", "on the").replace("in the", "on the wall in the")
             return f"{wall}, hung {p.lift_m:.1f} m above the floor"

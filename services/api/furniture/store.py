@@ -31,6 +31,7 @@ from packages.schema.inventory import InventoryItem
 from packages.schema.layout import HousePiece, LayoutVariant
 from packages.schema.twin import Vec3
 from services.api.integrations.config import REPO_ROOT, env, fixtures_dir
+from services.api.wipe import compact, empty_tables
 
 log = logging.getLogger(__name__)
 
@@ -480,20 +481,32 @@ class FurnitureStore:
             before = {r[0]: r[1] for r in rows}
             on_floor = {r[0]: (r[1], r[2], r[3], r[4], r[5]) for r in rows if r[6] is None and not r[7]}
             staying = {str(p.item_id) for p in pieces}
-            # The proposal arranges what stands on the floor (F8). What rests on a piece goes with
-            # it, and what hangs on a wall stays where it hangs (F12).
-            db.execute(
-                "DELETE FROM in_house WHERE house_user_id = ? AND property_id = ? AND room_id = ? AND on_item_id IS NULL AND lift_m = 0",
-                (house_user_id, layout.property_id, layout.room_id),
-            )
-            for piece in pieces:
-                self._upsert(db, house_user_id, piece)
-                if str(piece.item_id) in on_floor:
-                    self._carry(db, house_user_id, on_floor[str(piece.item_id)], piece)
-            for item_id, (room_id, *_pose) in on_floor.items():  # what the layout sent back to storage
-                if room_id == layout.room_id and item_id not in staying:
-                    self._log(db, house_user_id, layout.property_id, "removed", item_id, room_id, who, LAYOUT)
-                    self._drop_riders(db, house_user_id, layout.property_id, item_id, who, LAYOUT)
+            if any(p.on_item_id or p.lift_m > 0 for p in pieces):
+                # A dressed proposal: it says where its lamps stand and its pictures hang, so the
+                # room becomes exactly it. Everything else in the room goes back to storage.
+                for item_id, room_id in before.items():
+                    if room_id == layout.room_id and item_id not in staying:
+                        db.execute("DELETE FROM in_house WHERE house_user_id = ? AND property_id = ? AND item_id = ?", (house_user_id, layout.property_id, item_id))
+                        self._log(db, house_user_id, layout.property_id, "removed", item_id, room_id, who, LAYOUT)
+                for piece in pieces:
+                    if before.get(str(piece.item_id), layout.room_id) != layout.room_id:  # it stood in another room: what rested on it there stays behind
+                        self._drop_riders(db, house_user_id, layout.property_id, str(piece.item_id), who, LAYOUT)
+                    self._upsert(db, house_user_id, piece)
+            else:
+                # The proposal arranges what stands on the floor (F8). What rests on a piece goes
+                # with it, and what hangs on a wall stays where it hangs (F12).
+                db.execute(
+                    "DELETE FROM in_house WHERE house_user_id = ? AND property_id = ? AND room_id = ? AND on_item_id IS NULL AND lift_m = 0",
+                    (house_user_id, layout.property_id, layout.room_id),
+                )
+                for piece in pieces:
+                    self._upsert(db, house_user_id, piece)
+                    if str(piece.item_id) in on_floor:
+                        self._carry(db, house_user_id, on_floor[str(piece.item_id)], piece)
+                for item_id, (room_id, *_pose) in on_floor.items():  # what the layout sent back to storage
+                    if room_id == layout.room_id and item_id not in staying:
+                        self._log(db, house_user_id, layout.property_id, "removed", item_id, room_id, who, LAYOUT)
+                        self._drop_riders(db, house_user_id, layout.property_id, item_id, who, LAYOUT)
             for piece in pieces:
                 self._log(db, house_user_id, layout.property_id, "moved" if str(piece.item_id) in before else "placed", str(piece.item_id), piece.room_id, who, LAYOUT)
             for pid, body in db.execute(
@@ -510,6 +523,34 @@ class FurnitureStore:
             )
         self._changed([(house_user_id, layout.property_id)])
         return chosen
+
+    # --- reset everything (routers/reset.py) ----------------------------------------------------
+
+    def _counts(self) -> dict[str, int]:
+        tables = {"furniture": "storage", "in_houses": "in_house", "layouts": "proposals"}
+        return {name: self._db.execute(f"SELECT COUNT(*) FROM {table}").fetchone()[0] for name, table in tables.items()}
+
+    def counts(self) -> dict[str, int]:
+        """How much a reset would delete: pieces of furniture, pieces standing in houses, saved layouts."""
+        with self._lock:
+            return self._counts()
+
+    def wipe(self) -> dict[str, int]:
+        """Delete everything, for everyone: every piece, every house's furniture, every layout and
+        every house's log. Returns counts() as it was just before.
+
+        Done through the open connection: the file stays, so the running API keeps its store.
+        `seeded` is emptied too, which leaves the store exactly as a new install has it: the three
+        sample pieces come back only where a new install hands them out (SEED_DEMO_INVENTORY=1,
+        or an in-memory store). In the real database that is off, so nothing comes back.
+
+        Listeners are not told. They write a house's register to the memory store, and the same
+        reset empties that store: a register of an empty house would be the first thing in it."""
+        with self._lock:
+            before = self._counts()
+            empty_tables(self._db)
+            compact(self._db)
+        return before
 
     # --- migration ------------------------------------------------------------------------------
 

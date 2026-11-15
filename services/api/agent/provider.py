@@ -14,6 +14,7 @@ from typing import Any
 
 from services.api.agent.context import AgentContext
 from services.api.integrations.config import REPO_ROOT, env
+from services.api.wipe import compact, empty_tables
 
 log = logging.getLogger(__name__)
 
@@ -64,6 +65,53 @@ def _storage():
 def memory_store():
     """The store that holds every user's memory files."""
     return _storage()[0]
+
+
+def conversation_store():
+    """The saver that holds every conversation: one thread per person (or family guide) and house."""
+    return _storage()[1]
+
+
+# --- reset everything (routers/reset.py) ----------------------------------------------------------
+# Both are langgraph's own classes, so the wipe is a function here and not a method on them. Each
+# works through the store's open connection, holding the store's lock: the file stays, and the
+# agents built on it (`_deep_agent`, `_observer`, `_designer`) go on using it.
+
+# Tables of the memory database that are not the user's data: the versions of its own schema.
+# Emptied, the store would run its migrations again at the next start and fail on a column that
+# is already there.
+_SCHEMA_TABLES = ("store_migrations", "vector_migrations")
+
+
+def memory_count(store) -> int:
+    """How many memory files there are, of every person, family and house."""
+    with store.lock:
+        return store.conn.execute("SELECT COUNT(*) FROM store").fetchone()[0]
+
+
+def wipe_memory(store) -> int:
+    """Delete every memory file of every person, family and house. Returns how many there were."""
+    with store.lock:
+        before = store.conn.execute("SELECT COUNT(*) FROM store").fetchone()[0]
+        empty_tables(store.conn, keep=_SCHEMA_TABLES)
+        compact(store.conn)
+    return before
+
+
+def conversation_count(saver) -> int:
+    """How many conversations are kept (a conversation is one thread, however long)."""
+    with saver.lock:
+        return saver.conn.execute("SELECT COUNT(DISTINCT thread_id) FROM checkpoints").fetchone()[0]
+
+
+def wipe_conversations(saver) -> int:
+    """Delete every conversation: every checkpoint and every pending write. Returns how many
+    conversations there were."""
+    with saver.lock:
+        before = saver.conn.execute("SELECT COUNT(DISTINCT thread_id) FROM checkpoints").fetchone()[0]
+        empty_tables(saver.conn)
+        compact(saver.conn)
+    return before
 
 
 @lru_cache(maxsize=16)

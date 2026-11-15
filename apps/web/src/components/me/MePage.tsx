@@ -9,6 +9,7 @@ import { houseHref, lastHouse } from '@/lib/lastHouse';
 import { HistorySection } from './HistorySection';
 import { InventorySection } from './InventorySection';
 import { MemorySection } from './MemorySection';
+import { ResetEverything } from './ResetEverything';
 
 type Section = 'inventory' | 'memory' | 'history';
 
@@ -44,6 +45,7 @@ export function MePage() {
           <Link href={houseHref(houseId)} className="text-sm text-muted hover:text-text">
             Back to the home
           </Link>
+          <ResetEverything />
         </header>
         <main className="mx-auto max-w-6xl p-5">
           <div className="mb-5">

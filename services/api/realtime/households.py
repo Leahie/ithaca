@@ -5,6 +5,10 @@ members' agents post for each other. Each member is a user in their own right: `
 their user_id, so their agent keeps its own memory namespace (B4). The board holds only what an
 agent chose to share; nothing here reads a member's memory.
 
+The same database keeps the board of wishes (`board_entries`, packages/schema/board.py): one card
+per person with what they want from a home, written by their guide or by hand. A family has one
+board; a big-screen user with no family has one too, with a single card.
+
 Kept in SQLite next to the agent's dev storage (data/agent/), until the Postgres tables exist.
 Thread-safe: agent tools call it from worker threads.
 """
@@ -19,10 +23,14 @@ from datetime import datetime, timedelta, timezone
 from functools import lru_cache
 from pathlib import Path
 
+from packages.schema.board import BOARD_SHARED, BoardEntry
 from packages.schema.session import Household, Member
 from services.api.integrations.config import REPO_ROOT
+from services.api.wipe import compact, empty_tables
 
 INVITE_TTL = timedelta(hours=24)
+BOARD_KINDS = ("about", "must", "like", "avoid", "room")
+ENTRY_MAX = 200  # characters: a board entry is one short fact, not a paragraph
 
 _SCHEMA = """
 CREATE TABLE IF NOT EXISTS households (
@@ -50,11 +58,44 @@ CREATE TABLE IF NOT EXISTS board_notes (
     created_at TEXT NOT NULL
 );
 CREATE INDEX IF NOT EXISTS notes_household ON board_notes(household_id, created_at);
+CREATE TABLE IF NOT EXISTS board_entries (
+    entry_id TEXT PRIMARY KEY,
+    board TEXT NOT NULL,
+    person_id TEXT NOT NULL,
+    kind TEXT NOT NULL,
+    room_id TEXT,
+    property_id TEXT,
+    text TEXT NOT NULL,
+    "by" TEXT NOT NULL,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS entries_board ON board_entries(board, created_at);
 """
 
 
 def _now() -> datetime:
     return datetime.now(timezone.utc)
+
+
+def is_member(user_id: str) -> bool:
+    """A family member's id, as `join` makes them. Anyone else is a big screen's user."""
+    return user_id.startswith("m-")
+
+
+def solo_board(user_id: str) -> str:
+    """The board of a big-screen user who has no family."""
+    return f"solo:{user_id}"
+
+
+def _fact(text: str) -> str:
+    """An entry's words as they are stored: one line, capped."""
+    return " ".join(str(text).split())[:ENTRY_MAX].strip()
+
+
+def _same(text: str) -> str:
+    """Two entries say the same when this is equal: case and spacing don't count."""
+    return " ".join(text.split()).lower()
 
 
 class InviteInvalid(Exception):
@@ -147,8 +188,8 @@ class HouseholdStore:
 
     def _merge_duplicates(self) -> None:
         """Fold a host's households of the same name (made before a name meant one family) into the
-        newest of them: members and board notes move, the old rows forward to it. Retired families
-        stay as they are. Call with the lock held."""
+        newest of them: members, board notes and board entries move, the old rows forward to it.
+        Retired families stay as they are. Call with the lock held."""
         live = "host_user_id IS NOT NULL AND merged_into IS NULL AND retired_at IS NULL"
         hosts = self._db.execute(
             f"SELECT host_user_id, lower(name) FROM households WHERE {live} GROUP BY host_user_id, lower(name) HAVING count(*) > 1"
@@ -163,6 +204,7 @@ class HouseholdStore:
             try:
                 self._db.execute(f"UPDATE members SET household_id = ? WHERE household_id IN ({marks})", (keep, *rest))
                 self._db.execute(f"UPDATE board_notes SET household_id = ? WHERE household_id IN ({marks})", (keep, *rest))
+                self._db.execute(f"UPDATE board_entries SET board = ? WHERE board IN ({marks})", (keep, *rest))
                 self._db.execute(f"UPDATE households SET merged_into = ? WHERE household_id IN ({marks})", (keep, *rest))
                 self._db.execute("COMMIT")
             except Exception:
@@ -270,6 +312,30 @@ class HouseholdStore:
         with self._lock:
             self._db.execute("UPDATE households SET active_session_id = ? WHERE household_id = ?", (session_id, self._live(household_id)))
 
+    # --- reset everything (routers/reset.py) ----------------------------------------------------
+
+    def _counts(self) -> dict[str, int]:
+        """Call with the lock held. A household folded into another (merged_into) is that same
+        family under an older id, so it is not counted twice."""
+        families = self._db.execute("SELECT COUNT(*) FROM households WHERE merged_into IS NULL").fetchone()[0]
+        return {"families": families, "members": self._db.execute("SELECT COUNT(*) FROM members").fetchone()[0]}
+
+    def counts(self) -> dict[str, int]:
+        """How much a reset would delete: families and their members."""
+        with self._lock:
+            return self._counts()
+
+    def wipe(self) -> dict[str, int]:
+        """Delete everything, for everyone: every family, member, family code and board. Returns
+        counts() as it was just before. Every table in the file is emptied, whatever it is called,
+        so a table added to this database later is covered with no change here. Done through the
+        open connection: the file stays, so the running API keeps its store."""
+        with self._lock:
+            before = self._counts()
+            empty_tables(self._db)
+            compact(self._db)
+        return before
+
     # --- members --------------------------------------------------------------------------------
 
     def join(self, invite_token: str, name: str, member_id: str | None = None) -> tuple[Household, Member]:
@@ -349,6 +415,112 @@ class HouseholdStore:
             args[0] = self._live(household_id)
             rows = self._db.execute(sql, args).fetchall()
         return [dict(r) for r in reversed(rows)]
+
+    # --- the board of wishes (packages/schema/board.py) -----------------------------------------
+    # A board is named by its key: the household_id of a family, or solo_board(user_id) for a
+    # big-screen user with none. A card's person_id is a member_id, or BOARD_SHARED for the big
+    # screen's own card.
+
+    def _board(self, board: str) -> str:
+        """The key as it is stored: a merged family's board is the one it went into. Lock held."""
+        return board if board.startswith("solo:") else self._live(board)
+
+    def board_for(self, user_id: str, household_id: str | None = None) -> str | None:
+        """The board a caller reads and writes. A member: their family's. The big screen's user:
+        the family named (the one on that screen), or their own when none is. None when the member
+        or the family is unknown."""
+        with self._lock:
+            if is_member(user_id):
+                row = self._db.execute("SELECT household_id FROM members WHERE member_id = ?", (user_id,)).fetchone()
+                return self._live(row["household_id"]) if row else None
+            if not household_id:
+                return solo_board(user_id)
+            hid = self._live(household_id)
+            return hid if self._db.execute("SELECT 1 FROM households WHERE household_id = ?", (hid,)).fetchone() else None
+
+    def board_people(self, board: str) -> list[tuple[str, str]]:
+        """(person_id, name) for every card, in the order shown: the big screen's card first (the
+        family's name, or "You" for a person alone), then the members in the order they joined."""
+        h = None if board.startswith("solo:") else self.get(board)
+        if h is None:
+            return [(BOARD_SHARED, "You")]
+        return [(BOARD_SHARED, h.name), *((m.member_id, m.name) for m in h.members)]
+
+    def board_entries(self, board: str, property_id: str | None = None) -> list[BoardEntry]:
+        """Oldest first. With property_id: the room wishes for that house, and all that is about
+        no house (who they are, must-haves, taste)."""
+        sql = "SELECT * FROM board_entries WHERE board = ?"
+        args: list = [board]
+        if property_id:
+            sql += " AND (property_id = ? OR property_id IS NULL)"
+            args.append(property_id)
+        with self._lock:
+            args[0] = self._board(board)
+            rows = self._db.execute(sql + " ORDER BY created_at, rowid", args).fetchall()
+        return [BoardEntry.model_validate(dict(r)) for r in rows]
+
+    def board_entry(self, entry_id: str) -> BoardEntry | None:
+        with self._lock:
+            row = self._db.execute("SELECT * FROM board_entries WHERE entry_id = ?", (entry_id,)).fetchone()
+        return BoardEntry.model_validate(dict(row)) if row else None
+
+    def _twin_entry(self, row, text: str) -> str | None:
+        """Another entry on the same card, of the same kind and room, that says `text`. Lock held."""
+        rows = self._db.execute(
+            "SELECT entry_id, text FROM board_entries WHERE board = ? AND person_id = ? AND kind = ? AND room_id IS ? AND property_id IS ? AND entry_id != ?",
+            (row["board"], row["person_id"], row["kind"], row["room_id"], row["property_id"], row["entry_id"]),
+        ).fetchall()
+        return next((r["entry_id"] for r in rows if _same(r["text"]) == _same(text)), None)
+
+    def add_entry(self, board: str, person_id: str, kind: str, text: str, by: str, room_id: str | None = None, property_id: str | None = None) -> BoardEntry:
+        """One short fact on a person's card. Saying what the card already says (same kind, same
+        room, same words whatever the case and spacing) updates that entry: a guide that repeats
+        itself does not fill the card with copies. Raises ValueError for no text, an unknown kind,
+        or a room wish that names no room."""
+        text = _fact(text)
+        if kind not in BOARD_KINDS:
+            raise ValueError(f"kind must be one of {', '.join(BOARD_KINDS)}")
+        if not text:
+            raise ValueError("an entry needs some text")
+        if kind == "room" and not (room_id and property_id):
+            raise ValueError("a room wish needs room_id and property_id")
+        if kind != "room":
+            room_id = property_id = None  # only a room wish belongs to one house
+        now = _now().isoformat()
+        with self._lock:
+            new = {"entry_id": uuid.uuid4().hex, "board": self._board(board), "person_id": person_id, "kind": kind, "room_id": room_id, "property_id": property_id}
+            entry_id = self._twin_entry(new, text)
+            if entry_id is None:
+                entry_id = new["entry_id"]
+                self._db.execute(
+                    "INSERT INTO board_entries VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                    (entry_id, new["board"], person_id, kind, room_id, property_id, text, by, now, now),
+                )
+            else:
+                # The words as they were just said; the date moves only if they changed at all.
+                self._db.execute("UPDATE board_entries SET text = ?, updated_at = ? WHERE entry_id = ? AND text != ?", (text, now, entry_id, text))
+        return self.board_entry(entry_id)  # type: ignore[return-value]
+
+    def edit_entry(self, entry_id: str, text: str, by: str) -> BoardEntry | None:
+        """New words for an entry (the person changed their mind); None if there is no such entry.
+        If the card already says the new words in another entry, the two become that one."""
+        text = _fact(text)
+        if not text:
+            raise ValueError("an entry needs some text")
+        with self._lock:
+            row = self._db.execute("SELECT * FROM board_entries WHERE entry_id = ?", (entry_id,)).fetchone()
+            if row is None:
+                return None
+            twin = self._twin_entry(row, text)
+            if twin is not None:
+                self._db.execute("DELETE FROM board_entries WHERE entry_id = ?", (entry_id,))
+                entry_id = twin
+            self._db.execute('UPDATE board_entries SET text = ?, "by" = ?, updated_at = ? WHERE entry_id = ?', (text, by, _now().isoformat(), entry_id))
+        return self.board_entry(entry_id)
+
+    def delete_entry(self, entry_id: str) -> bool:
+        with self._lock:
+            return self._db.execute("DELETE FROM board_entries WHERE entry_id = ?", (entry_id,)).rowcount > 0
 
 
 @lru_cache(maxsize=1)

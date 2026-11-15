@@ -200,6 +200,11 @@ its own memory of what they need (B4), its own conversation. The agents compare 
 family board and ask each other ("ask Leo about the kitchen"), and the big screen's agent dock
 shows everything, labelled by person. A phone that scans again comes back as the same person.
 
+The **Family** tab (people icon, after Design) is a board of what each person wants from a home:
+one card per person, plus one for the big screen. Each person's guide writes on their card as it
+learns (must-haves, taste, dislikes, wishes for rooms of this house), and anyone at the big screen
+can add or delete a line by hand. A person with no family has a board with one card.
+
 Real phones need the real API (the hub and the agents), and a way to reach this computer.
 `pnpm dev:all` (repo root) starts both, opens a tunnel for the phones and points the QR code at
 it (`pnpm dev:all:local` keeps to your Wi-Fi). By hand, on your Wi-Fi:

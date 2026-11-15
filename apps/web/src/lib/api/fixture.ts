@@ -2,6 +2,9 @@ import type { HousePiece, Household, InventoryItem, JobProgressPayload, LayoutVa
 import { config } from '@/lib/config';
 import { pointInPolygon } from '@/lib/geometry/polygon';
 import { ApiError, type ApiClient } from './types';
+import type { ResetCounts } from '@ithaca/schema';
+import type { BoardEntry } from '@ithaca/schema';
+import { apiUserId } from './user';
 
 /**
  * Fixture-mode API (A6). Reads come from the repo's `fixtures/` tree, served by the
@@ -102,6 +105,21 @@ function saveHouseholds(all: Record<string, Household>): void {
   }
 }
 
+/**
+ * The family board in fixture mode: kept in memory, per board, with the API's rules. It lasts
+ * until the page is reloaded, and each tab has its own.
+ */
+const boards = new Map<string, BoardEntry[]>();
+const oneLine = (text: string) => text.split(/\s+/).join(' ').trim();
+/** The family whose board the caller sees: a member's own, else the one named, else none. */
+function boardFamily(householdId?: string | null): Household | undefined {
+  const all = loadHouseholds();
+  const me = apiUserId();
+  if (me.startsWith('m-')) return Object.values(all).find((h) => (h.members ?? []).some((m) => m.member_id === me));
+  return householdId ? all[householdId] : undefined;
+}
+const boardKey = (householdId?: string | null) => boardFamily(householdId)?.household_id ?? `solo:${config.userId}`;
+
 async function blobToDataUrl(blob: Blob): Promise<string> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
@@ -132,6 +150,8 @@ function resolveAssets(twin: PropertyTwin): PropertyTwin {
     },
   };
 }
+
+const NOTHING_TO_DELETE: ResetCounts = { furniture: 0, in_houses: 0, layouts: 0, memory_files: 0, conversations: 0, families: 0, members: 0, files: 0 };
 
 export function createFixtureApi(): ApiClient {
   const twins = new Map<string, Promise<PropertyTwin>>();
@@ -400,6 +420,19 @@ export function createFixtureApi(): ApiClient {
     async addFromCatalog() {
       throw new ApiError('The furniture catalog needs the API (fixture mode is on).', 501, true);
     },
+    // The library and the designer live on the API too: an empty library, no looks.
+    async listLibrary() {
+      return { total: 0, total_all: 0, items: [], categories: [], sources: [] };
+    },
+    async addFromLibrary() {
+      throw new ApiError('The furniture library needs the API (fixture mode is on).', 501, true);
+    },
+    async listLooks() {
+      return [];
+    },
+    async furnishRoom() {
+      throw new ApiError('Furnishing a room needs the API (fixture mode is on).', 501, true);
+    },
     async layoutFeedback(id, feedback) {
       const layout = await findLayout(id);
       patchOverlay((o) => (o.layouts[id] = { ...o.layouts[id], feedback }));
@@ -420,6 +453,61 @@ export function createFixtureApi(): ApiClient {
     },
     async deleteMemory(p) {
       patchOverlay((o) => (o.memory[p] = null));
+    },
+    // Fixture mode has no backend, so there is nothing to count. A reset forgets what this browser
+    // changed on top of the fixtures (the overlay, the families) and what this tab holds in memory.
+    async resetPreview() {
+      return { ...NOTHING_TO_DELETE };
+    },
+    async resetEverything() {
+      resetFixtureOverlay();
+      try {
+        window.localStorage.removeItem(HOUSEHOLDS_KEY);
+      } catch {
+        /* nothing was stored */
+      }
+      fixtureJobs.clear();
+      boards.clear();
+      return { ok: true, deleted: { ...NOTHING_TO_DELETE }, failed: [] };
+    },
+    async getBoard({ propertyId, householdId }) {
+      const family = boardFamily(householdId);
+      const key = boardKey(householdId);
+      const entries = (boards.get(key) ?? []).filter((e) => !propertyId || !e.property_id || e.property_id === propertyId);
+      const cards = family
+        ? [{ person_id: 'shared', name: family.name, shared: true }, ...(family.members ?? []).map((m) => ({ person_id: m.member_id, name: m.name, shared: false }))]
+        : [{ person_id: 'shared', name: 'You', shared: true }];
+      return { board_id: key, household_id: family?.household_id ?? null, name: family?.name ?? null, people: cards.map((c) => ({ ...c, entries: entries.filter((e) => e.person_id === c.person_id) })), notes: [] };
+    },
+    async addBoardEntry(entry) {
+      const text = oneLine(entry.text).slice(0, 200);
+      const room = entry.kind === 'room';
+      if (!text) throw new ApiError('an entry needs some text', 422);
+      if (room && !(entry.room_id && entry.property_id)) throw new ApiError('a room wish needs room_id and property_id', 422);
+      const key = boardKey(entry.household_id);
+      const list = boards.get(key) ?? [];
+      const room_id = room ? (entry.room_id ?? null) : null;
+      const now = new Date().toISOString();
+      // Saying what the card already says changes that line: no second copy, as on the server.
+      const same = list.find((e) => e.person_id === entry.person_id && e.kind === entry.kind && (e.room_id ?? null) === room_id && oneLine(e.text).toLowerCase() === text.toLowerCase());
+      const saved: BoardEntry = same
+        ? { ...same, text, updated_at: same.text === text ? same.updated_at : now }
+        : { entry_id: uuid().replace(/-/g, ''), person_id: entry.person_id, kind: entry.kind, text, room_id, property_id: room ? (entry.property_id ?? null) : null, by: 'hand', created_at: now, updated_at: now };
+      boards.set(key, same ? list.map((e) => (e === same ? saved : e)) : [...list, saved]);
+      return saved;
+    },
+    async updateBoardEntry(id, text) {
+      for (const [key, list] of boards) {
+        const hit = list.find((e) => e.entry_id === id);
+        if (!hit) continue;
+        const saved: BoardEntry = { ...hit, text: oneLine(text).slice(0, 200) || hit.text, by: 'hand', updated_at: new Date().toISOString() };
+        boards.set(key, list.map((e) => (e === hit ? saved : e)));
+        return saved;
+      }
+      throw new ApiError('no such entry', 404);
+    },
+    async deleteBoardEntry(id) {
+      for (const [key, list] of boards) boards.set(key, list.filter((e) => e.entry_id !== id));
     },
 
     assetUrl: (url) => (typeof window === 'undefined' ? url : new URL(url, window.location.href).toString()),

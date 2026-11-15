@@ -8,7 +8,7 @@ from typing import Literal
 from .common import Model
 from .reports import NoiseScenario
 
-ViewerMode = Literal["tour", "sound", "neighborhood", "design"]
+ViewerMode = Literal["tour", "sound", "neighborhood", "design", "family"]
 ClientKind = Literal["desktop", "phone"]
 
 
@@ -166,3 +166,42 @@ class JobRef(Model):
 
 class LayoutFeedbackRequest(Model):
     feedback: str
+
+
+# --- Reset everything: delete all of the user's data and start from scratch ---------------------
+
+
+class ResetCounts(Model):
+    """How much there is to delete (GET /reset/preview), or how much was deleted (POST /reset)."""
+
+    furniture: int  # pieces of furniture, everyone's
+    in_houses: int  # pieces standing in a house (one that stands in two houses counts twice)
+    layouts: int  # saved layouts
+    memory_files: int  # what the guides remember, of every person, family and house
+    conversations: int  # one per person (or family guide) and house
+    families: int
+    members: int  # people who joined a family from a phone
+    files: int  # uploaded photos and videos, and the pictures and 3D models made from them
+
+
+class ResetRequest(Model):
+    """Body of POST /reset. `confirm` must be the word "reset": a call made by mistake deletes nothing."""
+
+    confirm: str
+
+
+class ResetFailure(Model):
+    """One part of a reset that did not go through. The other parts were still deleted."""
+
+    # "sessions", "guide", "jobs", "work in flight", "furniture", "families", "memory",
+    # "conversations", "files", "speech log"
+    part: str
+    error: str
+
+
+class ResetResult(Model):
+    """Answer of POST /reset."""
+
+    ok: bool  # True when every part was deleted
+    deleted: ResetCounts
+    failed: list[ResetFailure] = []

@@ -55,6 +55,10 @@ export function CatalogSuggestion({ propertyId, roomId, nearItemId, pieces, onAd
         room_id: room.room_id,
         floor_id: room.floor_id,
         snap: true,
+        // The server puts it where its kind belongs: with the piece the guide named, or, with
+        // none, a lamp on a free table, a picture over the sofa, a rug under the seating.
+        auto: true,
+        near_item_id: beside ? beside.item_id : null,
       });
       invalidate('inventory');
       invalidate(`furniture:${propertyId}`);

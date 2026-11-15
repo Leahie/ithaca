@@ -198,3 +198,118 @@ export const IconGear = (p: P) => (
     <path d="M12 2.5v3M12 18.5v3M2.5 12h3M18.5 12h3M5.3 5.3l2.1 2.1M16.6 16.6l2.1 2.1M5.3 18.7l2.1-2.1M16.6 7.4l2.1-2.1" />
   </svg>
 );
+export const IconChevronLeft = (p: P) => (
+  <svg {...base(p)}>
+    <path d="M15 5l-7 7 7 7" />
+  </svg>
+);
+export const IconChevronRight = (p: P) => (
+  <svg {...base(p)}>
+    <path d="M9 5l7 7-7 7" />
+  </svg>
+);
+
+// The furniture menu: one drawing per section, each a piece seen from the front. The sofa is also
+// the Furniture button's icon.
+export const IconGrid = (p: P) => (
+  <svg {...base(p)}>
+    <rect x="4" y="4" width="6.5" height="6.5" rx="1.5" />
+    <rect x="13.5" y="4" width="6.5" height="6.5" rx="1.5" />
+    <rect x="4" y="13.5" width="6.5" height="6.5" rx="1.5" />
+    <rect x="13.5" y="13.5" width="6.5" height="6.5" rx="1.5" />
+  </svg>
+);
+export const IconSofa = (p: P) => (
+  <svg {...base(p)}>
+    <path d="M5 11V8a2 2 0 012-2h10a2 2 0 012 2v3" />
+    <path d="M3 13a2 2 0 014 0v2h10v-2a2 2 0 014 0v5H3z" />
+    <path d="M6 18v2M18 18v2" />
+  </svg>
+);
+export const IconArmchair = (p: P) => (
+  <svg {...base(p)}>
+    <path d="M7 11V7a2 2 0 012-2h6a2 2 0 012 2v4" />
+    <path d="M5 13a2 2 0 014 0v2h6v-2a2 2 0 014 0v5H5z" />
+    <path d="M7 18v2M17 18v2" />
+  </svg>
+);
+export const IconChair = (p: P) => (
+  <svg {...base(p)}>
+    <path d="M8 12V5a1 1 0 011-1h6a1 1 0 011 1v7M8 8h8" />
+    <path d="M6 12h12v3H6z" />
+    <path d="M7 15v5M17 15v5" />
+  </svg>
+);
+export const IconTable = (p: P) => (
+  <svg {...base(p)}>
+    <rect x="3" y="7" width="18" height="3" rx="1" />
+    <path d="M6 10v9M18 10v9" />
+  </svg>
+);
+export const IconDesk = (p: P) => (
+  <svg {...base(p)}>
+    <path d="M3 7h18M5 7v12" />
+    <path d="M12 7v12h7V7M12 13h7" />
+  </svg>
+);
+export const IconBed = (p: P) => (
+  <svg {...base(p)}>
+    <path d="M3 20V6M3 17h18M21 20v-5a2 2 0 00-2-2H3" />
+    <path d="M6 13v-2a1 1 0 011-1h4a1 1 0 011 1v2" />
+  </svg>
+);
+export const IconStorage = (p: P) => (
+  <svg {...base(p)}>
+    <rect x="5" y="3" width="14" height="18" rx="1.5" />
+    <path d="M5 9h14M5 15h14M12 15v6" />
+  </svg>
+);
+export const IconLamp = (p: P) => (
+  <svg {...base(p)}>
+    <path d="M8.5 3h7l3 8h-13z" />
+    <path d="M12 11v9.5M8 20.5h8" />
+  </svg>
+);
+export const IconRug = (p: P) => (
+  <svg {...base(p)}>
+    <rect x="5" y="6" width="14" height="12" rx="1" />
+    <rect x="8.5" y="9.5" width="7" height="5" rx="0.5" />
+    <path d="M2.5 8H5M2.5 12H5M2.5 16H5M19 8h2.5M19 12h2.5M19 16h2.5" />
+  </svg>
+);
+/** A picture in its frame: wall art and mirrors. */
+export const IconFrame = (p: P) => (
+  <svg {...base(p)}>
+    <rect x="4" y="5" width="16" height="14" rx="1.5" />
+    <path d="M7 16l3.5-4 2.5 2.5 1.5-1.5L17 16" />
+    <circle cx="15" cy="9.5" r="1" />
+  </svg>
+);
+export const IconPlant = (p: P) => (
+  <svg {...base(p)}>
+    <path d="M8 15h8l-1 6H9z" />
+    <path d="M12 15V8" />
+    <path d="M12 12c0-3-2-5-5.5-5 0 3 2 5 5.5 5zM12 9c0-3 2-5 5.5-5 0 3-2 5-5.5 5z" />
+  </svg>
+);
+/** A vase: decorations. */
+export const IconVase = (p: P) => (
+  <svg {...base(p)}>
+    <path d="M10 3h4M10.5 3v3c-2.5 1.5-4 4-4 7a5.5 5.5 0 0011 0c0-3-1.5-5.5-4-7V3" />
+  </svg>
+);
+/** A garden parasol: outdoor furniture. */
+export const IconParasol = (p: P) => (
+  <svg {...base(p)}>
+    <path d="M3 12a9 9 0 0118 0z" />
+    <path d="M12 12v9M8.5 21h7M12 3V2" />
+  </svg>
+);
+/** Toy blocks: children's furniture. */
+export const IconBlocks = (p: P) => (
+  <svg {...base(p)}>
+    <rect x="3" y="13" width="8" height="7.5" rx="1" />
+    <rect x="13" y="13" width="8" height="7.5" rx="1" />
+    <rect x="8" y="3.5" width="8" height="7.5" rx="1" />
+  </svg>
+);

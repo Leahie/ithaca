@@ -7,6 +7,8 @@ build the agent dock, action chips and viewer reactions with no API key. Known p
     "show me December morning"                         -> viewer.setMode sun + viewer.setTime
     "show layouts"                                     -> viewer.setMode design + design.showVariants
     "show me the walk to the bathroom"                 -> viewer.walk (a bedroom to its bathroom)
+    "put on the board: no carpet"                      -> a line on this person's card + board.changed
+    "show the board"                                   -> viewer.setMode family
 """
 
 from __future__ import annotations
@@ -81,12 +83,46 @@ def _family_scripted(text: str, said: str, context: AgentContext) -> Iterator[tu
     return None
 
 
+def _board_scripted(text: str, context: AgentContext) -> Iterator[tuple[Any, ...]] | None:
+    """The family board, scripted, so the Family page can be tried with no LLM: "put on the board:
+    no carpet" writes a line on this person's card, "show the board" opens the page. It cannot
+    tell a must-have from a taste, so every line is a "like". None when the text is neither."""
+    from services.api.agent import family
+    from services.api.realtime.households import households
+
+    plain = text.rsplit("/>\n", 1)[-1].strip()  # what was said, after the lines the hub adds
+    if re.match(r"(?i)(?:show|open)(?: me)? the (?:family )?board", plain):
+
+        def show() -> Iterator[tuple[Any, ...]]:
+            yield ("action", "viewer_set_mode", {"mode": "family"})
+            yield ("ui", {"type": "viewer.setMode", "payload": {"mode": "family"}})
+            yield from _say("Here is the family board.")
+
+        return show()
+    wish = re.match(r"(?i)(?:put|write|add)(?: this)? (?:on|to) the (?:family )?board[:,]?\s*(?:that\s+)?(.+)", plain)
+    if wish is None:
+        return None
+
+    def post() -> Iterator[tuple[Any, ...]]:
+        person = family.board_person(context)
+        yield ("action", "board_post", {"kind": "like", "text": wish.group(1)})
+        entry = households().add_entry(family.board_key(context), person, "like", wish.group(1), "guide")
+        yield ("ui", {"type": "board.changed", "payload": {"person_id": person}})
+        yield from _say(f"On the family board: {entry.text}")
+
+    return post()
+
+
 def stream_turn_scripted(text: str, context: AgentContext, thread_id: str) -> Iterator[tuple[Any, ...]]:
     twin = get_twin(context.property_id)
     said = text.lower()
 
     if '<event type="room_entered">' in said:
         return  # stays silent
+    board_turn = _board_scripted(text, context)
+    if board_turn is not None:
+        yield from board_turn
+        return
     if context.household_id:
         family_turn = _family_scripted(text, said, context)
         if family_turn is not None:

@@ -1,12 +1,13 @@
 'use client';
 
-import type { InventoryItem, PhotoPoint, PropertyTwin } from '@ithaca/schema';
+import type { InventoryItem, LayoutVariant, PhotoPoint, PropertyTwin, Room } from '@ithaca/schema';
 import { useMemo, useState } from 'react';
-import { CatalogBrowser } from '@/components/design/CatalogBrowser';
+import { CatalogBrowser, reason } from '@/components/design/CatalogBrowser';
 import { OwnRoom } from '@/components/design/OwnRoom';
 import { PhotoButtons, TapToPick, preparePhoto } from '@/components/design/PhotoPiece';
 import { PlanEditor } from '@/components/design/PlanEditor';
 import { JobRows, useObjectUpload } from '@/components/me/InventorySection';
+import { cn } from '@/components/ui';
 import { api } from '@/lib/api';
 import { useHouseFurniture, useInventory, useLayouts } from '@/lib/data/hooks';
 import { invalidate } from '@/lib/data/resource';
@@ -43,17 +44,24 @@ export async function offerPlacement(propertyId: string, roomId: string, itemId:
   return options.length;
 }
 
+const LETTERS = 'ABCDEFGH';
+
 /**
  * Floating panel over the 3D views: the furniture standing in the room the user is in, as a plan
  * they can rearrange by hand (docs/specs/furniture.md). The Tour redraws from the
  * house after each change. While a suggested layout is being tried in this room, the panel offers
- * to keep it or go back to what is really there; any edit goes back first.
+ * to keep it or go back to what is really there (several options: to switch between them first);
+ * any edit goes back first.
+ * `onAddFurniture`: the big screen. "Add furniture" opens the furniture menu (FurnitureMenu),
+ * where browsing, the photo flows and storage as cards live; this panel keeps the plan, the Keep
+ * bar and storage as chips.
  * `inline`: the same editor as a plain block, for the phone remote; every change is announced to
  * the session (`layout.changed`) so the big screen redraws, and "Look at it" turns the big screen
- * to the selected piece.
+ * to the selected piece. Without `onAddFurniture` it adds from inside itself (AddInline).
  */
-export function ArrangePanel({ twin, onClose, inline = false }: { twin: PropertyTwin; onClose?(): void; inline?: boolean }) {
+export function ArrangePanel({ twin, onClose, inline = false, onAddFurniture }: { twin: PropertyTwin; onClose?(): void; inline?: boolean; onAddFurniture?(): void }) {
   const selectedId = useSession((s) => s.viewer.selected_layout_id);
+  const shown = useSession((s) => s.viewer.shown_layout_ids);
   const viewRoomId = useSession((s) => s.viewer.room_id);
   const dispatch = useSession((s) => s.dispatch);
   const layouts = useLayouts(twin.property_id);
@@ -65,6 +73,17 @@ export function ArrangePanel({ twin, onClose, inline = false }: { twin: Property
   const items = useMemo(() => new Map<string, InventoryItem>((inventory.data ?? []).map((i) => [i.item_id, i])), [inventory.data]);
   const openings = useMemo(() => (room ? twin.openings.filter((o) => o.room_id === room.room_id || o.other_room_id === room.room_id) : []), [twin.openings, room]);
   const trying = preview && preview.room_id === room?.room_id ? preview : undefined;
+  // The options on show for this room (the designer's, the guide's), lettered in the order they were given.
+  const options = useMemo(
+    () =>
+      room
+        ? (layouts.data ?? [])
+            .filter((l) => l.room_id === room.room_id && l.status !== 'chosen' && shown.includes(l.layout_id))
+            .sort((a, b) => shown.indexOf(a.layout_id) - shown.indexOf(b.layout_id))
+        : [],
+    [layouts.data, shown, room],
+  );
+  const several = options.length > 1;
 
   const [browsing, setBrowsing] = useState(false);
   const [placeError, setPlaceError] = useState<string | null>(null);
@@ -74,6 +93,11 @@ export function ArrangePanel({ twin, onClose, inline = false }: { twin: Property
   /** The user edits what is really in the house: a layout being tried makes way. */
   const backToHouse = () => {
     if (preview) dispatch('layout.select', { layout_id: null });
+  };
+  const keep = (layout: LayoutVariant) => {
+    dispatch('layout.confirm', { layout_id: layout.layout_id });
+    // The choice is made: the other options go away on every screen, as when a phone keeps one.
+    if (several) dispatch('design.showVariants', { layout_ids: [] });
   };
 
   /** Delete a piece from the family's furniture for good (it also leaves the house). */
@@ -89,7 +113,7 @@ export function ArrangePanel({ twin, onClose, inline = false }: { twin: Property
   const inHouse = new Set((house.data ?? []).map((p) => p.item_id));
   const unplaced = (inventory.data ?? []).filter((i) => !inHouse.has(i.item_id));
 
-  /** Put a stored piece into the room: the server finds the nearest spot that works. */
+  /** Put a stored piece into the room: the server picks the spot by what the piece is. */
   const place = async (item: InventoryItem) => {
     if (!room) {
       setPlaceError('Walk into a room first, then add the piece.');
@@ -103,39 +127,20 @@ export function ArrangePanel({ twin, onClose, inline = false }: { twin: Property
         setBrowsing(false);
         setOffered(n > 1 ? `${n} places for the ${item.label} are on the big screen. Pick one above.` : null);
       } catch (err) {
-        const text = err instanceof Error ? err.message : String(err);
-        setPlaceError(/"violations":\s*\["([^"]+)"/.exec(text)?.[1] ?? text);
+        setPlaceError(reason(err));
       }
       return;
     }
     const b = bounds(room.polygon);
     try {
-      await api().placePiece(twin.property_id, item.item_id, { x: (b.minX + b.maxX) / 2, z: (b.minZ + b.maxZ) / 2, room_id: room.room_id, floor_id: room.floor_id, snap: true });
+      // `auto`: a rug goes under the seating, a lamp on a free table, a picture on the wall; anything else near the middle.
+      await api().placePiece(twin.property_id, item.item_id, { x: (b.minX + b.maxX) / 2, z: (b.minZ + b.maxZ) / 2, room_id: room.room_id, floor_id: room.floor_id, snap: true, auto: true });
       backToHouse();
       furnitureChanged(twin.property_id);
       setBrowsing(false);
     } catch (err) {
-      const text = err instanceof Error ? err.message : String(err);
-      setPlaceError(/"violations":\s*\["([^"]+)"/.exec(text)?.[1] ?? text);
+      setPlaceError(reason(err));
     }
-  };
-
-  // A photo: tap the piece, SAM cuts it out and builds it in 3D, and it is put in this room.
-  // A photo of the person's own room: everything in it is built, and the server sets this room up with it.
-  const { upload, uploadRoom, busy: uploading, error: uploadError, rows, dismiss } = useObjectUpload(
-    (itemId) => {
-      void api().getInventoryItem(itemId).then(place, (err: unknown) => setPlaceError(err instanceof Error ? err.message : String(err)));
-    },
-    () => {
-      backToHouse();
-      furnitureChanged(twin.property_id);
-      setBrowsing(false);
-    },
-  );
-  const [photo, setPhoto] = useState<File | null>(null);
-  const sendPhoto = async (at: PhotoPoint | undefined) => {
-    if (!photo) return;
-    if (await upload(photo, at, at ? 'The piece you tapped' : 'Every piece in the photo')) setPhoto(null);
   };
 
   /** Turn the big screen to a piece: stand at a scan position a few steps away and face it. */
@@ -157,7 +162,7 @@ export function ArrangePanel({ twin, onClose, inline = false }: { twin: Property
           {browsing ? 'Add furniture' : inline ? 'Arrange this room' : 'Arrange'}
           {room && !inline ? `: ${roomName(twin, room.room_id)}` : ''}
         </h2>
-        <button type="button" onClick={() => setBrowsing(!browsing)} aria-pressed={browsing}
+        <button type="button" onClick={() => (onAddFurniture ? onAddFurniture() : setBrowsing(!browsing))} aria-pressed={onAddFurniture ? undefined : browsing} aria-haspopup={onAddFurniture ? 'dialog' : undefined}
           className={inline ? 'ml-auto h-8 rounded-full border border-line bg-raised px-3 text-xs font-semibold' : 'ml-auto rounded-full bg-ink px-2.5 py-1 text-sm font-semibold hover:bg-raised'}>
           {browsing ? 'Back to the plan' : 'Add furniture'}
         </button>
@@ -167,36 +172,55 @@ export function ArrangePanel({ twin, onClose, inline = false }: { twin: Property
           </button>
         )}
       </header>
-      {trying && !browsing && (
-        <div role="status" className="mb-2 flex flex-wrap items-center gap-1.5 rounded-xl bg-ink px-2.5 py-1.5 text-sm">
-          <span className="mr-auto">You are trying a suggested layout here.</span>
-          <button type="button" onClick={() => dispatch('layout.confirm', { layout_id: trying.layout_id })} className="rounded-full bg-main px-2.5 py-0.5 font-semibold text-on-main">
-            Keep it
-          </button>
-          <button type="button" onClick={backToHouse} className="rounded-full px-2.5 py-0.5 hover:bg-raised">
+      {(trying || several) && !browsing && (
+        <div role="status" className="mb-2 flex flex-wrap items-center gap-1.5 rounded-xl bg-ink px-2.5 py-1.5 text-sm" data-testid="keep-bar">
+          {several ? (
+            <>
+              <span>Options for this room</span>
+              <span role="group" aria-label="Options" className="mr-auto flex gap-1">
+                {options.map((l, i) => (
+                  <button key={l.layout_id} type="button" aria-pressed={l.layout_id === trying?.layout_id} title={l.rationale || undefined} onClick={() => dispatch('layout.select', { layout_id: l.layout_id })}
+                    className={cn('h-7 w-7 rounded-full text-xs font-bold', l.layout_id === trying?.layout_id ? 'bg-main text-on-main' : 'bg-raised hover:bg-surface')}>
+                    {LETTERS[i] ?? i + 1}
+                  </button>
+                ))}
+              </span>
+            </>
+          ) : (
+            <span className="mr-auto">You are trying a suggested layout here.</span>
+          )}
+          {trying && (
+            <button type="button" onClick={() => keep(trying)} className="rounded-full bg-main px-2.5 py-0.5 font-semibold text-on-main">
+              {several ? `Keep ${LETTERS[options.findIndex((l) => l.layout_id === trying.layout_id)] ?? 'it'}` : 'Keep it'}
+            </button>
+          )}
+          <button
+            type="button"
+            onClick={() => {
+              backToHouse();
+              if (several) dispatch('design.showVariants', { layout_ids: [] });
+            }}
+            className="rounded-full px-2.5 py-0.5 hover:bg-raised"
+          >
             Back to the house
           </button>
         </div>
       )}
-      {browsing || rows.length > 0 ? (
-        <div className="mb-2 space-y-2 border-b border-line pb-2" aria-label="Add from a photo">
-          {browsing && !photo && room && (
-            <OwnRoom roomName={roomName(twin, room.room_id)} busy={uploading} onSend={(file) => uploadRoom(file, twin.property_id, room.room_id)} />
-          )}
-          {browsing && !photo && (
-            <>
-              <p className="text-xs text-muted">Or one piece: take or import a photo of it, tap it, and it is cut out and built in 3D.</p>
-              <PhotoButtons disabled={uploading} onPicked={(f) => void preparePhoto(f).then(setPhoto)} />
-            </>
-          )}
-          {photo && <TapToPick file={photo} busy={uploading} onSubmit={(at) => void sendPhoto(at)} onCancel={() => setPhoto(null)} />}
-          {uploadError && <p role="alert" className="text-sm text-danger">{uploadError}</p>}
-          <JobRows rows={rows} dismiss={dismiss} />
-        </div>
-      ) : null}
-      {browsing ? (
-        photo ? null : <CatalogBrowser onAdded={place} />
-      ) : room && pieces.length ? (
+      {!onAddFurniture && (
+        <AddInline
+          twin={twin}
+          room={room}
+          open={browsing}
+          place={place}
+          onError={setPlaceError}
+          onRoomDone={() => {
+            backToHouse();
+            furnitureChanged(twin.property_id);
+            setBrowsing(false);
+          }}
+        />
+      )}
+      {browsing ? null : room && pieces.length ? (
         <PlanEditor
           propertyId={twin.property_id}
           room={room}
@@ -237,10 +261,65 @@ export function ArrangePanel({ twin, onClose, inline = false }: { twin: Property
               </span>
             ),
           )}
+          {/* The chips are a shortcut for a few pieces; the rest are cards in the furniture menu. */}
+          {unplaced.length > 8 && onAddFurniture && (
+            <button type="button" onClick={onAddFurniture} className="rounded-full px-2.5 py-1 text-muted hover:bg-ink hover:text-text">
+              and {unplaced.length - 8} more
+            </button>
+          )}
         </div>
       )}
       {offered && !placeError && <p role="status" className="mt-1 text-sm text-leaf-deep">{offered}</p>}
       {placeError && <p role="alert" className="mt-1 text-sm text-danger">{placeError}</p>}
     </section>
+  );
+}
+
+/**
+ * Adding from inside the panel, for where there is no furniture menu (the phone's inline panel):
+ * a photo of the person's own room, a photo of one piece, or the library. It stays mounted while
+ * the panel is, so a photo's progress stays in view after "Back to the plan".
+ */
+function AddInline({ twin, room, open, place, onError, onRoomDone }: {
+  twin: PropertyTwin;
+  room: Room | undefined;
+  /** The panel is in its "Add furniture" state. */
+  open: boolean;
+  place(item: InventoryItem): Promise<void>;
+  onError(text: string): void;
+  /** The room has been set up from a photo of the person's own. */
+  onRoomDone(): void;
+}) {
+  // A photo: tap the piece, SAM cuts it out and builds it in 3D, and it is put in this room.
+  // A photo of the person's own room: everything in it is built, and the server sets this room up with it.
+  const { upload, uploadRoom, busy: uploading, error: uploadError, rows, dismiss } = useObjectUpload((itemId) => {
+    void api().getInventoryItem(itemId).then(place, (err: unknown) => onError(err instanceof Error ? err.message : String(err)));
+  }, onRoomDone);
+  const [photo, setPhoto] = useState<File | null>(null);
+  const sendPhoto = async (at: PhotoPoint | undefined) => {
+    if (!photo) return;
+    if (await upload(photo, at, at ? 'The piece you tapped' : 'Every piece in the photo')) setPhoto(null);
+  };
+
+  return (
+    <>
+      {open || rows.length > 0 ? (
+        <div className="mb-2 space-y-2 border-b border-line pb-2" aria-label="Add from a photo">
+          {open && !photo && room && (
+            <OwnRoom roomName={roomName(twin, room.room_id)} busy={uploading} onSend={(file) => uploadRoom(file, twin.property_id, room.room_id)} />
+          )}
+          {open && !photo && (
+            <>
+              <p className="text-xs text-muted">Or one piece: take or import a photo of it, tap it, and it is cut out and built in 3D.</p>
+              <PhotoButtons disabled={uploading} onPicked={(f) => void preparePhoto(f).then(setPhoto)} />
+            </>
+          )}
+          {photo && <TapToPick file={photo} busy={uploading} onSubmit={(at) => void sendPhoto(at)} onCancel={() => setPhoto(null)} />}
+          {uploadError && <p role="alert" className="text-sm text-danger">{uploadError}</p>}
+          <JobRows rows={rows} dismiss={dismiss} />
+        </div>
+      ) : null}
+      {open && !photo && <CatalogBrowser onAdded={place} />}
+    </>
   );
 }

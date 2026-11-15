@@ -32,6 +32,7 @@ from zoneinfo import ZoneInfo
 
 from packages.schema.events import EventEnvelope, make_event
 from packages.schema.session import ClientKind, Session, SoundPlaceSourcePayload, SoundSetScenarioPayload, ViewerState
+from services.api.wipe import compact, empty_tables
 
 log = logging.getLogger(__name__)
 
@@ -42,7 +43,9 @@ PAIR_TOKEN_TTL = timedelta(minutes=10)
 class Connection:
     session_id: str
     client: ClientKind
-    queue: asyncio.Queue[EventEnvelope] = field(default_factory=asyncio.Queue)
+    # Events on their way to this client. None is the last thing ever queued: the session has
+    # ended (Hub.wipe), and the socket loop hangs up when it reaches it.
+    queue: asyncio.Queue[EventEnvelope | None] = field(default_factory=asyncio.Queue)
     member_id: str | None = None  # the household member on this phone
     name: str | None = None
 
@@ -119,6 +122,9 @@ class Hub:
         self._db = None
         self._places: dict[tuple[str, str], str] = {}  # (visitor, property_id) -> the room they were in last
         self._done: dict[str, float] = {}  # things done once in a while (see once): key -> when, epoch seconds
+        # Sessions a reset ended (wipe). A screen that was away then (a phone asleep in a pocket)
+        # is told when it comes back, so it stops asking for a session that is gone. In memory.
+        self.ended: set[str] = set()
         if persist is not None:
             persist.parent.mkdir(parents=True, exist_ok=True)
             self._db = sqlite3.connect(persist, check_same_thread=False, isolation_level=None)
@@ -304,3 +310,28 @@ class Hub:
                 listener(room, event)
             except Exception:
                 log.exception("hub listener failed on %s", event.type)
+
+    # --- reset everything (routers/reset.py) ----------------------------------------------------
+
+    def wipe(self, reason: str = "reset") -> int:
+        """End every session: each connected screen is sent `app.reset` and is then hung up on, and
+        every room, token, remembered place and greeting is forgotten, here and in the saved file.
+        Returns how many sessions there were. Call from the event loop only, like publish.
+
+        The screens are told first, before anything can fail, and not through publish: no
+        listener (the agent bridge) should start work for a session that is ending."""
+        count = len(self.rooms)
+        for room in list(self.rooms.values()):  # a copy: a route in another thread may be making a session
+            event = make_event(room.session_id, "server", "app.reset", {"reason": reason})
+            for conn in room.connections:
+                conn.queue.put_nowait(event)
+                conn.queue.put_nowait(None)
+            room.connections.clear()
+        self.ended.update(self.rooms)
+        self.rooms.clear()
+        self._places.clear()
+        self._done.clear()
+        if self._db is not None:
+            empty_tables(self._db)  # sessions and their tokens, places, done
+            compact(self._db)
+        return count

@@ -69,6 +69,55 @@ class CatalogSet(Model):
     thumbnail_urls: list[str]  # pictures of its first pieces, for a card
 
 
+class LibraryPiece(Model):
+    """One piece of the furniture library: the large open 3D model collections behind the
+    furniture menu (services/api/library). Anyone can add one; its model is fetched on first use."""
+
+    library_id: str  # "abo:B07B4MG9HX", "ph:ArmChair_01"
+    label: str
+    item_class: str  # from the shared furniture class list
+    category: str  # the section of the menu it is listed under (LibraryFacet.key)
+    dims_m: ItemDims  # real size
+    thumbnail_url: str
+    source_key: str  # which collection: "abo" | "polyhaven" | "objaverse"
+    source: str  # the credit line to show: "Amazon Berkeley Objects · CC BY 4.0"
+    brand: str | None = None
+    styles: list[str] = []  # the looks it suits, the strongest first ("Glam", "Mid-century modern")
+    color: str | None = None  # the colour's name, as the maker gives it
+    palette: list[str] = []  # its main colours as hex ("#8a8d8f"), the largest first
+    variants: int = 1  # how many colours and sizes of this same design the library has
+    family: str | None = None  # those share this key: GET /library?family=<key> lists them
+
+
+class LibraryFacet(Model):
+    """A way to narrow the library (a section of the menu, or a collection), with how many pieces
+    of the current search fall under it."""
+
+    key: str
+    label: str
+    count: int
+
+
+class LibraryPage(Model):
+    """One page of GET /library."""
+
+    total: int  # pieces that match the search, the section and the collection asked for
+    total_all: int  # pieces in the whole library
+    items: list[LibraryPiece]
+    categories: list[LibraryFacet]  # every section in menu order, counted for this search and collection
+    sources: list[LibraryFacet]  # every collection, counted for this search and section
+
+
+class LibraryLook(Model):
+    """A look a room can be furnished in: a designer's recipe of styles, colours and materials."""
+
+    key: str  # "quiet_luxury"
+    name: str  # "Quiet luxury"
+    blurb: str  # one sentence on what it looks like
+    palette: list[str] = []  # hex colours that carry it
+    thumbnail_urls: list[str] = []  # a few pieces that show it
+
+
 class CatalogAddRequest(Model):
     """Body of POST /catalog/{catalog_id}/add. Give all three sizes to resize the piece, or none."""
 

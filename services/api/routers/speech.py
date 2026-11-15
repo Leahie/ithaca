@@ -40,6 +40,8 @@ DEFAULT_MALE_VOICE = "aura-2-orion-en"
 DEFAULT_STT_MODEL = "nova-3"
 MAX_CHARS = 2000  # Deepgram's limit for one request
 NOT_CONFIGURED = 4503
+# One line per microphone socket, with what was heard. "Reset everything" deletes it (routers/reset.py).
+SPEECH_LOG = REPO_ROOT / "data" / "agent" / "speech.log"
 
 
 class SpeakRequest(BaseModel):
@@ -202,7 +204,7 @@ async def listen_socket(ws: WebSocket, sample_rate: int = 48000, auto: bool = Fa
         seen["heard"] = transcript()
         seen["seconds"] = round(time.monotonic() - started, 1)
         with suppress(Exception):
-            path = REPO_ROOT / "data" / "agent" / "speech.log"
+            path = SPEECH_LOG
             path.parent.mkdir(parents=True, exist_ok=True)
             with path.open("a", encoding="utf-8") as f:
                 f.write(time.strftime("%H:%M:%S ") + json.dumps(seen) + "\n")

@@ -19,11 +19,14 @@ export type EventSource = (typeof EVENT_SOURCES)[number];
 export const CLIENT_KINDS = ["desktop", "phone"] as const;
 export type ClientKind = (typeof CLIENT_KINDS)[number];
 
-export const VIEWER_MODES = ["tour", "sound", "neighborhood", "design"] as const;
+export const VIEWER_MODES = ["tour", "sound", "neighborhood", "design", "family"] as const;
 export type ViewerMode = (typeof VIEWER_MODES)[number];
 
 export const JOB_STATUSES = ["queued", "running", "done", "failed"] as const;
 export type JobStatus = (typeof JOB_STATUSES)[number];
+
+export const BOARD_KINDS = ["about", "must", "like", "avoid", "room"] as const;
+export type BoardKind = (typeof BOARD_KINDS)[number];
 
 export interface AgentActionPayload {
   tool: string;
@@ -61,12 +64,90 @@ export interface Amenity {
   kind?: string | null;
 }
 
+/**
+ * Additive to v0. Everything was deleted from the big screen ("Reset everything"): this
+ * session is over and the server hangs up after sending it. A screen that gets it forgets what
+ * it stored (the family, who it is, its session) and does not connect again.
+ */
+export interface AppResetPayload {
+  reason?: string;
+}
+
 export interface AreaProfile {
   markdown: string;
   amenities: Amenity[];
   comps: Comp[];
   listing?: ListingFacts | null;
   caveats?: string[];
+}
+
+/**
+ * Response of GET /board.
+ */
+export interface Board {
+  board_id: string;
+  household_id?: string | null;
+  name?: string | null;
+  people: BoardPerson[];
+  notes?: BoardNote[];
+}
+
+/**
+ * Additive to v0. The family board changed (packages/schema/board.py): a guide posted, edited
+ * or removed an entry, or someone did by hand. Every screen in the session loads the board again.
+ */
+export interface BoardChangedPayload {
+  person_id?: string | null;
+}
+
+export interface BoardEntry {
+  entry_id: string;
+  person_id: string;
+  kind: "about" | "must" | "like" | "avoid" | "room";
+  text: string;
+  room_id?: string | null;
+  property_id?: string | null;
+  by: "guide" | "hand";
+  created_at: string;
+  updated_at: string;
+}
+
+/**
+ * Body of POST /board/entries.
+ */
+export interface BoardEntryCreate {
+  person_id: string;
+  kind: "about" | "must" | "like" | "avoid" | "room";
+  text: string;
+  room_id?: string | null;
+  property_id?: string | null;
+  household_id?: string | null;
+}
+
+/**
+ * Body of PATCH /board/entries/{entry_id}.
+ */
+export interface BoardEntryUpdate {
+  text: string;
+}
+
+/**
+ * A note about this house that one member's guide shared with the family (`family.note`).
+ */
+export interface BoardNote {
+  note_id: string;
+  member_id: string;
+  name?: string | null;
+  text: string;
+  room_id?: string | null;
+  created_at: string;
+}
+
+export interface BoardPerson {
+  person_id: string;
+  name: string;
+  shared?: boolean;
+  entries?: BoardEntry[];
 }
 
 export interface CaptureUploadPayload {
@@ -288,6 +369,16 @@ export interface FloorOpening {
 }
 
 /**
+ * Body of POST /properties/{property_id}/furnish: have the designer furnish one room from the
+ * furniture library, in a look. A job: follow `job.progress` (kind `furnish_room`).
+ */
+export interface FurnishRoomRequest {
+  room_id: string;
+  look?: string | null;
+  level?: "essential" | "full" | "lavish";
+}
+
+/**
  * Additive to v0. A piece on its way across a plan editor, before it is saved: the 3D view
  * moves the piece with the finger. Interior frame; item_id None: the drag is over (the saved
  * pose, or the old one if the server refused, comes with the next furniture reload).
@@ -454,6 +545,59 @@ export interface LayoutVariant {
 }
 
 /**
+ * A way to narrow the library (a section of the menu, or a collection), with how many pieces
+ * of the current search fall under it.
+ */
+export interface LibraryFacet {
+  key: string;
+  label: string;
+  count: number;
+}
+
+/**
+ * A look a room can be furnished in: a designer's recipe of styles, colours and materials.
+ */
+export interface LibraryLook {
+  key: string;
+  name: string;
+  blurb: string;
+  palette?: string[];
+  thumbnail_urls?: string[];
+}
+
+/**
+ * One page of GET /library.
+ */
+export interface LibraryPage {
+  total: number;
+  total_all: number;
+  items: LibraryPiece[];
+  categories: LibraryFacet[];
+  sources: LibraryFacet[];
+}
+
+/**
+ * One piece of the furniture library: the large open 3D model collections behind the
+ * furniture menu (services/api/library). Anyone can add one; its model is fetched on first use.
+ */
+export interface LibraryPiece {
+  library_id: string;
+  label: string;
+  item_class: string;
+  category: string;
+  dims_m: ItemDims;
+  thumbnail_url: string;
+  source_key: string;
+  source: string;
+  brand?: string | null;
+  styles?: string[];
+  color?: string | null;
+  palette?: string[];
+  variants?: number;
+  family?: string | null;
+}
+
+/**
  * The property's own listing (CoStar residential listings).
  */
 export interface ListingFacts {
@@ -601,12 +745,16 @@ export interface PlacePiece {
   floor_id?: string | null;
   room_id?: string | null;
   snap?: boolean;
+  auto?: boolean;
+  near_item_id?: string | null;
 }
 
 export interface Placement {
   item_id: string;
   position: Vec3;
   yaw_deg: number;
+  on_item_id?: string | null;
+  lift_m?: number;
 }
 
 export interface PropertyTwin {
@@ -642,6 +790,44 @@ export interface Quat {
 export interface RemoteViewPayload {
   view: "move" | "rooms" | "guide" | "furniture" | "light";
   floor_id?: string | null;
+}
+
+/**
+ * How much there is to delete (GET /reset/preview), or how much was deleted (POST /reset).
+ */
+export interface ResetCounts {
+  furniture: number;
+  in_houses: number;
+  layouts: number;
+  memory_files: number;
+  conversations: number;
+  families: number;
+  members: number;
+  files: number;
+}
+
+/**
+ * One part of a reset that did not go through. The other parts were still deleted.
+ */
+export interface ResetFailure {
+  part: string;
+  error: string;
+}
+
+/**
+ * Body of POST /reset. `confirm` must be the word "reset": a call made by mistake deletes nothing.
+ */
+export interface ResetRequest {
+  confirm: string;
+}
+
+/**
+ * Answer of POST /reset.
+ */
+export interface ResetResult {
+  ok: boolean;
+  deleted: ResetCounts;
+  failed?: ResetFailure[];
 }
 
 export interface Room {
@@ -924,7 +1110,7 @@ export interface ViewerPlaybackPayload {
 }
 
 export interface ViewerSetModePayload {
-  mode: "tour" | "sound" | "neighborhood" | "design";
+  mode: "tour" | "sound" | "neighborhood" | "design" | "family";
 }
 
 export interface ViewerSetTimePayload {
@@ -936,7 +1122,7 @@ export interface ViewerSetTimePayload {
  * and sends it on join (B9).
  */
 export interface ViewerState {
-  mode: "tour" | "sound" | "neighborhood" | "design";
+  mode: "tour" | "sound" | "neighborhood" | "design" | "family";
   room_id?: string | null;
   datetime: string;
   sound_scenario?: SoundSetScenarioPayload | null;
@@ -1042,13 +1228,15 @@ export interface EventPayloads {
   "agent.error": AgentErrorPayload;
   "agent.turn": AgentTurnPayload;
   "job.progress": JobProgressPayload;
+  "app.reset": AppResetPayload;
   "family.note": FamilyNotePayload;
   "family.ask": FamilyAskPayload;
   "family.answer": FamilyAnswerPayload;
+  "board.changed": BoardChangedPayload;
 }
 
 export type EventType = keyof EventPayloads;
-export const EVENT_TYPES = ["session.state", "session.joined", "session.left", "viewer.goto", "viewer.walk", "viewer.setTime", "viewer.setMode", "viewer.look", "viewer.step", "viewer.zoom", "viewer.playback", "layout.changed", "furniture.select", "furniture.drag", "furniture.overview", "remote.view", "design.showVariants", "layout.select", "layout.confirm", "sound.setScenario", "sound.placeSource", "sound.clearSource", "catalog.suggest", "catalog.picked", "choice.ask", "choice.picked", "capture.upload", "chat.user", "voice.transcript", "voice.spoken", "agent.token", "agent.message", "agent.action", "agent.error", "agent.turn", "job.progress", "family.note", "family.ask", "family.answer"] as const satisfies readonly EventType[];
+export const EVENT_TYPES = ["session.state", "session.joined", "session.left", "viewer.goto", "viewer.walk", "viewer.setTime", "viewer.setMode", "viewer.look", "viewer.step", "viewer.zoom", "viewer.playback", "layout.changed", "furniture.select", "furniture.drag", "furniture.overview", "remote.view", "design.showVariants", "layout.select", "layout.confirm", "sound.setScenario", "sound.placeSource", "sound.clearSource", "catalog.suggest", "catalog.picked", "choice.ask", "choice.picked", "capture.upload", "chat.user", "voice.transcript", "voice.spoken", "agent.token", "agent.message", "agent.action", "agent.error", "agent.turn", "job.progress", "app.reset", "family.note", "family.ask", "family.answer", "board.changed"] as const satisfies readonly EventType[];
 
 /** The typed envelope for one known event type. */
 export interface Event<T extends EventType = EventType> {

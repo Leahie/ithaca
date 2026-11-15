@@ -22,7 +22,26 @@ import type {
   UploadResult,
   PhotoPoint,
   JobProgressPayload,
+  FurnishRoomRequest,
+  LibraryLook,
+  LibraryPage,
 } from '@ithaca/schema';
+import type { Board, BoardEntry, BoardEntryCreate } from '@ithaca/schema';
+import type { ResetCounts, ResetResult } from '@ithaca/schema';
+
+/** What to list from the furniture library. Every field narrows; none lists everything. */
+export interface LibraryQuery {
+  /** Free words: names, kinds, colours, materials, looks. */
+  q?: string;
+  /** A key from the page's `categories`. */
+  category?: string | null;
+  /** A key from the page's `sources`. */
+  source?: string | null;
+  /** One design's key: all its colours and sizes, which are otherwise listed once. */
+  family?: string | null;
+  offset?: number;
+  limit?: number;
+}
 
 export class ApiError extends Error {
   constructor(
@@ -111,10 +130,42 @@ export interface ApiClient {
   /** Ready-made furniture that can be added without a photo. */
   listCatalog(): Promise<CatalogPiece[]>;
   addFromCatalog(catalogId: string): Promise<InventoryItem>;
+  /** The furniture library: thousands of pieces from open 3D collections, a page at a time, with the menu's counts. */
+  listLibrary(query?: LibraryQuery): Promise<LibraryPage>;
+  /** Add a library piece to the family's furniture. Its model is downloaded on first use (5 to 20 seconds). */
+  addFromLibrary(libraryId: string): Promise<InventoryItem>;
+  /** The looks a room can be furnished in. */
+  listLooks(): Promise<LibraryLook[]>;
+  /**
+   * The designer furnishes one room in a look: it picks pieces from the library, adds them and
+   * arranges them. A job: follow its progress. When it is done the server shows the options on
+   * every screen, to keep one.
+   */
+  furnishRoom(propertyId: string, body: FurnishRoomRequest): Promise<JobRef>;
   listMemory(): Promise<string[]>;
   getMemory(path: string): Promise<string>;
   putMemory(path: string, text: string): Promise<void>;
   deleteMemory(path: string): Promise<void>;
+
+  // Reset everything: delete all data, for everyone, and start from scratch. Big screen only (a member's phone gets 403).
+  /** What a reset would delete, as counts. Deletes nothing. */
+  resetPreview(): Promise<ResetCounts>;
+  /**
+   * Delete everything. Resolves with what was deleted; `ok` is false and `failed` names the parts
+   * when some of it could not be. Every screen is sent `app.reset` and its session ends.
+   */
+  resetEverything(): Promise<ResetResult>;
+
+  // The family board: what each person wants from a home (packages/schema/board.py).
+  /**
+   * Everyone's cards, with the room wishes for one house. `householdId`: the family on this big
+   * screen (none: the user's own board, with one card). A member's phone gets its family's board.
+   */
+  getBoard(opts: { propertyId?: string | null; householdId?: string | null }): Promise<Board>;
+  /** A line written by hand. The big screen may write on any card, a member only on their own (403). */
+  addBoardEntry(entry: BoardEntryCreate): Promise<BoardEntry>;
+  updateBoardEntry(entryId: string, text: string): Promise<BoardEntry>;
+  deleteBoardEntry(entryId: string): Promise<void>;
 
   /** Absolute URL for an asset URL the API returned (for loaders that need one). */
   assetUrl(url: string): string;

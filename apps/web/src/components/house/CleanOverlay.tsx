@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import type { CatalogPiece, PropertyTwin } from '@ithaca/schema';
 import { PlanPreview } from '@/components/design/PlanPreview';
 import { GLASS, GLASS_PANEL } from '@/components/ui';
+import { IconSofa } from '@/components/ui/icons';
 import { config } from '@/lib/config';
 import { useInventory, useLayouts } from '@/lib/data/hooks';
 import { useHands } from '@/lib/hands/store';
@@ -45,7 +46,7 @@ const PILL = `rounded-full ${GLASS}`;
  * for the code a phone scans) and the guide's latest words as a caption. Every control is on the
  * phone; "Controls" brings the usual top bar and room list back.
  */
-export function CleanOverlay({ twin, pairing, onShowControls }: { twin: PropertyTwin; pairing: ReactNode; onShowControls(): void }) {
+export function CleanOverlay({ twin, pairing, onShowControls, onFurniture }: { twin: PropertyTwin; pairing: ReactNode; onShowControls(): void; /** Opens the furniture menu; left out where there is none. */ onFurniture?(): void }) {
   const roomId = useSession((s) => s.viewer.room_id);
   const sweepId = useSession((s) => s.viewer.sweep_id);
   const datetime = useSession((s) => s.viewer.datetime);
@@ -174,6 +175,14 @@ export function CleanOverlay({ twin, pairing, onShowControls }: { twin: Property
             className={`px-3.5 py-2 text-sm ${PILL}`}
           >
             {hands === 'starting' ? 'Hands…' : hands === 'error' ? 'Hands failed' : handsOn ? 'Hands on' : 'Hands off'}
+          </button>
+        )}
+        {/* The top bar is hidden here, and its Furniture button with it: the menu stays one press away. */}
+        {onFurniture && (
+          <button type="button" onClick={onFurniture} aria-haspopup="dialog" data-testid="furniture-open-clean" title="Browse the furniture library, furnish this room in a look, or add your own"
+            className={`inline-flex items-center gap-1.5 px-3.5 py-2 text-sm font-semibold ${PILL}`}>
+            <IconSofa width={16} height={16} />
+            Furniture
           </button>
         )}
         <button type="button" onClick={onShowControls} className={`px-3.5 py-2 text-sm ${PILL}`}>

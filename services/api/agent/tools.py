@@ -362,9 +362,10 @@ def viewer_walk(from_room_id: str, to_room_id: str, runtime: Runtime) -> str:
 
 
 @tool
-def viewer_set_mode(mode: Literal["tour", "sound", "neighborhood", "design"], runtime: Runtime) -> str:
+def viewer_set_mode(mode: Literal["tour", "sound", "neighborhood", "design", "family"], runtime: Runtime) -> str:
     """Switch the user's screen: tour (the walk through the house, with its sun and shadows),
-    sound (noise), neighborhood (map and comps), design (furniture layouts)."""
+    sound (noise), neighborhood (map and comps), design (furniture layouts), family (the family
+    board: what each person wants from a home)."""
     _emit(runtime, "viewer.setMode", {"mode": mode})
     return f"The user's screen now shows the {mode} view."
 

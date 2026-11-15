@@ -25,7 +25,7 @@ from packages.schema.twin import Vec3
 from services.api.agent import design_gate, house_plans
 from services.api.agent import prompts, views
 from services.api.agent.context import AgentContext
-from services.api.furniture import house, ledger
+from services.api.furniture import arrange, house, ledger
 from services.api.furniture.house import FurnitureError
 from services.api.furniture.store import GUIDE, furniture_store
 from services.api.sim import layout_solver
@@ -84,6 +84,45 @@ def _changed(runtime: Runtime) -> None:
 
 
 _briefs: dict[tuple[str, str], str] = {}  # (conversation, room_id) -> the brief the designer was last given
+
+
+def _library_piece(ref: str):
+    """A piece of the furniture library by the id the agents are shown ("abo:B07B4MG9HX"), or None.
+    A bare id of the hand-checked catalog ("B07B4MG9HX") is the same piece in the library."""
+    from services.api.library.index import library
+
+    ref = str(ref).strip().strip("`'\" ")
+    return library().by_id.get(ref) or library().by_id.get(f"abo:{ref}")
+
+
+def _add_piece(catalog_id: str, user_id: str):
+    """Put a catalog or library piece into a person's furniture. Raises KeyError for an unknown id."""
+    from services.api.library import sources
+    from services.api.objects import pipeline
+    from services.api.objects.providers import catalog
+
+    if catalog_id in catalog.BY_ID:
+        return pipeline.add_from_catalog(catalog_id, user_id, furniture_store())
+    piece = _library_piece(catalog_id)
+    if piece is None:
+        raise KeyError(catalog_id)
+    return sources.add(piece, user_id, furniture_store())
+
+
+def _card(catalog_id: str) -> dict | None:
+    """What a picture card of a catalog or library piece shows (the `catalog.suggest` payload's shape)."""
+    from services.api.library import SOURCES
+    from services.api.objects.providers import catalog
+
+    if catalog_id in catalog.BY_ID:
+        cid, cls, label, w, d, h = catalog.BY_ID[catalog_id]
+        return {"catalog_id": cid, "label": label, "item_class": cls, "dims_m": {"w": w, "d": d, "h": h},
+                "thumbnail_url": catalog.thumbnail_url(cid), "source": catalog.SOURCE}
+    piece = _library_piece(catalog_id)
+    if piece is None:
+        return None
+    return {"catalog_id": piece.id, "label": piece.name, "item_class": piece.cls, "dims_m": {"w": piece.w, "d": piece.d, "h": piece.h},
+            "thumbnail_url": piece.img, "source": SOURCES.get(piece.src, (piece.src, piece.src))[1]}
 
 
 def _one_room_at_a_time(runtime: Runtime, room_id: str, brief: str | None = None) -> str | None:
@@ -155,7 +194,8 @@ class Choice(BaseModel):
     detail: str | None = Field(default=None, description="One short line under the label. Leave it out for a room, a set or a piece: the app fills it in.")
     room_id: str | None = Field(default=None, description="The option is a room of this house: its room_id. The card shows the room's plan.")
     set_id: str | None = Field(default=None, description="The option is a furniture set: its set_id from catalog_sets. The card shows its pieces.")
-    catalog_id: str | None = Field(default=None, description="The option is one catalog piece: its catalog_id.")
+    catalog_id: str | None = Field(default=None, description="The option is one catalog piece: its catalog_id from catalog_search.")
+    look: str | None = Field(default=None, description="The option is a look to furnish a room in: its key from the list of looks. The card shows four pieces in that look.")
     item_id: str | None = Field(default=None, description="The option is one of the family's pieces: its number.")
 
 
@@ -169,6 +209,12 @@ def choice_note(choice_id: str, option_id: str) -> str | None:
     return _choices.get(choice_id, {}).get(option_id)
 
 
+def reset() -> None:
+    """Forget every question asked and every brief given: everything was reset (routers/reset.py)."""
+    _choices.clear()
+    _briefs.clear()
+
+
 @tool
 def ask_choice(question: str, options: list[Choice], runtime: Runtime) -> str:
     """Ask the user to pick one of two to four things by tapping a card with a picture. The cards
@@ -177,8 +223,8 @@ def ask_choice(question: str, options: list[Choice], runtime: Runtime) -> str:
     style, which of a few pieces, this or that. Their tap comes back to you as their next message.
 
     question: the question as you would say it, short ("Which look for the living room?").
-    options: two to four, best first. Give each the id of what it is (room_id, set_id, catalog_id
-    or item_id) so its card shows a picture; an option with no id is a plain card.
+    options: two to four, best first. Give each the id of what it is (room_id, set_id, catalog_id,
+    item_id or look) so its card shows a picture; an option with no id is a plain card.
     """
     from services.api.objects.providers import catalog
 
@@ -187,7 +233,7 @@ def ask_choice(question: str, options: list[Choice], runtime: Runtime) -> str:
         return "Error: give two to four options."
     # An id says what an option IS. The same id on two options ("Just me" and "Two of us", both
     # with this room's id) says nothing, and would draw the same picture on each: left out.
-    for field in ("room_id", "set_id", "catalog_id", "item_id"):
+    for field in ("room_id", "set_id", "catalog_id", "item_id", "look"):
         values = [getattr(o, field) for o in options if getattr(o, field)]
         if len(values) != len(set(values)):
             options = [o.model_copy(update={field: None}) for o in options]
@@ -213,13 +259,24 @@ def ask_choice(question: str, options: list[Choice], runtime: Runtime) -> str:
             card["image_urls"] = [catalog.thumbnail_url(cid) for cid in st["pieces"][:4]]
             card["detail"] = card["detail"] or st.get("style") or st["look"]
             note = f"set_id {st['id']}"
+        elif option.look:
+            from services.api.library import compose
+            from services.api.routers.library import _looks
+
+            look = compose.LOOK_BY_KEY.get(option.look.strip().lower().replace(" ", "_"))
+            if look is None:
+                return f"Error: unknown look {option.look!r}. The looks are: {', '.join(compose.LOOK_BY_KEY)}."
+            card["image_urls"] = next((l.thumbnail_urls for l in _looks() if l.key == look.key), [])
+            card["detail"] = card["detail"] or look.blurb
+            note = f"look {look.key}"
         elif option.catalog_id:
-            row = catalog.BY_ID.get(option.catalog_id)
-            if row is None:
+            shown = _card(option.catalog_id)
+            if shown is None:
                 return f"Error: unknown catalog_id {option.catalog_id!r}. Use a catalog_id from catalog_search."
-            card["image_urls"] = [catalog.thumbnail_url(row[0])]
-            card["detail"] = card["detail"] or f"{row[3]:.1f} × {row[4]:.1f} × {row[5]:.1f} m"
-            note = f"catalog_id {row[0]}"
+            card["image_urls"] = [shown["thumbnail_url"]]
+            size = shown["dims_m"]
+            card["detail"] = card["detail"] or f"{size['w']:.1f} × {size['d']:.1f} × {size['h']:.1f} m"
+            note = f"catalog_id {shown['catalog_id']}"
         elif option.item_id:
             item = _piece(ctx, option.item_id)
             if item is None:
@@ -341,57 +398,65 @@ def furnish_with_set(set_id: str, room_id: str, runtime: Runtime, go_ahead_over_
 
 
 @tool
-def catalog_search(runtime: Runtime, query: str = "") -> str:
-    """Single pieces in the furniture catalog, for adding one thing to a room that already has
-    furniture (a chair for a desk, a lamp). query filters by a word in the name or kind ("bed",
-    "side table"). Each piece says which sets it belongs to: add pieces from the set the room
-    already uses. Leave query empty to see the kinds available."""
-    from services.api.objects.providers import catalog
+def catalog_search(runtime: Runtime, query: str = "", kind: str = "", limit: int = 10) -> str:
+    """Search the furniture library: thousands of real pieces from open 3D collections, of every
+    kind (seating, tables, beds, storage, lamps, ceiling lights, rugs, pictures, mirrors, plants,
+    decorations). For adding one thing to a room, or finding a piece someone describes.
 
-    words = query.lower().replace("_", " ").split()
-    rows = [r for r in catalog.PIECES if all(w in f"{r[2]} {r[1].replace('_', ' ')}".lower() for w in words)]
-    if not words:
-        kinds = sorted({r[1].replace("_", " ") for r in catalog.PIECES})
-        return f"{len(catalog.PIECES)} pieces in {len(catalog.SETS)} sets (see catalog_sets). Kinds: {', '.join(kinds)}. Search with one of these words to see the pieces."
-    if not rows:
-        return f"Nothing in the catalog matches {query!r}. Call with no query to see the kinds available."
+    query: words for what it is and how it looks: a kind, a colour, a material, a look ("green
+    velvet armchair", "round marble side table", "art deco floor lamp", "large abstract picture").
+    kind: optional, one class to keep to: sofa, loveseat, sectional, armchair, chair, stool,
+    ottoman, bench, coffee_table, side_table, dining_table, desk, console_table, tv_stand,
+    bookshelf, cabinet, dresser, wardrobe, nightstand, bed, floor_lamp, table_lamp, ceiling_light,
+    rug, wall_art, mirror, plant, decor.
+    Each result has a catalog_id for catalog_suggest and catalog_add. Leave query empty to see
+    how much there is of each kind."""
+    from services.api.library import SOURCES
+    from services.api.library.index import library
+
+    lib = library()
+    if not lib.pieces:
+        return "The furniture library is empty on this server. Use catalog_sets instead."
+    if not query.strip() and not kind.strip():
+        page = lib.search()
+        kinds = ", ".join(f"{label.lower()} {n}" for _key, label, n in page["categories"] if n)
+        return f"{page['total_all']} pieces in the library. By section: {kinds}. Search with words for a kind and a look."
+    wanted = kind.strip().lower().replace(" ", "_")
+    page = lib.search(query, limit=120)
+    found = [p for p in page["items"] if not wanted or p.cls == wanted][:max(1, min(limit, 15))]
+    if not found:
+        return f"Nothing in the library matches {query!r}" + (f" of kind {wanted}" if wanted else "") + ". Try other words, or fewer."
     return "\n".join(
-        f"- {label} ({cls}) · catalog_id {cid} · {w:.2f} m wide × {d:.2f} m deep × {h:.2f} m high · sets: {', '.join(catalog.sets_of(cid)) or 'none'}"
-        for cid, cls, label, w, d, h in rows[:12]
+        f"- {p.name} ({p.cls}) · catalog_id {p.id} · {p.w:.2f} m wide × {p.d:.2f} m deep × {p.h:.2f} m high"
+        + (f" · looks: {', '.join(p.styles[:2])}" if p.styles else "") + (f" · {p.tone}" if p.tone else "")
+        + (f" · {', '.join(p.materials[:2])}" if p.materials else "") + f" · {SOURCES.get(p.src, (p.src,))[0]}"
+        for p in found
     )
 
 
 @tool
 def catalog_suggest(catalog_ids: list[str], runtime: Runtime, room_id: str | None = None, near_item_id: str | None = None) -> str:
-    """Show catalog pieces to the user as picture cards in the chat. They add one with a click, and
-    it is placed in the room at once. Use this whenever you recommend catalog pieces: two to four
-    good candidates, best first. Do not list them in words as well.
+    """Show library pieces to the user as picture cards in the chat. They add one with a click, and
+    it is placed in the room at once. Use this whenever you recommend pieces: two to four good
+    candidates, best first. Do not list them in words as well.
 
     room_id: the room the piece is for (default: the room the user is in).
     near_item_id: the number of one of the user's pieces already in that room to put the new
     piece next to, e.g. the desk when they asked for a desk chair.
     """
-    from services.api.objects.providers import catalog
-
-    unknown = [c for c in catalog_ids if c not in catalog.BY_ID]
+    cards = [_card(c) for c in catalog_ids[:4]]
+    unknown = [c for c, card in zip(catalog_ids, cards) if card is None]
     if unknown or not catalog_ids:
         return f"Error: unknown catalog_ids {unknown}. Use catalog_ids from catalog_search."
     if near_item_id:  # a hint: a piece that can't be found is left out, and the cards still show
         beside = _piece(runtime.context, near_item_id)
         near_item_id = str(beside.item_id) if beside else None
-    pieces = [
-        {
-            "catalog_id": cid, "label": label, "item_class": cls, "dims_m": {"w": w, "d": d, "h": h},
-            "thumbnail_url": catalog.thumbnail_url(cid), "source": catalog.SOURCE,
-        }
-        for cid, cls, label, w, d, h in (catalog.BY_ID[c] for c in catalog_ids[:4])
-    ]
     runtime.stream_writer({
         "type": "catalog.suggest",
-        "payload": {"property_id": runtime.context.property_id, "room_id": room_id, "near_item_id": near_item_id, "pieces": pieces},
+        "payload": {"property_id": runtime.context.property_id, "room_id": room_id, "near_item_id": near_item_id, "pieces": cards},
     })
     return (
-        f"The user now sees {len(pieces)} picture card(s) and can add one with a click. Say in one sentence why these, "
+        f"The user now sees {len(cards)} picture card(s) and can add one with a click. Say in one sentence why these, "
         "and do not call catalog_add for them: the click adds and places the piece."
     )
 
@@ -463,6 +528,12 @@ def _stand(runtime: Runtime, item: InventoryItem, room_id: str, near_item_id: st
         if at is None or at.room_id != room_id:
             return f"Error: piece {near_item_id} does not stand in that room. The house register says what does."
         tries = [(at.position.x, at.position.z)]
+        if not at.on_item_id and not at.lift_m:
+            # A picture "by the sofa" hangs over it, a rug goes under it, a floor lamp stands at its end.
+            hung = house.place_by(ctx.furniture_user, ctx.property_id, item, room, str(beside.item_id), ctx.user_id, GUIDE)
+            if hung is not None:
+                _changed(runtime)
+                return f"{_name(item)} is in, with {_name(beside)}. {_room_now(ctx, hung.room_id)}"
         if house.can_rest_on(item, beside) and not at.on_item_id and not at.lift_m:
             # A lamp "next to" a desk goes on it (F12): put down on the piece's top, it rests there.
             try:
@@ -476,6 +547,20 @@ def _stand(runtime: Runtime, item: InventoryItem, room_id: str, near_item_id: st
                 _changed(runtime)
                 return f"{_name(item)} now stands on {_name(beside)}. {_room_now(ctx, piece.room_id)}"
     else:
+        if not where:
+            # Nobody said where: a rug under the seating, a lamp on a free table, a picture over the
+            # main piece, a coffee table before the sofa (furniture/house.py, PlacePiece.auto).
+            middle = _spots(twin, room, "middle", item)[0]
+            try:
+                piece = house.place(
+                    ctx.furniture_user, ctx.property_id, str(item.item_id),
+                    PlacePiece(x=middle[0], z=middle[1], room_id=room_id, floor_id=room.floor_id, snap=True, auto=True), ctx.user_id, GUIDE,
+                )
+            except FurnitureError:
+                piece = None
+            if piece is not None:
+                _changed(runtime)
+                return f"{_name(item)} is in. {_room_now(ctx, piece.room_id)}"
         tries = _spots(twin, room, where, item)
         if not tries:
             sides = ", ".join(sorted({w[0] for w in _walls(twin, room)}))
@@ -499,20 +584,20 @@ def _stand(runtime: Runtime, item: InventoryItem, room_id: str, near_item_id: st
 
 @tool
 def catalog_add(catalog_id: str, runtime: Runtime, room_id: str | None = None, near_item_id: str | None = None, where: Spot | None = None) -> str:
-    """Add a catalog piece to the family's furniture. No need to ask first: the catalog is theirs to
-    use. With room_id (the room it is for) it is also stood in that room at once: next to
-    near_item_id (the number of a piece in that room) if given, else on the `where` side or corner
-    of the room if given, else wherever such a piece usually goes. Returns the new piece's number.
-    catalog_id comes from catalog_search."""
+    """Add a piece of the furniture library to the family's furniture. No need to ask first: the
+    library is theirs to use. With room_id (the room it is for) it is also put in that room at
+    once: with near_item_id (the number of a piece in that room) if given: on it, over it, under
+    it or beside it, as its kind calls for; else on the `where` side or corner of the room if
+    given; else where such a piece belongs in the room as it is furnished (a lamp on a free table,
+    a picture over the sofa, a rug under the seating, a coffee table before the sofa). Returns the
+    new piece's number. catalog_id comes from catalog_search."""
     from services.api.agent import memory_files
-    from services.api.objects import pipeline
-    from services.api.objects.providers import catalog
 
-    if catalog_id not in catalog.BY_ID:
-        return f"Error: unknown catalog_id {catalog_id!r}. Use a catalog_id from catalog_search."
     store, user_id = furniture_store(), runtime.context.user_id  # the new piece is the person's own (F1)
     try:
-        item = pipeline.add_from_catalog(catalog_id, user_id, store)
+        item = _add_piece(catalog_id, user_id)
+    except KeyError:
+        return f"Error: unknown catalog_id {catalog_id!r}. Use a catalog_id from catalog_search."
     except Exception as e:
         return f"Error: that piece could not be added ({e})."
     if runtime.store is not None:
@@ -596,6 +681,65 @@ def delete_from_inventory(item_id: str, runtime: Runtime) -> str:
 
 
 @tool
+def furnish_room(
+    room_id: str, runtime: Runtime, look: str = "", level: Literal["essential", "full", "lavish"] = "full", use: str | None = None,
+    keep_item_ids: list[str] | None = None, avoid: list[str] | None = None, brief: str = "", go_ahead_over_other_plans: bool = False,
+) -> str:
+    """Furnish a whole room from the furniture library, in a look. The designer chooses pieces
+    that go together (the main piece sized to the room, what goes with it, a rug, lamps at three
+    heights, pictures, plants, small things), adds them to the family's furniture and arranges
+    them, in the background; you get `layouts_ready`. Use it when a room is empty, or the user
+    asks you to furnish, style, redo or dress a room.
+
+    look: a look's key from the list of looks in your instructions ("quiet_luxury"), or the
+    user's own words for how it should look ("emerald velvet, brass, moody").
+    level: "essential" (what the room needs), "full" (a finished room: lamps, a rug, pictures,
+    plants), "lavish" (everything a magazine room has). Default full; lavish when they ask for
+    luxury or richness.
+    use: what the room is furnished as, only when its name is wrong or says nothing: living,
+    bedroom, dining, office, entry, kids or outdoor.
+    keep_item_ids: numbers of the family's own pieces to plan the room round. Each fills the role
+    of its kind, and nothing is chosen in its place.
+    avoid: words for what they do not want ("leather", "glass").
+    brief: what else the designer must know to arrange it: what the room is for, and every
+    relevant preference from memory and the family board word for word, marking the hard ones.
+    go_ahead_over_other_plans: only after the tool told you someone else has plans for this room
+    and your person said to go ahead anyway."""
+    from services.api.library import compose
+
+    ctx = runtime.context
+    twin = get_twin(ctx.property_id)
+    room = house.room_by_id(twin, room_id)
+    if room is None:
+        return f"Error: no room with id {room_id}. Use an id from the room directory."
+    if use is not None and use not in compose.USES:
+        return f"Error: use must be one of {', '.join(compose.USES)}."
+    if use is None and compose.use_of(room.label) == "fitted":
+        return (f"{room.label} is a fitted room (a kitchen, a bathroom, storage): it is not furnished as a whole. Add single pieces "
+                "with catalog_add, or pass `use` if the room is really something else.")
+    keep = [_piece(ctx, ref) for ref in keep_item_ids or []]
+    if any(k is None for k in keep):
+        return f"Error: unknown pieces in keep_item_ids {keep_item_ids}. Use the piece numbers in the house register."
+    if refusal := _one_room_at_a_time(runtime, room_id, brief or look) or _someone_elses_room(runtime, room_id, go_ahead_over_other_plans):
+        return refusal
+    the_look = compose.look_for(look)
+    house_plans.note(ctx, room_id, house_plans.ARRANGING)
+    conversation = design_gate.key(ctx.session_id, ctx.user_id)
+    design_gate.started(conversation, room_id)
+    _briefs[(conversation, room_id)] = brief or look
+    runtime.stream_writer({"type": BACKGROUND_DESIGN, "payload": {
+        "room_id": room_id, "brief": brief,
+        "furnish": {"look": look, "level": level, "use": use, "keep_item_ids": [str(k.item_id) for k in keep], "avoid": avoid or []},
+    }})
+    return (
+        f"The designer is choosing pieces for this room in the look \"{the_look.name}\" ({the_look.blurb}) and will arrange them; "
+        "you get layouts_ready when it is done (it takes from half a minute to two minutes the first time a piece is used). If "
+        "the user asked for more rooms, start those now too, in this same turn. Then say in one short sentence which look you "
+        "chose and why it suits them. Do not wait, and do not describe pieces or a layout yet."
+    )
+
+
+@tool
 def design_in_background(room_id: str, brief: str, runtime: Runtime, go_ahead_over_other_plans: bool = False) -> str:
     """Ask the interior designer to arrange a room. It works in the background, telling the user
     what it notices and showing its first options as it goes; you get a `layouts_ready` event with
@@ -628,8 +772,14 @@ def propose_layouts(room_id: str, item_ids: list[str], wishes: list[Constraint],
 
     You say what should be true; the solver finds positions. It always keeps pieces inside the
     room, apart from each other, clear of doors and windows, and leaves a path to walk.
+    Floor furniture is arranged by your wishes; a piece you give no wish gets the usual ones for
+    its kind. Everything else in item_ids is put in around the furniture by itself: a rug under
+    the main group, floor lamps by the seats, tall plants in the corners by the windows, table
+    lamps and decorations on the tables, pictures and mirrors on the wall over the main pieces,
+    a ceiling light over the table.
 
-    item_ids: the numbers of the pieces to place ("4821"), from the house register.
+    item_ids: the numbers of ALL the pieces for the room ("4821"), from the house register:
+    furniture, rugs, lamps, pictures, plants, decorations.
     idea: a few words naming the arrangement, e.g. "Conversation corner by the window".
     wishes: each is {kind, item, target, weight}. `item` is a piece number. Kinds and their targets:
       against_wall  target "any" | "longest" | "window" (a wall with a window) | "solid" (without)
@@ -639,6 +789,9 @@ def propose_layouts(room_id: str, item_ids: list[str], wishes: list[Constraint],
       in_front_of   target a piece number   (e.g. coffee table in front of the sofa)
       beside        target a piece number   (e.g. side table beside the armchair)
       away_from     target "door" | "window"
+      on            target a piece number   (a lamp or a vase on that table)
+      above         target a piece number   (a picture or a mirror on the wall over that piece)
+      under         target a piece number   (a rug under that piece)
     weight (default 1) says how much a wish matters; use 3 for something the user insisted on.
     """
     ctx = runtime.context
@@ -667,47 +820,14 @@ def propose_layouts(room_id: str, item_ids: list[str], wishes: list[Constraint],
         return value
 
     wishes = [w.model_copy(update={"item": real.get(w.item, w.item), "target": target(w.target)}) for w in wishes]
-    items = [layout_solver.Item(k, v.label, v.item_class, v.dims_m.w, v.dims_m.d, v.dims_m.h) for k, v in owned.items()]
-    floor = views.floor_height(twin, room_id)
-    on_real_floor = room.model_copy(update={"floor_y": floor})  # window sills are measured from here
-    result = layout_solver.solve(
-        on_real_floor, twin.openings, items, wishes, n=max(1, min(n, 4)), walls=twin.walls, sweeps=twin.sweeps, compass=compass_axes(twin)
-    )
+    result = arrange.arrange(ctx.furniture_user, ctx.property_id, room_id, list(owned.values()), wishes, idea, n)
     name = prompts.room_display_names(twin)[room_id]
-    if not result.variants:
-        return f"No layout for {name}: {result.reason}. Try fewer or smaller pieces, or another room."
-
-    lines = [f"{len(result.variants)} layout(s) saved for {name}:"]
-    shown: list[str] = []
-    for k, v in enumerate(result.variants, start=1):
-        v.poses = seat_around_table(on_real_floor, twin, items, v.poses)
-        left = [i.label for i in items if i.item_id not in v.poses]
-        if left:
-            v.unmet = [*v.unmet, f"no room at the table for {len(left)} more chair(s)"]
-        where = _where(twin, [i for i in items if i.item_id in v.poses], v.poses)
-        rationale = f"{idea} (option {k}). {where[0].upper()}{where[1:]}. " + ("Meets: " + "; ".join(v.met) + ". " if v.met else "")
-        rationale += "Could not fully meet: " + "; ".join(v.unmet) + "." if v.unmet else ""
-        layout = LayoutVariant(
-            layout_id=uuid.uuid4(),
-            user_id=ctx.furniture_user,
-            property_id=ctx.property_id,
-            room_id=room_id,
-            placements=[
-                Placement(item_id=item_id, position=Vec3(x=round(p.x, 3), y=floor, z=round(p.z, 3)), yaw_deg=round(p.yaw, 1))
-                for item_id, p in v.poses.items()
-            ],
-            score=v.score,
-            rationale=rationale.strip(),
-            status="proposed",
-        )
-        furniture_store().put_proposal(layout)
-        shown.append(str(layout.layout_id))
-        lines.append(
-            f"- layout_id {_short(layout.layout_id)} · score {v.score:.0f}/100 · where: {where} · "
-            f"met: {'; '.join(v.met) or 'none'} · not met: {'; '.join(v.unmet) or 'none'}"
-        )
-    if result.reason:
-        lines.append(f"Note: {result.reason}.")
+    if not result.layouts:
+        return f"No layout for {name}: {result.note}. Try fewer or smaller pieces, or another room."
+    lines = [f"{len(result.layouts)} layout(s) saved for {name}:", *result.lines]
+    if result.note:
+        lines.append(f"Note: {result.note}.")
+    shown = [str(l.layout_id) for l in result.layouts]
     # The user sees these right away, before the designer is done; the guide shows the final set.
     runtime.stream_writer({"type": "design.showVariants", "payload": {"layout_ids": shown}})
     runtime.stream_writer({"type": "layout.select", "payload": {"layout_id": shown[0]}})
@@ -715,54 +835,8 @@ def propose_layouts(room_id: str, item_ids: list[str], wishes: list[Constraint],
     return "\n".join(lines)
 
 
-def seat_around_table(room, twin, items: list, poses: dict) -> dict:
-    """Dining chairs belong at the table: tucked in along its two long sides, then its ends, each
-    facing it. The solver only knows "near" and "faces", which leaves chairs scattered. Returns
-    the poses with the chairs seated. The table moves if it must (the middle of the room first);
-    if not every chair fits anywhere, as many as do are seated and the rest are left out of the
-    layout. The poses come back as they were only when not even two chairs fit."""
-    from shapely.geometry import Polygon
-
-    Pose = layout_solver.Pose
-    table = next((i for i in items if i.item_class == "dining_table" and i.item_id in poses), None)
-    chairs = [i for i in items if i.item_class == "chair" and i.item_id in poses]
-    if table is None or not chairs:
-        return poses
-
-    def seated(at, count: int) -> dict:
-        (fx, fz), (rx, rz) = at.front, at.right
-        chair = chairs[0]
-        per_side = max(1, int(table.w // (chair.w + 0.08)))
-        gap = layout_solver.GAP_M + 0.01  # pulled up to the table: pieces may not touch
-        out = table.d / 2 + chair.d / 2 + gap
-        end = table.w / 2 + chair.d / 2 + gap
-        seats = []  # (x, z, yaw) with the chair's front toward the table
-        for k in range(per_side):
-            along = (k - (per_side - 1) / 2) * (table.w / per_side)
-            seats.append((at.x + fx * out + rx * along, at.z + fz * out + rz * along, at.yaw + 180))
-            seats.append((at.x - fx * out + rx * along, at.z - fz * out + rz * along, at.yaw))
-        seats.append((at.x + rx * end, at.z + rz * end, at.yaw - 90))
-        seats.append((at.x - rx * end, at.z - rz * end, at.yaw + 90))
-        new = {k: v for k, v in poses.items() if k not in {c.item_id for c in chairs}} | {table.item_id: at}
-        for c, (x, z, yaw) in zip(chairs[:count], seats):
-            new[c.item_id] = Pose(x, z, yaw % 360)
-        return new
-
-    here = poses[table.item_id]
-    outline = Polygon(room.polygon)
-    middle = outline.centroid
-    minx, minz, maxx, maxz = outline.bounds
-    # Where the solver put the table, then spots across the room, the middle first.
-    spots = [(minx + 0.3 * i, minz + 0.3 * j) for i in range(int((maxx - minx) / 0.3) + 1) for j in range(int((maxz - minz) / 0.3) + 1)]
-    spots.sort(key=lambda p: math.dist(p, (middle.x, middle.y)))
-    tries = [here] + [Pose(x, z, yaw) for x, z in spots for yaw in (here.yaw, (here.yaw + 90) % 360)]
-    for count in sorted({len(chairs), min(len(chairs), 4), min(len(chairs), 2)}, reverse=True):
-        for at in tries:
-            new = seated(at, count)
-            placed = [i for i in items if i.item_id in new]
-            if not layout_solver.violations(room, twin.openings, placed, new, walls=twin.walls, sweeps=twin.sweeps):
-                return new
-    return poses
+# Kept under their old names: the session bridge and the tests reach them here.
+seat_around_table = arrange.seat_around_table
 
 
 SPIN_MS, SPIN_DELAY_MS = 10_000, 2_500
@@ -813,14 +887,7 @@ def design_apply_layout(layout_id: str, runtime: Runtime) -> str:
     return f"That layout is now shown in the room, and the view is turning once around it: {layout.rationale}"
 
 
-def compass_axes(twin) -> dict[str, tuple[float, float]]:
-    """North, east, south and west as unit (x, z) directions in the interior frame."""
-    m = twin.interior_to_world  # (east, north) = [[m0, m8], [m1, m9]] @ (dx, dz)
-    det = m[0] * m[9] - m[8] * m[1]
-    north, east = (-m[8] / det, m[0] / det), (m[9] / det, -m[1] / det)
-    unit = lambda v: (v[0] / math.hypot(*v), v[1] / math.hypot(*v))  # noqa: E731
-    north, east = unit(north), unit(east)
-    return {"north": north, "east": east, "south": (-north[0], -north[1]), "west": (-east[0], -east[1])}
+compass_axes = arrange.compass_axes  # north, east, south and west in the interior frame
 
 
 def wall_sides(twin, room) -> list[tuple[str, float]]:
@@ -838,18 +905,6 @@ def wall_sides(twin, room) -> list[tuple[str, float]]:
             nx, nz = -nx, -nz
         out.append((max(axes, key=lambda k: axes[k][0] * nx + axes[k][1] * nz), length))
     return out
-
-
-_compass = ledger.compass_word  # compass word for a direction in the interior frame
-
-
-def _where(twin, items: list[layout_solver.Item], poses: dict[str, layout_solver.Pose]) -> str:
-    """Plain words for where the pieces ended up, so the agents can tell the options apart."""
-    parts = []
-    for item in sorted(items, key=lambda i: -(i.w * i.d)):
-        fx, fz = poses[item.item_id].front
-        parts.append(f"{item.label} on the {_compass(twin, -fx, -fz)} side, facing {_compass(twin, fx, fz)}")
-    return "; ".join(parts)
 
 
 def describe_layout(user_id: str, property_id: str, layout_id: str) -> str | None:

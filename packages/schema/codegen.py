@@ -21,9 +21,9 @@ sys.path.insert(0, str(HERE.parents[1]))  # repo root: the models import each ot
 from pydantic import BaseModel  # noqa: E402
 from pydantic.json_schema import models_json_schema  # noqa: E402
 
-from packages.schema import common, events, inventory, layout, reports, session, twin  # noqa: E402
+from packages.schema import board, common, events, inventory, layout, reports, session, twin  # noqa: E402
 
-MODULES = [common, twin, reports, inventory, layout, session, events]
+MODULES = [common, twin, reports, inventory, layout, session, board, events]
 OUT = HERE / "ts" / "index.ts"
 
 # Literal aliases that get a named TS type.
@@ -36,6 +36,7 @@ ALIASES: dict[str, Any] = {
     "ClientKind": session.ClientKind,
     "ViewerMode": session.ViewerMode,
     "JobStatus": events.JobStatus,
+    "BoardKind": board.BoardKind,
 }
 
 OCTAVE_BANDS_HZ = [63, 125, 250, 500, 1000, 2000, 4000, 8000]  # I-G14

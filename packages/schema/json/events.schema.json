@@ -85,6 +85,37 @@
       "title": "AgentTurnPayload",
       "type": "object"
     },
+    "AppResetPayload": {
+      "description": "Additive to v0. Everything was deleted from the big screen (\"Reset everything\"): this\nsession is over and the server hangs up after sending it. A screen that gets it forgets what\nit stored (the family, who it is, its session) and does not connect again.",
+      "properties": {
+        "reason": {
+          "default": "reset",
+          "title": "Reason",
+          "type": "string"
+        }
+      },
+      "title": "AppResetPayload",
+      "type": "object"
+    },
+    "BoardChangedPayload": {
+      "description": "Additive to v0. The family board changed (packages/schema/board.py): a guide posted, edited\nor removed an entry, or someone did by hand. Every screen in the session loads the board again.",
+      "properties": {
+        "person_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Person Id"
+        }
+      },
+      "title": "BoardChangedPayload",
+      "type": "object"
+    },
     "CaptureUploadPayload": {
       "properties": {
         "upload_id": {
@@ -1158,7 +1189,8 @@
             "tour",
             "sound",
             "neighborhood",
-            "design"
+            "design",
+            "family"
           ],
           "title": "Mode",
           "type": "string"
@@ -1195,7 +1227,8 @@
             "tour",
             "sound",
             "neighborhood",
-            "design"
+            "design",
+            "family"
           ],
           "title": "Mode",
           "type": "string"
@@ -1420,6 +1453,21 @@
         "agent"
       ]
     },
+    "app.reset": {
+      "payload": "AppResetPayload",
+      "sent_by": [
+        "server"
+      ]
+    },
+    "board.changed": {
+      "payload": "BoardChangedPayload",
+      "sent_by": [
+        "agent",
+        "desktop",
+        "phone",
+        "server"
+      ]
+    },
     "capture.upload": {
       "payload": "CaptureUploadPayload",
       "sent_by": [
@@ -1465,7 +1513,8 @@
       "sent_by": [
         "agent",
         "desktop",
-        "phone"
+        "phone",
+        "server"
       ]
     },
     "family.answer": {
@@ -1534,7 +1583,8 @@
       "sent_by": [
         "agent",
         "desktop",
-        "phone"
+        "phone",
+        "server"
       ]
     },
     "remote.view": {

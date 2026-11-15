@@ -29,6 +29,16 @@ export function invalidate(prefix: string): void {
   listeners.forEach((l) => l());
 }
 
+/**
+ * Drop everything, the kept copies too: after "Reset everything" none of it is true any more.
+ * Mounted users are not woken: the page is about to be loaded again, and a reload now would only
+ * ask a server that has just been emptied.
+ */
+export function clearResources(): void {
+  cache.clear();
+  stale.clear();
+}
+
 export interface Resource<T> {
   data: T | undefined;
   error: Error | undefined;

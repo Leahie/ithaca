@@ -101,10 +101,25 @@ export function createHttpApi(): ApiClient {
     placementOptions: (ask) => request('/layouts/options', { method: 'POST', body: JSON.stringify(ask) }),
     listCatalog: () => request('/catalog'),
     addFromCatalog: (catalogId) => request(`/catalog/${enc(catalogId)}/add`, { method: 'POST' }),
+    listLibrary: (query = {}) =>
+      request(`/library${q({ q: query.q?.trim() || undefined, category: query.category || undefined, source: query.source || undefined, family: query.family || undefined, offset: query.offset ?? 0, limit: query.limit ?? 60 })}`),
+    // A library id has a colon in it ("abo:B07B4MG9HX"): encoded like every path part.
+    addFromLibrary: (libraryId) => request(`/library/${enc(libraryId)}/add`, { method: 'POST' }),
+    listLooks: () => request('/library/looks'),
+    // A house route: the room is furnished for the whole family, as the screen's user.
+    furnishRoom: (pid, body) => request(`/properties/${enc(pid)}/furniture/design`, { method: 'POST', body: JSON.stringify(body) }),
     listMemory: () => request('/memory'),
     getMemory: (p) => request(`/memory/${memoryPath(p)}`, {}, 'text'),
     putMemory: (p, text) => request(`/memory/${memoryPath(p)}`, { method: 'PUT', body: text, headers: { 'content-type': 'text/plain; charset=utf-8' } }, 'none'),
     deleteMemory: (p) => request(`/memory/${memoryPath(p)}`, { method: 'DELETE' }, 'none'),
+    resetPreview: () => request('/reset/preview'),
+    // The word in the body is the server's guard against a call made by mistake.
+    resetEverything: () => request('/reset', { method: 'POST', body: JSON.stringify({ confirm: 'reset' }) }),
+    // The board is read and written as the person: a member's phone may change only its own card.
+    getBoard: ({ propertyId, householdId }) => request(`/board${q({ property_id: propertyId, household_id: householdId })}`),
+    addBoardEntry: (entry) => request('/board/entries', { method: 'POST', body: JSON.stringify(entry) }),
+    updateBoardEntry: (id, text) => request(`/board/entries/${enc(id)}`, { method: 'PATCH', body: JSON.stringify({ text }) }),
+    deleteBoardEntry: (id) => request(`/board/entries/${enc(id)}`, { method: 'DELETE' }, 'none'),
 
     assetUrl: (url) => (typeof window === 'undefined' ? url : new URL(url, window.location.href).toString()),
   };

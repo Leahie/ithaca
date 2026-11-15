@@ -141,12 +141,22 @@ def list_catalog_sets(style: str | None = None) -> list[CatalogSet]:
 
 @router.post("/catalog/{catalog_id}/add")
 def add_catalog_piece(catalog_id: str, request: Request, body: CatalogAddRequest | None = None, x_user_id: str = Header("demo")) -> InventoryItem:
-    """Put a catalog piece into the user's inventory. The first use of a piece downloads its model."""
-    if catalog_id not in catalog.BY_ID:
-        raise HTTPException(404, "no such catalog piece")
+    """Put a catalog piece into the user's inventory. The first use of a piece downloads its model.
+    A piece of the furniture library ("abo:B07B4MG9HX") is taken here too: the picture cards the
+    guide shows are of either kind."""
     body = body or CatalogAddRequest()
+    if catalog_id not in catalog.BY_ID:
+        from services.api.library import sources
+        from services.api.library.index import library
+
+        piece = library().by_id.get(catalog_id)
+        if piece is None:
+            raise HTTPException(404, "no such catalog piece")
     try:
-        item = pipeline.add_from_catalog(catalog_id, x_user_id, furniture_store(), body.label, (body.width_m, body.depth_m, body.height_m))
+        if catalog_id not in catalog.BY_ID:
+            item = sources.add(piece, x_user_id, furniture_store(), body.label)
+        else:
+            item = pipeline.add_from_catalog(catalog_id, x_user_id, furniture_store(), body.label, (body.width_m, body.depth_m, body.height_m))
     except NormalizeError as e:
         raise HTTPException(422, str(e)) from e
     except Exception as e:  # the model could not be downloaded

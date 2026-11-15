@@ -7,7 +7,7 @@ import json
 import logging
 
 from fastapi import APIRouter, Header, HTTPException, Request, WebSocket, WebSocketDisconnect
-from packages.schema.events import parse_client_event
+from packages.schema.events import make_event, parse_client_event
 from packages.schema.session import ClientKind, CreateSessionRequest, JoinRequest, JoinResult, Session
 from services.api.agent import memory_files
 from services.api.furniture import ledger
@@ -19,6 +19,8 @@ from services.api.twin.service import TwinNotFound, get_twin
 
 log = logging.getLogger(__name__)
 router = APIRouter()
+
+RESET_CLOSE = 4410  # WebSocket close code: the session is gone because everything was reset
 
 
 def _default_property_id() -> str | None:
@@ -84,6 +86,13 @@ def join_session(session_id: str, body: JoinRequest, request: Request) -> JoinRe
 async def session_socket(ws: WebSocket, session_id: str, client: ClientKind, token: str = "") -> None:
     hub: Hub = ws.app.state.hub
     if not hub.authorize(session_id, client, token):
+        if session_id in hub.ended:
+            # A reset ended this session while this screen was away (a phone asleep). A refused
+            # connection only makes it try again, for ever: let it in, tell it, and hang up.
+            await ws.accept()
+            await ws.send_text(make_event(session_id, "server", "app.reset", {}).model_dump_json())
+            await ws.close(code=RESET_CLOSE, reason="everything was reset")
+            return
         await ws.close(code=4401, reason="bad session, client or token")
         return
     await ws.accept()
@@ -104,7 +113,11 @@ async def session_socket(ws: WebSocket, session_id: str, client: ClientKind, tok
 
     async def send_loop() -> None:
         while True:
-            await ws.send_text((await conn.queue.get()).model_dump_json())
+            event = await conn.queue.get()
+            if event is None:  # the session has ended (a reset): everything before this was sent
+                await ws.close(code=RESET_CLOSE, reason="everything was reset")
+                return
+            await ws.send_text(event.model_dump_json())
 
     sender = asyncio.create_task(send_loop())
     try:

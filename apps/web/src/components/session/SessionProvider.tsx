@@ -11,6 +11,8 @@ import { scriptedAgentTurn } from '@/lib/realtime/scripted-agent';
 import { WsTransport } from '@/lib/realtime/ws';
 import { useFamily } from '@/lib/store/family';
 import { onSessionEvent, useSession, viewerSnapshot } from '@/lib/store/session';
+import { onAppReset, useResetNotice } from '@/lib/reset';
+import { ResetNotice } from './ResetNotice';
 
 const STORAGE_KEY = 'ithaca.session';
 
@@ -165,6 +167,10 @@ export function SessionProvider({ client, propertyId, join, householdId = null, 
         } else if (event.type === 'layout.changed') {
           // Furniture was moved, added or removed (by hand, by the guide, or a kept layout).
           reloadFurniture();
+        } else if (event.type === 'board.changed' || event.type === 'family.note') {
+          // A guide or a person wrote on the family board (or a guide shared a note, which is
+          // listed under it): every screen that shows the board loads it again.
+          invalidate('board:');
         } else if (event.type === 'design.showVariants') {
           // New layouts often come with pieces the guide has just added: reload both.
           reloadFurniture();
@@ -183,6 +189,19 @@ export function SessionProvider({ client, propertyId, join, householdId = null, 
       }),
     [client],
   );
+
+  // Everything was deleted from the big screen ("Reset everything"). This screen forgets what it
+  // kept and its session stops for good; unless it is the one that asked, the notice takes the
+  // place of the page, so nothing on it goes on asking a server that has been emptied.
+  useEffect(
+    () =>
+      onSessionEvent((event) => {
+        if (event.type === 'app.reset') onAppReset();
+      }),
+    [],
+  );
+  const wasReset = useResetNotice((s) => s.shown);
+  if (wasReset) return <ResetNotice client={client} />;
 
   return <>{children}</>;
 }

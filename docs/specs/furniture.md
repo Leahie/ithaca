@@ -1,6 +1,7 @@
 # Furniture: storage, in the house, proposals
 
-Owner: B. Code: `services/api/furniture/` (store, rules, and the register the guides read),
+Owner: B. Code: `services/api/furniture/` (store, rules, arranging and dressing a room, and the register the guides read),
+`services/api/library/` (the large collection of 3D models, and choosing pieces for a room),
 `services/api/routers/furniture.py` (routes), `services/api/agent/design_tools.py` (agent tools).
 Tests: `services/api/furniture/tests/`.
 
@@ -115,6 +116,10 @@ the `tag` column, and every piece in it a number, the first time it is opened.
   rows in one transaction: the proposal's pieces stand exactly at its poses (moved out of other
   rooms if they were elsewhere), and the room's other pieces go back to storage. The applied
   proposal becomes `chosen`; any other chosen proposal of that room goes back to `proposed`.
+  A proposal may be **dressed**: its placements then also say what stands on which piece
+  (`on_item_id`) and what hangs how high (`lift_m`), as rows of the house do (F12). Applying a
+  dressed proposal makes the room exactly it: its lamps on its tables, its pictures on its walls,
+  and everything else that was in the room, hung or not, back in storage.
 - **F9. Hand edits are the user's call.** A move or turn by hand is saved anywhere inside a room
   (F4). What a designer would flag (an overlap, a blocked door or path) comes back in `warnings`
   and is never stored. `snap: true` instead asks the solver for the nearest spot within 2 m that
@@ -142,9 +147,65 @@ the `tag` column, and every piece in it a number, the first time it is opened.
     piece by as much; a kept proposal that moves the piece carries it too.
   - It leaves with its piece: when the piece is taken out, deleted, or dropped by a kept
     proposal, what rested on it goes back to storage.
+  - A thing put down on a sofa, an armchair or a bed rests on the seat or the mattress, not on
+    top of the back or the headboard (`classes.top_height`).
+  - A ceiling light (`ceiling_light`: a chandelier, a pendant) hangs with its top at the ceiling:
+    `lift_m` is the room's height less its own. It goes over the dining table or the coffee table,
+    or over open floor only where it leaves headroom (1.95 m).
   - It takes up no floor: the solver, the warnings of F9 and the "where could it go?" options
     do not see it. A thing hung on a wall keeps its height when it is slid along by hand, and a
     kept proposal leaves it where it hangs (F8 arranges the floor).
+
+- **F13. A piece can be put where its kind belongs.** `PlacePiece.auto` (the furniture menu, the
+  storage chips, the guide's `catalog_add` and `place_piece` with no place named) asks the server
+  to choose the spot in a room as it is furnished now (`house._auto`, `furniture/dress.py`): a rug
+  under the seating, the bed or the dining table; a table lamp or a decoration on a free top; a
+  picture over the main piece and a mirror over a console or a dresser, else on the longest free
+  wall at eye height; a ceiling light overhead; a tall plant in a corner by a window; a floor lamp
+  by a seat. Floor furniture goes where a designer would stand it: a coffee table before the sofa,
+  a bedside table beside the bed, a chair at the desk or a free seat at the table, a sofa or a
+  bookcase on the longest free stretch of solid wall. With no such spot it falls back to the
+  nearest free place (as `snap`).
+
+## The library
+
+`services/api/library/` is the large collection behind the furniture menu and the designer: every
+home piece with a 3D model in Amazon Berkeley Objects (CC BY 4.0), Poly Haven's furniture, lamps,
+plants and decorations (CC0), and a filtered part of Objaverse (Sketchfab creators, CC BY and
+CC0). It is an index kept in git (`library/artifacts/`); a piece's model is downloaded the first
+time someone adds it, sized to the index's real size, and cached under `data/catalog/`. The
+160-piece catalog and its sets (`objects/providers/catalog.py`) stay as they are; its pieces are
+in the library too.
+
+- **Search** (`library/index.py`): by words. Every word must match the piece's name, kind,
+  colour, material, maker or a look it suits. A phrase of the look vocabulary ("art deco",
+  "emerald velvet") also matches the pieces that look most like it. One design in several colours
+  is listed once.
+- **Looks** (`library/build/embed.py`, offline): each piece has a look vector from its picture
+  and title (what it looks like, searchable from the vocabulary's phrases), a compat vector
+  (pieces designed for one room are close, whatever their kind), and tags (styles, materials,
+  colours, how high-end it looks). The API reads them with numpy; no model runs in it.
+
+## Furnishing a room
+
+`library/compose.py` chooses the pieces for a room in a look, in the order a designer works: the
+main piece sized to the room and its wall, what makes it usable, a rug, light at three heights,
+the walls and something alive, the small things. Each is chosen to go with the ones before it,
+within sizes that follow from them (a coffee table about two thirds of the sofa; a picture
+narrower than what it hangs over, and short enough to fit under the ceiling). How much goes in
+follows the room's size and the level: `essential`, `full` (default) or `lavish`. Kitchens,
+bathrooms and storage are fitted rooms and are not furnished.
+
+`furniture/arrange.py` then arranges it: the floor furniture by the layout solver (a piece
+nobody wished anything for gets the usual wishes of its kind), dining chairs round their table,
+and everything else by `furniture/dress.py` around that furniture. The result is up to three
+dressed proposals (F8).
+
+Two ways in: the menu's "Furnish this room" (`POST .../furniture/design`, a job; the options then
+show on every screen and the person's guide is told, `room_furnished`), and the guide's
+`furnish_room` tool (the pieces are chosen and added, then the designer agent arranges them with
+wishes of its own). The new pieces are the person's (F1); pieces of an earlier try that stand in
+no room are used again.
 
 ## From a photo of your own room
 
@@ -232,16 +293,19 @@ Storage, as the person (`X-User-Id` = person):
 | `GET /inventory` | The person's family pool (F6). `user_id` is the owner, `owner_name` their name. |
 | `GET /inventory/{item_id}` | One piece from the pool. |
 | `DELETE /inventory/{item_id}` | Delete for good (F1, F3). 403 for someone else's piece. |
-| `POST /catalog/{id}/add`, `POST /objects/ingest`, `POST /objects/import` | New piece owned by the person. |
+| `POST /catalog/{id}/add`, `POST /library/{id}/add`, `POST /objects/ingest`, `POST /objects/import` | New piece owned by the person. |
+| `GET /library?q=&category=&source=&family=&offset=&limit=` | The furniture menu: one page of the library, with how many pieces fall under each section and collection. |
+| `GET /library/looks` | The looks a room can be furnished in. |
 
 In the house, as the house user (`X-User-Id` = house user):
 
 | Route | Does |
 |---|---|
 | `GET /properties/{pid}/furniture[?room_id=]` | The house's pieces (`HousePiece[]`). |
-| `PUT /properties/{pid}/furniture/{item_id}` | Place or move one piece (`PlacePiece`: `x`, `z`, optional `yaw_deg`, `floor_id`, `room_id`, `snap`). Returns the `HousePiece` with `warnings`. |
+| `PUT /properties/{pid}/furniture/{item_id}` | Place or move one piece (`PlacePiece`: `x`, `z`, optional `yaw_deg`, `floor_id`, `room_id`, `snap`, `auto`: F13). Returns the `HousePiece` with `warnings`. |
 | `DELETE /properties/{pid}/furniture/{item_id}` | Take it out of the house (F7). 204, or 404 if it isn't there. |
 | `POST /properties/{pid}/furniture/from-photo` | Set a room up with the person's own room, from one photo (`{upload_id, room_id}`). A job. See "From a photo of your own room". |
+| `POST /properties/{pid}/furniture/design` | Furnish a room from the library in a look (`{room_id, look?, level?}`). A job (`furnish_room`). See "Furnishing a room". |
 | `GET /properties/{pid}/furniture/register` | The register: rooms, pieces with their numbers and places in words, storage, last changes (F10, F11). |
 
 Proposals, as the house user:
