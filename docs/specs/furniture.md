@@ -155,14 +155,18 @@ up with a room the person lives in now, from one photo of it. It is a job (`job.
 1. **Read** (`objects/providers/vision.py`, `OWN_ROOM_PROMPT`): the vision model lists up to 14
    things of theirs: furniture, lamps, plants, rugs, mirrors, pictures, things standing on the
    furniture. Each with a box, two or three words that single it out, whether it hangs on a wall,
-   and which piece it stood on or beside.
-2. **Cut out** (SAM 3): by those words; when the words find nothing, by the box.
+   and which piece it stood on or beside. The words name the whole thing ("white dresser"):
+   "five-drawer dresser" cuts out one drawer.
+2. **Cut out** (SAM 3): by those words; when the words find nothing, by the box. Only then: in a
+   full room the box is rougher than the words, and what fills it is often the wrong thing.
 3. **Rebuild** (SAM 3D Objects): every thing at once, side by side. The service works through
    them a few at a time; after 130 s the room is set up with what is ready. Each answer carries
    the model and where it says the object is in the photo (rotation, translation, scale).
 4. **Size** (`objects/pipeline.py`): the photo's sizes are off by one factor for the whole photo,
    found from the furniture of known size in it, so a lamp is the right size next to its desk.
-   Furniture that still comes out unbelievable for its kind gets the typical size.
+   Furniture that still comes out unbelievable for its kind gets the typical size. No bed is
+   longer than 2.15 m: a wide-angle photo stretches what is near the camera. A hung thing whose
+   model comes out lying on its back (a poster) is tipped up to hang.
 5. **How it stood**: from the placing of the objects in the photo, which way is up is what most
    of them agree on; a thing stood on the piece whose top it was over, at a place measured along
    that piece's own front and right; a thing on the wall hung nearest some piece, at some height.
@@ -173,6 +177,13 @@ up with a room the person lives in now, from one photo of it. It is a job (`job.
    (F12); the hung things on the wall behind the piece they hung nearest, clear of doors and
    windows. The room becomes exactly that: what stood there goes back to storage. Pieces the
    room has no place for stay in storage, and the outcome says which.
+
+   When the room does not take all the floor pieces at once (a small room, a room with many
+   doors), the more important half is arranged, and half of that if need be; the reading lists
+   them in order of importance. What was set aside is then stood one piece at a time, by the
+   piece it goes with (a chair in front of its desk, turned to it) or along a wall, each only
+   where a free place is left. A room is never left empty because one piece too many came out
+   of the photo.
 
 The new pieces are the person's (`X-Person-Id`); the house is the screen's (`X-User-Id`). When it
 is done every screen of the house draws the furniture again, and that person's guide is told

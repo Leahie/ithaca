@@ -50,7 +50,7 @@ class RoomThing(BaseModel):
 
     label: str = Field(description='Short name a person would use, e.g. "White desk".')
     item_class: str = Field(description=f"One of: {', '.join(FURNITURE_CLASSES)}.")
-    segment_prompt: str = Field(description='Two or three plain words that pick it out in the photo, e.g. "white desk".')
+    segment_prompt: str = Field(description='Two or three plain words that pick it out in the photo: its colour or material and what it is, e.g. "white desk". The whole thing, never its parts ("white dresser", not "five-drawer dresser").')
     box: list[float] = Field(description="Rough box around the whole thing, as fractions of the image width and height: [left, top, right, bottom], each from 0 to 1.")
     rests_on: int | None = Field(None, description="If it stands or lies on a piece of furniture in this list (a lamp on a desk, a plant on a dresser): that piece's number, counting from 0. Empty for things on the floor or on the wall.")
     on_wall: bool = Field(False, description="True if it is fixed to a wall: a picture, a mirror, a wall lamp, a shelf, a clock.")

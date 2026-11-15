@@ -32,7 +32,7 @@ from services.api.twin.service import get_twin
 
 MAX_FLOOR_SHARE = 0.42  # of the room's floor that furniture may cover before the least important pieces are left out
 M2_PER_PIECE = 2.2  # a room holds about one piece on the floor per this much floor: more, and no arrangement keeps the ways through open
-SOLVER_TRIES = 3
+WALL_STEP_M = 0.75  # between the places along the walls where a piece is tried once the room is nearly full
 HANG_M = {"wall_art": 1.35, "mirror": 1.0}  # how high a thing hangs when the photo did not say
 DEFAULT_HANG_M = 1.4
 EDGE_M = 0.03  # between a thing and the edge of the top it stands on, or the wall it hangs on
@@ -90,6 +90,101 @@ def _wishes(floor: list[SceneThing]) -> list[Constraint]:
         elif cls in ("armchair", "floor_lamp", "plant", "mirror", "other", "decor"):
             wishes.append(Constraint(kind="against_wall", item=me, target="any", weight=1))
     return wishes
+
+
+def _by_its_piece(t: SceneThing, wishes: list[Constraint], poses: dict[str, Pose], by_id: dict[str, SceneThing]) -> list[tuple[float, float, float]]:
+    """Where a piece that goes with another would stand by it: (x, z, yaw), best first. A chair in
+    front of its desk and turned to it, a nightstand at either side of the bed, a rug by the bed."""
+    me = str(t.item.item_id)
+    mine = [w for w in wishes if w.item == me and w.target in poses]
+    spots: list[tuple[float, float, float]] = []
+    for w in mine:
+        at, other = poses[w.target], by_id[w.target].item
+        front, right = _axes(at.yaw)
+        if w.kind == "in_front_of":
+            out = other.dims_m.d / 2 + t.item.dims_m.d / 2 + 0.1
+            turned = any(v.kind == "faces" and v.target == w.target for v in mine)
+            spots.append((at.x + front[0] * out, at.z + front[1] * out, (at.yaw + 180) % 360 if turned else at.yaw))
+        elif w.kind == "beside":
+            back = other.dims_m.d / 2 - t.item.dims_m.d / 2  # their backs in one line
+            for side in (1, -1):
+                out = side * (other.dims_m.w / 2 + t.item.dims_m.w / 2 + 0.08)
+                spots.append((at.x + right[0] * out - front[0] * back, at.z + right[1] * out - front[1] * back, at.yaw))
+        elif w.kind == "near":
+            spots.append((at.x, at.z, at.yaw))
+    return spots
+
+
+def _along_walls(room, twin) -> list[tuple[float, float]]:
+    """Places along the room's walls, a step apart: those furthest from a door first."""
+    pts = [tuple(p) for p in room.polygon]
+    doors = [
+        LineString([(o.polygon[0].x, o.polygon[0].z), (o.polygon[1].x, o.polygon[1].z)])
+        for o in twin.openings
+        if o.kind != "window" and room.room_id in (o.room_id, o.other_room_id) and len(o.polygon) >= 2
+    ]
+    found: list[tuple[float, float]] = []
+    for a, b in zip(pts, pts[1:] + pts[:1]):
+        length = math.dist(a, b)
+        if length < 0.6:
+            continue
+        n = max(1, round(length / WALL_STEP_M))
+        found += [(a[0] + (b[0] - a[0]) * (k + 0.5) / n, a[1] + (b[1] - a[1]) * (k + 0.5) / n) for k in range(n)]
+    return sorted(found, key=lambda p: -min((d.distance(Point(p)) for d in doors), default=0.0))
+
+
+def _arrange(twin, room, floor: list[SceneThing]) -> dict[str, Pose]:
+    """Where the pieces on the floor stand: item_id -> pose, for those that got a place.
+
+    All of them at once when the room takes them. When it does not (a small room, a room with many
+    doors, a bed the photo made too large), the more important half is arranged, and half of that
+    if need be; `floor` is in order of importance. What was set aside is then stood one piece at
+    a time, by the piece it goes with or along a wall, each only where a free place is left. So a
+    room is never left empty because one piece too many came out of the photo."""
+    if not floor:
+        return {}
+    solver_room = house._solver_room(twin, room)
+    wishes = _wishes(floor)
+    by_id = {str(t.item.item_id): t for t in floor}
+
+    def together(things: list[SceneThing]) -> dict[str, Pose] | None:
+        ids = {str(t.item.item_id) for t in things}
+        result = layout_solver.solve(
+            solver_room, twin.openings, [house._solver_item(t.item) for t in things],
+            [w for w in wishes if w.item in ids and (w.target in ids or len(w.target) < 32)], n=1, walls=twin.walls, sweeps=twin.sweeps,
+        )
+        return dict(result.variants[0].poses) if result.variants else None
+
+    # Rugs lie under the rest and take no room from it: they stay in every try but the last.
+    solid = [t for t in floor if t.item.item_class != "rug"]
+    rugs = [t for t in floor if t.item.item_class == "rug"]
+    keep = len(solid)
+    poses = together(floor)
+    while poses is None and keep > 1:
+        keep = (keep + 1) // 2
+        poses = together(solid[:keep] + rugs)
+    if poses is None and solid and rugs:
+        poses = together(solid[:1])
+    if poses is None:
+        return {}
+
+    aside = [t for t in floor if str(t.item.item_id) not in poses]
+    walls = _along_walls(room, twin) if aside else []
+    for t in aside:
+        me = str(t.item.item_id)
+        items = [house._solver_item(by_id[k].item) for k in poses] + [house._solver_item(t.item)]
+
+        def near(x: float, z: float, reach_m: float, yaw: float | None = None) -> Pose | None:
+            return layout_solver.nearest_valid_pose(
+                solver_room, twin.openings, items, poses, me, x, z, walls=twin.walls, reach_m=reach_m, sweeps=twin.sweeps, yaw=yaw
+            )
+
+        pose = next((p for x, z, yaw in _by_its_piece(t, wishes, poses, by_id) if (p := near(x, z, 1.0, yaw)) is not None), None)
+        if pose is None and t.item.item_class != "rug":
+            pose = next((p for x, z in walls if (p := near(x, z, 0.3)) is not None), None)
+        if pose is not None:
+            poses[me] = pose
+    return poses
 
 
 def _axes(yaw_deg: float) -> tuple[tuple[float, float], tuple[float, float]]:
@@ -194,24 +289,7 @@ def furnish(house_user_id: str, property_id: str, room_id: str, scene: RoomScene
     covers = lambda: sum(t.item.dims_m.w * t.item.dims_m.d for t in floor if t.item.item_class != "rug")  # noqa: E731
     while len(floor) > 1 and (covers() > MAX_FLOOR_SHARE * area or len(floor) > max(3, area / M2_PER_PIECE)):
         outcome.left.append(f"{floor.pop().item.label}: this room is too small for everything in the photo")
-    solver_room = house._solver_room(twin, room)
-    wishes = _wishes(floor)
-    poses: dict[str, Pose] = {}
-    for _ in range(SOLVER_TRIES):
-        if not floor:
-            break
-        ids = {str(t.item.item_id) for t in floor}
-        result = layout_solver.solve(
-            solver_room, twin.openings, [house._solver_item(t.item) for t in floor],
-            [w for w in wishes if w.item in ids and (w.target in ids or len(w.target) < 32)], n=1, walls=twin.walls, sweeps=twin.sweeps,
-        )
-        if result.variants:
-            poses = result.variants[0].poses
-            break
-        outcome.left.append(f"{floor.pop().item.label}: no place for it could be found in this room")
-    else:
-        outcome.left += [f"{t.item.label}: no arrangement of the room worked with it" for t in floor]
-        floor = []
+    poses = _arrange(twin, room, floor)
 
     rows: list[HousePiece] = []
     for t in floor:

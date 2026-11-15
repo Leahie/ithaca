@@ -22,6 +22,26 @@ class NormalizeError(ValueError):
     pass
 
 
+LYING_FLAT = 0.5  # thinner from top to bottom than this share of its shorter side: it lies on its back
+
+
+def hang_up(glb: bytes) -> tuple[bytes, bool]:
+    """A flat thing that hangs on a wall (a poster, a mirror, a clock). Its model can come out
+    lying on its back, as if on a table: then it is tipped up to hang, the face that was up
+    toward the room and the far edge on top. Returns (the GLB, whether it was tipped)."""
+    try:
+        scene = trimesh.load(io.BytesIO(glb), file_type="glb", force="scene")
+    except Exception as e:
+        raise NormalizeError(f"the 3D file could not be read: {e}") from e
+    if scene.is_empty or scene.bounds is None:
+        raise NormalizeError("the 3D file has no geometry")
+    ex, ey, ez = scene.bounds[1] - scene.bounds[0]  # glTF is Y up
+    if ey >= LYING_FLAT * min(ex, ez):
+        return glb, False
+    scene.apply_transform(trimesh.transformations.rotation_matrix(math.pi / 2, [1, 0, 0]))  # up -> front
+    return scene.export(file_type="glb"), True
+
+
 def normalize_glb(glb: bytes, item_class: str, stated: tuple[float | None, float | None, float | None]) -> tuple[bytes, tuple[float, float, float]]:
     """Returns (normalized GLB, (w, d, h) in meters).
 

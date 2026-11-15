@@ -30,7 +30,7 @@ from services.api.furniture.store import FurnitureStore
 from services.api.integrations.config import IntegrationNotConfigured, env
 from services.api.objects import files
 from services.api.objects.classes import FURNITURE_CLASSES, MIN_TOP_M, NO_TOP, NO_TYPICAL_SIZE, SIZE_ANCHORS, TYPICAL_SIZE_M
-from services.api.objects.normalize import NormalizeError, normalize_glb
+from services.api.objects.normalize import NormalizeError, hang_up, normalize_glb
 from services.api.objects.providers.base import (
     Describer, FramePiece, ImageTo3D, Model3D, PhotoPose, Piece, RoomDescriber, RoomThing, Segment, Segmenter, contains,
 )
@@ -423,6 +423,9 @@ def _photo_scale(classes: dict[int, str], models: dict[int, Model3D]) -> float:
     return min(max(statistics.median(ratios), 0.4), 4.0) if ratios else 1.0
 
 
+LONGEST_M = {"bed": 2.15, "crib": 1.45}  # no bed is longer than this, whatever the photo says
+
+
 def _room_size(item_class: str, size_m: tuple[float, float, float] | None, scale: float) -> tuple[float | None, float | None, float | None]:
     """(w, d, h) to size a thing from a room photo to: its size in the photo, at the photo's
     scale. Furniture whose size then comes out unbelievable for its kind (a bed cut off by the
@@ -436,7 +439,11 @@ def _room_size(item_class: str, size_m: tuple[float, float, float] | None, scale
         return (size[0], size[1], size[2])
     typical = TYPICAL_SIZE_M[item_class]
     believable = 0.55 <= max(size) / max(typical) <= 1.35 and (item_class == "rug" or 0.5 <= size[2] / typical[2] <= 1.8)
-    return (size[0], size[1], size[2]) if believable else (None, None, None)
+    if not believable:
+        return (None, None, None)
+    # A wide-angle photo stretches what is near the camera. Beds come in standard lengths.
+    shrink = min(1.0, LONGEST_M.get(item_class, math.inf) / max(size))
+    return (size[0] * shrink, size[1] * shrink, size[2] * shrink)
 
 
 def ingest_room_photo(
@@ -470,6 +477,8 @@ def ingest_room_photo(
         segment = providers.segmenter.segment(image, mime_type, thing.segment_prompt, thing.box)
         if segment is None and hasattr(providers.segmenter, "segment_box"):
             # The words found nothing (a woven stool, a small wall lamp): take whatever fills its box.
+            # Only then: in a full room the box is rougher than the words, and what fills it is often
+            # the wrong thing (a pillow for the shelf behind the bed).
             segment = providers.segmenter.segment_box(image, mime_type, thing.box)
         if segment is None:
             raise NormalizeError("it could not be found in the photo")
@@ -549,9 +558,18 @@ def ingest_room_photo(
             no_wider_than(n, 1.2)
     progress(82, "Sizing your things")
 
+    hangs = {n for n in built if things[n].on_wall and n not in rests_on}
+    lying: set[int] = set()  # hung things whose model came out lying on its back: tipped up to hang
+
     def sized(n: int):
         try:
-            return normalize_glb(models[n].glb, classes[n], rough[n])
+            glb, stated = models[n].glb, rough[n]
+            if n in hangs:
+                glb, tipped = hang_up(glb)
+                if tipped:  # what was its depth is now its height
+                    lying.add(n)
+                    stated = (stated[0], stated[2], stated[1])
+            return normalize_glb(glb, classes[n], stated)
         except NormalizeError as e:
             return e
 
@@ -607,7 +625,8 @@ def ingest_room_photo(
                 entry.offset_m = (offset[0] * scale, offset[1] * scale) if offset else None
             size = built[n][1].size_m
             if seen(n) and floor_height is not None and size:
-                entry.hang_m = min(max((geometry.height[n] - size[2] / 2 - floor_height) * scale, 0.4), 2.2)
+                tall = size[1] if n in lying else size[2]
+                entry.hang_m = min(max((geometry.height[n] - tall / 2 - floor_height) * scale, 0.4), 2.2)
         elif thing.beside is not None and thing.beside in on_floor and thing.beside != n:
             entry.beside = str(items[thing.beside].item_id)
         scene.things.append(entry)

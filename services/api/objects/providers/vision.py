@@ -64,7 +64,10 @@ things standing on the furniture such as a vase, a clock, a speaker or a stack o
   on furniture, wall_art for a picture or poster, decor for other small things, other for anything
   larger that fits no class.
 - box: a rough box around the whole thing.
-- segment_prompt: two or three plain words that single it out in this photo, e.g. "white desk".
+- segment_prompt: two or three plain words that single it out in this photo: its colour or
+  material and what it is, e.g. "white desk", "black bunk bed". Name the whole thing, never its
+  parts or how many it has ("white dresser", not "five-drawer dresser"): the words are matched
+  against the picture, and "drawer" finds one drawer.
 - rests_on: for a thing standing or lying on a piece of furniture, that piece's number.
 - on_wall: true for a thing fixed to a wall.
 - beside: for a piece on the floor that goes with another, that piece's number.

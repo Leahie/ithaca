@@ -834,17 +834,22 @@ def nearest_valid_pose(
     walls: list[Wall] | None = None,
     reach_m: float = 2.0,
     sweeps: list[Sweep] | None = None,
+    yaw: float | None = None,
 ) -> Pose | None:
     """Where a piece dropped at (x, z) can actually stand: the closest spot within reach_m that
     breaks no hard rule, trying each wall direction. Near a wall it backs up against it.
-    `poses` holds the other pieces already in the room. None if nothing nearby works."""
+    `poses` holds the other pieces already in the room. None if nothing nearby works.
+    `yaw`: the way it should face (a chair toward its desk). That is tried first at every spot,
+    and the piece is then not turned to back against a wall."""
     scene = _scene(room, openings, walls, sweeps)
     item = next(i for i in items if i.item_id == item_id)
     yaws = sorted({round(w.yaw) % 360 for w in scene.walls}) or [0.0]
+    if yaw is not None:
+        yaws = [yaw % 360] + [y for y in yaws if abs(y - yaw % 360) > 1]
     here = Point(x, z)
     near = sorted(scene.walls, key=lambda w: LineString([w.a, w.b]).distance(here))
     candidates: list[Pose] = []
-    if near and LineString([near[0].a, near[0].b]).distance(here) < 0.9:  # dropped by a wall: back against it
+    if yaw is None and near and LineString([near[0].a, near[0].b]).distance(here) < 0.9:  # dropped by a wall: back against it
         wall = near[0]
         along = LineString([wall.a, wall.b])
         t = along.project(here) / along.length
