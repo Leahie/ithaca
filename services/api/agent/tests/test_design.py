@@ -137,22 +137,26 @@ def test_furnishing_with_a_set_adds_its_pieces_and_starts_the_designer(furniture
     assert job["payload"]["room_id"] == LIVING_ROOM and all(str(i.item_id) in job["payload"]["brief"] for i in added)
 
 
-def test_a_second_room_waits_until_the_user_has_decided_on_the_first(furniture):
-    """Human in the loop between rooms: the guide cannot chain room designs by itself."""
+def test_rooms_are_planned_together_and_shown_one_at_a_time(furniture):
+    """Asking for two rooms starts the designer on both at once; the second room's layouts are
+    held until the user has decided on the first (human in the loop between rooms)."""
     twin = get_twin(PROPERTY)
     other = next(r.room_id for r in twin.rooms if r.room_id != LIVING_ROOM)
     conversation = design_gate.key(None, "alice")
-    ask = lambda room: ScriptedModel(script=[call("design_in_background", room_id=room, brief="whatever fits"), AIMessage(content="ok")])  # noqa: E731
-    jobs = lambda out: [e[1]["payload"]["room_id"] for e in out if e[0] == "ui" and e[1]["type"] == BACKGROUND_DESIGN]  # noqa: E731
+    both = ScriptedModel(script=[
+        call("design_in_background", room_id=LIVING_ROOM, brief="whatever fits"),
+        call("design_in_background", room_id=other, brief="whatever fits"),
+        call("design_in_background", room_id=other, brief="whatever fits"),  # asked twice: not started twice
+        AIMessage(content="ok"),
+    ])
+    out = run(both, InMemoryStore(), user="alice", thread="t1")
+    assert [e[1]["payload"]["room_id"] for e in out if e[0] == "ui" and e[1]["type"] == BACKGROUND_DESIGN] == [LIVING_ROOM, other]
+    assert "already being arranged" in both.tool_results[2]
 
-    assert jobs(run(ask(LIVING_ROOM), InMemoryStore(), user="alice", thread="t1")) == [LIVING_ROOM]
-    second = ask(other)
-    assert jobs(run(second, InMemoryStore(), user="alice", thread="t1")) == [] and "Not yet" in second.tool_results[0]  # still arranging
-    design_gate.shown(conversation, LIVING_ROOM)  # its layouts are on screen
-    second = ask(other)
-    assert jobs(run(second, InMemoryStore(), user="alice", thread="t1")) == [] and "has not decided" in second.tool_results[0]
-    design_gate.user_spoke(conversation)  # they kept one, or said to go on
-    assert jobs(run(ask(other), InMemoryStore(), user="alice", thread="t1")) == [other]
+    assert design_gate.ready(conversation, LIVING_ROOM, "living room ready")  # the first to finish is shown
+    assert not design_gate.ready(conversation, other, "next room ready")  # the second waits for the user
+    assert design_gate.user_spoke(conversation) == "next room ready"  # they decided: now it comes up
+    assert design_gate.user_spoke(conversation) is None
 
 
 def test_planning_a_room_someone_else_has_plans_for_is_raised_with_the_person_first(furniture):

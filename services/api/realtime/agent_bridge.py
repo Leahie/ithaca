@@ -153,14 +153,19 @@ class AgentBridge:
 
         if event.type == "voice.transcript" and p.get("final") and not p.get("text", "").strip():
             return  # the microphone closed without hearing anything: not a turn
+        waiting, who = None, None
         if event.type == "chat.user" or (event.type == "voice.transcript" and p.get("final")) or (event.type == "layout.confirm" and by_user):
             # The user has spoken or kept a layout: the room that was waiting for them is settled,
             # and the guide may go on to another one (agent/design_gate.py).
-            design_gate.user_spoke(design_gate.key(sid, self._context(room, event.member_id if room.household_id else None).user_id))
+            who = event.member_id if room.household_id else None
+            waiting = design_gate.user_spoke(design_gate.key(sid, self._context(room, who).user_id))
         if event.type == "chat.user" or (event.type == "voice.transcript" and p.get("final")):
             log_.heard(p["text"])
             self._signal(room)
             self._start(room, p["text"], proactive=False, member_id=event.member_id, interrupts=True)
+        if (event.type == "chat.user" or (event.type == "voice.transcript" and p.get("final")) or (event.type == "layout.confirm" and by_user)) and waiting:
+            # They have judged one room: the next one that was planned meanwhile comes up now.
+            asyncio.get_running_loop().call_soon(lambda: self._start(room, waiting, proactive=False, member_id=who))
         elif event.type == "session.joined" and p.get("member_id") and room.household_id:
             key = (sid, p["member_id"])
             if key not in self._greeted_members:
@@ -389,8 +394,9 @@ class AgentBridge:
             try:
                 report = await asyncio.to_thread(self.design, context, room_id, brief)
                 message = event_message("layouts_ready", f"room_id: {room_id}\n{report}")
-                design_gate.shown(conversation, room_id)  # now it waits for the user
                 house_plans.note(context, room_id, house_plans.CHOOSING)
+                if not design_gate.ready(conversation, room_id, message):
+                    return  # another room is waiting for the user: this one is shown after it
             except Exception as e:
                 log.exception("background designer failed")
                 message = event_message("layouts_failed", f"room_id: {room_id}\n{e}")

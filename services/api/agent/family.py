@@ -219,6 +219,9 @@ class FamilyContextMiddleware(AgentMiddleware):
                     f"{ctx.member_name}'s alone: you know nothing of what the others told their agents, and they know "
                     "nothing of yours.\n"
                     "- Speak for your person, not for the whole family.\n"
+                    f"- You are talking with {ctx.member_name}: say \"you\" and \"your\" to them, and \"I\" for yourself. "
+                    f"Never refer to {ctx.member_name} by name or as \"they\" in what you say. Only other family members are "
+                    "named and spoken of in the third person.\n"
                     "- Everything you say shows on the shared screen, labelled with your person's name."
                 )
             return request.override(system_message=append_to_system_message(request.system_message, text))
@@ -239,6 +242,9 @@ class FamilyContextMiddleware(AgentMiddleware):
             f"house together, and each member has their own agent. The others: {others}. Your memory files are "
             f"{ctx.member_name or 'your person'}'s alone.\n"
             "- Speak for your person, not for the whole family.\n"
+            f"- You are talking with {ctx.member_name or 'your person'}: say \"you\" and \"your\" to them, and \"I\" for "
+            "yourself. Never refer to them by name or as \"they\". Only other family members are named and spoken of in "
+            "the third person.\n"
             "- When a question touches someone else's needs, ask their agent with family_ask_member instead of guessing.\n"
             "- When you find something the family should weigh together (a must-have met or broken, a conflict between "
             "members' wishes), post it with family_post_note, in one or two sentences. Read family_read_board before "
