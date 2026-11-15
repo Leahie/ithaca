@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import type { CatalogPiece, PropertyTwin } from '@ithaca/schema';
 import { PlanPreview } from '@/components/design/PlanPreview';
 import { GLASS, GLASS_PANEL } from '@/components/ui';
-import { IconSofa } from '@/components/ui/icons';
+import { IconSofa, IconSparkle } from '@/components/ui/icons';
 import { config } from '@/lib/config';
 import { useInventory, useLayouts } from '@/lib/data/hooks';
 import { useHands } from '@/lib/hands/store';
@@ -46,7 +46,7 @@ const PILL = `rounded-full ${GLASS}`;
  * for the code a phone scans) and the guide's latest words as a caption. Every control is on the
  * phone; "Controls" brings the usual top bar and room list back.
  */
-export function CleanOverlay({ twin, pairing, onShowControls, onFurniture }: { twin: PropertyTwin; pairing: ReactNode; onShowControls(): void; /** Opens the furniture menu; left out where there is none. */ onFurniture?(): void }) {
+export function CleanOverlay({ twin, pairing, onShowControls, onFurniture, onStudio }: { twin: PropertyTwin; pairing: ReactNode; onShowControls(): void; /** Opens the furniture menu; left out where there is none. */ onFurniture?(): void; /** Opens the room studio; left out where there is none. */ onStudio?(): void }) {
   const roomId = useSession((s) => s.viewer.room_id);
   const sweepId = useSession((s) => s.viewer.sweep_id);
   const datetime = useSession((s) => s.viewer.datetime);
@@ -183,6 +183,13 @@ export function CleanOverlay({ twin, pairing, onShowControls, onFurniture }: { t
             className={`inline-flex items-center gap-1.5 px-3.5 py-2 text-sm font-semibold ${PILL}`}>
             <IconSofa width={16} height={16} />
             Furniture
+          </button>
+        )}
+        {onStudio && (
+          <button type="button" onClick={onStudio} data-testid="studio-open-clean" title="Take one room out of the house: turn it by hand, mark the floor with your hands, and say what goes there"
+            className={`inline-flex items-center gap-1.5 px-3.5 py-2 text-sm font-semibold ${PILL}`}>
+            <IconSparkle width={16} height={16} />
+            Studio
           </button>
         )}
         <button type="button" onClick={onShowControls} className={`px-3.5 py-2 text-sm ${PILL}`}>
