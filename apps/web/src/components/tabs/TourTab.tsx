@@ -143,6 +143,9 @@ export function TourTab({ twin, active }: { twin: PropertyTwin; active: boolean 
   /** The first view is in place: the loading screen fades out, then goes. */
   const [revealed, setRevealed] = useState(false);
   const firstMove = useRef<MpSdk | null>(null);
+  /** Until when (performance.now) the guide is putting a layout on show: the room is looked at
+   * from above and turned once round, so the goto that comes with it must not take the camera inside. */
+  const layoutShow = useRef(0);
   /** One hop the given way, for the hand gestures; set while the tour can walk. */
   const handStep = useRef<((angleDeg: number, steps: number) => void) | null>(null);
   const [loaderGone, setLoaderGone] = useState(false);
@@ -418,6 +421,8 @@ export function TourTab({ twin, active }: { twin: PropertyTwin; active: boolean 
     }
     // The user walked here themselves: the session is following the camera, not moving it.
     if (!first && sweepId && target === here.current) return;
+    // A layout going on show is looked at from above (see aerialTarget), not from inside.
+    if (!first && performance.now() < layoutShow.current) return;
     const from = sweepPosition(target);
     moveTo(target, first, 0, best && from ? rotationToward(from, best.lookAt) : undefined);
     if (first) setTimeout(() => setRevealed(true), 400); // an instant move
@@ -508,6 +513,10 @@ export function TourTab({ twin, active }: { twin: PropertyTwin; active: boolean 
     const tick = (now: number) => {
       frame = null;
       for (const e of eases) {
+        if (e.slow && moving.current) {
+          e.start = now - e.done * e.ms; // the camera is flying to the room: the turn waits, and goes on from where it was
+          continue;
+        }
         if (now < e.start) continue; // a slow turn that waits for the walk to the room
         const at = e.slow ? Math.min(1, (now - e.start) / e.ms) : LOOK_EASE((now - e.start) / e.ms);
         const step = at - e.done;
@@ -801,6 +810,8 @@ export function TourTab({ twin, active }: { twin: PropertyTwin; active: boolean 
   useEffect(
     () =>
       onSessionEvent((event) => {
+        if ((event.type === 'design.showVariants' || event.type === 'layout.select') && event.source === 'agent') layoutShow.current = performance.now() + 3000;
+        if (event.type === 'viewer.goto' && event.source === 'agent' && performance.now() < layoutShow.current) return; // part of the show
         if (event.type === 'furniture.select') setArranging(event.payload.item_id ?? null);
         else if (event.type === 'furniture.overview') setOverview(event.payload.room_id ?? null);
         else if (event.type === 'remote.view' && event.payload.view !== 'furniture') {
@@ -968,6 +979,13 @@ export function TourTab({ twin, active }: { twin: PropertyTwin; active: boolean 
 
   /** What to look down on: a key that changes when the view must, where, and in which room. 'wait': a piece just added is not loaded yet. */
   const aerialTarget = useMemo(() => {
+    // A layout being tried comes first: its whole room from above, whoever else wants the camera.
+    const tried = previewLayout(layouts.data, selectedLayoutId);
+    const triedRoom = tried && twin.rooms.find((r) => r.room_id === tried.room_id);
+    if (tried && triedRoom) {
+      const [x, z] = centroid(triedRoom.polygon);
+      return { key: `layout:${tried.layout_id}`, at: { x, y: triedRoom.floor_y, z }, room: triedRoom };
+    }
     if (handsOn && active && roomId) {
       // By hand the camera stays put: it must not chase each piece a hand passes.
       const room = twin.rooms.find((r) => r.room_id === roomId);
@@ -982,12 +1000,6 @@ export function TourTab({ twin, active }: { twin: PropertyTwin; active: boolean 
       const room = p && twin.rooms.find((r) => r.room_id === p.room_id);
       if (!p || !room) return 'wait' as const;
       return { key: `${p.item_id}@${p.position.x.toFixed(2)},${p.position.z.toFixed(2)}`, at: p.position, room };
-    }
-    const tried = previewLayout(layouts.data, selectedLayoutId);
-    const triedRoom = tried && twin.rooms.find((r) => r.room_id === tried.room_id);
-    if (tried && triedRoom) {
-      const [x, z] = centroid(triedRoom.polygon);
-      return { key: `layout:${tried.layout_id}`, at: { x, y: triedRoom.floor_y, z }, room: triedRoom };
     }
     const room = overview ? twin.rooms.find((r) => r.room_id === overview) : undefined;
     if (!room) return null;

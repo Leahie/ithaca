@@ -49,16 +49,45 @@ export function useSpeakGuide(enabled: boolean): void {
       }
       for (const text of held.splice(0)) voice.enqueue(text);
     };
-    const say = (text: string) => {
+    const speak = (text: string) => {
       if (!text.trim()) return;
       held.push(text);
       release();
+    };
+    // One reply at a time. In a family each member has an agent, and two can answer at once:
+    // the first to start has the floor, and the other's sentences wait until it has finished,
+    // so the two are never woven into each other.
+    let floor: string | null = null;
+    const waiting = new Map<string, string[]>(); // message_id -> sentences, in arrival order
+    const ended = new Set<string>();
+    const say = (id: string, text: string) => {
+      floor ??= id;
+      if (id === floor) speak(text);
+      else waiting.set(id, [...(waiting.get(id) ?? []), text]);
+    };
+    const finish = (id: string) => {
+      if (id !== floor) {
+        if (waiting.has(id)) ended.add(id);
+        return;
+      }
+      floor = null;
+      for (const [next, texts] of waiting) {
+        waiting.delete(next);
+        texts.forEach(speak);
+        if (!ended.delete(next)) {
+          floor = next; // still being written: it has the floor now
+          break;
+        }
+      }
     };
     const off = onSessionEvent((event) => {
       // The user's own words cut the guide off. An open microphone that has heard nothing yet
       // (it sends empty transcripts while it waits) does not.
       if (event.type === 'chat.user' || (event.type === 'voice.transcript' && event.payload.text.trim() !== '')) {
         for (const id of written.keys()) muted.add(id);
+        floor = null;
+        waiting.clear();
+        ended.clear();
         held = [];
         holdUntil = 0;
         return voice.cancelSpeech();
@@ -82,18 +111,19 @@ export function useSpeakGuide(enabled: boolean): void {
         const from = said.get(id) ?? 0;
         const end = sentenceEnd(text.slice(from));
         if (end >= MIN_PIECE) {
-          say(text.slice(from, from + end));
+          say(id, text.slice(from, from + end));
           said.set(id, from + end);
         }
       } else if (event.type === 'agent.message') {
         const id = event.payload.message_id;
         // A reply that streamed: say its tail. One that came whole: say all of it.
         const text = written.get(id) ?? event.payload.text;
-        if (!muted.has(id)) say(text.slice(said.get(id) ?? 0));
+        if (!muted.has(id)) say(id, text.slice(said.get(id) ?? 0));
+        finish(id);
         // Tell the phones when this reply has been said to the end: one of them may be waiting
         // to open its microphone for the answer.
         const wait = window.setInterval(() => {
-          if (voice.isSpeaking() || held.length) return;
+          if (voice.isSpeaking() || held.length || waiting.has(id)) return;
           window.clearInterval(wait);
           waits.delete(wait);
           dispatch('voice.spoken', { message_id: id });
