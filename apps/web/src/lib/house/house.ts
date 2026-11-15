@@ -35,6 +35,7 @@ import {
   FrontSide,
   Group,
   LinearFilter,
+  LinearMipmapLinearFilter,
   Matrix4,
   Mesh,
   MeshBasicMaterial,
@@ -43,6 +44,7 @@ import {
   ShaderMaterial,
   SphereGeometry,
   TextureLoader,
+  Vector2,
   Vector3,
   type Camera,
   type IUniform,
@@ -74,17 +76,30 @@ export interface HouseInfo {
 
 // How bright the rooms should come out on screen: the usual floor gets this much light from
 // each source (1 = full white for a white surface, before the roll-off).
-const FLOOR_DAYLIGHT = 0.4;
-const FLOOR_LAMPLIGHT = 0.62;
+const FLOOR_DAYLIGHT = 0.32;
+const FLOOR_LAMPLIGHT = 0.22;
+/** The lamps at night against by day: dimmer, and (LAMP_FALL_*) their light reaches less far. */
+const LAMPS_AT_NIGHT = 0.55;
+const LAMP_FALL_DAY = 1.8;
+const LAMP_FALL_NIGHT = 3.2;
+/** The most the sun thrown back into a room adds to its light (1 = full white); it levels off toward this. */
+const BOUNCE_MAX = 0.3;
+/** Daylight on open ground and the sun thrown back indoors keep the level they had: only the rooms' own light is lower (docs/specs/lighting.md, 8a). */
+const OPEN_DAYLIGHT = 0.4;
 const LAMP_COLOR = new Color(1, 0.98, 0.95);
+/** Lamps at night, about 2700 K: warm windows against the blue outside. */
+const LAMP_NIGHT = new Color(1, 0.78, 0.52);
+/** Working-hours lights (sunWork): about 3800 K, and this many times the lamps' day strength, with their falloff flattened. */
+const WORK_LAMP = new Color(1, 0.9, 0.78);
+const WORK_LAMP_GAIN = 2.5;
 /** Layers hidden when looking at the house from outside. */
 const LID = new Set(['ceiling', 'roof']);
 /** A mirror farther away than this is drawn as plain silver (each one in view costs a second picture). */
 const MIRROR_REACH_M = 9;
 /** The sun against the open sky's light, for what a sunlit room throws back. */
 const SUN_TO_SKY = 3.5;
-/** Sunlight thrown back by a wood floor and pale walls is a little warm. */
-const THROWN_BACK = new Color(1, 0.93, 0.82);
+/** Sunlight thrown around a room reads neutral to a little cool next to the sun that came in. */
+const THROWN_BACK = new Color(0.93, 0.96, 1.02);
 /** Out of doors is drawn this much darker than it is, as in the bake. */
 const OUTDOOR_EXPOSURE = 1 / 12;
 /** The photo from above is a picture of sunlit things: this much of it is taken as their color. */
@@ -96,6 +111,10 @@ const HOUSE_PARS = /* glsl */ `
   uniform float houseBaked;   // 1 when the lightmaps are there
   uniform vec3 houseSkyTint;  // how bright (and what color) daylight is now
   uniform vec3 houseLampTint; // the lamps
+  uniform float houseLampsLit; // 1 when the lamps are switched on (8 am to 5 pm), 0 when off
+  uniform float houseLampGain; // the lamps' strength before the time of day: for the working-hours lights
+  uniform float houseLampPeak; // a lamp's lightmap value near the lamp: brighter pools, darker gaps between
+  uniform float houseLampFall; // how steeply a lamp's light drops off: steeper at night, so its pool is smaller
   uniform vec3 houseOpen;     // daylight on open ground
   uniform sampler2D houseSunA; // per group of windows: the daylight that came in through it and was thrown back
   uniform sampler2D houseSunB;
@@ -104,58 +123,170 @@ const HOUSE_PARS = /* glsl */ `
   uniform vec3 houseSunWB;
   uniform vec3 houseSunWC;
   uniform vec3 houseSunTint;
+  uniform float houseLightTexel; // one texel of the lightmaps, in their texture coordinates
+  uniform vec2 houseLightFloor;  // a usual floor's value in the sky and the lamp lightmaps
   varying vec2 vHouseLight;
+
+  // The bake is noisy: on a flat wall its light comes out in soft blotches a few texels across.
+  // Average the texels around, but only those within about 30% of this one: the noise goes,
+  // while a real edge in the light (a door's contact shadow, a corner) stays sharp, and a texel
+  // of another part of the map next door is left out.
+  vec3 houseLightmap(sampler2D map, vec2 uv, float usual) {
+    vec3 c = texture2D(map, uv).rgb;
+    float lc = dot(c, vec3(0.299, 0.587, 0.114));
+    // Where the light is dim the noise is large against it: there the tolerance does not shrink
+    // below half of a usual floor's light.
+    float tol = 0.3 * lc + usual + 1e-5;
+    vec3 sum = c;
+    float total = 1.0;
+    vec2 t = vec2(houseLightTexel);
+    vec2 offs[12];
+    offs[0] = vec2(2.0, 0.0); offs[1] = vec2(-2.0, 0.0); offs[2] = vec2(0.0, 2.0); offs[3] = vec2(0.0, -2.0);
+    offs[4] = vec2(3.5, 3.5); offs[5] = vec2(-3.5, 3.5); offs[6] = vec2(3.5, -3.5); offs[7] = vec2(-3.5, -3.5);
+    offs[8] = vec2(7.0, 0.0); offs[9] = vec2(-7.0, 0.0); offs[10] = vec2(0.0, 7.0); offs[11] = vec2(0.0, -7.0);
+    for (int i = 0; i < 12; i++) {
+      vec3 s = texture2D(map, uv + offs[i] * t).rgb;
+      float d = (dot(s, vec3(0.299, 0.587, 0.114)) - lc) / tol;
+      float w = exp(-d * d);
+      sum += s * w;
+      total += w;
+    }
+    vec3 near = sum / total;
+    // Then the room's light over about 30-65 cm (the map's mips 3 and 4): a flat wall lit by
+    // diffuse light comes out even, the way it is. Where the light really changes (a corner, a
+    // door's contact shadow) this level differs a lot from the near one, and the near one is kept.
+    vec3 wide = mix(textureLod(map, uv, 3.0).rgb, textureLod(map, uv, 4.0).rgb, 0.6);
+    float lw = dot(wide, vec3(0.299, 0.587, 0.114));
+    float dev = (dot(near, vec3(0.299, 0.587, 0.114)) - lw) / (0.9 * lw + 2.0 * usual + 1e-5);
+    return mix(near, wide, exp(-dev * dev));
+  }
   varying vec3 vHouseWorld;
   varying vec3 vHouseNormal;`;
 
 /** For things without a lightmap of their own (furniture, room outlines, plain ground). */
 const PLAIN_PARS = /* glsl */ `
   uniform vec3 houseAmbient;
+  uniform vec3 houseGlow;   // indoors: the lamps and a sunlit room's glow (plainLamps, House.glow)
   varying vec3 vHouseWorld;
   varying vec3 vHouseNormal;`;
 
 // Runs after the surface's own color is in diffuseColor. HOUSE_LIGHT is the light on it.
 const HOUSE_BODY = /* glsl */ `
   vec3 houseLight;
+  vec3 houseWarm = vec3(0.0); // the part of houseLight that came from the sun or the lamps
   HOUSE_LIGHT
-  diffuseColor.rgb *= houseLight;
+  // No surface is pure white (docs/specs/lighting.md, 8a).
+  diffuseColor.rgb = min(diffuseColor.rgb, vec3(0.85)) * houseLight;
+  // The light shift (docs/specs/lighting.md, 5): what the sky alone lights leans blue, what the
+  // sun or the lamps light leans amber, the more so as the sun gets low and after sunset.
+  {
+    float total = dot(houseLight, vec3(0.299, 0.587, 0.114));
+    float warmth = clamp(dot(houseWarm, vec3(0.299, 0.587, 0.114)) / max(total, 1e-4), 0.0, 1.0);
+    float shift = (sunOn > 0.0 ? min(0.15 + 0.5 * sunGolden + 0.4 * sunBlueHour, 0.75) : 0.0) * (1.0 - 0.5 * sunWork);
+    diffuseColor.rgb *= mix(vec3(1.0), mix(vec3(0.86, 0.92, 1.08), vec3(1.08, 0.96, 0.84), smoothstep(0.15, 0.7, warmth)), shift);
+    // Shade is teal at any hour: what only the sky and the room's bounce light reach leans
+    // blue-green, the more so the darker it is; what the sun or a lamp lights keeps its warmth.
+    float shade = (1.0 - smoothstep(0.1, 0.75, dot(diffuseColor.rgb, vec3(0.299, 0.587, 0.114)))) * (1.0 - smoothstep(0.25, 0.65, warmth));
+    diffuseColor.rgb *= mix(vec3(1.0), vec3(0.82, 0.94, 1.06), shade * 0.45 * (1.0 - 0.5 * sunWork));
+  }
   // Bright things roll off instead of clipping.
-  diffuseColor.rgb = diffuseColor.rgb / (1.0 + max(diffuseColor.rgb - 0.7, 0.0) * 0.8);`;
+  diffuseColor.rgb = diffuseColor.rgb / (1.0 + max(diffuseColor.rgb - 0.7, 0.0) * 0.8);
+  // More contrast (docs/specs/lighting.md, 8e): darks deeper, on brightness only, so colours keep.
+  {
+    float l = clamp(dot(diffuseColor.rgb, vec3(0.299, 0.587, 0.114)), 0.0, 1.0);
+    float curved = l * l * (3.0 - 2.0 * l);
+    diffuseColor.rgb *= mix(1.0, curved / max(l, 1e-4), 0.2);
+  }
+  // Grain in the shade: a surface out of the light shows a fine, even noise (as a photo or a
+  // soft shadow's edge does), not a smooth flat fill. Fixed to the surface in specks of about
+  // 4 mm, so it does not crawl when the camera moves; strongest in the dark, gone in full light.
+  {
+    vec3 cell = floor(vHouseWorld * 250.0);
+    float grain = fract(sin(dot(cell, vec3(12.9898, 78.233, 37.719))) * 43758.5453) - 0.5;
+    float dark = 1.0 - smoothstep(0.08, 0.55, dot(diffuseColor.rgb, vec3(0.299, 0.587, 0.114)));
+    diffuseColor.rgb *= 1.0 + grain * 0.09 * dark * (1.0 - 0.5 * sunWork);
+  }
+  // The air between here and the eye (sun.ts, houseFog).
+  diffuseColor.rgb = houseFog(diffuseColor.rgb, vHouseWorld);`;
 
-/** The sun on a surface, where the shadow map says it reaches. */
+/**
+ * The sun on a surface, where the shadow map says it reaches. The patch's edge is soft (more so
+ * when the sun is low and shadows are long). Only the patch is lit by the sun itself and reads
+ * warm; the light it throws around the room is the flat, cooler bounce (LIT).
+ */
 const SUN_LIGHT = /* glsl */ `
-  if (sunOn > 0.0) {
+  if (sunOn > 0.0 && sunColor.r > 0.0) {
     vec3 sunNormal = normalize(vHouseNormal);
     if (!gl_FrontFacing) sunNormal = -sunNormal;
     float sunFacing = dot(sunNormal, sunDirection);
     float sunLit = 0.0;
-    if (sunFacing > 0.0 && sunColor.r > 0.0) {
-      vec4 inSun = sunMatrix * vec4(vHouseWorld + sunNormal * 0.03, 1.0);
-      vec3 at = inSun.xyz / inSun.w * 0.5 + 0.5;
-      if (all(greaterThan(at, vec3(0.0))) && all(lessThan(at, vec3(1.0)))) {
-        for (int x = -1; x <= 1; x++) {
-          for (int y = -1; y <= 1; y++) {
-            sunLit += at.z - sunBias <= textureLod(sunDepth, at.xy + vec2(x, y) * sunTexel, 0.0).r ? 1.0 : 0.0;
-          }
-        }
-        sunLit /= 9.0;
-      } else {
-        sunLit = 1.0; // beyond the shadow map (it covers the house and its lot): open ground
-      }
-    }
-    houseLight += sunColor * (sunLit * sunFacing) * 2.4;
+    if (sunFacing > 0.0) sunLit = houseSunAt(vHouseWorld + sunNormal * 0.03, sunTexel * mix(1.25, 2.0, sunGolden));
+    vec3 sunHere = sunColor * (sunLit * sunFacing) * 2.4;
+    houseLight += sunHere;
+    houseWarm += sunHere;
+  }`;
+
+/** How much of a disc around `p` the sun reaches (0 to 1), by the shadow map; `radius` in its units. */
+const SUN_AT = /* glsl */ `
+  float houseSunAt(vec3 p, float radius) {
+    vec4 inSun = sunMatrix * vec4(p, 1.0);
+    vec3 at = inSun.xyz / inSun.w * 0.5 + 0.5;
+    if (any(lessThanEqual(at, vec3(0.0))) || any(greaterThanEqual(at, vec3(1.0)))) return 1.0; // beyond the map: open ground
+    // Eight taps spread evenly on a disc, the same for every pixel: a half-lit edge comes out as a
+    // smooth gradient, not speckle. (A pattern turned per pixel left a grainy streak where a
+    // wall meets the ceiling: some taps there land past the ceiling's edge.)
+    mat2 r = mat2(1.0, 0.0, 0.0, 1.0);
+    // A wider disc reaches farther across a slanted surface: the bias grows with it.
+    float bias = sunBias * (1.0 + radius / sunTexel);
+    float lit = 0.0;
+    lit += at.z - bias <= textureLod(sunDepth, at.xy + r * vec2(-0.613, 0.617) * radius, 0.0).r ? 1.0 : 0.0;
+    lit += at.z - bias <= textureLod(sunDepth, at.xy + r * vec2(0.170, -0.040) * radius, 0.0).r ? 1.0 : 0.0;
+    lit += at.z - bias <= textureLod(sunDepth, at.xy + r * vec2(-0.299, 0.791) * radius, 0.0).r ? 1.0 : 0.0;
+    lit += at.z - bias <= textureLod(sunDepth, at.xy + r * vec2(0.645, 0.493) * radius, 0.0).r ? 1.0 : 0.0;
+    lit += at.z - bias <= textureLod(sunDepth, at.xy + r * vec2(-0.651, -0.717) * radius, 0.0).r ? 1.0 : 0.0;
+    lit += at.z - bias <= textureLod(sunDepth, at.xy + r * vec2(0.421, 0.027) * radius, 0.0).r ? 1.0 : 0.0;
+    lit += at.z - bias <= textureLod(sunDepth, at.xy + r * vec2(-0.817, -0.271) * radius, 0.0).r ? 1.0 : 0.0;
+    lit += at.z - bias <= textureLod(sunDepth, at.xy + r * vec2(0.977, -0.108) * radius, 0.0).r ? 1.0 : 0.0;
+    return lit / 8.0;
   }`;
 
 const LIT = /* glsl */ `
   if (houseBaked > 0.5) {
-    houseLight = texture2D(houseSky, vHouseLight).rgb * houseSkyTint + texture2D(houseLamps, vHouseLight).rgb * houseLampTint;
-    // The sun that comes in through each group of windows, thrown back into the room.
-    houseLight += houseSunTint * (dot(texture2D(houseSunA, vHouseLight).rgb, houseSunWA) + dot(texture2D(houseSunB, vHouseLight).rgb, houseSunWB) + dot(texture2D(houseSunC, vHouseLight).rgb, houseSunWC));
+    // Lamps light pools around themselves and drop off between them (docs/specs/lighting.md, 8b).
+    vec3 lamp = houseLightmap(houseLamps, vHouseLight, houseLightFloor.y);
+    // Working hours (sunWork): every lamp on, bright and even enough to judge furniture by,
+    // in a neutral warm white (about 3800 K) instead of the time of day's colour.
+    float lampFall = mix(houseLampFall, 1.0, sunWork);
+    vec3 lampTint = mix(houseLampTint, vec3(${WORK_LAMP.r.toFixed(3)}, ${WORK_LAMP.g.toFixed(3)}, ${WORK_LAMP.b.toFixed(3)}) * houseLampGain * ${WORK_LAMP_GAIN.toFixed(2)}, sunWork);
+    vec3 lampLight = min(pow(lamp / houseLampPeak, vec3(lampFall)) * houseLampPeak, lamp) * lampTint;
+    // By day the lamps are a neutral fill, not a warm light against the shade: their warmth comes in with the night.
+    houseWarm = lampLight * mix(0.25, 1.0, sunOn > 0.0 ? sunNight : 1.0) * (1.0 - 0.75 * sunWork);
+    // The sun that comes in through each group of windows, thrown back into the room. It is
+    // diffuse: the room is lit about evenly, not brighter by the window, so the bake's gradient
+    // is flattened hard toward BOUNCE_MAX. It is a neutral, slightly cool light (houseSunTint):
+    // the warm thing is the patch of sun itself, so it does not count toward houseWarm.
+    // Read at a coarse level (about 65 cm): these bakes are the noisiest, and the light is diffuse anyway.
+    float thrown = dot(textureLod(houseSunA, vHouseLight, 4.0).rgb, houseSunWA) + dot(textureLod(houseSunB, vHouseLight, 4.0).rgb, houseSunWB) + dot(textureLod(houseSunC, vHouseLight, 4.0).rgb, houseSunWC);
+    vec3 bounce = houseSunTint * thrown;
+    bounce = ${BOUNCE_MAX.toFixed(2)} * (1.0 - exp(-3.0 * bounce / ${BOUNCE_MAX.toFixed(2)}));
+    houseLight = houseLightmap(houseSky, vHouseLight, houseLightFloor.x) * houseSkyTint + bounce + lampLight;
+    // At night a room is not black: a faint teal light from the city sky and the windows reaches everywhere.
+    houseLight += vec3(0.035, 0.055, 0.065) * sunNight;
   } else {
     // Not baked yet: a little shading by the way a surface faces, so that corners show.
     houseLight = vec3(0.62 + 0.3 * dot(normalize(vHouseNormal), vec3(0.35, 0.8, 0.45)));
   }
   ${SUN_LIGHT}`;
+
+/**
+ * The back of a ceiling or a roof, seen through a crack where a ceiling does not meet its wall: the
+ * dark of the attic, not the light the outside of the roof gets.
+ */
+const BACK_OF_LID = /* glsl */ `
+  if (!gl_FrontFacing) {
+    houseLight *= 0.2;
+    houseWarm = vec3(0.0);
+  }`;
 
 /** What stands around the house has no lightmap: the open sky by the way a surface faces, and the sun. */
 const OUTDOORS = /* glsl */ `
@@ -164,7 +295,9 @@ const OUTDOORS = /* glsl */ `
 
 /** The light on things that are not lit by the lightmap: lamps' faces, glass, water. */
 const UNLIT: Record<string, string> = {
-  light: 'houseLight = vec3(1.7);',
+  // Switched off, a lamp's face is a pale fitting lit by the room's daylight.
+  light:
+    'houseLight = mix((sunOn > 0.0 ? sunSky : vec3(1.0)) * 0.3, vec3(1.7) * houseLampTint / max(max(houseLampTint.r, houseLampTint.g), 1e-3), houseLampsLit); houseWarm = houseLight * houseLampsLit;',
   glass: 'houseLight = sunOn > 0.0 ? 0.35 + 0.65 * sunSky : vec3(1.0);',
   water: 'houseLight = (sunOn > 0.0 ? sunSky : vec3(0.85)) * (0.8 + 0.2 * sin(vHouseWorld.x * 3.1 + vHouseWorld.z * 2.3));',
   aerial: OUTDOORS,
@@ -175,12 +308,21 @@ const UNLIT: Record<string, string> = {
 /** Without a lightmap: the room's usual light by the way a surface faces, and the sun. */
 const PLAIN = /* glsl */ `
   houseLight = houseAmbient * (0.7 + 0.3 * normalize(vHouseNormal).y);
+  // The warm light around it: the lamps, and the glow of a room the sun shines into.
+  houseWarm = houseGlow * (0.75 + 0.25 * normalize(vHouseNormal).y);
+  // Working hours: the room's lamps all on (as LIT does for the house's own surfaces).
+  houseWarm += vec3(${WORK_LAMP.r.toFixed(3)}, ${WORK_LAMP.g.toFixed(3)}, ${WORK_LAMP.b.toFixed(3)}) * ${(FLOOR_LAMPLIGHT * WORK_LAMP_GAIN).toFixed(3)} * sunWork;
+  houseLight += houseWarm;
   ${SUN_LIGHT}`;
 
 const SKY_FRAGMENT = /* glsl */ `
   uniform vec3 tint;      // the day's brightness (dark at night)
   uniform vec3 toSun;
   uniform float sunUp;    // 0 when no sun is being simulated
+  uniform vec3 hazeColor;  // the haze (sun.ts): the horizon fades into it as the ground does
+  uniform vec3 hazeSun;
+  uniform float sunGolden;
+  uniform float sunBlueHour;
   varying vec3 vDirection;
   void main() {
     vec3 d = normalize(vDirection);
@@ -193,9 +335,22 @@ const SKY_FRAGMENT = /* glsl */ `
       float near = max(dot(d, toSun), 0.0);
       color += vec3(1.0, 0.9, 0.7) * (pow(near, 900.0) * 6.0 + pow(near, 12.0) * 0.25) * sunUp;
     }
+    // Near the horizon the sky is seen through the most air: it turns to the haze the ground fades into.
+    float toward = max(dot(d, toSun), 0.0) * sunUp;
+    vec3 haze = hazeColor + hazeSun * (pow(toward, 6.0) * 0.8 + pow(toward, 32.0) * 0.6);
+    color = mix(color, haze, (1.0 - smoothstep(-0.05, 0.35, d.y)) * 0.85);
+    // After sunset the sky overhead goes violet-blue; with the sun low its side of the horizon glows orange.
+    color = mix(color, vec3(0.2, 0.22, 0.48), sunBlueHour * smoothstep(0.0, 0.6, d.y) * 0.7);
+    vec2 across = normalize(d.xz + 1e-5);
+    vec2 sunAcross = normalize(toSun.xz + 1e-5);
+    float sunSide = pow(max(dot(across, sunAcross), 0.0), 3.0) * (1.0 - smoothstep(-0.02, 0.4, d.y));
+    color += vec3(1.0, 0.62, 0.38) * sunSide * max(sunGolden * step(-0.12, toSun.y), sunBlueHour) * 0.55;
     gl_FragColor = vec4(color, 1.0);
     #include <colorspace_fragment>
   }`;
+
+/** The windows' glass, drawn into the depth only (see House.backing). */
+const GLASS_DEPTH = new MeshBasicMaterial({ colorWrite: false, side: DoubleSide });
 
 /** What does not cast a shadow (or is not there to be drawn into the sun's shadow map). */
 const NO_SHADOW = new Set(['glass', 'sky', 'mirror', 'light', 'water']);
@@ -205,24 +360,37 @@ const NO_SHADOW = new Set(['glass', 'sky', 'mirror', 'light', 'water']);
  * house is lit: `ambient` is the light around it (`plainLight`), the sun comes on top.
  * Marks the material's meshes as casting nothing by itself: the caller sets `userData.caster`.
  */
-export function shadePlain(material: MeshBasicMaterial, ambient: IUniform<Color>, sunUniforms: Record<string, IUniform>): void {
+export function shadePlain(material: MeshBasicMaterial, ambient: IUniform<Color>, sunUniforms: Record<string, IUniform>, warm: IUniform<Color> = { value: new Color(0, 0, 0) }): void {
   material.onBeforeCompile = (shader) => {
-    Object.assign(shader.uniforms, sunUniforms, { houseAmbient: ambient });
+    Object.assign(shader.uniforms, sunUniforms, { houseAmbient: ambient, houseGlow: warm });
     shader.vertexShader = shader.vertexShader
       .replace('#include <common>', '#include <common>\nvarying vec3 vHouseWorld;\nvarying vec3 vHouseNormal;')
       .replace('#include <project_vertex>', '#include <project_vertex>\nvHouseWorld = (modelMatrix * vec4(transformed, 1.0)).xyz;\nvHouseNormal = mat3(modelMatrix) * normal;');
     shader.fragmentShader = shader.fragmentShader
-      .replace('#include <common>', `#include <common>\n${PLAIN_PARS}\n${SUN_PARS}`)
+      .replace('#include <common>', `#include <common>\n${PLAIN_PARS}\n${SUN_PARS}\n${SUN_AT}`)
       .replace('#include <map_fragment>', `#include <map_fragment>\n${HOUSE_BODY.replace('HOUSE_LIGHT', PLAIN)}`);
   };
   material.customProgramCacheKey = () => 'house-plain';
 }
 
-/** The light around things without a lightmap: indoors (`inside`) a room's usual light, else open ground. */
+/**
+ * The sky's light around things without a lightmap: indoors (`inside`) a room's usual daylight,
+ * else open ground. Indoors the lamps come on top (`plainLamps`).
+ */
 export function plainLight(sky: Color, sunOn: boolean, inside: boolean, out: Color): Color {
   const day = sunOn ? sky : new Color(1, 1, 1);
   if (!inside) return out.copy(day).multiplyScalar(0.9);
-  return out.copy(day).multiplyScalar(FLOOR_DAYLIGHT).add(LAMP_COLOR.clone().multiplyScalar(FLOOR_LAMPLIGHT));
+  return out.copy(day).multiplyScalar(FLOOR_DAYLIGHT);
+}
+
+/** How strong the lamps are, by night (0 to 1): full by day, dimmer at night, when they are all the light there is and should only light around themselves. */
+function lampsOn(night: number): number {
+  return 1 - (1 - LAMPS_AT_NIGHT) * night;
+}
+
+/** A room's lamps on things without a lightmap, as on the house's own surfaces: `lit` is how far they are switched on (0 to 1). */
+export function plainLamps(night: number, lit: number, out: Color): Color {
+  return out.copy(LAMP_COLOR).lerp(LAMP_NIGHT, night).multiplyScalar(FLOOR_LAMPLIGHT * lampsOn(night) * lit);
 }
 
 export class House {
@@ -239,6 +407,12 @@ export class House {
     houseBaked: { value: 0 },
     houseSkyTint: { value: new Color(1, 1, 1) },
     houseLampTint: { value: new Color(1, 1, 1) },
+    houseLampsLit: { value: 1 },
+    houseLampGain: { value: 1 },
+    houseLampPeak: { value: 1 },
+    houseLampFall: { value: LAMP_FALL_DAY },
+    houseLightTexel: { value: 1 / 2048 },
+    houseLightFloor: { value: new Vector2(0.05, 0.05) },
     houseOpen: { value: new Color(1, 1, 1) },
     houseSunA: { value: null },
     houseSunB: { value: null },
@@ -269,6 +443,17 @@ export class House {
   private lot = new Box3();
   private mirrors: { glass: Reflector; plain: Mesh; center: Vector3; storey: number | null }[] = [];
   private sky: Mesh<SphereGeometry, ShaderMaterial>;
+  /**
+   * Inside, a crack in the rebuilt mesh (a ceiling's edge that stops short of its wall) would show
+   * the sky. This dark sphere is drawn after everything solid and fills only what nothing else
+   * covers; the windows' glass is drawn into the depth first (GLASS_DEPTH), so the sky still shows
+   * through them. It covers only what is well above the eye: an open doorway still shows the sky.
+   */
+  private backing: Mesh<SphereGeometry, ShaderMaterial>;
+  /** The sun's uniforms (sun.ts), for the time of day. */
+  private sunUniforms: Record<string, IUniform> | null = null;
+  /** The glow of the sun thrown back into the rooms, for things without a lightmap (plainLight). */
+  readonly glow = new Color(0, 0, 0);
   private solid: Mesh | null = null;
   private materials: Material[] = [];
   private textures: Texture[] = [];
@@ -297,6 +482,34 @@ export class House {
     this.sky.userData.kind = 'sky';
     this.sky.raycast = () => {}; // clicks go to the house, not the sky behind it
     this.group.add(this.sky);
+    this.backing = new Mesh(
+      new SphereGeometry(1000, 24, 12),
+      new ShaderMaterial({
+        uniforms: { shade: { value: new Color(0.1, 0.1, 0.1) } },
+        vertexShader: /* glsl */ `
+          varying vec3 vDirection;
+          void main() {
+            vDirection = position;
+            gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+          }`,
+        fragmentShader: /* glsl */ `
+          uniform vec3 shade;
+          varying vec3 vDirection;
+          void main() {
+            if (normalize(vDirection).y < 0.2) discard;
+            gl_FragColor = vec4(shade, 1.0);
+            #include <colorspace_fragment>
+          }`,
+        side: BackSide,
+        depthWrite: false,
+      }),
+    );
+    this.backing.renderOrder = 1.5;
+    this.backing.frustumCulled = false;
+    this.backing.userData.kind = 'sky';
+    this.backing.raycast = () => {};
+    this.backing.visible = false;
+    this.group.add(this.backing);
   }
 
   /** The house described by the house.json at `url`; its model and pictures are beside it. */
@@ -308,6 +521,14 @@ export class House {
     if (!response.ok) throw new Error(`house.glb: HTTP ${response.status}`);
     const gltf = await new GLTFLoader().parseAsync(await response.arrayBuffer(), '');
     const house = new House(info);
+    // The sky shares the haze's uniforms, so it moves with the sun.
+    house.sunUniforms = sunUniforms;
+    Object.assign(house.sky.material.uniforms, {
+      hazeColor: sunUniforms.hazeColor,
+      hazeSun: sunUniforms.hazeSun,
+      sunGolden: sunUniforms.sunGolden,
+      sunBlueHour: sunUniforms.sunBlueHour,
+    });
     const anisotropy = Math.min(8, renderer.capabilities.getMaxAnisotropy());
 
     const made = new Map<string, MeshBasicMaterial>();
@@ -332,10 +553,14 @@ export class House {
         house.addMirror(mesh.geometry, from.color, extras.storey ?? null);
         return;
       }
-      const key = `${extras.material}|${extras.both}`;
+      // Ceilings and roofs are drawn from both sides: where a ceiling's edge does not quite meet the
+      // wall, the roof's underside fills the crack instead of the sky behind it (BACK_OF_LID). From
+      // outside the lid is not drawn at all, so the dollhouse view is unchanged.
+      const lid = LID.has(extras.layer);
+      const key = `${extras.material}|${extras.both}|${lid}`;
       let material = made.get(key);
       if (!material) {
-        material = new MeshBasicMaterial({ color: from.color, side: extras.both ? DoubleSide : FrontSide });
+        material = new MeshBasicMaterial({ color: from.color, side: extras.both || lid ? DoubleSide : FrontSide });
         material.name = extras.material;
         if (kind === 'glass') {
           material.transparent = true;
@@ -354,7 +579,7 @@ export class House {
             house.textures.push(material.map);
           }
         }
-        house.shade(material, sunUniforms, kind);
+        house.shade(material, sunUniforms, kind, lid && !extras.both);
         made.set(key, material);
         house.materials.push(material);
       }
@@ -367,6 +592,16 @@ export class House {
       if (kind === 'glass') part.renderOrder = 2;
       house.group.add(part);
       house.parts.push({ object: part, storey: extras.storey ?? null, lid: LID.has(extras.layer), far: extras.layer === 'far' });
+      if (kind === 'glass') {
+        // The glass in the depth only, before the backing: the backing stays out of the windows.
+        const depth = new Mesh(mesh.geometry, GLASS_DEPTH);
+        depth.renderOrder = 1;
+        depth.frustumCulled = false;
+        depth.userData = { kind: 'glass-depth', caster: false };
+        depth.raycast = () => {};
+        house.group.add(depth);
+        house.parts.push({ object: depth, storey: extras.storey ?? null, lid: LID.has(extras.layer), far: extras.layer === 'far' });
+      }
       // The lawn beyond the lot is not part of what the shadow map must cover.
       if (extras.layer !== 'far' && kind !== 'light' && kind !== 'water') house.lot.union(mesh.geometry.boundingBox ?? new Box3().setFromBufferAttribute(mesh.geometry.getAttribute('position') as BufferAttribute));
       from.dispose();
@@ -393,8 +628,9 @@ export class House {
           (texture) => {
             texture.colorSpace = SRGBColorSpace; // stored with the display curve: more steps in the dark
             texture.flipY = false;
-            texture.generateMipmaps = false;
-            texture.minFilter = LinearFilter;
+            // Mipmaps: the shader reads a coarse level to even out the bake's noise (houseLightmap).
+            texture.generateMipmaps = true;
+            texture.minFilter = LinearMipmapLinearFilter;
             resolve(texture);
           },
           undefined,
@@ -409,9 +645,14 @@ export class House {
     for (const name of ['houseSunA', 'houseSunB', 'houseSunC']) house.uniforms[name]!.value = none;
     if (info.light) {
       const { range, floors } = info.light;
-      const exposure = Math.min(60, FLOOR_DAYLIGHT / Math.max(floors.sky, 1e-3));
-      house.gain.sky = range.sky * exposure;
+      const exposure = Math.min(60, OPEN_DAYLIGHT / Math.max(floors.sky, 1e-3));
+      house.gain.sky = range.sky * exposure * (FLOOR_DAYLIGHT / OPEN_DAYLIGHT);
       house.gain.lamps = range.lamps * Math.min(60, FLOOR_LAMPLIGHT / Math.max(floors.lamps, 1e-3));
+      house.uniforms.houseLampGain!.value = house.gain.lamps;
+      // Near a lamp the lightmap is a few times the usual floor's; the falloff is steepened below that.
+      house.uniforms.houseLightTexel!.value = 1 / Math.max(1, info.lightmap.size);
+      (house.uniforms.houseLightFloor!.value as Vector2).set(floors.sky / Math.max(range.sky, 1e-6), floors.lamps / Math.max(range.lamps, 1e-6));
+      house.uniforms.houseLampPeak!.value = Math.min(1, (2.5 * floors.lamps) / Math.max(range.lamps, 1e-6));
       house.gain.sun = (range.sun ?? 0) * exposure * SUN_TO_SKY;
       house.gain.open = (info.light.outdoors ?? OUTDOOR_EXPOSURE) * exposure;
       pending.push(Promise.all([light('light_sky.png'), light('light_lamps.png')]).then(([sky, lamps]) => {
@@ -524,6 +765,7 @@ export class House {
   }
 
   private applyVisibility(): void {
+    this.backing.visible = this.lidOn && !this.everything;
     for (const p of this.parts) {
       if (p.far && this.surroundings) p.object.visible = false;
       else if (this.everything) p.object.visible = true;
@@ -533,18 +775,34 @@ export class House {
 
   /**
    * Daylight now: the sun's sky color, the way to the sun (null when no sun is simulated) and
-   * the sun's color (black when it is down).
+   * the sun's color (black when it is down), and how far the lamps are switched on (0 to 1).
    */
-  setLight(sky: Color, toSun: Vector3 | null, sun: Color): void {
+  setLight(sky: Color, toSun: Vector3 | null, sun: Color, lampsLit = 1): void {
     // With the sun simulated its sky color dims the daylight; the lamps stay as they are.
     const day = toSun ? sky : new Color(1, 1, 1);
     (this.uniforms.houseSkyTint!.value as Color).copy(day).multiplyScalar(this.gain.sky);
     (this.uniforms.houseOpen!.value as Color).copy(day).multiplyScalar(this.gain.open);
-    (this.uniforms.houseLampTint!.value as Color).copy(LAMP_COLOR).multiplyScalar(this.gain.lamps);
-    (this.uniforms.houseSunTint!.value as Color).copy(sun).multiply(THROWN_BACK).multiplyScalar(this.gain.sun);
-    this.sunThrough(toSun);
+    const mood = this.sunUniforms;
+    const night = toSun ? ((mood?.sunNight?.value as number) ?? 0) : 0;
+    // The lamps: a neutral fill by day, warmer as it gets dark, and nothing when switched off.
+    (this.uniforms.houseLampTint!.value as Color)
+      .copy(LAMP_COLOR)
+      .lerp(LAMP_NIGHT, night)
+      .multiplyScalar(this.gain.lamps * lampsOn(night) * lampsLit);
+    this.uniforms.houseLampsLit!.value = lampsLit;
+    this.uniforms.houseLampFall!.value = LAMP_FALL_DAY + (LAMP_FALL_NIGHT - LAMP_FALL_DAY) * night;
+    // The sun thrown around a room: as bright as the sun is, but not its colour.
+    const sunLevel = (sun.r + sun.g + sun.b) / 3;
+    (this.uniforms.houseSunTint!.value as Color).copy(THROWN_BACK).multiplyScalar(sunLevel * this.gain.sun);
+    const through = this.sunThrough(toSun);
+    // Furniture and room outlines have no lightmap: they get the room's glow as one colour.
+    this.glow.copy(this.uniforms.houseSunTint!.value as Color).multiplyScalar(FLOOR_DAYLIGHT * Math.min(through, 1.5));
     const u = this.sky.material.uniforms;
-    (u.tint!.value as Color).copy(day);
+    // The sky picture has its own blue: only part of the sky light's colour goes on top of it.
+    const grey = (day.r + day.g + day.b) / 3;
+    (u.tint!.value as Color).setRGB(grey, grey, grey).lerp(day, 0.5);
+    // A crack reads as the dark of a seam, a little lighter by day.
+    (this.backing.material.uniforms.shade!.value as Color).setRGB(grey, grey, grey).multiplyScalar(0.12).addScalar(0.02);
     u.sunUp!.value = toSun && toSun.y > -0.05 ? 1 : 0;
     if (toSun) (u.toSun!.value as Vector3).copy(toSun);
   }
@@ -554,7 +812,7 @@ export class House {
    * through it in the bake: a window counts by its size, by how squarely the sun stands to it,
    * and by how much of it the sun reaches past the eaves, the patio's roof and the fences.
    */
-  private sunThrough(toSun: Vector3 | null): void {
+  private sunThrough(toSun: Vector3 | null): number {
     const weights = new Array<number>(9).fill(0);
     const portals = this.info.sun?.portals ?? [];
     if (toSun && toSun.y > 0 && this.bvh && this.gain.sun > 0) {
@@ -586,11 +844,15 @@ export class House {
     (this.uniforms.houseSunWA!.value as Vector3).fromArray(weights, 0);
     (this.uniforms.houseSunWB!.value as Vector3).fromArray(weights, 3);
     (this.uniforms.houseSunWC!.value as Vector3).fromArray(weights, 6);
+    // How much sun is coming in, all windows together, against the skylight through them.
+    const lit = weights.filter((w) => w > 0);
+    return lit.length ? lit.reduce((a, b) => a + b, 0) / lit.length : 0;
   }
 
   /** Call before each frame: the sky stays around the camera; only mirrors close by reflect. */
   update(camera: Camera): void {
     this.sky.position.copy(camera.position);
+    this.backing.position.copy(camera.position);
     for (const mirror of this.mirrors) {
       const shown = this.top === null || mirror.storey === null || mirror.storey <= this.top;
       const near = mirror.center.distanceTo(camera.position) < MIRROR_REACH_M;
@@ -658,16 +920,16 @@ export class House {
     this.mirrors.push({ glass, plain, center, storey });
   }
 
-  private shade(material: MeshBasicMaterial, sunUniforms: Record<string, IUniform>, kind: string): void {
-    const body = HOUSE_BODY.replace('HOUSE_LIGHT', UNLIT[kind] ?? LIT);
+  private shade(material: MeshBasicMaterial, sunUniforms: Record<string, IUniform>, kind: string, lid = false): void {
+    const body = HOUSE_BODY.replace('HOUSE_LIGHT', (UNLIT[kind] ?? LIT) + (lid ? BACK_OF_LID : ''));
     material.onBeforeCompile = (shader) => {
       Object.assign(shader.uniforms, this.uniforms, sunUniforms);
       shader.vertexShader = shader.vertexShader
         .replace('#include <common>', '#include <common>\nattribute vec2 uv1;\nvarying vec3 vHouseWorld;\nvarying vec3 vHouseNormal;\nvarying vec2 vHouseLight;')
         .replace('#include <project_vertex>', '#include <project_vertex>\nvHouseWorld = (modelMatrix * vec4(transformed, 1.0)).xyz;\nvHouseNormal = mat3(modelMatrix) * normal;\nvHouseLight = uv1;');
-      shader.fragmentShader = shader.fragmentShader.replace('#include <common>', `#include <common>\n${HOUSE_PARS}\n${SUN_PARS}`).replace('#include <map_fragment>', `#include <map_fragment>\n${body}`);
+      shader.fragmentShader = shader.fragmentShader.replace('#include <common>', `#include <common>\n${HOUSE_PARS}\n${SUN_PARS}\n${SUN_AT}`).replace('#include <map_fragment>', `#include <map_fragment>\n${body}`);
     };
-    material.customProgramCacheKey = () => `house-${kind in UNLIT ? kind : 'lit'}`;
+    material.customProgramCacheKey = () => `house-${kind in UNLIT ? kind : 'lit'}${lid ? '-lid' : ''}`;
   }
 
   dispose(): void {
@@ -678,6 +940,7 @@ export class House {
     for (const texture of this.textures) texture.dispose();
     this.sky.geometry.dispose();
     this.sky.material.dispose();
+    this.backing.material.dispose();
     this.solid?.geometry.dispose();
     (this.solid?.material as Material | undefined)?.dispose();
     this.bvh = null;

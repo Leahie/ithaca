@@ -5,6 +5,7 @@ import { CameraControls } from '@react-three/drei';
 import { Suspense, useEffect, useMemo, useRef } from 'react';
 import { BufferAttribute, BufferGeometry, DataTexture, DoubleSide, LinearFilter, RGBAFormat, SRGBColorSpace, Vector3 } from 'three';
 import { rampColor } from '@/components/charts/kit';
+import { HouseAO } from '@/components/house3d/HouseAO';
 import { AssetBoundary, Furniture, Ground, HouseLight, HouseModel, RoomShells, houseBounds, passesLight, type PlacedItem, type RebuiltHouse, type SunState } from '@/components/house3d/House3D';
 import type { V3 } from '@/lib/geometry/frames';
 import { bounds, centroid, pointInPolygon } from '@/lib/geometry/polygon';
@@ -248,7 +249,8 @@ function CameraRig({ twin, openings, view }: { twin: PropertyTwin; openings: Ope
 
 export function Scene({ twin, house, openings, sun, placements, heatmap, showOpenings, onWallClick, pendingCorner, view, onAssetError, onReady }: SceneProps) {
   return (
-    <HouseLight twin={twin} openings={openings} sun={sun} cutOpenings={!house}>
+    <HouseLight twin={twin} openings={openings} sun={sun} cutOpenings={!house} lamps="sun">
+      <HouseAO enabled={view.kind === 'room'} />
       <CameraRig twin={twin} openings={openings} view={view} />
       {house ? (
         <HouseModel url={house.url} info={house.info} inside={view.kind === 'room'} onWallClick={onWallClick} onAssetError={onAssetError} onReady={onReady} />

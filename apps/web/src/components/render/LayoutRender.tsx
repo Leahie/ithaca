@@ -151,7 +151,7 @@ export function LayoutRender({ layoutId }: { layoutId: string }) {
       {/* flat: the house's light is worked out in its own shaders, with no tone mapping on top. */}
       <Canvas flat frameloop="demand" dpr={1} gl={{ antialias: true, preserveDrawingBuffer: true }} camera={{ fov: 38, near: 0.1, far: 3000 }}>
         <FixedCamera room={room} />
-        <HouseLight twin={twin} openings={twin.openings} sun={sun} cutOpenings={!house}>
+        <HouseLight twin={twin} openings={twin.openings} sun={sun} cutOpenings={!house} lamps="work">
           {house ? (
             // From above, without the lid or the storeys over the room.
             <HouseModel url={house.url} info={house.info} inside={false} topStorey={storeyOf(house, room)} onAssetError={fail} onComplete={() => setHouseIn(true)} />
