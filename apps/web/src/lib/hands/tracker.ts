@@ -39,6 +39,10 @@ export interface FrameSample {
   hands: HandSample[];
   /** How long the hand model took on this frame, ms, when known. */
   ms?: number;
+  /** How long a one-pixel WebGL read waited just now, ms: the graphics card's queue (now and then, not every frame). */
+  gpuMs?: number;
+  /** What runs the hand model: 'GPU' or 'CPU', when known. */
+  on?: string;
 }
 
 export interface Tracking {
@@ -79,14 +83,14 @@ const FRAME_PX = { width: 640, height: 360 } as const;
 const WORKER_SILENT_MS = 3000;
 
 /** One inference, mirrored to how the user sees themselves. */
-function toFrame(stamp: number, aspect: number, landmarks: NormalizedLandmark[][], worldLandmarks: Landmark[][], sides: string[], ms?: number): FrameSample {
+function toFrame(stamp: number, aspect: number, landmarks: NormalizedLandmark[][], worldLandmarks: Landmark[][], sides: string[], ms?: number, gpuMs?: number, on?: string): FrameSample {
   const hands: HandSample[] = landmarks.map((lm, i) => ({
     image: lm.map((p) => ({ x: 1 - p.x, y: p.y, z: p.z })),
     world: (worldLandmarks[i] ?? []).map((p) => ({ x: -p.x, y: p.y, z: p.z })),
     // MediaPipe names hands as if the picture were mirrored; this one is not, so swap.
     side: sides[i] === 'Left' ? 'R' : 'L',
   }));
-  return { t: stamp / 1000, aspect, hands: hands.filter((h) => h.world.length === 21), ms };
+  return { t: stamp / 1000, aspect, hands: hands.filter((h) => h.world.length === 21), ms, gpuMs, on };
 }
 
 async function createLandmarker(): Promise<HandLandmarker> {
@@ -119,6 +123,8 @@ interface WorkerResult {
   sides: string[];
   /** How long the inference took, ms. */
   ms?: number;
+  gpuMs?: number;
+  on?: string;
 }
 
 /** The worker timed the CPU against the graphics card and says which it kept (see hand-worker.mjs). */
@@ -247,7 +253,7 @@ function startWorkerDetector(onFrame: (frame: FrameSample) => void): Promise<Det
         console.info(`[hands] tracking on the ${msg.delegate} (${msg.ms.toFixed(0)} ms a frame; the ${msg.was} took ${msg.wasMs.toFixed(0)} ms)`);
       } else if (msg.type === 'result') {
         busy = false;
-        if (!closed) onFrame(toFrame(msg.at - performance.timeOrigin, msg.width / Math.max(msg.height, 1), msg.landmarks, msg.worldLandmarks, msg.sides, msg.ms));
+        if (!closed) onFrame(toFrame(msg.at - performance.timeOrigin, msg.width / Math.max(msg.height, 1), msg.landmarks, msg.worldLandmarks, msg.sides, msg.ms, msg.gpuMs, msg.on));
       }
     };
     // A module worker that fails to load (old browser, missing file) only says so here.

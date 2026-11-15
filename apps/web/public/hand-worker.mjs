@@ -7,7 +7,7 @@
 //               {type: 'stream', readable: ReadableStream<VideoFrame>}   (Chrome, Edge: the camera itself)
 //               {type: 'frame', bitmap: ImageBitmap, at: number}         (elsewhere: one frame at a time)
 // Messages out: {type: 'ready', delegate}  ·  {type: 'error', message}  ·  {type: 'stream-error', message}
-//               {type: 'result', at, width, height, landmarks, worldLandmarks, sides, ms}
+//               {type: 'result', at, width, height, landmarks, worldLandmarks, sides, ms, on, gpuMs?}
 //               {type: 'delegate', delegate, ms, was, wasMs}   (the tracker changed how it runs)
 //
 // `at` is when the picture was taken, in ms since the epoch (performance.timeOrigin + now): a
@@ -156,6 +156,30 @@ function settle() {
   }
 }
 
+/**
+ * How long a one-pixel WebGL read takes now (ms): the time anything here waits behind the work
+ * the house has queued on the graphics card. Measured twice a second, for the readout.
+ */
+const GPU_PROBE_MS = 500;
+let probeGl;
+let probeAt = -Infinity;
+function probeGpu() {
+  const now = performance.now();
+  if (now - probeAt < GPU_PROBE_MS) return undefined;
+  probeAt = now;
+  try {
+    probeGl ??= new OffscreenCanvas(1, 1).getContext('webgl');
+    if (!probeGl) return undefined;
+    const began = performance.now();
+    probeGl.clear(probeGl.COLOR_BUFFER_BIT);
+    probeGl.readPixels(0, 0, 1, 1, probeGl.RGBA, probeGl.UNSIGNED_BYTE, new Uint8Array(4));
+    return performance.now() - began;
+  } catch {
+    probeGl = null;
+    return undefined;
+  }
+}
+
 /** MediaPipe wants strictly increasing timestamps (ms); this worker's own clock gives them. */
 let lastStamp = 0;
 function nextStamp() {
@@ -183,6 +207,8 @@ function run(image, at) {
       worldLandmarks: r.worldLandmarks,
       sides: r.handedness.map((h) => h[0]?.categoryName ?? ''),
       ms,
+      on: delegate,
+      gpuMs: probeGpu(),
     });
     if (!trial) {
       consider(ms);

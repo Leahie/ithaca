@@ -244,8 +244,8 @@ export function HandsOverlay() {
       const now = performance.now();
       if (meter.current && now - meterAt >= 250) {
         meterAt = now;
-        const { rate, modelMs, delayMs } = handEngine.stats;
-        meter.current.textContent = rate ? `${rate.toFixed(0)}/s · model ${modelMs ? modelMs.toFixed(0) : '–'} ms · delay ${delayMs.toFixed(0)} ms` : '';
+        const { rate, modelMs, delayMs, gpuMs, on } = handEngine.stats;
+        meter.current.textContent = rate ? `${on || '?'} · ${rate.toFixed(0)}/s · model ${modelMs ? modelMs.toFixed(0) : '–'} · gpu ${gpuMs ? gpuMs.toFixed(0) : '–'} · delay ${delayMs.toFixed(0)} ms` : '';
       }
       const hands = handEngine.hands;
       const zooming = handEngine.gesture === 'zoom';
@@ -294,7 +294,7 @@ export function HandsOverlay() {
               <canvas ref={skeletons} className="absolute inset-0 h-full w-full" aria-hidden />
               <span
                 ref={meter}
-                title="Tracker results a second · the hand model's time per frame · from the picture to its result reaching the page (the cursor's smoothing comes on top)"
+                title="What runs the hand model · tracker results a second · the hand model's time per frame (ms) · how long the graphics card's queue holds anything up (ms) · from the picture to its result reaching the page (ms; the cursor's smoothing comes on top)"
                 className="absolute top-1 left-1 rounded bg-black/55 px-1.5 font-mono text-[11px] leading-4 text-cream tabular-nums empty:hidden"
               />
               {status === 'starting' && <span className="absolute inset-0 grid place-items-center font-display text-base font-medium text-cream/80">Starting the camera…</span>}

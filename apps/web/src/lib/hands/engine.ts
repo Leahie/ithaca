@@ -129,12 +129,16 @@ export type Gesture = 'none' | 'drag' | 'zoom' | 'turn' | 'forward' | 'back';
  * `rate`: results a second. `modelMs`: the hand model's time per frame (0 until known).
  * `delayMs`: from the picture to its result reaching this page. Where the worker reads the camera
  * itself, the picture's time is when the worker took it, so the camera's own buffering (about one
- * frame) is not in it. The cursor's smoothing comes on top of this.
+ * frame) is not in it. The cursor's smoothing comes on top of this. `gpuMs`: how long a tiny
+ * WebGL read waits on the graphics card's queue (the worker measures it now and then).
  */
 export interface HandStats {
   rate: number;
   modelMs: number;
   delayMs: number;
+  gpuMs: number;
+  /** What runs the hand model ('GPU', 'CPU'), or '' while not known. */
+  on: string;
 }
 /** Weight of each new result in the running averages. */
 const STATS_WEIGHT = 0.1;
@@ -154,7 +158,7 @@ export class HandEngine {
   hands: HandView[] = [];
   /** Counts the results taken in: the hands' landmarks change only when this does. */
   results = 0;
-  stats: HandStats = { rate: 0, modelMs: 0, delayMs: 0 };
+  stats: HandStats = { rate: 0, modelMs: 0, delayMs: 0, gpuMs: 0, on: '' };
 
   /** A hand unseen for longer than this stops dragging (see UNSEEN). */
   private get staleAfter(): number {
@@ -191,6 +195,9 @@ export class HandEngine {
       rate: this.paced ? 1 / this.interval : 0,
       modelMs: frame.ms === undefined ? this.stats.modelMs : avg(this.stats.modelMs, frame.ms),
       delayMs: avg(this.stats.delayMs, Math.max(0, (arrived - t) * 1000)),
+      // Few samples (two a second): weighted more, so it still follows a change within seconds.
+      gpuMs: frame.gpuMs === undefined ? this.stats.gpuMs : this.stats.gpuMs === 0 ? frame.gpuMs : this.stats.gpuMs + 0.4 * (frame.gpuMs - this.stats.gpuMs),
+      on: frame.on ?? this.stats.on,
     };
     // Between results a hand travels further when they are far apart: the gate widens with them.
     const gate = MATCH_GATE * Math.min(3, Math.max(1, this.interval * 15));
@@ -379,6 +386,6 @@ export class HandEngine {
     this.paced = false;
     this.lastArrival = null;
     this.results = 0;
-    this.stats = { rate: 0, modelMs: 0, delayMs: 0 };
+    this.stats = { rate: 0, modelMs: 0, delayMs: 0, gpuMs: 0, on: '' };
   }
 }

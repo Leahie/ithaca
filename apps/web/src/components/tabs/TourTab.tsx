@@ -857,7 +857,11 @@ export function TourTab({
   // Resolution follows the frame rate: from 1 up to the screen's own pixel ratio (at most 2), in quarter steps.
   const [dprFactor, setDprFactor] = useState(0.5);
   const maxDpr = typeof window === 'undefined' ? 1 : Math.min(2, Math.max(1, window.devicePixelRatio || 1));
-  const dpr = 1 + (maxDpr - 1) * dprFactor;
+  // While hands are on, the house is drawn lighter: 1x and without the corner shading (HouseAO).
+  // The hand model's every frame goes through WebGL (MediaPipe takes pictures in that way even on
+  // the CPU) and waits behind whatever the house has queued on the graphics card: with the full
+  // house drawn each frame, that wait was most of the hands' delay.
+  const dpr = handsOn ? 1 : 1 + (maxDpr - 1) * dprFactor;
 
   return (
     <div className="relative h-full w-full bg-black" data-testid="tour" data-sdk-ready={ready} data-active={active}>
@@ -867,7 +871,7 @@ export function TourTab({
         {known && (
           <HouseLight twin={twin} openings={twin.openings} sun={sun} cutOpenings={!rebuilt} lamps="work">
             <ShadowHandle invalidate={shadows} />
-            <HouseAO enabled={lid.inside} />
+            <HouseAO enabled={lid.inside && !handsOn} />
             <TourCamera rig={rigRef} house={houseRef} center={bounds3.center} radius={bounds3.radius} active={active} onPick={onPick} onLid={setLid} />
             {rebuilt ? (
               <HouseModel url={rebuilt.url} info={rebuilt.info} inside={lid.inside} topStorey={lid.topStorey} onAssetError={setError} onHouse={onHouse} />
