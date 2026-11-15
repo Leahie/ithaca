@@ -81,7 +81,7 @@ const emitJob = (payload: JobProgressPayload) => {
 };
 
 export function noiseKey(s: NoiseScenario): string {
-  return `${s.glazing ?? 'asbuilt'}|${s.add_carpet ? 1 : 0}|${s.include_furniture === false ? 0 : 1}`;
+  return `${s.glazing ?? 'asbuilt'}|${s.add_carpet ? 1 : 0}|${s.include_furniture === false ? 0 : 1}${s.windows_open ? '|open' : ''}`;
 }
 
 const uuid = () => crypto.randomUUID();
@@ -219,11 +219,22 @@ export function createFixtureApi(): ApiClient {
     },
     async getNoise(pid, roomId, scenario) {
       const all = await fixture<Record<string, NoiseReport>>(`reports/${encodeURIComponent(pid)}/noise/${encodeURIComponent(roomId)}.json`);
-      const hit = all[noiseKey(scenario)];
+      // The fixtures have no open-window reports: the windows-closed one stands in.
+      const hit = all[noiseKey(scenario)] ?? all[noiseKey({ ...scenario, windows_open: false })];
       if (!hit) throw new ApiError(`No noise fixture for scenario ${noiseKey(scenario)}`, 404);
       return hit;
     },
     getArea: (pid) => fixture(`reports/${encodeURIComponent(pid)}/area.json`),
+    // The sound simulation runs on the server (sim/noise.py); nothing stands in for it offline.
+    async searchArea() {
+      throw new ApiError('Searching the wider area needs the API (fixture mode is offline)', 501, true);
+    },
+    async getSoundPresets() {
+      throw new ApiError('Placing a sound needs the API (fixture mode is offline)', 501, true);
+    },
+    async getSoundField() {
+      throw new ApiError('Placing a sound needs the API (fixture mode is offline)', 501, true);
+    },
     async ingestProperty() {
       throw new ApiError('Ingestion is not available in fixture mode', 501, true);
     },

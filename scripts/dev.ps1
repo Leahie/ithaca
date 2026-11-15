@@ -55,6 +55,7 @@ if (-not (Test-Path apps/web/node_modules)) {
 
 # The variables set for the web app are restored on exit: a script run with .\ shares the session.
 $WebEnv = @{
+  NEXT_PUBLIC_USE_FIXTURES  = '0'  # this script runs the real API, whatever apps/web/.env.local says
   NEXT_PUBLIC_PUBLIC_ORIGIN = "http://${LanIp}:$WebPort"
   DEV_ALLOWED_ORIGINS       = $LanIp
   API_PROXY_TARGET          = "http://localhost:$ApiPort"
@@ -173,7 +174,7 @@ try {
   Write-Host @"
 
   Ithaca is running.
-    Big screen:   http://localhost:$WebPort   (on this computer: the Matterport key only allows localhost)
+    Big screen:   http://localhost:$WebPort   (the front page; "Step inside" opens the house)
     Phones:       $PhoneOrigin   (the QR codes point here)
     API:          http://${LanIp}:$ApiPort/api/health
     Agents:       $agent$agentHint

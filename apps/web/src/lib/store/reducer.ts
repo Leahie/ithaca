@@ -1,4 +1,4 @@
-import type { AnyEvent, CatalogPiece, ClientKind, EventSource, JobProgressPayload, SoundSetScenarioPayload, ViewerMode, ViewerPlayback, ViewerState, RemoteViewPayload } from '@ithaca/schema';
+import type { AnyEvent, CatalogPiece, ClientKind, EventSource, JobProgressPayload, SoundPlaceSourcePayload, SoundSetScenarioPayload, ViewerMode, ViewerPlayback, ViewerState, RemoteViewPayload } from '@ithaca/schema';
 
 /**
  * Viewer state and its reducer (A1). Every change to what the viewer shows is an event:
@@ -13,6 +13,8 @@ export interface ViewerSlice {
   /** I-G13: ISO 8601 with offset, in the property's timezone. */
   datetime: string;
   sound_scenario: SoundSetScenarioPayload | null;
+  /** A sound placed in the house (a TV, a crying baby): the Sound view says how it carries. */
+  sound_source: SoundPlaceSourcePayload | null;
   shown_layout_ids: string[];
   selected_layout_id: string | null;
   /** Where to stand and what to face in `room_id`, when the last goto said (the agent's best view). */
@@ -80,7 +82,7 @@ const MAX_CHAT = 300;
 
 export function initialCore(datetime: string): CoreState {
   return {
-    viewer: { mode: 'tour', room_id: null, sweep_id: null, datetime, sound_scenario: null, shown_layout_ids: [], selected_layout_id: null, view: null, goto_seq: 0, playback: NOTHING_PLAYING },
+    viewer: { mode: 'tour', room_id: null, sweep_id: null, datetime, sound_scenario: null, sound_source: null, shown_layout_ids: [], selected_layout_id: null, view: null, goto_seq: 0, playback: NOTHING_PLAYING },
     chat: [],
     interim: null,
     jobs: {},
@@ -112,6 +114,7 @@ export function applyEvent(state: CoreState, event: AnyEvent): CoreState {
           sweep_id: p.room_id && p.room_id !== v.room_id ? null : v.sweep_id,
           datetime: p.datetime || v.datetime,
           sound_scenario: p.sound_scenario ?? null,
+          sound_source: p.sound_source ?? null,
           shown_layout_ids: p.shown_layout_ids ?? [],
           playback: { ...NOTHING_PLAYING, ...p.playback },
         },
@@ -243,6 +246,10 @@ export function applyEvent(state: CoreState, event: AnyEvent): CoreState {
     }
     case 'remote.view':
       return { ...state, remoteView: event.payload.view, remoteFloor: event.payload.floor_id ?? null };
+    case 'sound.placeSource':
+      return { ...state, viewer: { ...v, sound_source: event.payload } };
+    case 'sound.clearSource':
+      return { ...state, viewer: { ...v, sound_source: null } };
     case 'catalog.picked': // the user's click; the agent is told by the server
     case 'layout.confirm': // "keep this layout": the agent records it; the view already shows it
     case 'viewer.step': // a camera move, like viewer.look
@@ -254,8 +261,6 @@ export function applyEvent(state: CoreState, event: AnyEvent): CoreState {
     case 'furniture.overview': // the tour looks down on the room
     case 'viewer.look':
     case 'capture.upload':
-    case 'sound.placeSource': // TODO(A): C's place-a-sound demo (docs/handoffs/stream-a)
-    case 'sound.clearSource':
     case 'agent.turn': // brackets one agent turn; nothing stored yet (use it for a typing indicator)
       return state; // transient: handled by event listeners, not stored
     default: {
@@ -266,5 +271,5 @@ export function applyEvent(state: CoreState, event: AnyEvent): CoreState {
 }
 
 export function toViewerState(v: ViewerSlice): ViewerState {
-  return { mode: v.mode, room_id: v.room_id, datetime: v.datetime, sound_scenario: v.sound_scenario, shown_layout_ids: v.shown_layout_ids, playback: v.playback };
+  return { mode: v.mode, room_id: v.room_id, datetime: v.datetime, sound_scenario: v.sound_scenario, sound_source: v.sound_source, shown_layout_ids: v.shown_layout_ids, playback: v.playback };
 }

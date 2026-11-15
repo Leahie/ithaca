@@ -1,6 +1,6 @@
 'use client';
 
-import type { NoiseScenario } from '@ithaca/schema';
+import type { NoiseScenario, SoundPlaceSourcePayload } from '@ithaca/schema';
 import { api } from '@/lib/api';
 import { noiseKey } from '@/lib/api/fixture';
 import { useResource } from './resource';
@@ -22,7 +22,15 @@ export const useSunReport = (propertyId: string, roomId: string | null, start: s
 export const useNoiseReport = (propertyId: string, roomId: string | null, scenario: NoiseScenario) =>
   useResource(roomId ? `noise:${propertyId}:${roomId}:${noiseKey(scenario)}` : null, () => api().getNoise(propertyId, roomId!, scenario));
 
-export const useArea = (propertyId: string) => useResource(`area:${propertyId}`, () => api().getArea(propertyId));
+export const useArea = (propertyId: string | null) => useResource(propertyId ? `area:${propertyId}` : null, () => api().getArea(propertyId!));
+
+export const useSoundPresets = (propertyId: string) => useResource(`sound-presets:${propertyId}`, () => api().getSoundPresets(propertyId));
+
+/** How a placed sound carries through the house. */
+export const useSoundField = (propertyId: string, source: SoundPlaceSourcePayload | null, doors: 'closed' | 'open') =>
+  useResource(source ? `sound-field:${propertyId}:${source.room_id}:${source.x}:${source.z}:${source.preset_id}:${source.level_dba ?? ''}:${doors}` : null, () =>
+    api().getSoundField(propertyId, source!, doors),
+  );
 
 export const useMemoryList = () => useResource('memory:list', () => api().listMemory());
 export const useMemoryFile = (path: string | null) => useResource(path ? `memory:file:${path}` : null, () => api().getMemory(path!));

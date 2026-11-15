@@ -58,8 +58,12 @@ export function createHttpApi(): ApiClient {
     putOpenings: (pid, openings) => request(`/properties/${enc(pid)}/openings`, { method: 'PUT', body: JSON.stringify(openings) }),
     getSun: (pid, roomId, start, end) => request(`/properties/${enc(pid)}/sun${q({ room_id: roomId, start, end })}`),
     getNoise: (pid, roomId, s: NoiseScenario) =>
-      request(`/properties/${enc(pid)}/noise${q({ room_id: roomId, glazing: s.glazing, add_carpet: s.add_carpet, include_furniture: s.include_furniture })}`),
+      request(`/properties/${enc(pid)}/noise${q({ room_id: roomId, glazing: s.glazing, add_carpet: s.add_carpet, include_furniture: s.include_furniture, windows_open: s.windows_open || undefined })}`),
     getArea: (pid) => request(`/properties/${enc(pid)}/area`),
+    searchArea: (pid, query) => request(`/properties/${enc(pid)}/area/search${q({ q: query, limit: 20 })}`),
+    getSoundPresets: (pid) => request(`/properties/${enc(pid)}/sound/presets`),
+    getSoundField: (pid, src, doors) =>
+      request(`/properties/${enc(pid)}/sound/field${q({ room_id: src.room_id, x: src.x, z: src.z, preset: src.preset_id, level_dba: src.level_dba, doors })}`),
     ingestProperty: (pid) => request(`/properties/${enc(pid)}/ingest`, { method: 'POST' }),
 
     createSession: (opts) =>

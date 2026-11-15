@@ -5,8 +5,10 @@ Next.js app for [PLAN.md](../../PLAN.md) sections 7 and 8, built to the contract
 
 | Route | What it is |
 |---|---|
-| `/house/[id]` | Desktop experience: Tour, Sun Lab, Sound, Neighborhood, Design, and the agent dock |
-| `/remote/[session]` | Phone controller (QR pairing) |
+| `/` | Front page: what Ithaca is, the home that is open for a visit (from its twin and listing), and the way in |
+| `/house/[id]` | The home: Tour, Sun Lab, Sound, Neighborhood, Design, the guide's chat dock, family phones, hand control |
+| `/join/[token]` | A family member's phone: scan the family code, type a name, get a remote and a guide of your own |
+| `/remote/[session]` | Phone controller for one phone (QR pairing) |
 | `/me` | Furniture inventory, memory files, per-home decision history |
 | `/render/layout/[id]` | Deterministic render for the thumbnail job (section 2.6) |
 
@@ -152,37 +154,60 @@ Still open for C:
 
 ## What the house page shows
 
-By default the house page has two views, the Tour and the Sun Lab, with the room
-list beside them. Everything else is built and tested but switched off. `NEXT_PUBLIC_FEATURES` turns parts on:
+Everything, by default: all five views, the guide, family phones, hand control and the link to
+`/me`. `NEXT_PUBLIC_FEATURES` cuts it down to a comma-separated list of parts (a kiosk, a demo of
+one view):
 
-| Value | Adds |
+| Value | Part |
 |---|---|
-| `tour` (default) | The Tour (walk through the rebuilt house) and the room list |
-| `sun` (default) | The Sun Lab: the house rebuilt from the floor plan under the moving sun |
-| `sound`, `neighborhood`, `design` | That view, as a tab |
-| `agent` | The chat dock |
-| `phone` | QR pairing for the phone controller |
+| `tour` | The Tour (walk through the rebuilt house) and the room list |
+| `sun` | The Sun Lab: the house rebuilt from the floor plan under the moving sun |
+| `sound` | The Sound view, and the sound and time bar in the Tour |
+| `neighborhood`, `design` | That view, as a tab |
+| `agent` | The guide: the chat dock, and its voice |
+| `phone` | QR pairing for one phone controller (used when `family` is off) |
 | `me` | The link to `/me` |
-| `hands` (default) | Hand control: the **Hands** button in the header |
-| `family` | One QR code for a whole family; each phone gets its own agent (needs the API) |
-| `all` | Everything |
+| `hands` | Hand control: the **Hands** button in the header |
+| `family` | One QR code for a whole family; each phone gets its own agent |
+| `all` (default) | Everything |
 
 Example: `NEXT_PUBLIC_FEATURES=tour,sun,agent`.
 
+How the parts share one screen (`src/components/house/HouseExperience.tsx`, `src/lib/store/guide.ts`):
+
+- **Alone, the screen is the whole app**: top bar with the views, room list, chat dock. **With a
+  phone connected, the phone is the remote** and the big screen shows only the house (the "clean"
+  screen), with the guide speaking. "Controls" on the house and "Hide controls" in the top bar
+  switch between the two by hand, and that choice then stays.
+- **The guide's voice belongs to the screen**, not to one view: it speaks on every view, and tells
+  the phones when it has finished (`voice.spoken`) so they can open their microphone. It is on
+  when a phone is connected or the screen is clean, off beside the chat, until the user switches it
+  ("Voice on" on the house, "Voice replies" in the dock: one switch).
+- **A phone that walks or arranges furniture brings the big screen back to the Tour** from whatever
+  view the guide or someone at the screen left open; a room picked on the phone does the same from
+  Neighborhood and Design.
+- **The Design view follows the furniture rules** (`docs/specs/furniture.md`): "Try it in the room"
+  draws a proposal (`layout.select`), "Keep it" makes it the room's furniture (`layout.confirm`).
+- **The Sound view also plays a sound placed in the house** (`sound.placeSource`, from the view or
+  from the guide): how loud it is in every room, doors open or closed, from `GET .../sound/field`.
+- **`/me` joins the house's own session** (`src/components/session/DesktopSession.tsx`), so going
+  there and back does not leave the family's phones behind in an old session.
+
 ## Family phones and agents
 
-With `family` in `NEXT_PUBLIC_FEATURES`, the house page's **Family** button shows one QR code for a
+The house page's **Family** button (`family` in `NEXT_PUBLIC_FEATURES`, on by default) shows one QR code for a
 whole family (reusable for 24 hours). Each person scans it on their phone and types their name; the
 phone becomes their remote for whatever house the big screen has open, with **their own agent**:
 its own memory of what they need (B4), its own conversation. The agents compare notes on a shared
 family board and ask each other ("ask Leo about the kitchen"), and the big screen's agent dock
 shows everything, labelled by person. A phone that scans again comes back as the same person.
 
-This needs the real API (the hub and the agents), on your Wi-Fi so phones can reach it:
+Real phones need the real API (the hub and the agents), on your Wi-Fi so they can reach it.
+`pnpm dev:all` (repo root) starts both and points the QR code at this computer. By hand:
 
 ```sh
 uvicorn services.api.main:app --host 0.0.0.0 --port 8000      # repo root
-NEXT_PUBLIC_USE_FIXTURES=0 NEXT_PUBLIC_FEATURES=tour,sun,hands,agent,family \
+NEXT_PUBLIC_USE_FIXTURES=0 \
   NEXT_PUBLIC_PUBLIC_ORIGIN=http://<this-computer's-LAN-IP>:3000 \
   DEV_ALLOWED_ORIGINS=<LAN-IP> pnpm dev -H 0.0.0.0              # apps/web
 ```

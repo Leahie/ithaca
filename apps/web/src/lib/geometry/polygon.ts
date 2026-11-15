@@ -173,3 +173,43 @@ export function frontDirection(yawDeg: number): [number, number] {
   const t = (yawDeg * Math.PI) / 180;
   return [Math.sin(t), Math.cos(t)];
 }
+
+/** Distance from a point to a polygon's outline, inside or out. */
+function distanceToOutline(pt: Pt, poly: readonly Pt[]): number {
+  let best = Infinity;
+  for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
+    const a = poly[j]!;
+    const b = poly[i]!;
+    const dx = b[0] - a[0];
+    const dz = b[1] - a[1];
+    const len2 = dx * dx + dz * dz;
+    const t = len2 ? Math.max(0, Math.min(1, ((pt[0] - a[0]) * dx + (pt[1] - a[1]) * dz) / len2)) : 0;
+    best = Math.min(best, Math.hypot(pt[0] - (a[0] + t * dx), pt[1] - (a[1] + t * dz)));
+  }
+  return best;
+}
+
+/**
+ * A point well inside a polygon: its centroid when that lies clear of the walls, else the grid
+ * point furthest from the outline (an L-shaped room's centroid can fall outside it).
+ */
+export function interiorPoint(poly: readonly Pt[]): [number, number] {
+  const c = centroid(poly);
+  if (pointInPolygon(c, poly) && distanceToOutline(c, poly) > 0.3) return c;
+  const b = bounds(poly);
+  let best = c;
+  let bestD = -1;
+  const n = 14;
+  for (let i = 1; i < n; i++) {
+    for (let j = 1; j < n; j++) {
+      const pt: [number, number] = [b.minX + ((b.maxX - b.minX) * i) / n, b.minZ + ((b.maxZ - b.minZ) * j) / n];
+      if (!pointInPolygon(pt, poly)) continue;
+      const d = distanceToOutline(pt, poly);
+      if (d > bestD) {
+        bestD = d;
+        best = pt;
+      }
+    }
+  }
+  return best;
+}

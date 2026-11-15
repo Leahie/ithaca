@@ -9,6 +9,7 @@ import { speechProvider } from '@/lib/speech/provider';
 import { usePushToTalk } from '@/lib/speech/usePushToTalk';
 import type { ChatItem } from '@/lib/store/reducer';
 import { useMemberName } from '@/lib/store/family';
+import { useGuideVoice } from '@/lib/store/guide';
 import { onSessionEvent, useSession } from '@/lib/store/session';
 
 const SUGGESTIONS = ['Take me to the kitchen', 'Show me December morning', 'Show layouts', 'How loud is the bedroom?'];
@@ -115,7 +116,9 @@ export function AgentDock() {
   const nameOf = useMemberName();
   const dispatch = useSession((s) => s.dispatch);
   const [draft, setDraft] = useState('');
-  const [speak, setSpeak] = useState(false);
+  // One switch for the guide's voice on this screen (lib/store/guide.ts). Beside the chat it is
+  // off until asked for; the screen itself (HouseExperience) does the speaking when it is on.
+  const [speak, setSpeak] = useGuideVoice();
   const ptt = usePushToTalk();
   const end = useRef<HTMLDivElement>(null);
   const spokeByVoice = useRef(false);
@@ -125,14 +128,14 @@ export function AgentDock() {
     void end.current?.scrollIntoView({ block: 'end' });
   }, [chat, interim]);
 
-  // Read the reply aloud when the question was spoken, or when the user turned it on.
+  // With the voice off, a question that was spoken here is still answered aloud.
   useEffect(
     () =>
       onSessionEvent((event) => {
-        if (event.type === 'voice.transcript' && event.payload.final) spokeByVoice.current = true;
+        if (event.type === 'voice.transcript' && event.payload.final) spokeByVoice.current = event.source === 'desktop';
         if (event.type === 'chat.user') spokeByVoice.current = false;
-        // Read aloud only the big screen's own agent, not every family member's.
-        if (event.type === 'agent.message' && !event.member_id && (speak || spokeByVoice.current)) speechProvider().speak(event.payload.text);
+        // Only the big screen's own agent, not every family member's.
+        if (event.type === 'agent.message' && !event.member_id && !speak && spokeByVoice.current) speechProvider().speak(event.payload.text);
       }),
     [speak],
   );

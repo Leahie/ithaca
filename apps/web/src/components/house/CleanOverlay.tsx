@@ -9,7 +9,8 @@ import { useInventory, useLayouts } from '@/lib/data/hooks';
 import { useHands } from '@/lib/hands/store';
 import { placeName, roomName } from '@/lib/rooms';
 import { onSoundBlocked, pageHasBeenClicked, setVoiceKind, speechProvider, unlockSound } from '@/lib/speech/provider';
-import { canSpeak, useSpeakGuide } from '@/lib/speech/useSpeakGuide';
+import { canSpeak } from '@/lib/speech/useSpeakGuide';
+import { useGuideVoice } from '@/lib/store/guide';
 import { onSessionEvent, useSession } from '@/lib/store/session';
 import { formatClock, minutesOfDay } from '@/lib/time';
 
@@ -59,13 +60,13 @@ export function CleanOverlay({ twin, pairing, onShowControls }: { twin: Property
   });
   const text = last?.text ?? '';
   const [visible, setVisible] = useState(false);
-  // The guide talks; the caption is a small subtitle, not a chat.
-  const [voice, setVoice] = useState(true);
+  // The guide talks; the caption is a small subtitle, not a chat. The voice itself is the
+  // screen's (HouseExperience speaks it, on every view): this is its switch.
+  const [voice, setVoice] = useGuideVoice();
   const hands = useHands((s) => s.status);
   const handsError = useHands((s) => s.error);
   const toggleHands = useHands((s) => s.toggle);
   const handsOn = hands === 'on' || hands === 'starting';
-  useSpeakGuide(voice);
   // Which voice is chosen on the phone, in its settings; a new choice says hello in it.
   const kind = useSession((s) => s.viewer.playback.voice);
   const heard = useRef(kind);

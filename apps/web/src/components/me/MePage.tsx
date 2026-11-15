@@ -1,10 +1,11 @@
 'use client';
 
 import Link from 'next/link';
-import { useState } from 'react';
-import { SessionProvider } from '@/components/session/SessionProvider';
+import { useEffect, useState } from 'react';
+import { DesktopSession } from '@/components/session/DesktopSession';
 import { Badge, Segmented } from '@/components/ui';
 import { config } from '@/lib/config';
+import { houseHref, lastHouse } from '@/lib/lastHouse';
 import { HistorySection } from './HistorySection';
 import { InventorySection } from './InventorySection';
 import { MemorySection } from './MemorySection';
@@ -14,9 +15,13 @@ type Section = 'inventory' | 'memory' | 'history';
 /** /me: what the agent knows about you, and everything you can change or delete. */
 export function MePage() {
   const [section, setSection] = useState<Section>('inventory');
+  // The house this tab came from (read after mount: the server has no sessionStorage).
+  const [houseId, setHouseId] = useState(config.defaultPropertyId);
+  useEffect(() => setHouseId(lastHouse()), []);
   return (
-    // The session is joined so that object-pipeline progress (job.progress) reaches this page.
-    <SessionProvider client="desktop" propertyId={config.defaultPropertyId}>
+    // The house's own session is joined (not a new one, which would leave the family's phones
+    // behind), so that object-pipeline progress (job.progress) reaches this page.
+    <DesktopSession propertyId={houseId}>
       <div className="min-h-dvh" data-testid="me">
         <header className="sticky top-0 z-20 flex h-13 items-center gap-4 border-b border-line bg-surface/95 px-5 backdrop-blur">
           <Link href="/" className="flex items-center gap-2 text-sm font-semibold tracking-wide">
@@ -36,7 +41,7 @@ export function MePage() {
               { value: 'history', label: 'History' },
             ]}
           />
-          <Link href="/" className="text-sm text-muted hover:text-text">
+          <Link href={houseHref(houseId)} className="text-sm text-muted hover:text-text">
             Back to the home
           </Link>
         </header>
@@ -56,6 +61,6 @@ export function MePage() {
           {section === 'history' && <HistorySection />}
         </main>
       </div>
-    </SessionProvider>
+    </DesktopSession>
   );
 }

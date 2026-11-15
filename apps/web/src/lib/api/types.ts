@@ -11,6 +11,10 @@ import type {
   NoiseReport,
   NoiseScenario,
   Ok,
+  Amenity,
+  SoundCatalog,
+  SoundField,
+  SoundPlaceSourcePayload,
   Opening,
   PropertyTwin,
   Session,
@@ -45,6 +49,12 @@ export interface ApiClient {
   getSun(propertyId: string, roomId: string, start: string, end: string): Promise<SunReport>;
   getNoise(propertyId: string, roomId: string, scenario: NoiseScenario): Promise<NoiseReport>;
   getArea(propertyId: string): Promise<AreaProfile>;
+  /** Places further out than the area profile lists, by free text ("coffee", "bus", "Kroger"). */
+  searchArea(propertyId: string, query: string): Promise<Amenity[]>;
+  /** The sounds that can be placed in the house, each with its level at 1 m. */
+  getSoundPresets(propertyId: string): Promise<SoundCatalog>;
+  /** How a sound placed in one room carries to every room, loudest first. */
+  getSoundField(propertyId: string, source: SoundPlaceSourcePayload, doors: 'closed' | 'open'): Promise<SoundField>;
   ingestProperty(propertyId: string): Promise<JobRef>;
 
   // Stream B

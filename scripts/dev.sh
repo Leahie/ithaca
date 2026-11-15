@@ -88,6 +88,8 @@ echo "Starting the web app on port $WEB_PORT…"
 # port has to be named.
 WS_BASE=""
 [ "$API_PORT" != 8000 ] && WS_BASE="ws://$LAN_IP:$API_PORT"
+# This script runs the real API, so the web app must use it whatever apps/web/.env.local says.
+NEXT_PUBLIC_USE_FIXTURES=0 \
 NEXT_PUBLIC_PUBLIC_ORIGIN="http://$LAN_IP:$WEB_PORT" \
 DEV_ALLOWED_ORIGINS="$LAN_IP" \
 API_PROXY_TARGET="http://localhost:$API_PORT" \
@@ -105,12 +107,12 @@ done
 cat <<INFO
 
   Ithaca is running.
-    Big screen:   http://localhost:$WEB_PORT   (on this computer: the Matterport key only allows localhost)
+    Big screen:   http://localhost:$WEB_PORT   (the front page; "Step inside" opens the house)
     Phones:       http://$LAN_IP:$WEB_PORT   (the family QR code points here)
     API:          http://$LAN_IP:$API_PORT/api/health
     Agents:       ${AGENT:-unknown}$([ "${AGENT:-}" = scripted ] && echo "  (add ANTHROPIC_API_KEY to .env for real agents)")
 
-  Phones: join the same Wi-Fi, open the house, press Family, scan the code.
+  Phones: join the same Wi-Fi. On the big screen open the house, press Family, scan the code.
   If a phone can't load the page: allow ports $WEB_PORT and $API_PORT through the firewall, or, on a
   network that keeps devices apart (eduroam, hotel Wi-Fi), use Tailscale: LAN_IP=<tailscale IP> scripts/dev.sh
   Ctrl-C stops everything.

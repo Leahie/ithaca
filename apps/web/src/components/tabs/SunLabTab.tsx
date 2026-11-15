@@ -25,7 +25,19 @@ import { openingFromCorners } from '@/lib/sunlab/annotate';
  * The light direction is the one value the frontend computes (A3); everything else shown
  * here (sun hours, heatmap) is read from the server's SunReport.
  */
-export function SunLabTab({ twin, active }: { twin: PropertyTwin; active: boolean }) {
+export function SunLabTab({
+  twin,
+  active,
+  chrome = true,
+  scrubber = true,
+}: {
+  twin: PropertyTwin;
+  active: boolean;
+  /** Show this view's own buttons and panels. Off on the clean big screen, where the phone has them. */
+  chrome?: boolean;
+  /** Show the time scrubber. Off while the Arrange panel sits in its corner. */
+  scrubber?: boolean;
+}) {
   const datetime = useSession((s) => s.viewer.datetime);
   const roomId = useSession((s) => s.viewer.room_id);
   const gotoSeq = useSession((s) => s.viewer.goto_seq);
@@ -191,7 +203,7 @@ export function SunLabTab({ twin, active }: { twin: PropertyTwin; active: boolea
         </div>
       )}
 
-      <div className="absolute top-3 left-3 flex gap-1.5">
+      <div className={cn('absolute top-3 left-3 flex gap-1.5', !chrome && 'hidden')}>
         <Button size="sm" variant={view.kind === 'overview' ? 'primary' : 'subtle'} onClick={() => setView({ kind: 'overview', seq: Date.now() })}>
           Outside
         </Button>
@@ -210,7 +222,7 @@ export function SunLabTab({ twin, active }: { twin: PropertyTwin; active: boolea
         </Button>
       </div>
 
-      <div className="absolute top-3 right-3 bottom-3 flex flex-col items-end gap-2">
+      <div className={cn('absolute top-3 right-3 bottom-3 flex flex-col items-end gap-2', !chrome && 'hidden')}>
         <Button size="sm" onClick={() => setPanelOpen(!panelOpen)} aria-expanded={panelOpen}>
           {panelOpen ? 'Hide details' : 'Sun details'}
         </Button>
@@ -242,7 +254,7 @@ export function SunLabTab({ twin, active }: { twin: PropertyTwin; active: boolea
         )}
       </div>
 
-      <div className={cn('absolute bottom-3 left-3 w-[min(560px,calc(100%-24px))]', panelOpen && 'max-w-[calc(100%-340px)]')}>
+      <div className={cn('absolute bottom-3 left-3 w-[min(560px,calc(100%-24px))]', panelOpen && 'max-w-[calc(100%-340px)]', (!chrome || !scrubber) && 'hidden')}>
         <TimeScrubber twin={twin} />
       </div>
     </div>

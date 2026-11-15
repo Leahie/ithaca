@@ -77,7 +77,7 @@ function ShadowHandle({ invalidate }: { invalidate: { current: (() => void) | nu
  * best scan position; the room list can also ask for the outside view. The chosen layout's
  * furniture stands at its stored poses, as they are (A5).
  */
-export function TourTab({ twin, active }: { twin: PropertyTwin; active: boolean }) {
+export function TourTab({ twin, active, soundBar = true }: { twin: PropertyTwin; active: boolean; /** Show the sound and time bar. Off, it still plays: the phone has its controls. */ soundBar?: boolean }) {
   const [error, setError] = useState<string | null>(null);
   const { house: rebuilt, known } = useRebuiltHouse(twin, setError);
   const datetime = useSession((s) => s.viewer.datetime);
@@ -780,7 +780,7 @@ export function TourTab({ twin, active }: { twin: PropertyTwin; active: boolean 
         )}
       </div>
       {config.features.has('sound') && ready && revealed && (
-        <div className="pointer-events-none absolute inset-x-0 bottom-4 z-10 flex justify-center [&>*]:pointer-events-auto">
+        <div className={soundBar ? 'pointer-events-none absolute inset-x-0 bottom-4 z-10 flex justify-center [&>*]:pointer-events-auto' : 'hidden'}>
           <SoundTimelapse twin={twin} active={active} />
         </div>
       )}

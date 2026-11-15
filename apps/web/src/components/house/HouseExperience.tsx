@@ -5,16 +5,19 @@ import dynamic from 'next/dynamic';
 import Link from 'next/link';
 import { useEffect, useRef, useState } from 'react';
 import { HandsButton, HandsOverlay } from '@/components/hands/HandControl';
-import { SessionProvider, useSessionInfo } from '@/components/session/SessionProvider';
+import { DesktopSession } from '@/components/session/DesktopSession';
+import { useSessionInfo } from '@/components/session/SessionProvider';
 import { Badge, Notice, Spinner, ViewState, cn } from '@/components/ui';
 import { IconDesign, IconMap, IconSound, IconSun, IconTour, IconUser } from '@/components/ui/icons';
 import { ApiError } from '@/lib/api';
 import { config, type Feature } from '@/lib/config';
 import { useLayouts, useTwin } from '@/lib/data/hooks';
 import { useHands } from '@/lib/hands/store';
+import { rememberHouse } from '@/lib/lastHouse';
 import { sweepRooms } from '@/lib/rooms';
-import { useFamily } from '@/lib/store/family';
-import { useSession } from '@/lib/store/session';
+import { useSpeakGuide } from '@/lib/speech/useSpeakGuide';
+import { useGuide, useGuideVoice } from '@/lib/store/guide';
+import { onSessionEvent, useSession } from '@/lib/store/session';
 import { useDesktopPlayback } from '@/lib/store/usePlayback';
 import { sunPosition } from '@/lib/sun/position';
 import { fromZonedParts, toZonedIso, zonedParts } from '@/lib/time';
@@ -61,7 +64,8 @@ function QualityBadges({ twin }: { twin: PropertyTwin }) {
           No openings
         </Badge>
       )}
-      {q.context === 'none' && <Badge title="No terrain or neighbor data: nothing outside the house casts shadows.">No surroundings</Badge>}
+      {/* The rebuilt house comes with its lot and the block around it, whatever the twin says. */}
+      {q.context === 'none' && !twin.assets.house && <Badge title="No terrain or neighbor data: nothing outside the house casts shadows.">No surroundings</Badge>}
     </>
   );
 }
@@ -83,10 +87,18 @@ function House({ propertyId }: { propertyId: string }) {
   const [visited, setVisited] = useState<Set<ViewerMode>>(() => new Set());
   const [dockOpen, setDockOpen] = useState(has('agent'));
   const [arranging, setArranging] = useState(false);
-  // The phone is the remote, so the big screen is only the house: the top bar, the room list and
-  // the chat dock stay away until "Controls" is pressed.
-  const [controls, setControls] = useState(false);
-  const clean = (has('family') || has('phone')) && !controls && (mode === 'tour' || mode === 'sun');
+  // With a phone connected, the phone is the remote and the big screen is only the house: the top
+  // bar, the room list and the chat dock stay away until "Controls" is pressed. Alone, the screen
+  // is the whole app. Either way the user's own choice wins (lib/store/guide.ts).
+  const screen = useGuide((s) => s.screen);
+  const setScreen = useGuide((s) => s.setScreen);
+  const phoneHere = useSession((s) => s.peers.phone);
+  const canClean = (has('family') || has('phone')) && (mode === 'tour' || mode === 'sun');
+  const clean = canClean && (screen === 'clean' || (screen === 'auto' && phoneHere));
+  // The guide's voice belongs to the screen, not to one view: it keeps talking (and telling the
+  // phones when it has finished) whichever tab is open and whether or not the top bar shows.
+  const [voice] = useGuideVoice();
+  useSpeakGuide(has('agent') && voice);
   const initialised = useRef<string | null>(null);
   useDesktopPlayback(twin.data?.timezone);
 
@@ -115,6 +127,33 @@ function House({ propertyId }: { propertyId: string }) {
   useEffect(() => {
     setVisited((v) => (v.has(mode) ? v : new Set(v).add(mode)));
   }, [mode]);
+
+  useEffect(() => rememberHouse(propertyId), [propertyId]);
+
+  // A phone that walks, picks a room or arranges furniture means the house, not a page about it:
+  // if the guide (or someone at this screen) left another view open, go back to the tour, so a
+  // family steering from their phones is never stuck looking at a chart. The desktop derives
+  // the event (A2), so every screen and the guide see the same mode.
+  useEffect(
+    () =>
+      onSessionEvent((event) => {
+        if (event.source !== 'phone') return;
+        // Picking up a piece or asking for the room from above counts; letting go (null) does not.
+        const moves =
+          event.type === 'viewer.step' ||
+          event.type === 'viewer.walk' ||
+          ((event.type === 'furniture.select' || event.type === 'furniture.drag') && !!event.payload.item_id) ||
+          (event.type === 'furniture.overview' && !!event.payload.room_id);
+        const picksRoom = event.type === 'viewer.goto';
+        if (!moves && !picksRoom) return;
+        if (!has('tour')) return;
+        const now = useSession.getState().viewer.mode;
+        // Walking and arranging happen in the tour (it shows the same sun as the Sun Lab). A room
+        // picked on the phone moves the Sun Lab's camera and the Sound view's ear, so those stay.
+        if (moves ? now !== 'tour' : now === 'neighborhood' || now === 'design') useSession.getState().dispatch('viewer.setMode', { mode: 'tour' });
+      }),
+    [],
+  );
 
   // Leaving the page turns the camera off.
   useEffect(() => () => useHands.getState().stop(), []);
@@ -153,6 +192,8 @@ function House({ propertyId }: { propertyId: string }) {
                 type="button"
                 role="tab"
                 aria-selected={m === mode}
+                aria-label={label}
+                title={label}
                 data-tab={m}
                 onClick={() => dispatch('viewer.setMode', { mode: m })}
                 className={cn(
@@ -161,7 +202,7 @@ function House({ propertyId }: { propertyId: string }) {
                 )}
               >
                 <Icon />
-                <span className="hidden md:inline">{label}</span>
+                <span className={m === mode ? 'hidden sm:inline' : 'hidden 2xl:inline'}>{label}</span>
               </button>
             ))}
           </nav>
@@ -174,8 +215,8 @@ function House({ propertyId }: { propertyId: string }) {
               {arranging ? 'Done arranging' : 'Arrange'}
             </button>
           )}
-          {controls && (has('family') || has('phone')) && (mode === 'tour' || mode === 'sun') && (
-            <button type="button" onClick={() => setControls(false)} className="inline-flex h-10 items-center rounded-full px-3.5 font-display font-semibold text-muted hover:bg-ink hover:text-text">
+          {canClean && (
+            <button type="button" onClick={() => setScreen('clean')} title="Show only the house. The phone is the remote." className="hidden h-10 items-center rounded-full px-3.5 font-display font-semibold text-muted hover:bg-ink hover:text-text lg:inline-flex">
               Hide controls
             </button>
           )}
@@ -211,12 +252,12 @@ function House({ propertyId }: { propertyId: string }) {
               faded out, not display:none, so its canvas keeps its size. */}
           {has('tour') && (visited.has('tour') || mode === 'tour') && (
             <div className={cn('absolute inset-0', mode === 'tour' ? 'z-10' : 'pointer-events-none z-0 opacity-0')} aria-hidden={mode !== 'tour'} inert={mode !== 'tour'}>
-              <TourTab twin={t} active={mode === 'tour'} />
+              <TourTab twin={t} active={mode === 'tour'} soundBar={!clean && !arranging} />
             </div>
           )}
           {has('sun') && (visited.has('sun') || mode === 'sun') && (
             <div className={cn('absolute inset-0', mode === 'sun' ? 'z-10' : 'pointer-events-none z-0 opacity-0')} aria-hidden={mode !== 'sun'} inert={mode !== 'sun'}>
-              <SunLabTab twin={t} active={mode === 'sun'} />
+              <SunLabTab twin={t} active={mode === 'sun'} chrome={!clean} scrubber={!arranging} />
             </div>
           )}
           {(mode === 'sound' || mode === 'neighborhood' || mode === 'design') && (
@@ -229,7 +270,7 @@ function House({ propertyId }: { propertyId: string }) {
           {arranging && (mode === 'tour' || mode === 'sun') && <ArrangePanel twin={t} onClose={() => setArranging(false)} />}
           {has('hands') && <HandsOverlay />}
           {clean && (
-            <CleanOverlay twin={t} onShowControls={() => setControls(true)}
+            <CleanOverlay twin={t} onShowControls={() => setScreen('controls')}
               pairing={has('family') ? <FamilyButton propertyId={propertyId} avatar /> : <PairingButton propertyId={propertyId} avatar />} />
           )}
         </main>
@@ -239,31 +280,11 @@ function House({ propertyId }: { propertyId: string }) {
   );
 }
 
-/** With families on, the session waits for the saved household, so the family's phones find it. */
-function FamilySession({ propertyId, children }: { propertyId: string; children: React.ReactNode }) {
-  const restored = useFamily((s) => s.restored);
-  const householdId = useFamily((s) => s.household?.household_id ?? null);
-  useEffect(() => void useFamily.getState().restore(), []);
-  if (!restored) return <HouseLoader label="Loading the home…" className="h-dvh" />;
-  return (
-    <SessionProvider client="desktop" propertyId={propertyId} householdId={householdId}>
-      {children}
-    </SessionProvider>
-  );
-}
-
 export function HouseExperience({ propertyId }: { propertyId: string }) {
   if (!NEEDS_SESSION) return <House propertyId={propertyId} />;
-  if (has('family')) {
-    return (
-      <FamilySession propertyId={propertyId}>
-        <House propertyId={propertyId} />
-      </FamilySession>
-    );
-  }
   return (
-    <SessionProvider client="desktop" propertyId={propertyId}>
+    <DesktopSession propertyId={propertyId} fallback={<HouseLoader label="Loading the home…" className="h-dvh" />}>
       <House propertyId={propertyId} />
-    </SessionProvider>
+    </DesktopSession>
   );
 }

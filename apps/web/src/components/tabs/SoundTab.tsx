@@ -3,6 +3,7 @@
 import { OCTAVE_BANDS_HZ, type NoiseScenario, type PropertyTwin } from '@ithaca/schema';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { ColumnChart } from '@/components/charts/ColumnChart';
+import { PlacedSound } from '@/components/sound/PlacedSound';
 import { CHART, ChartTitle, Legend, TableView } from '@/components/charts/kit';
 import { Button, Notice, Segmented, Spinner, Toggle, ViewState } from '@/components/ui';
 import { IconPause, IconPlay } from '@/components/ui/icons';
@@ -13,11 +14,11 @@ import { roomName } from '@/lib/rooms';
 import { useSession } from '@/lib/store/session';
 import { formatClock, fromZonedParts, toZonedIso, zonedParts } from '@/lib/time';
 
-const AS_BUILT: NoiseScenario = { glazing: null, add_carpet: false, include_furniture: true };
+const AS_BUILT: NoiseScenario = { glazing: null, add_carpet: false, include_furniture: true, windows_open: false };
 type GlazingChoice = 'asbuilt' | 'single' | 'double' | 'triple';
 
 const sameScenario = (a: NoiseScenario, b: NoiseScenario) =>
-  (a.glazing ?? null) === (b.glazing ?? null) && !!a.add_carpet === !!b.add_carpet && (a.include_furniture ?? true) === (b.include_furniture ?? true);
+  (a.glazing ?? null) === (b.glazing ?? null) && !!a.add_carpet === !!b.add_carpet && (a.include_furniture ?? true) === (b.include_furniture ?? true) && !!a.windows_open === !!b.windows_open;
 
 const hourLabel = (h: number) => formatClock(h * 60).replace(':00', '');
 const bandLabel = (hz: number) => (hz >= 1000 ? `${hz / 1000}k` : String(hz));
@@ -157,6 +158,8 @@ export function SoundTab({ twin }: { twin: PropertyTwin }) {
               onChange={(g: GlazingChoice) => setScenario({ glazing: g === 'asbuilt' ? null : g })}
             />
             <div className="mt-4 space-y-2.5">
+              {/* The clearest difference to hear: about 25 dB. */}
+              <Toggle label="Windows open" checked={!!scenario.windows_open} onChange={(windows_open) => setScenario({ windows_open })} />
               <Toggle label="Add carpet" checked={!!scenario.add_carpet} onChange={(add_carpet) => setScenario({ add_carpet })} />
               <Toggle label="Furnished" checked={scenario.include_furniture ?? true} onChange={(include_furniture) => setScenario({ include_furniture })} />
             </div>
@@ -192,6 +195,8 @@ export function SoundTab({ twin }: { twin: PropertyTwin }) {
             </label>
             {audioError && <p className="mt-2 text-xs text-danger">{audioError}</p>}
           </section>
+
+          <PlacedSound twin={twin} listenerRoomId={room.room_id} fullScale={fullScale} />
         </div>
 
         <div className="space-y-4">
@@ -229,6 +234,25 @@ export function SoundTab({ twin }: { twin: PropertyTwin }) {
                     {base && !isBaseline && <div className="text-xs text-muted">as built {base.rt60_s.toFixed(2)} s</div>}
                   </div>
                 </div>
+
+                {(data.laeq_day_dba != null || data.outdoor_lden_dba != null) && (
+                  <dl className="mt-4 grid grid-cols-2 gap-x-6 gap-y-2 border-t border-line pt-3 text-sm sm:grid-cols-4" data-testid="noise-averages">
+                    {[
+                      { label: 'Day, inside', value: data.laeq_day_dba, hint: '7 am to 11 pm' },
+                      { label: 'Night, inside', value: data.laeq_night_dba, hint: '11 pm to 7 am' },
+                      { label: 'Day and night, outside', value: data.outdoor_lden_dba, hint: 'at the most exposed wall' },
+                      { label: 'Night, outside', value: data.outdoor_lnight_dba, hint: 'at the most exposed wall' },
+                    ].map(
+                      (a) =>
+                        a.value != null && (
+                          <div key={a.label} title={a.hint}>
+                            <dt className="text-xs text-muted">{a.label}</dt>
+                            <dd className="font-medium tabular-nums">{a.value.toFixed(0)} dBA</dd>
+                          </div>
+                        ),
+                    )}
+                  </dl>
+                )}
 
                 <div className="mt-5">
                   <ChartTitle
@@ -298,10 +322,21 @@ export function SoundTab({ twin }: { twin: PropertyTwin }) {
                     </li>
                   ))}
                 </ul>
-                {twin.quality.traffic !== 'aadt' && (
+                {/* The report knows what it was made from; the twin's own flag can be older. */}
+                {(data.traffic ?? twin.quality.traffic) !== 'aadt' && (
                   <p className="mt-4 text-xs leading-5 text-sun-deep">
-                    {twin.quality.traffic === 'none' ? 'No traffic data for this address.' : 'Traffic volumes are defaults for the road class, not counts for this street.'} Treat the levels as estimates.
+                    {(data.traffic ?? twin.quality.traffic) === 'none' ? 'No traffic data for this address.' : 'Traffic volumes are defaults for the road class, not counts for this street.'} Treat the levels as estimates.
                   </p>
+                )}
+                {(data.caveats ?? []).length > 0 && (
+                  <details className="mt-4 text-xs leading-5 text-faint">
+                    <summary className="cursor-pointer text-muted">How this was worked out</summary>
+                    <ul className="mt-1 list-disc space-y-1 pl-4">
+                      {data.caveats!.map((c) => (
+                        <li key={c}>{c}</li>
+                      ))}
+                    </ul>
+                  </details>
                 )}
               </section>
             </div>

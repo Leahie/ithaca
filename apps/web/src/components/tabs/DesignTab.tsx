@@ -20,6 +20,14 @@ function VariantCard({ layout, index, twin, items, selected }: { layout: LayoutV
   const room = twin.rooms.find((r) => r.room_id === layout.room_id);
   const openings = twin.openings.filter((o) => o.room_id === layout.room_id);
   const missing = layout.placements.filter((p) => !items.has(p.item_id)).length;
+  // A layout is a proposal until it is kept (docs/specs/furniture.md): trying one only draws it in
+  // its room; keeping it makes its pieces the room's furniture.
+  const kept = layout.status === 'chosen';
+  const trying = selected && layout.status === 'proposed';
+  const see = (mode: 'tour' | 'sun') => {
+    dispatch('viewer.goto', { room_id: layout.room_id });
+    dispatch('viewer.setMode', { mode });
+  };
 
   const sendFeedback = async () => {
     const text = feedback.trim();
@@ -45,7 +53,7 @@ function VariantCard({ layout, index, twin, items, selected }: { layout: LayoutV
       data-layout-id={layout.layout_id}
       data-selected={selected}
       data-status={layout.status}
-      className={cn('flex flex-col overflow-hidden rounded-xl border bg-surface', selected ? 'border-sun shadow-[0_0_0_1px_var(--color-sun)]' : 'border-line')}
+      className={cn('flex flex-col overflow-hidden rounded-xl border bg-surface', trying || kept ? 'border-sun shadow-[0_0_0_1px_var(--color-sun)]' : 'border-line')}
     >
       <div className="relative aspect-[4/3] bg-ink">
         {layout.thumbnail_url ? (
@@ -56,11 +64,12 @@ function VariantCard({ layout, index, twin, items, selected }: { layout: LayoutV
         ) : null}
         <div className="absolute top-2 left-2 flex gap-1.5">
           <Badge>Layout {index + 1}</Badge>
-          {selected && (
+          {kept && (
             <Badge tone="sun">
               <IconCheck width={11} height={11} /> In the house
             </Badge>
           )}
+          {trying && <Badge tone="sun">Trying it</Badge>}
           {layout.status === 'rejected' && (
             <Badge tone="danger">
               Rejected
@@ -79,29 +88,30 @@ function VariantCard({ layout, index, twin, items, selected }: { layout: LayoutV
         <p className="text-[13px] leading-5 text-muted">{layout.rationale}</p>
         {layout.feedback && <p className="rounded-md border border-line px-2.5 py-1.5 text-xs text-muted">Your note: “{layout.feedback}”</p>}
         {missing > 0 && <p className="text-xs text-sun-deep">{missing} item(s) in this layout are no longer in your inventory.</p>}
-        <div className="mt-auto flex gap-2">
-          <Button variant={selected ? 'subtle' : 'primary'} className="flex-1" disabled={selected} onClick={() => dispatch('layout.select', { layout_id: layout.layout_id })}>
-            {selected ? 'Placed' : 'Place in the house'}
-          </Button>
-          {selected && (
+        <div className="mt-auto flex flex-wrap gap-2">
+          {kept ? (
+            <Button variant="subtle" className="flex-1" disabled>
+              Kept
+            </Button>
+          ) : trying ? (
+            <Button variant="primary" className="flex-1" onClick={() => dispatch('layout.confirm', { layout_id: layout.layout_id })}>
+              Keep it
+            </Button>
+          ) : (
+            <Button variant="primary" className="flex-1" onClick={() => dispatch('layout.select', { layout_id: layout.layout_id })}>
+              Try it in the room
+            </Button>
+          )}
+          {(trying || kept) && (
             <>
-              <Button
-                onClick={() => {
-                  dispatch('viewer.goto', { room_id: layout.room_id });
-                  dispatch('viewer.setMode', { mode: 'tour' });
-                }}
-              >
-                Tour
-              </Button>
-              <Button
-                onClick={() => {
-                  dispatch('viewer.goto', { room_id: layout.room_id });
-                  dispatch('viewer.setMode', { mode: 'sun' });
-                }}
-              >
-                Sun Lab
-              </Button>
+              <Button onClick={() => see('tour')}>Tour</Button>
+              <Button onClick={() => see('sun')}>Sun Lab</Button>
             </>
+          )}
+          {trying && (
+            <Button variant="ghost" onClick={() => dispatch('layout.select', { layout_id: null })} title="Go back to what stands in the room now">
+              Undo
+            </Button>
           )}
         </div>
         <form
@@ -128,7 +138,7 @@ function VariantCard({ layout, index, twin, items, selected }: { layout: LayoutV
   );
 }
 
-/** Design: layout variants as cards. Choosing one places it in the Tour and the Sun Lab. */
+/** Design: layout variants as cards. Trying one draws it in the Tour and the Sun Lab; keeping it furnishes the room. */
 export function DesignTab({ twin }: { twin: PropertyTwin }) {
   const roomId = useSession((s) => s.viewer.room_id);
   const shown = useSession((s) => s.viewer.shown_layout_ids);
@@ -170,7 +180,7 @@ export function DesignTab({ twin }: { twin: PropertyTwin }) {
         <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
           <div>
             <h1 className="text-lg font-semibold">{scope === 'room' && room ? `Layouts for ${roomName(twin, room.room_id)}` : 'Layouts'}</h1>
-            <p className="text-sm text-muted">Your own furniture, arranged by the designer. Place one to see it in the tour and under the sun.</p>
+            <p className="text-sm text-muted">Your own furniture, arranged by the designer. Try a layout to see it in the tour and under the sun; keep it to make it the room's furniture.</p>
           </div>
           {scope === 'agent' && (
             <Button size="sm" variant="ghost" onClick={() => dispatch('design.showVariants', { layout_ids: [] })}>
