@@ -95,11 +95,11 @@ function House({ propertyId }: { propertyId: string }) {
   useEffect(() => {
     if (!canFurnish) setFurnitureOpen(false);
   }, [canFurnish]);
-  // With a phone connected, the phone is the remote and the big screen is only the house: the top
-  // bar, the room list and the chat dock stay away until "Controls" is pressed. Alone, the screen
-  // is the whole app. Either way the user's own choice wins (lib/store/guide.ts).
+  // The big screen is only the house: the top bar, the room list and the chat dock stay away until
+  // "Controls" is pressed (lib/store/guide.ts). Opening the house again starts without them.
   const screen = useGuide((s) => s.screen);
   const setScreen = useGuide((s) => s.setScreen);
+  useEffect(() => setScreen('clean'), [propertyId, setScreen]);
   const phoneHere = useSession((s) => s.peers.phone);
   const canClean = (has('family') || has('phone')) && mode === 'tour';
   const clean = canClean && (screen === 'clean' || (screen === 'auto' && phoneHere));

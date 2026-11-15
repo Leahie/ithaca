@@ -18,3 +18,7 @@ playwright-report/
 .DS_Store
 # Copied from node_modules at install time
 apps/web/public/mediapipe/
+# Matterport's Showcase SDK: its licence does not allow sharing it in this repo
+apps/web/public/matterport-assets/
+debug.log
+doc.txt

@@ -7,9 +7,9 @@ import { useSession } from './session';
  * How the big screen presents itself, shared by the top bar, the overlay on the house and the
  * chat dock, so they never disagree.
  *
- * `screen`: with a phone connected the phone is the remote and the big screen is only the house
- * ("clean"); alone, the screen has its own top bar, room list and chat. `auto` follows the phone;
- * the user's own choice ("Controls" / "Hide controls") wins until they change it.
+ * `screen`: the big screen opens as only the house ("clean"), with or without a phone; "Controls"
+ * brings back its own top bar, room list and chat until the house is opened again. `auto` follows
+ * the phone: clean while one is connected.
  *
  * `voice`: whether the guide speaks its replies on this screen. `null` = not chosen: it speaks
  * when a phone is connected (the phone waits for the big screen to finish talking before it opens
@@ -24,7 +24,7 @@ interface GuideStore {
 }
 
 export const useGuide = create<GuideStore>((set) => ({
-  screen: 'auto',
+  screen: 'clean',
   voice: null,
   setScreen: (screen) => set({ screen }),
   setVoice: (voice) => set({ voice }),
