@@ -23,15 +23,12 @@ export const config = {
    * or "all". Default: "tour,sun,hands".
    */
   features: parseFeatures(process.env.NEXT_PUBLIC_FEATURES),
-  /** "embed" (hosted viewer, has the outside view) or "bundle" (can place 3D objects). */
-  matterportViewer: process.env.NEXT_PUBLIC_MATTERPORT_VIEWER === 'bundle' ? ('bundle' as const) : ('embed' as const),
   /** A6: render every tab from fixtures with no backend running. */
   useFixtures: process.env.NEXT_PUBLIC_USE_FIXTURES === '1',
   /** REST base. The default is same-origin, proxied to the API by next.config.ts. */
   apiBase: (process.env.NEXT_PUBLIC_API_BASE ?? '/api').replace(/\/$/, ''),
   /** WebSocket origin, e.g. ws://192.168.1.20:8000. Empty = the page's own origin (proxied to the API). */
   wsBase: (process.env.NEXT_PUBLIC_WS_BASE ?? '').replace(/\/$/, ''),
-  matterportSdkKey: process.env.NEXT_PUBLIC_MATTERPORT_SDK_KEY ?? '',
   /** MediaPipe hand landmarker model. Loaded when hand control is first turned on. */
   handModelUrl: process.env.NEXT_PUBLIC_HAND_MODEL_URL || 'https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task',
   /** I-G19: the property id comes from config, never from code. */

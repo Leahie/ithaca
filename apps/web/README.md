@@ -13,9 +13,9 @@ Next.js app for [PLAN.md](../../PLAN.md) sections 7 and 8, built to the contract
 ## Run it
 
 ```sh
-pnpm install                       # also copies the Matterport bundle to public/matterport-assets
-git lfs pull                       # fixtures/blobs is in Git LFS (the house mesh is 18 MB)
-cp .env.example apps/web/.env.local   # then set NEXT_PUBLIC_MATTERPORT_SDK_KEY
+pnpm install                       # also copies MediaPipe's wasm to public/mediapipe
+git lfs pull                       # fixtures/blobs is in Git LFS (the rebuilt house is 19 MB)
+cp .env.example apps/web/.env.local
 pnpm dev                           # http://localhost:3000
 ```
 
@@ -96,8 +96,9 @@ These came up while building against schema v0. Each is the choice this app make
 
 What C asked A for (handoff section 6):
 
-1. **Frame check (C6): passes.** The Tour tab compares `mpSdk.Sweep.data` with `twin.sweeps` at
-   runtime and shows the result as a badge. For twin v2 of this model: the Showcase `sid` equals
+1. **Frame check (C6): passed** (while the Tour was the Matterport Showcase; it now draws the
+   rebuilt house in the interior frame itself, so there is nothing to compare). The Tour tab
+   compared `mpSdk.Sweep.data` with `twin.sweeps` at runtime. For twin v2 of this model: the Showcase `sid` equals
    `sweep_id`, 90 of the 96 twin sweeps are in the Showcase, and all 90 positions agree within
    1 mm. I-G9 holds; furniture poses can be used as they are.
    The other 6 twin sweeps (labels 27, 56, 57, 63, 81, 87) are not in the Showcase sweep list,
@@ -151,12 +152,12 @@ Still open for C:
 
 ## What the house page shows
 
-By default the house page has two views, the Matterport tour and the Sun Lab, with the room
+By default the house page has two views, the Tour and the Sun Lab, with the room
 list beside them. Everything else is built and tested but switched off. `NEXT_PUBLIC_FEATURES` turns parts on:
 
 | Value | Adds |
 |---|---|
-| `tour` (default) | The Matterport tour and the room list |
+| `tour` (default) | The Tour (walk through the rebuilt house) and the room list |
 | `sun` (default) | The Sun Lab: the house rebuilt from the floor plan under the moving sun |
 | `sound`, `neighborhood`, `design` | That view, as a tab |
 | `agent` | The chat dock |
@@ -195,10 +196,10 @@ HTTPS; typed chat works over plain HTTP.
 The **Hands** button turns on the webcam and follows the user's hands with MediaPipe, in the
 browser (`src/lib/hands/`, after HoloTouch). Nothing leaves the machine.
 
-- Pinch thumb and index, and move the hand: drag the view, as with a mouse. In the Tour this
-  turns the camera; in the Sun Lab it orbits.
-- Pinch with both hands: pull them apart to zoom in, together to zoom out (the Tour zooms
-  indoors only).
+- In the Sun Lab, pinch thumb and index and move the hand to orbit, as with a mouse; pinch with
+  both hands and pull them apart to zoom in, together to zoom out.
+- In the Tour, hands arrange furniture (the phone moves the camera): see
+  `docs/testing/hands-furniture.md`.
 
 A ring follows each hand over the view (sky blue left, coral right) and tightens as the
 fingers close; a small camera picture in the corner shows what is tracked. The wasm is copied to
@@ -207,19 +208,20 @@ fingers close; a small camera picture in the corner shows what is tracked. The w
 
 ## The Tour: indoors and outdoors
 
-The Tour shows the space with one of two Matterport viewers (`NEXT_PUBLIC_MATTERPORT_VIEWER`):
+The Tour walks through the same rebuilt house the Sun Lab shows (`src/components/house3d/`), with
+its baked light and the sun of the session's moment (the phone's time scrubber moves it here too).
+It replaced the Matterport Showcase viewer: no SDK key, and furniture is drawn by our own renderer.
+The camera (`src/components/tour/TourCamera.tsx`, walking ported from 3d_rendering_matterport):
 
-- **`embed` (default):** Matterport's hosted viewer in an iframe, driven by the SDK for Embeds
-  (`@matterport/sdk`). It is always the current viewer, so it shows everything the model has,
-  including the exterior capture. The room list's **Outside** entry goes there (the viewer's
-  dollhouse mode, drawn with the exterior capture): drag to orbit the building, scroll to zoom.
-  A room on the list takes you back in. This viewer cannot add 3D objects.
-- **`bundle`:** the Bundle SDK from `@matterport/webcomponent`. It can add 3D objects
-  (`Scene.createObjects`), which the Design view needs to place furniture in the tour. The newest
-  bundle on npm (26.5.4) cannot load exterior splat captures and would wait for them forever, so
-  `src/lib/showcase/splatShim.ts` answers its `GetSplats` request with an empty list. The tour
-  then starts, without the outside view. Nothing in the vendor bundle is changed.
-  `NEXT_PUBLIC_MATTERPORT_SPLATS=1` turns the shim off once a newer bundle is installed.
+- **Inside**, at eye height: drag to look around, scroll to zoom, W A S D or the arrows to walk
+  (Shift runs). The camera stops at walls and climbs the stairs. A click on a spot goes to the scan
+  position nearest it. `viewer.goto`, `viewer.walk`, `viewer.step`, `viewer.look` and
+  `viewer.zoom` move it between scan positions as before; walking into another room is a
+  `viewer.goto` with the scan position nearest you, so the session follows.
+- **Outside** (the room list's **Outside** entry): around the house without its roof; drag to
+  turn it, scroll to come nearer. A click on a room goes in there.
+- **Above a room**, while arranging furniture or showing a layout: looking down, with the storeys
+  above the room hidden.
 
 "Outside" is not an event in schema v0 (`viewer.goto` names a room or a sweep), so it is local
 to the tab for now (`src/lib/store/tour.ts`).

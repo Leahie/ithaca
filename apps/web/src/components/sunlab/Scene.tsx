@@ -1,74 +1,31 @@
 'use client';
 
-import type { Opening, PropertyTwin, Room, SunHeatmap, Vec3 } from '@ithaca/schema';
-import { CameraControls, useGLTF } from '@react-three/drei';
-import { useFrame, useThree, type ThreeEvent } from '@react-three/fiber';
-import { Component, Suspense, createContext, useContext, useEffect, useMemo, useRef, useState, type MutableRefObject, type ReactNode } from 'react';
-import {
-  Box3,
-  BufferAttribute,
-  BufferGeometry,
-  Color,
-  DataTexture,
-  DoubleSide,
-  FrontSide,
-  LinearFilter,
-  MeshBasicMaterial,
-  RGBAFormat,
-  SRGBColorSpace,
-  Vector3,
-  type Camera,
-  type IUniform,
-  type Material,
-  type Mesh,
-  type MeshStandardMaterial,
-  type Object3D,
-  type Scene as ThreeScene,
-  type WebGLRenderer,
-} from 'three';
+import type { Opening, PropertyTwin, Room, SunHeatmap } from '@ithaca/schema';
+import { CameraControls } from '@react-three/drei';
+import { Suspense, useEffect, useMemo, useRef } from 'react';
+import { BufferAttribute, BufferGeometry, DataTexture, DoubleSide, LinearFilter, RGBAFormat, SRGBColorSpace, Vector3 } from 'three';
 import { rampColor } from '@/components/charts/kit';
+import { AssetBoundary, Furniture, Ground, HouseLight, HouseModel, RoomShells, houseBounds, passesLight, type PlacedItem, type RebuiltHouse, type SunState } from '@/components/house3d/House3D';
 import type { V3 } from '@/lib/geometry/frames';
 import { bounds, centroid, pointInPolygon } from '@/lib/geometry/polygon';
 import { onHandNav } from '@/lib/hands/engine';
-import { House, plainLight, shadePlain, type HouseInfo } from '@/lib/house/house';
-import { SunLight, type SunOpening } from '@/lib/house/sun';
 import { onSessionEvent, useSession } from '@/lib/store/session';
-import { floorGeometry, wallGeometry } from '@/lib/three/roomShell';
 
 /**
- * The Sun Lab's picture: the house rebuilt from the floor plan, with its baked light, under the
- * sun of the chosen moment (lib/house, ported from 3d_rendering_matterport). The sun is one
- * shadow map of the house, its lot and the block around it; sunlight a sunlit room throws back
- * comes from the bake. Furniture is lit the same way, and casts its own shadow.
- *
- * A twin without a rebuilt house shows its rooms drawn from their outlines, in the same light.
+ * The Sun Lab's picture: the house (components/house3d) under the sun of the chosen moment, with
+ * what only the Sun Lab shows: the sun-hours heatmap, the windows and doors, and annotation clicks.
  */
 
+export type { PlacedItem, SunState };
+
 const DEG = Math.PI / 180;
-const smoothstep = (a: number, b: number, x: number) => {
-  const t = Math.min(1, Math.max(0, (x - a) / (b - a)));
-  return t * t * (3 - 2 * t);
-};
-
-export interface SunState {
-  /** Unit vector toward the sun, interior frame. */
-  direction: V3;
-  elevation_deg: number;
-}
-
-export interface PlacedItem {
-  item_id: string;
-  url: string;
-  position: Vec3;
-  yaw_deg: number;
-}
 
 export type SunLabView = { kind: 'overview'; seq: number } | { kind: 'room'; room: Room; seq: number };
 
 export interface SceneProps {
   twin: PropertyTwin;
   /** The rebuilt house (its house.json, read), or null to draw the rooms from their outlines. */
-  house: { url: string; info: HouseInfo } | null;
+  house: RebuiltHouse | null;
   openings: Opening[];
   sun: SunState;
   placements: PlacedItem[];
@@ -81,304 +38,6 @@ export interface SceneProps {
   view: SunLabView;
   onAssetError(message: string): void;
   onReady(): void;
-}
-
-// ---------------------------------------------------------------------------------------------
-// Light: the sun's shadow map, and the light on things without a lightmap
-// ---------------------------------------------------------------------------------------------
-
-interface Lighting {
-  sun: SunLight;
-  /** Around furniture and room outlines: a room's usual light. */
-  indoor: IUniform<Color>;
-  /** On plain open ground. */
-  outdoor: IUniform<Color>;
-  house: MutableRefObject<House | null>;
-  /** Something that casts a shadow appeared, moved or went: redraw the shadow map. */
-  invalidate(): void;
-}
-
-const LightContext = createContext<Lighting | null>(null);
-
-const NIGHT = new Color('#0a0e18');
-const DUSK = new Color('#d98a5a');
-const DAY = new Color('#a9c9e6');
-
-/**
- * Draw only what casts a shadow (meshes marked `userData.caster`), with the shadow map's
- * material. The house's ceilings and roof cast shadows whether or not they are drawn.
- */
-function renderOccluders(gl: WebGLRenderer, scene: ThreeScene, material: Material, camera: Camera, house: House | null): void {
-  const hidden: Object3D[] = [];
-  scene.traverse((o) => {
-    const drawn = (o as Mesh).isMesh || (o as { isPoints?: boolean }).isPoints || (o as { isLine?: boolean }).isLine || (o as { isSprite?: boolean }).isSprite;
-    if (drawn && o.visible && !o.userData.caster) hidden.push(o);
-  });
-  const lid = house?.lidOn ?? true;
-  house?.setLid(true);
-  for (const o of hidden) o.visible = false;
-  const background = scene.background;
-  scene.background = null;
-  scene.overrideMaterial = material;
-  gl.render(scene, camera);
-  scene.overrideMaterial = null;
-  scene.background = background;
-  for (const o of hidden) o.visible = true;
-  house?.setLid(lid);
-}
-
-/** The windows and glass doors of a twin, for a shadow map of walls that have no holes. */
-function sunOpenings(openings: Opening[]): SunOpening[] {
-  return openings.flatMap((o) => {
-    if (!passesLight(o) || o.polygon.length < 4) return [];
-    const [p0, p1] = o.polygon as [Vec3, Vec3];
-    const along = new Vector3(p1.x - p0.x, 0, p1.z - p0.z);
-    const width = along.length();
-    if (width < 0.05) return [];
-    const ys = o.polygon.map((p) => p.y);
-    const center = o.polygon.reduce<Vector3>((acc, p) => acc.add(new Vector3(p.x, p.y, p.z)), new Vector3()).multiplyScalar(1 / o.polygon.length);
-    return [{ center, along: along.normalize(), half: width / 2, bottom: Math.min(...ys), top: Math.max(...ys) }];
-  });
-}
-
-function LightRig({ twin, openings, sun, cutOpenings, children }: { twin: PropertyTwin; openings: Opening[]; sun: SunState; cutOpenings: boolean; children: ReactNode }) {
-  const gl = useThree((s) => s.gl);
-  const scene = useThree((s) => s.scene);
-  const houseRef = useRef<House | null>(null);
-  const dirty = useRef(true);
-  const sunRef = useRef(sun);
-  sunRef.current = sun;
-  // Without a rebuilt house: the shadow map covers the rooms' outlines and a margin.
-  const outline = useMemo(() => {
-    const h = houseBounds(twin);
-    return new Box3().setFromCenterAndSize(h.center, new Vector3(h.radius * 2 + 6, h.radius * 2 + 2, h.radius * 2 + 6));
-  }, [twin]);
-  const outlineRef = useRef(outline);
-  outlineRef.current = outline;
-
-  // Made in an effect, not in useMemo: a render React throws away would leave a render target behind.
-  const [lighting, setLighting] = useState<Lighting | null>(null);
-  useEffect(() => {
-    const light = new SunLight(gl, {
-      renderOccluders: (material, camera) => renderOccluders(gl, scene, material, camera, houseRef.current),
-      bounds: () => houseRef.current?.bounds ?? outlineRef.current,
-    });
-    setLighting({ sun: light, indoor: { value: new Color(1, 1, 1) }, outdoor: { value: new Color(1, 1, 1) }, house: houseRef, invalidate: () => void (dirty.current = true) });
-    return () => {
-      light.dispose();
-      setLighting(null);
-    };
-  }, [gl, scene]);
-
-  useEffect(() => {
-    if (!lighting) return;
-    lighting.sun.cutOpenings = cutOpenings;
-    lighting.sun.setOpenings(sunOpenings(openings));
-    dirty.current = true;
-  }, [lighting, openings, cutOpenings]);
-
-  const background = useMemo(() => new Color(), []);
-  useEffect(() => {
-    scene.background = background;
-    return () => {
-      scene.background = null;
-    };
-  }, [scene, background]);
-
-  // The sun is worked out again (and its shadow map redrawn) only when it moved or a caster changed.
-  const last = useRef('');
-  useFrame(() => {
-    if (!lighting) return;
-    const { direction, elevation_deg: el } = sunRef.current;
-    const key = `${direction.join(',')}|${el}`;
-    if (!dirty.current && key === last.current) return;
-    dirty.current = false;
-    last.current = key;
-    const toSun = new Vector3(direction[0], direction[1], direction[2]);
-    lighting.sun.update(toSun, el);
-    houseRef.current?.setLight(lighting.sun.sky, toSun, lighting.sun.uniforms.sunColor!.value as Color);
-    plainLight(lighting.sun.sky, true, true, lighting.indoor.value);
-    plainLight(lighting.sun.sky, true, false, lighting.outdoor.value);
-    // Seen only where the house's own sky is not there (a twin without a rebuilt house).
-    background.copy(NIGHT).lerp(DUSK, smoothstep(-8, 1, el) * (1 - smoothstep(4, 18, el)) * 0.7).lerp(DAY, smoothstep(-2, 16, el));
-  });
-
-  if (!lighting) return null;
-  return <LightContext.Provider value={lighting}>{children}</LightContext.Provider>;
-}
-
-// ---------------------------------------------------------------------------------------------
-// The house, furniture, and the stand-ins for a twin without a rebuilt house
-// ---------------------------------------------------------------------------------------------
-
-/** Whether an object and everything above it is shown. */
-function shown(o: Object3D | null): boolean {
-  for (; o; o = o.parent) if (!o.visible) return false;
-  return true;
-}
-
-/** A click on a wall, for annotating openings: the first surface that is drawn, not one hidden (the roof, from outside). */
-function wallClick(onWallClick: NonNullable<SceneProps['onWallClick']>) {
-  return (e: ThreeEvent<MouseEvent>) => {
-    if (e.delta > 4) return; // a drag is a camera move, not a click
-    const hit = e.intersections.find((i) => i.face && shown(i.object));
-    if (!hit?.face) return;
-    e.stopPropagation();
-    const n = hit.face.normal.clone().transformDirection(hit.object.matrixWorld);
-    onWallClick([hit.point.x, hit.point.y, hit.point.z], [n.x, n.y, n.z]);
-  };
-}
-
-function HouseModel({ url, info, inside, onWallClick, onAssetError, onReady }: { url: string; info: HouseInfo; inside: boolean; onWallClick: SceneProps['onWallClick']; onAssetError(message: string): void; onReady(): void }) {
-  const lighting = useContext(LightContext)!;
-  const gl = useThree((s) => s.gl);
-  const [house, setHouse] = useState<House | null>(null);
-  const errorRef = useRef(onAssetError);
-  errorRef.current = onAssetError;
-
-  useEffect(() => {
-    let alive = true;
-    let made: House | null = null;
-    House.load(gl, url, info, lighting.sun.uniforms, lighting.invalidate).then(
-      (h) => {
-        if (!alive) return h.dispose();
-        made = h;
-        lighting.house.current = h;
-        lighting.invalidate();
-        setHouse(h);
-      },
-      (err) => alive && errorRef.current(`The rebuilt house could not be loaded: ${err instanceof Error ? err.message : String(err)}`),
-    );
-    return () => {
-      alive = false;
-      if (made) {
-        if (lighting.house.current === made) lighting.house.current = null;
-        made.dispose();
-        lighting.invalidate();
-      }
-      setHouse(null);
-    };
-  }, [gl, url, info, lighting]);
-
-  // From outside the house is seen without its ceilings and roof.
-  useEffect(() => house?.setLid(inside), [house, inside]);
-  useEffect(() => {
-    if (house) onReady();
-  }, [house, onReady]);
-  useFrame(({ camera }) => house?.update(camera));
-
-  if (!house) return null;
-  return <primitive object={house.group} onClick={onWallClick ? wallClick(onWallClick) : undefined} />;
-}
-
-/**
- * Stand-in for a twin that has no rebuilt house (C3: a degraded twin is still valid): each room
- * as a floor and inward-facing walls, built from the room outlines. The walls have no holes, so
- * the sun's shadow map lets light through where the twin's openings are.
- */
-function RoomShells({ twin, onWallClick, onReady }: { twin: PropertyTwin; onWallClick: SceneProps['onWallClick']; onReady(): void }) {
-  const lighting = useContext(LightContext)!;
-  const { floors, walls, floorMaterial, wallMaterial } = useMemo(() => {
-    const make = (color: string, side: typeof FrontSide | typeof DoubleSide) => {
-      const m = new MeshBasicMaterial({ color, side });
-      shadePlain(m, lighting.indoor, lighting.sun.uniforms);
-      return m;
-    };
-    return {
-      floors: twin.rooms.map((r) => ({ id: r.room_id, geometry: floorGeometry(r) })),
-      walls: twin.rooms.map((r) => ({ id: r.room_id, geometry: wallGeometry(r) })),
-      floorMaterial: make('#cdbfa9', DoubleSide),
-      wallMaterial: make('#e9e4da', FrontSide),
-    };
-  }, [twin, lighting]);
-  useEffect(() => {
-    lighting.invalidate();
-    onReady();
-  }, [lighting, onReady, floors]);
-  useEffect(
-    () => () => {
-      floors.forEach((f) => f.geometry.dispose());
-      walls.forEach((w) => w.geometry.dispose());
-      floorMaterial.dispose();
-      wallMaterial.dispose();
-    },
-    [floors, walls, floorMaterial, wallMaterial],
-  );
-  const click = onWallClick ? wallClick(onWallClick) : undefined;
-  return (
-    <>
-      {floors.map((f) => (
-        <mesh key={f.id} geometry={f.geometry} material={floorMaterial} userData={{ caster: true }} />
-      ))}
-      {walls.map((w) => (
-        <mesh key={w.id} geometry={w.geometry} material={wallMaterial} userData={{ caster: true }} onClick={click} />
-      ))}
-    </>
-  );
-}
-
-/** Plain ground for a twin without a rebuilt house, so the rooms do not float and shadows land somewhere. */
-function Ground({ twin }: { twin: PropertyTwin }) {
-  const lighting = useContext(LightContext)!;
-  const material = useMemo(() => {
-    const m = new MeshBasicMaterial({ color: '#7d8572' });
-    shadePlain(m, lighting.outdoor, lighting.sun.uniforms);
-    return m;
-  }, [lighting]);
-  useEffect(() => () => material.dispose(), [material]);
-  const house = useMemo(() => houseBounds(twin), [twin]);
-  const y = Math.min(0, ...twin.rooms.map((r) => r.floor_y)) - 0.45;
-  return (
-    <mesh position={[house.center.x, y, house.center.z]} rotation={[-Math.PI / 2, 0, 0]} material={material} userData={{ caster: true }}>
-      <circleGeometry args={[160, 64]} />
-    </mesh>
-  );
-}
-
-function Furniture({ item }: { item: PlacedItem }) {
-  const lighting = useContext(LightContext)!;
-  const gltf = useGLTF(item.url);
-  const { scene, materials } = useMemo(() => {
-    const root = gltf.scene.clone(true);
-    // One material per source material, lit like the rooms around it.
-    const made = new Map<string, MeshBasicMaterial>();
-    root.traverse((node) => {
-      const mesh = node as Mesh;
-      if (!mesh.isMesh) return;
-      const src = (Array.isArray(mesh.material) ? mesh.material[0] : mesh.material) as MeshStandardMaterial | undefined;
-      let material = src && made.get(src.uuid);
-      if (!material) {
-        const map = src?.map ?? null;
-        material = new MeshBasicMaterial({
-          // A photo texture is the surface color; untextured meshes keep their own color.
-          color: map ? new Color('#ffffff') : (src?.color ?? new Color('#d8d4cc')),
-          map,
-          side: src?.side ?? FrontSide,
-          transparent: src?.transparent ?? false,
-          opacity: src?.opacity ?? 1,
-          alphaTest: src?.alphaTest ?? 0,
-        });
-        shadePlain(material, lighting.indoor, lighting.sun.uniforms);
-        if (src) made.set(src.uuid, material);
-      }
-      if (!mesh.geometry.getAttribute('normal')) {
-        mesh.geometry = mesh.geometry.clone();
-        mesh.geometry.computeVertexNormals();
-      }
-      mesh.material = material;
-      mesh.userData = { ...mesh.userData, caster: true };
-    });
-    return { scene: root, materials: [...made.values()] };
-  }, [gltf.scene, lighting]);
-  useEffect(() => () => materials.forEach((m) => m.dispose()), [materials]);
-  // A piece that appears, moves or goes changes the shadows.
-  const { x, y, z } = item.position;
-  useEffect(() => {
-    lighting.invalidate();
-    return () => lighting.invalidate();
-  }, [lighting, scene, x, y, z, item.yaw_deg]);
-  // A5: the stored pose, as it is. Yaw is about +Y, counter-clockwise from above (I-G12).
-  return <primitive object={scene} position={[x, y, z]} rotation={[0, item.yaw_deg * DEG, 0]} />;
 }
 
 function OpeningPanes({ openings }: { openings: Opening[] }) {
@@ -462,23 +121,6 @@ function Heatmap({ room, data }: { room: Room; data: SunHeatmap }) {
 // ---------------------------------------------------------------------------------------------
 // Camera
 // ---------------------------------------------------------------------------------------------
-
-/** Windows and sliders pass light. A door passes light only if it is glazed. */
-export function passesLight(o: Opening): boolean {
-  return o.kind === 'window' || o.kind === 'slider' || o.glazing !== 'none';
-}
-
-function houseBounds(twin: PropertyTwin): { center: Vector3; radius: number } {
-  const b = bounds(twin.rooms.flatMap((r) => r.polygon));
-  const ys = twin.rooms.flatMap((r) => [r.floor_y, r.floor_y + r.height_m]);
-  const yMin = Math.min(0, ...ys);
-  const yMax = Math.max(3, ...ys);
-  if (!Number.isFinite(b.minX)) return { center: new Vector3(0, 1.5, 0), radius: 15 };
-  return {
-    center: new Vector3((b.minX + b.maxX) / 2, (yMin + yMax) / 2, (b.minZ + b.maxZ) / 2),
-    radius: Math.hypot(b.maxX - b.minX, yMax - yMin, b.maxZ - b.minZ) / 2,
-  };
-}
 
 const centerOf = (o: Opening) => o.polygon.reduce<Vector3>((acc, p) => acc.add(new Vector3(p.x, p.y, p.z)), new Vector3()).multiplyScalar(1 / o.polygon.length);
 const openingArea = (o: Opening) => {
@@ -604,28 +246,15 @@ function CameraRig({ twin, openings, view }: { twin: PropertyTwin; openings: Ope
 // Scene
 // ---------------------------------------------------------------------------------------------
 
-class AssetBoundary extends Component<{ label: string; onError(message: string): void; children: ReactNode }, { failed: boolean }> {
-  state = { failed: false };
-  static getDerivedStateFromError() {
-    return { failed: true };
-  }
-  componentDidCatch(error: Error) {
-    this.props.onError(`${this.props.label} could not be loaded: ${error.message}`);
-  }
-  render() {
-    return this.state.failed ? null : this.props.children;
-  }
-}
-
 export function Scene({ twin, house, openings, sun, placements, heatmap, showOpenings, onWallClick, pendingCorner, view, onAssetError, onReady }: SceneProps) {
   return (
-    <LightRig twin={twin} openings={openings} sun={sun} cutOpenings={!house}>
+    <HouseLight twin={twin} openings={openings} sun={sun} cutOpenings={!house}>
       <CameraRig twin={twin} openings={openings} view={view} />
       {house ? (
         <HouseModel url={house.url} info={house.info} inside={view.kind === 'room'} onWallClick={onWallClick} onAssetError={onAssetError} onReady={onReady} />
       ) : (
         <>
-          <RoomShells twin={twin} onWallClick={onWallClick} onReady={onReady} />
+          <RoomShells rooms={twin.rooms} onWallClick={onWallClick} onReady={onReady} />
           <Ground twin={twin} />
         </>
       )}
@@ -644,6 +273,6 @@ export function Scene({ twin, house, openings, sun, placements, heatmap, showOpe
           <meshBasicMaterial color="#f2b84b" depthTest={false} />
         </mesh>
       )}
-    </LightRig>
+    </HouseLight>
   );
 }

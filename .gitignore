@@ -16,6 +16,5 @@ __pycache__/
 test-results/
 playwright-report/
 .DS_Store
-# Matterport bundle assets are copied from node_modules at install time
-apps/web/public/matterport-assets/
+# Copied from node_modules at install time
 apps/web/public/mediapipe/

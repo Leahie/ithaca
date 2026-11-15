@@ -15,12 +15,9 @@ import { useHouseFurniture, useInventory, useLayouts } from '@/lib/data/hooks';
 import { invalidate } from '@/lib/data/resource';
 import { defaultRoom, roomName } from '@/lib/rooms';
 import type { V3 } from '@/lib/geometry/frames';
-import { compassToInterior } from '@/lib/geometry/frames';
-import { loadHouseInfo, type HouseInfo } from '@/lib/house/house';
-import { sunToward } from '@/lib/house/sun';
+import { useRebuiltHouse, useSun } from '@/components/house3d/House3D';
 import { useSession } from '@/lib/store/session';
 import { openingFromCorners } from '@/lib/sunlab/annotate';
-import { sunPosition } from '@/lib/sun/position';
 
 /**
  * Sun Lab: the house rebuilt from the floor plan, with its baked light and the block around it,
@@ -47,34 +44,13 @@ export function SunLabTab({ twin, active }: { twin: PropertyTwin; active: boolea
   const [dprFactor, setDprFactor] = useState(0.5);
   const maxDpr = typeof window === 'undefined' ? 1 : Math.min(2, Math.max(1, window.devicePixelRatio || 1));
   const dpr = 1 + (maxDpr - 1) * dprFactor;
-  // A clean view first: the live sun on the scan. Numbers, heatmap and window outlines are a click away.
+  // A clean view first: the live sun on the house. Numbers, heatmap and window outlines are a click away.
   const [panelOpen, setPanelOpen] = useState(false);
   const [heatmapOn, setHeatmapOn] = useState(false);
   const [showOpenings, setShowOpenings] = useState(false);
 
   // The rebuilt house: its house.json first (it says which way north is), then the model.
-  const houseUrl = twin.assets.house ?? null;
-  const [rebuilt, setRebuilt] = useState<{ url: string; info: HouseInfo } | null>(null);
-  const [houseFailed, setHouseFailed] = useState(false);
-  useEffect(() => {
-    setRebuilt(null);
-    setHouseFailed(false);
-    if (!houseUrl) return;
-    let alive = true;
-    loadHouseInfo(houseUrl).then(
-      (info) => alive && setRebuilt({ url: houseUrl, info }),
-      (err) => {
-        if (!alive) return;
-        setHouseFailed(true);
-        setAssetError(`The rebuilt house could not be loaded: ${err instanceof Error ? err.message : String(err)}`);
-      },
-    );
-    return () => {
-      alive = false;
-    };
-  }, [houseUrl]);
-  // Draw once it is known what to draw: the house, or (without one) the rooms' outlines.
-  const sceneReady = !houseUrl || !!rebuilt || houseFailed;
+  const { house: rebuilt, known: sceneReady, failed: noHouse } = useRebuiltHouse(twin, setAssetError);
 
   // Start indoors: with no room chosen yet, go to the main room. A viewer.goto like any other (A1).
   useEffect(() => {
@@ -90,15 +66,8 @@ export function SunLabTab({ twin, active }: { twin: PropertyTwin; active: boolea
     if (target) setView({ kind: 'room', room: target, seq: gotoSeq });
   }, [gotoSeq, twin]);
 
-  // Sun: suncalc position, turned into the interior frame. North is the one measured for the
-  // rebuilt house on Vexcel's aerial survey when there is one (Matterport's georeference, which
-  // the twin's transform comes from, is several degrees off); else the twin's transform.
-  const north = rebuilt?.info.orientation?.north ?? null;
-  const sun = useMemo(() => {
-    const pos = sunPosition(new Date(datetime), twin.lat, twin.lon);
-    const direction = north ? sunToward(pos.azimuth_deg, pos.elevation_deg, north) : compassToInterior(twin.interior_to_world, pos.azimuth_deg, pos.elevation_deg);
-    return { ...pos, direction: direction as V3 };
-  }, [datetime, twin, north]);
+  // Sun: suncalc position, turned into the interior frame (north as measured for the rebuilt house).
+  const sun = useSun(twin, rebuilt, datetime);
 
   // The house's furniture (or the layout being tried in its room).
   const placements = useMemo<PlacedItem[]>(() => {
@@ -207,7 +176,7 @@ export function SunLabTab({ twin, active }: { twin: PropertyTwin; active: boolea
           <Spinner label="Loading the house…" />
         </div>
       )}
-      {(!houseUrl || houseFailed) && (
+      {noHouse && (
         <div className="absolute top-12 left-3 w-[300px]">
           <Notice tone="warn" title="No rebuilt house yet">
             This twin has no house rebuilt from its floor plan, so rooms are drawn from their outlines.

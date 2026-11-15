@@ -61,7 +61,7 @@ export class ModelError extends Error {
   }
 }
 
-/** Where the MediaPipe wasm is served from: copied into public/ at install (scripts/copy-matterport-assets.mjs). */
+/** Where the MediaPipe wasm is served from: copied into public/ at install (scripts/copy-assets.mjs). */
 const WASM_BASE = '/mediapipe/wasm';
 const WORKER_URL = '/hand-worker.mjs';
 

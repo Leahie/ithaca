@@ -1,13 +1,13 @@
 'use client';
 
 import type { InventoryItem, LayoutVariant, Placement, PropertyTwin, Room } from '@ithaca/schema';
-import { useGLTF } from '@react-three/drei';
 import { Canvas, useThree } from '@react-three/fiber';
-import { Component, Suspense, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { DoubleSide, FrontSide, type DirectionalLight } from 'three';
+import { Component, Suspense, useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
+import { Furniture, FurnitureBox, HouseLight, HouseModel, RoomShells, sunAt, type RebuiltHouse } from '@/components/house3d/House3D';
 import { api } from '@/lib/api';
 import { bounds } from '@/lib/geometry/polygon';
-import { floorGeometry, wallGeometry } from '@/lib/three/roomShell';
+import { loadHouseInfo } from '@/lib/house/house';
+import { fromZonedParts } from '@/lib/time';
 
 declare global {
   interface Window {
@@ -20,32 +20,11 @@ declare global {
 
 const DEG = Math.PI / 180;
 
-/** Item as a plain box from its dimensions. Used when its GLB cannot be loaded. */
-function BoxItem({ item, placement }: { item: InventoryItem; placement: Placement }) {
-  const { w, d, h } = item.dims_m;
-  return (
-    <group position={[placement.position.x, placement.position.y, placement.position.z]} rotation={[0, placement.yaw_deg * DEG, 0]}>
-      <mesh position={[0, h / 2, 0]} castShadow receiveShadow>
-        <boxGeometry args={[w, h, d]} />
-        <meshStandardMaterial color="#9aa3ad" roughness={0.9} />
-      </mesh>
-    </group>
-  );
-}
+/** A9: one fixed light for every picture: the sun of a spring morning in the house's own time zone. */
+const MOMENT = { year: 2026, month: 3, day: 20, hour: 10, minute: 0 };
 
 function GlbItem({ item, placement, onLoaded }: { item: InventoryItem; placement: Placement; onLoaded(): void }) {
-  const gltf = useGLTF(item.glb_url);
-  const scene = useMemo(() => {
-    const root = gltf.scene.clone(true);
-    root.traverse((o) => {
-      o.castShadow = true;
-      o.receiveShadow = true;
-    });
-    return root;
-  }, [gltf]);
-  useEffect(() => onLoaded(), [onLoaded, scene]);
-  // A5: the stored pose, as it is.
-  return <primitive object={scene} position={[placement.position.x, placement.position.y, placement.position.z]} rotation={[0, placement.yaw_deg * DEG, 0]} />;
+  return <Furniture item={{ item_id: item.item_id, url: item.glb_url, position: placement.position, yaw_deg: placement.yaw_deg }} onLoaded={onLoaded} />;
 }
 
 class ItemBoundary extends Component<{ fallback: ReactNode; onFailed(): void; children: ReactNode }, { failed: boolean }> {
@@ -81,57 +60,22 @@ function FixedCamera({ room }: { room: Room }) {
   return null;
 }
 
-/** A9: one fixed light per room, above its center and aimed at it. */
-function FixedLight({ room }: { room: Room }) {
-  const light = useRef<DirectionalLight>(null);
-  const invalidate = useThree((s) => s.invalidate);
-  const b = bounds(room.polygon);
-  const cx = (b.minX + b.maxX) / 2;
-  const cz = (b.minZ + b.maxZ) / 2;
-  const reach = Math.hypot(b.maxX - b.minX, b.maxZ - b.minZ) / 2 + 1;
-  useEffect(() => {
-    const l = light.current;
-    if (!l) return;
-    l.target.position.set(cx, room.floor_y, cz);
-    l.target.updateMatrixWorld();
-    invalidate();
-  }, [cx, cz, room.floor_y, invalidate]);
-  return (
-    <directionalLight
-      ref={light}
-      position={[cx + 3, room.floor_y + 10, cz + 2]}
-      intensity={1.6}
-      castShadow
-      shadow-mapSize={[2048, 2048]}
-      shadow-camera-left={-reach}
-      shadow-camera-right={reach}
-      shadow-camera-top={reach}
-      shadow-camera-bottom={-reach}
-      shadow-bias={-0.0004}
-    />
-  );
-}
-
-function RoomShell({ room }: { room: Room }) {
-  const floor = useMemo(() => floorGeometry(room), [room]);
-  const walls = useMemo(() => wallGeometry(room), [room]);
-  return (
-    <>
-      <mesh geometry={floor} receiveShadow>
-        <meshStandardMaterial color="#cdbfa9" roughness={0.95} side={DoubleSide} />
-      </mesh>
-      <mesh geometry={walls} receiveShadow>
-        <meshStandardMaterial color="#efe9df" roughness={1} side={FrontSide} />
-      </mesh>
-    </>
-  );
-}
-
 interface Loaded {
   layout: LayoutVariant;
   twin: PropertyTwin;
   room: Room;
   items: Map<string, InventoryItem>;
+  /** The rebuilt house, if the twin has one. */
+  house: RebuiltHouse | null;
+}
+
+/** Draws once more when everything is in, so the last frame has every shadow. */
+function FinalFrame({ done }: { done: boolean }) {
+  const frame = useThree((s) => s.invalidate);
+  useEffect(() => {
+    if (done) frame();
+  }, [done, frame]);
+  return null;
 }
 
 /**
@@ -152,7 +96,8 @@ export function LayoutRender({ layoutId }: { layoutId: string }) {
         const [twin, inventory] = await Promise.all([api().getTwin(layout.property_id), api().listInventory()]);
         const room = twin.rooms.find((r) => r.room_id === layout.room_id);
         if (!room) throw new Error(`Room ${layout.room_id} is not in the twin of ${layout.property_id}`);
-        if (live) setData({ layout, twin, room, items: new Map(inventory.map((i) => [i.item_id, i])) });
+        const house = twin.assets.house ? { url: twin.assets.house, info: await loadHouseInfo(twin.assets.house) } : null;
+        if (live) setData({ layout, twin, room, items: new Map(inventory.map((i) => [i.item_id, i])), house });
       } catch (err) {
         const message = err instanceof Error ? err.message : String(err);
         window.__RENDER_ERROR__ = message;
@@ -164,8 +109,14 @@ export function LayoutRender({ layoutId }: { layoutId: string }) {
     };
   }, [layoutId]);
 
+  const [houseIn, setHouseIn] = useState(false);
   const drawable = data ? data.layout.placements.filter((p) => data.items.has(p.item_id)) : [];
-  const done = !!data && settled >= drawable.length;
+  const done = !!data && settled >= drawable.length && (!data.house || houseIn);
+  const sun = useMemo(() => (data ? sunAt(data.twin, data.house, fromZonedParts(MOMENT, data.twin.timezone)) : null), [data]);
+  const fail = useCallback((message: string) => {
+    window.__RENDER_ERROR__ = message;
+    setError(message);
+  }, []);
 
   // Ready means: every item has loaded (or fallen back to a box) and two frames have passed.
   useEffect(() => {
@@ -190,29 +141,45 @@ export function LayoutRender({ layoutId }: { layoutId: string }) {
       </main>
     );
   }
-  if (!data) return <main className="h-dvh bg-[#f3efe8]" />;
+  if (!data || !sun) return <main className="h-dvh bg-[#f3efe8]" />;
 
   const settle = () => setSettled((n) => n + 1);
+  const { twin, room, house } = data;
 
   return (
     <main className="h-dvh w-screen bg-[#f3efe8]" data-testid="render" data-layout-id={layoutId} data-ready={done}>
-      <Canvas frameloop="demand" dpr={1} shadows gl={{ antialias: true, preserveDrawingBuffer: true }} camera={{ fov: 38, near: 0.1, far: 200 }}>
-        <color attach="background" args={['#f3efe8']} />
-        <FixedCamera room={data.room} />
-        <ambientLight intensity={0.85} />
-        <FixedLight room={data.room} />
-        <RoomShell room={data.room} />
-        {drawable.map((p) => {
-          const item = data.items.get(p.item_id)!;
-          return (
-            <ItemBoundary key={p.item_id} fallback={<BoxItem item={item} placement={p} />} onFailed={settle}>
-              <Suspense fallback={null}>
-                <GlbItem item={item} placement={p} onLoaded={settle} />
-              </Suspense>
-            </ItemBoundary>
-          );
-        })}
+      {/* flat: the house's light is worked out in its own shaders, with no tone mapping on top. */}
+      <Canvas flat frameloop="demand" dpr={1} gl={{ antialias: true, preserveDrawingBuffer: true }} camera={{ fov: 38, near: 0.1, far: 3000 }}>
+        <FixedCamera room={room} />
+        <HouseLight twin={twin} openings={twin.openings} sun={sun} cutOpenings={!house}>
+          {house ? (
+            // From above, without the lid or the storeys over the room.
+            <HouseModel url={house.url} info={house.info} inside={false} topStorey={storeyOf(house, room)} onAssetError={fail} onComplete={() => setHouseIn(true)} />
+          ) : (
+            <RoomShells rooms={[room]} />
+          )}
+          {drawable.map((p) => {
+            const item = data.items.get(p.item_id)!;
+            return (
+              <ItemBoundary key={p.item_id} fallback={<FurnitureBox position={p.position} yaw_deg={p.yaw_deg} dims={item.dims_m} />} onFailed={settle}>
+                <Suspense fallback={null}>
+                  <GlbItem item={item} placement={p} onLoaded={settle} />
+                </Suspense>
+              </ItemBoundary>
+            );
+          })}
+        </HouseLight>
+        <FinalFrame done={done} />
       </Canvas>
     </main>
   );
+}
+
+/** The house's storey a room is on: the one whose floor is nearest the room's. */
+function storeyOf(house: RebuiltHouse, room: Room): number {
+  let best = 0;
+  house.info.storeys.forEach((s, i) => {
+    if (Math.abs(s.z - room.floor_y) < Math.abs((house.info.storeys[best]?.z ?? 0) - room.floor_y)) best = i;
+  });
+  return best;
 }

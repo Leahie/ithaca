@@ -251,12 +251,23 @@ export class House {
 
   /** From the pictures' values to light on screen. */
   private gain = { sky: 1, lamps: 1, sun: 0, open: 1 };
-  private lid: Object3D[] = [];
-  /** The lawn beyond the lot: left out once the surroundings are there to be seen instead. */
-  private far: Object3D[] = [];
+  /**
+   * The house's own parts, for showing and hiding: `lid` (ceilings, roofs) is left off from
+   * outside; `far` is the lawn beyond the lot, left out once the surroundings are there to be seen
+   * instead; `storey` hides the floors above one being looked down into.
+   */
+  private parts: { object: Object3D; storey: number | null; lid: boolean; far: boolean }[] = [];
+  /** Whether the surroundings are in (the far lawn is then not needed). */
+  private surroundings = false;
+  /** The highest storey drawn, or null for all of them. */
+  private top: number | null = null;
+  /** Everything that casts a shadow is drawn, whatever the view (while the sun's shadow map is made). */
+  private everything = false;
+  /** Resolves once every picture and the surroundings have arrived (or failed to). */
+  ready: Promise<void> = Promise.resolve();
   /** The box around the house and its lot (without that far lawn): what the sun's shadow map must cover. */
   private lot = new Box3();
-  private mirrors: { glass: Reflector; plain: Mesh; center: Vector3 }[] = [];
+  private mirrors: { glass: Reflector; plain: Mesh; center: Vector3; storey: number | null }[] = [];
   private sky: Mesh<SphereGeometry, ShaderMaterial>;
   private solid: Mesh | null = null;
   private materials: Material[] = [];
@@ -318,7 +329,7 @@ export class House {
       if (kind === 'hidden') return;
       house.triangles += (mesh.geometry.index?.count ?? mesh.geometry.getAttribute('position').count) / 3;
       if (kind === 'mirror') {
-        house.addMirror(mesh.geometry, from.color);
+        house.addMirror(mesh.geometry, from.color, extras.storey ?? null);
         return;
       }
       const key = `${extras.material}|${extras.both}`;
@@ -355,9 +366,9 @@ export class House {
       part.userData = { ...extras, kind, caster: !NO_SHADOW.has(kind) };
       if (kind === 'glass') part.renderOrder = 2;
       house.group.add(part);
-      if (LID.has(extras.layer)) house.lid.push(part);
-      if (extras.layer === 'far') house.far.push(part);
-      else if (kind !== 'light' && kind !== 'water') house.lot.union(mesh.geometry.boundingBox ?? new Box3().setFromBufferAttribute(mesh.geometry.getAttribute('position') as BufferAttribute));
+      house.parts.push({ object: part, storey: extras.storey ?? null, lid: LID.has(extras.layer), far: extras.layer === 'far' });
+      // The lawn beyond the lot is not part of what the shadow map must cover.
+      if (extras.layer !== 'far' && kind !== 'light' && kind !== 'water') house.lot.union(mesh.geometry.boundingBox ?? new Box3().setFromBufferAttribute(mesh.geometry.getAttribute('position') as BufferAttribute));
       from.dispose();
     });
     for (const pattern of patterns.values()) pattern?.dispose(); // the materials hold their own copies
@@ -390,6 +401,7 @@ export class House {
           () => resolve(null),
         );
       });
+    const pending: Promise<unknown>[] = [];
     // Until a group's picture is there (or if the bake made none), nothing is thrown back.
     const none = new DataTexture(new Uint8Array([0, 0, 0, 255]), 1, 1);
     none.needsUpdate = true;
@@ -402,7 +414,7 @@ export class House {
       house.gain.lamps = range.lamps * Math.min(60, FLOOR_LAMPLIGHT / Math.max(floors.lamps, 1e-3));
       house.gain.sun = (range.sun ?? 0) * exposure * SUN_TO_SKY;
       house.gain.open = (info.light.outdoors ?? OUTDOOR_EXPOSURE) * exposure;
-      void Promise.all([light('light_sky.png'), light('light_lamps.png')]).then(([sky, lamps]) => {
+      pending.push(Promise.all([light('light_sky.png'), light('light_lamps.png')]).then(([sky, lamps]) => {
         if (house.disposed) return void (sky?.dispose(), lamps?.dispose());
         if (!sky || !lamps) return;
         house.textures.push(sky, lamps);
@@ -410,20 +422,21 @@ export class House {
         house.uniforms.houseLamps!.value = lamps;
         house.uniforms.houseBaked!.value = 1;
         changed();
-      });
+      }));
       ['houseSunA', 'houseSunB', 'houseSunC'].slice(0, Math.ceil((info.light.groups ?? 0) / 3)).forEach((name, k) => {
-        void light(`light_sun_${k}.png`).then((picture) => {
+        pending.push(light(`light_sun_${k}.png`).then((picture) => {
           if (house.disposed) return void picture?.dispose();
           if (!picture) return;
           house.textures.push(picture);
           house.uniforms[name]!.value = picture;
           changed();
-        });
+        }));
       });
     } else {
       house.gain.open = 0.9;
     }
-    if (info.context) void house.loadContext(info.context, at, renderer, sunUniforms, changed);
+    if (info.context) pending.push(house.loadContext(info.context, at, renderer, sunUniforms, changed).catch(() => {}));
+    house.ready = Promise.all(pending).then(() => {});
     house.setLight(new Color(1, 1, 1), null, new Color(0, 0, 0));
     return house;
   }
@@ -470,7 +483,8 @@ export class House {
       mesh.material.dispose();
     });
     // The photo shows what is beyond the lot: the plain lawn out there is not needed.
-    for (const part of this.far) part.visible = false;
+    this.surroundings = true;
+    this.applyVisibility();
     changed();
   }
 
@@ -485,7 +499,36 @@ export class House {
   /** From outside, the ceilings and the roof are left off. */
   setLid(on: boolean): void {
     this.lidOn = on;
-    for (const part of this.lid) part.visible = on;
+    this.applyVisibility();
+  }
+
+  /** Draw the storeys up to `top` only (looking down into a room), or all of them (null). */
+  setTopStorey(top: number | null): void {
+    this.top = top;
+    this.applyVisibility();
+  }
+
+  /** The storey whose floor is nearest a height (interior frame y). */
+  storeyAt(y: number): number {
+    let best = 0;
+    this.info.storeys.forEach((s, i) => {
+      if (Math.abs(s.z - y) < Math.abs((this.info.storeys[best]?.z ?? 0) - y)) best = i;
+    });
+    return best;
+  }
+
+  /** While on, everything that casts a shadow is drawn: the lid and every storey (for the sun's shadow map). */
+  setEverything(on: boolean): void {
+    this.everything = on;
+    this.applyVisibility();
+  }
+
+  private applyVisibility(): void {
+    for (const p of this.parts) {
+      if (p.far && this.surroundings) p.object.visible = false;
+      else if (this.everything) p.object.visible = true;
+      else p.object.visible = (this.lidOn || !p.lid) && (this.top === null || p.storey === null || p.storey <= this.top);
+    }
   }
 
   /**
@@ -549,14 +592,15 @@ export class House {
   update(camera: Camera): void {
     this.sky.position.copy(camera.position);
     for (const mirror of this.mirrors) {
+      const shown = this.top === null || mirror.storey === null || mirror.storey <= this.top;
       const near = mirror.center.distanceTo(camera.position) < MIRROR_REACH_M;
-      mirror.glass.visible = near;
-      mirror.plain.visible = !near;
+      mirror.glass.visible = shown && near;
+      mirror.plain.visible = shown && !near;
     }
   }
 
   /** Mirrors: each flat piece of this part of the model (all the mirrors of a storey come as one), drawn as what is seen in it. */
-  private addMirror(geometry: BufferGeometry, color: Color): void {
+  private addMirror(geometry: BufferGeometry, color: Color, storey: number | null): void {
     // Triangles that share a corner are one mirror.
     const index = geometry.index!.array;
     const count = geometry.getAttribute('position').count;
@@ -576,10 +620,10 @@ export class House {
       list.push(index[t]!, index[t + 1]!, index[t + 2]!);
       pieces.set(root, list);
     }
-    for (const corners of pieces.values()) this.addOneMirror(geometry, corners, color);
+    for (const corners of pieces.values()) this.addOneMirror(geometry, corners, color, storey);
   }
 
-  private addOneMirror(geometry: BufferGeometry, corners: number[], color: Color): void {
+  private addOneMirror(geometry: BufferGeometry, corners: number[], color: Color, storey: number | null): void {
     // The piece's own frame: its middle, and two directions in its plane.
     const from = geometry.getAttribute('position') as BufferAttribute;
     const position = new BufferAttribute(new Float32Array(corners.length * 3), 3);
@@ -611,7 +655,7 @@ export class House {
     plain.visible = false;
     this.materials.push(plain.material as Material, glass.material as Material);
     this.group.add(glass, plain);
-    this.mirrors.push({ glass, plain, center });
+    this.mirrors.push({ glass, plain, center, storey });
   }
 
   private shade(material: MeshBasicMaterial, sunUniforms: Record<string, IUniform>, kind: string): void {

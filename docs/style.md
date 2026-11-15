@@ -81,8 +81,8 @@ Errors on glass use `text-coral`, not `text-danger` (too dark to read).
 
 - While the phone is on its furniture screen, the big screen shows the room as a small glass plan in the bottom-left corner (`ArrangeMinimap`): the furniture in `white/25`, the piece in hand in leaf, and a leaf cone for where the camera stands and looks. It is drawn the same way up as the phone's plan.
 - A piece dragged on the phone moves live in the 3D view and on the small plan before it is saved (`furniture.drag`).
-- The selected piece in the 3D view is tinted clearly blue (`SELECTED_TINT` in `TourTab.tsx`: colours 45% of the way to blue plus a blue glow; 10% was too faint to see). No pulsing or scaling: it was distracting.
-- The house opens with the seller's furniture painted out (Matterport's defurnished view) in the tour (the Sun Lab draws the rebuilt house, which has none of the seller's furniture). A glass "No furniture" toggle in the tour's bottom-right corner turns it back on.
+- The selected piece in the 3D view is tinted clearly blue (`SELECTED` in `components/house3d/House3D.tsx`: colours 45% of the way to blue; 10% was too faint to see). No pulsing or scaling: it was distracting.
+- The tour and the Sun Lab draw the house rebuilt from the floor plan, which has none of the seller's furniture: only the family's own pieces stand in it.
 - The phone's furniture screen reads top to bottom: the island (Add / In room / Suggest, or the piece's tools, or the layout options) with any sheet dropping below it, then the plan, then a bottom row with the compass and cube on the left and the look stick on the right. The plan keeps a fixed gap the height of the plain island; taller islands float over its top edge so the plan never jumps mid-drag. No loose hint text floats over the plan.
 - The room name in the phone's top bar (with a small map icon) is a button: it opens the Rooms map, and picking a room returns to the screen you came from.
 - The phone's cube button (beside the compass) switches the big screen to the room from above (`furniture.overview`); it is a round toggle, leaf when on. Only then does the big screen look down on the selected piece and follow it.

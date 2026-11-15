@@ -1,7 +1,7 @@
 // Hand landmark inference off the main thread (see src/lib/hands/tracker.ts, which owns the camera
 // and maps the results). Plain, unbundled ES module: MediaPipe loads its wasm with a runtime
 // `import()` that a bundler would rewrite. /mediapipe/ is copied there at install
-// (scripts/copy-matterport-assets.mjs).
+// (scripts/copy-assets.mjs).
 //
 // Messages in:  {type: 'init', modelUrl}  ·  {type: 'frame', bitmap: ImageBitmap, stamp: number}
 // Messages out: {type: 'ready', delegate}  ·  {type: 'error', message}

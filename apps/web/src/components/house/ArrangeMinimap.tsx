@@ -1,11 +1,10 @@
 'use client';
 
 import type { InventoryItem, Opening, PropertyTwin } from '@ithaca/schema';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { cn, GLASS_PANEL } from '@/components/ui';
 import { bounds, footprint } from '@/lib/geometry/polygon';
 import { roomName } from '@/lib/rooms';
-import type { MpSdk } from '@/lib/showcase/sdk-types';
 import { onSessionEvent } from '@/lib/store/session';
 
 /** The camera cone redraws at most this often. */
@@ -17,7 +16,7 @@ export interface MinimapPiece {
   yaw_deg: number;
 }
 
-/** Where the big screen's camera stands and which way it looks: Showcase yaw, 0 along -Z, positive turns left. */
+/** Where the big screen's camera stands and which way it looks: yaw 0 along -Z, positive turns left. */
 export interface MinimapCamera {
   x: number;
   z: number;
@@ -27,20 +26,24 @@ export interface MinimapCamera {
 const CONE_M = 1.6;
 const CONE_HALF_DEG = 32;
 
-/** The minimap on the tour: follows the Showcase camera and the piece being dragged on the phone. */
-export function LiveArrangeMinimap({ sdk, pieces, ...rest }: Omit<Parameters<typeof ArrangeMinimap>[0], 'camera'> & { sdk: MpSdk }) {
+/**
+ * The minimap on the tour: follows the tour's camera (`subscribe` calls back as it moves and
+ * returns an unsubscribe) and the piece being dragged on the phone.
+ */
+export function LiveArrangeMinimap({ subscribe, pieces, ...rest }: Omit<Parameters<typeof ArrangeMinimap>[0], 'camera'> & { subscribe(fn: (camera: MinimapCamera) => void): () => void }) {
   const [camera, setCamera] = useState<MinimapCamera | null>(null);
   const [drag, setDrag] = useState<MinimapPiece | null>(null);
+  const subscribeRef = useRef(subscribe);
+  subscribeRef.current = subscribe;
   useEffect(() => {
     let last = 0;
-    const sub = sdk.Camera.pose.subscribe((pose) => {
+    return subscribeRef.current((pose) => {
       const now = performance.now();
       if (now - last < CAMERA_MS) return;
       last = now;
-      setCamera({ x: pose.position.x, z: pose.position.z, yaw_deg: pose.rotation.y });
+      setCamera(pose);
     });
-    return () => sub.cancel();
-  }, [sdk]);
+  }, []);
   // A finished drag shows until the saved furniture comes back, or a while if the move was refused.
   useEffect(() => {
     let settle: ReturnType<typeof setTimeout> | null = null;
