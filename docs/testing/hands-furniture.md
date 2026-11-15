@@ -18,8 +18,10 @@ Press **Hands off** at the top right of the big screen (or **Hands** in the cont
 should see, within a few seconds:
 
 - the pill reads **Hands on**;
-- a small camera box at the bottom left showing you, with coloured lines drawn on your hands;
-- the big screen flies up and looks down on the room you were in.
+- a small camera box at the bottom left showing you, with coloured lines drawn on your hands.
+
+The view stays where it is, standing in the room. For the room from above, press the cube button
+on the phone's furniture screen; hands work in both views, and from above is easier for long moves.
 
 Raise one hand. A ring appears on the big screen and follows your palm: that is your cursor.
 Blue ring and **L** for your left hand, coral and **R** for your right.
@@ -48,8 +50,8 @@ Blue ring and **L** for your left hand, coral and **R** for your right.
 6. **Through a door.** Drag a piece into the next room and let go. Pass: it stays there.
 7. **Lost hand.** While holding a piece, take your hand out of the camera's view. Pass: the piece
    stays where it was last and is saved there, not thrown somewhere else.
-8. **Phone still works.** With hands on, walk to another room with the phone. Pass: the big
-   screen then looks down on that room.
+8. **Phone still works.** With hands on, walk to another room with the phone. Pass: the view
+   moves as usual and you can grab pieces in the new room.
 
 ## Known limits
 

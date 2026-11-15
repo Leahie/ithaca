@@ -811,16 +811,11 @@ export function TourTab({ twin, active }: { twin: PropertyTwin; active: boolean 
       }),
     [],
   );
-  // Hands arrange furniture. While hand control is on, the big screen looks down on the room the
-  // camera is in. The piece nearest a hand is pointed out; a pinch picks it up, the hand slides
+  // Hands arrange furniture, in whatever view the big screen is in: standing in the room, or from
+  // above when the phone asks for that. The piece nearest a hand is pointed out; a pinch picks it up, the hand slides
   // it over the floor, a second pinching hand turns it (as the line between the hands turns),
   // and letting go saves it where it stands.
   const handsOn = useHands((s) => s.status === 'on');
-  useEffect(() => {
-    if (!handsOn || !active || !roomId) return;
-    setOverview(roomId);
-    return () => setOverview(null);
-  }, [handsOn, active, roomId]);
   useEffect(() => {
     if (!sdk || !handsOn || !active || !canPlaceObjects) return;
     let pose: MpSdk.Camera.Pose | null = null;
