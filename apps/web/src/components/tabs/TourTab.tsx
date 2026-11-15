@@ -45,7 +45,11 @@ declare global {
 /** In the tour, hands arrange furniture and nothing else: the phone moves the camera. */
 const HANDS_MOVE_THE_VIEW = false;
 /** Picking a piece by hand: how near the pinch must be to it, as a fraction of the view's height. */
-const HAND_GRAB_RADIUS = 0.2;
+const HAND_GRAB_RADIUS = 0.16;
+/** Holding a piece by hand: how long a lost hand or an opened pinch is forgiven (the tracker
+ * flickers), how much nearer another piece must be to take the pointer, how far the piece moves
+ * toward the hand each frame, and the hand movement (px) that is only trembling. */
+const HAND_HOLD = { graceMs: 450, steal: 0.6, follow: 0.22, still: 1.5 } as const;
 const HAND_TOUR = { yawDegPerView: 160, pitchDegPerView: 90, speedDegPerS: 900, zoomGain: 2, sweepDegPerView: 220 } as const;
 
 // Phone look and zoom are eased: quick off the mark, soft landing (an ease-out bezier).
@@ -828,7 +832,8 @@ export function TourTab({ twin, active }: { twin: PropertyTwin; active: boolean 
       const at = sdk.Conversion.worldToScreen({ x, y, z }, pose!, size());
       return [at.x, at.y];
     };
-    let held: { id: string; hand: number; x: number; y: number; z: number; yaw: number; px: number; py: number; twist: number | null } | null = null;
+    // x, z: where the piece is drawn; tx, tz: where the hand has taken it (the drawn one follows, smoothly).
+    let held: { id: string; hand: number; x: number; y: number; z: number; tx: number; tz: number; yaw: number; px: number; py: number; twist: number | null; lostAt: number | null } | null = null;
     let pointed: string | null = null;
     const point = (id: string | null) => {
       if (id === pointed) return;
@@ -842,8 +847,10 @@ export function TourTab({ twin, active }: { twin: PropertyTwin; active: boolean 
       const before = placementsRef.current.find((p) => p.item_id === h.id);
       const floor = twin.rooms.find((r) => r.room_id === before?.room_id)?.floor_id;
       const yaw = ((h.yaw % 360) + 360) % 360;
+      const node = pieces.current.get(h.id)?.node;
+      if (node) poseNode(node, h.tx, h.y, h.tz, h.yaw);
       api()
-        .placePiece(twin.property_id, h.id, { x: h.x, z: h.z, yaw_deg: yaw, floor_id: floor, room_id: null, snap: false })
+        .placePiece(twin.property_id, h.id, { x: h.tx, z: h.tz, yaw_deg: yaw, floor_id: floor, room_id: null, snap: false })
         .then(() => useSession.getState().dispatch('layout.changed', { layout_id: null }))
         .catch((err: unknown) => {
           // Outside every room, or the server is away: it goes back to where it stood.
@@ -858,21 +865,38 @@ export function TourTab({ twin, active }: { twin: PropertyTwin; active: boolean 
       const hands = handEngine.hands.filter((x) => !x.stale);
       if (held) {
         const grip = held;
-        const hand = hands.find((x) => x.id === grip.hand);
         const node = pieces.current.get(grip.id)?.node;
-        if (!hand || !hand.pinching || !node) return drop();
+        if (!node) return drop();
+        const now = performance.now();
+        let hand = hands.find((x) => x.id === grip.hand && x.pinching);
+        if (!hand) {
+          // The tracker lost the hand for a moment and found it again as a new one: still the same grip.
+          const again = grip.lostAt !== null ? hands.filter((x) => x.pinching).sort((a, b) => Math.hypot(a.u * w - grip.px, a.v * h - grip.py) - Math.hypot(b.u * w - grip.px, b.v * h - grip.py))[0] : undefined;
+          if (again && Math.hypot(again.u * w - grip.px, again.v * h - grip.py) < 0.25 * h) {
+            grip.hand = again.id;
+            grip.px = again.u * w;
+            grip.py = again.v * h;
+            hand = again;
+          }
+        }
+        if (!hand) {
+          grip.lostAt ??= now;
+          if (now - grip.lostAt > HAND_HOLD.graceMs) return drop();
+          return; // a flicker: the piece waits where it is
+        }
+        grip.lostAt = null;
         const px = hand.u * w;
         const py = hand.v * h;
         const dx = px - grip.px;
         const dy = py - grip.py;
-        grip.px = px;
-        grip.py = py;
-        if (dx || dy) {
+        if (Math.hypot(dx, dy) >= HAND_HOLD.still) {
+          grip.px = px;
+          grip.py = py;
           // How the piece's place on screen moves per metre along x and along z, here and now;
           // from that, the floor move that keeps it under the hand.
-          const o = onScreen(grip.x, grip.y, grip.z);
-          const a = onScreen(grip.x + 0.5, grip.y, grip.z);
-          const b = onScreen(grip.x, grip.y, grip.z + 0.5);
+          const o = onScreen(grip.tx, grip.y, grip.tz);
+          const a = onScreen(grip.tx + 0.5, grip.y, grip.tz);
+          const b = onScreen(grip.tx, grip.y, grip.tz + 0.5);
           const ax = (a[0] - o[0]) * 2;
           const ay = (a[1] - o[1]) * 2;
           const bx = (b[0] - o[0]) * 2;
@@ -883,8 +907,8 @@ export function TourTab({ twin, active }: { twin: PropertyTwin; active: boolean 
             const mz = (ax * dy - dx * ay) / det;
             const far = Math.hypot(mx, mz);
             const k = far > 0.4 ? 0.4 / far : 1; // a jump in the tracking must not throw the piece
-            grip.x += mx * k;
-            grip.z += mz * k;
+            grip.tx += mx * k;
+            grip.tz += mz * k;
           }
         }
         const other = hands.find((x) => x.id !== grip.hand && x.pinching);
@@ -895,6 +919,8 @@ export function TourTab({ twin, active }: { twin: PropertyTwin; active: boolean 
         } else {
           grip.twist = null;
         }
+        grip.x += (grip.tx - grip.x) * HAND_HOLD.follow;
+        grip.z += (grip.tz - grip.z) * HAND_HOLD.follow;
         poseNode(node, grip.x, grip.y, grip.z, grip.yaw);
         return;
       }
@@ -906,15 +932,19 @@ export function TourTab({ twin, active }: { twin: PropertyTwin; active: boolean 
       let bestD = HAND_GRAB_RADIUS * h;
       for (const p of placementsRef.current) {
         if (!pieces.current.has(p.item_id)) continue;
-        const [sx, sy] = onScreen(p.position.x, p.position.y, p.position.z);
-        const d = Math.hypot(sx - px, sy - py);
+        // Its middle, not its feet: that is where a hand reaches for a tall piece.
+        const tall = itemsById.get(p.item_id)?.dims_m.h ?? 0;
+        const [sx, sy] = onScreen(p.position.x, p.position.y + tall / 2, p.position.z);
+        // The piece already pointed at keeps the pointer unless another is clearly nearer, so the
+        // choice does not flip between neighbours as the hand trembles.
+        const d = Math.hypot(sx - px, sy - py) * (p.item_id === pointed ? HAND_HOLD.steal : 1);
         if (d < bestD) {
           bestD = d;
           best = p;
         }
       }
       if (best) point(best.item_id);
-      if (best && hand.pinching) held = { id: best.item_id, hand: hand.id, x: best.position.x, y: best.position.y, z: best.position.z, yaw: best.yaw_deg, px, py, twist: null };
+      if (best && hand.pinching) held = { id: best.item_id, hand: hand.id, x: best.position.x, y: best.position.y, z: best.position.z, tx: best.position.x, tz: best.position.z, yaw: best.yaw_deg, px, py, twist: null, lostAt: null };
     });
     return () => {
       off();
