@@ -263,8 +263,8 @@ export function FurnitureRoom({ twin }: { twin: PropertyTwin }) {
   const facing = front ? compassWord(interiorDirectionToAzimuth(twin.interior_to_world, [front[0], 0, front[1]])) : null;
   const choosing = options.length > 0;
   const current = trying ?? options[0];
-  // While the guide's options are up, their island is three rows tall: the plan starts under it,
-  // so the room being judged is never hidden behind the choice.
+  // The island at the top changes height (one row, a piece's tools, the guide's options): the plan
+  // always starts under it, with a gap, so the room is never hidden behind the controls.
   const island = useRef<HTMLDivElement | null>(null);
   const [islandHeight, setIslandHeight] = useState(0);
   useEffect(() => {
@@ -274,12 +274,14 @@ export function FurnitureRoom({ twin }: { twin: PropertyTwin }) {
     seen.observe(el);
     return () => seen.disconnect();
   }, []);
-  const planTop = choosing && !sheet && islandHeight ? islandHeight + 20 : null;
+  // The same when a piece is selected and its tools are up: nothing sits on the plan but the
+  // add sheet, which covers the screen on purpose.
+  const planTop = !sheet && islandHeight ? islandHeight + 24 : null;
 
   return (
     <div className="relative min-h-0 flex-1 overflow-hidden bg-ink" data-testid="furniture-room">
-      {/* The plan sits between the island at the top and the compass and stick at the bottom; a taller island (a piece's tools) floats over its top edge. */}
-      <div className="absolute inset-x-0 top-[6.5rem] bottom-[7.75rem] px-2" style={planTop ? { top: planTop } : undefined}>
+      {/* The plan sits between the island at the top and the compass and stick at the bottom, clear of both. */}
+      <div className="absolute inset-x-0 top-[6.5rem] bottom-[8.5rem] px-2" style={planTop ? { top: planTop } : undefined}>
         {trying ? (
           <PlanEditor fill readOnly propertyId={twin.property_id} room={room} openings={openings} pieces={trying.placements} items={items} interiorToWorld={twin.interior_to_world} onTapFloor={({ x, z }) => viewSpot(x, z)} />
         ) : (
