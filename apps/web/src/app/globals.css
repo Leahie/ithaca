@@ -211,3 +211,28 @@ input[type='range'] {
     animation: none;
   }
 }
+
+/* The room studio (experimental): its picture fades in, and the room cards rise in one after another. */
+@keyframes studio-fade {
+  from {
+    opacity: 0;
+  }
+}
+@keyframes studio-rise {
+  from {
+    opacity: 0;
+    transform: translateY(14px);
+  }
+}
+.studio-fade {
+  animation: studio-fade 0.5s ease-out both;
+}
+.studio-rise {
+  animation: studio-rise 0.45s cubic-bezier(0.22, 0.8, 0.3, 1) both;
+}
+@media (prefers-reduced-motion: reduce) {
+  .studio-fade,
+  .studio-rise {
+    animation: none;
+  }
+}

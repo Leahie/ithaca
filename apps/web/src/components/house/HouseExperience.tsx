@@ -7,6 +7,7 @@ import { useEffect, useRef, useState } from 'react';
 import { FurnitureMenu } from '@/components/design/FurnitureMenu';
 import { HandsButton, HandsOverlay } from '@/components/hands/HandControl';
 import { DesktopSession } from '@/components/session/DesktopSession';
+import { RoomStudio, StudioButton } from '@/components/studio/RoomStudio';
 import { useSessionInfo } from '@/components/session/SessionProvider';
 import { Badge, Button, Notice, Spinner, ViewState, cn } from '@/components/ui';
 import { IconDesign, IconMap, IconPeople, IconSofa, IconSound, IconTour, IconUser } from '@/components/ui/icons';
@@ -14,6 +15,7 @@ import { ApiError } from '@/lib/api';
 import { config, type Feature } from '@/lib/config';
 import { useLayouts, useTwin } from '@/lib/data/hooks';
 import { useHands } from '@/lib/hands/store';
+import { useStudio } from '@/lib/studio/store';
 import { rememberHouse } from '@/lib/lastHouse';
 import { sweepRooms } from '@/lib/rooms';
 import { useSpeakGuide } from '@/lib/speech/useSpeakGuide';
@@ -92,6 +94,10 @@ function House({ propertyId }: { propertyId: string }) {
   // that show furniture. It shuts when another view takes over, so it is not there on the way back.
   const [furnitureOpen, setFurnitureOpen] = useState(false);
   const canFurnish = (has('design') || has('agent')) && (mode === 'tour' || mode === 'design');
+  // The room studio (experimental) takes one room out of the house, over everything: the tour
+  // under it stops drawing and gives the hands up to it.
+  const studioOpen = useStudio((s) => s.open);
+  const canStudio = has('hands') && has('tour') && mode === 'tour';
   useEffect(() => {
     if (!canFurnish) setFurnitureOpen(false);
   }, [canFurnish]);
@@ -225,6 +231,7 @@ function House({ propertyId }: { propertyId: string }) {
               Furniture
             </Button>
           )}
+          {canStudio && <StudioButton className="inline-flex h-10 items-center gap-1.5 rounded-full px-3.5 font-display font-semibold text-muted hover:bg-ink hover:text-text" />}
           {(has('design') || has('agent')) && mode === 'tour' && (
             <button type="button" onClick={() => setArranging(!arranging)} aria-pressed={arranging} className="inline-flex h-10 items-center rounded-full px-3.5 font-display font-semibold text-muted hover:bg-ink hover:text-text">
               {arranging ? 'Done arranging' : 'Arrange'}
@@ -267,7 +274,7 @@ function House({ propertyId }: { propertyId: string }) {
               is faded out, not display:none, so its canvas keeps its size. */}
           {has('tour') && (visited.has('tour') || mode === 'tour') && (
             <div className={cn('absolute inset-0', mode === 'tour' ? 'z-10' : 'pointer-events-none z-0 opacity-0')} aria-hidden={mode !== 'tour'} inert={mode !== 'tour'}>
-              <TourTab twin={t} active={mode === 'tour'} soundBar={!clean && !arranging} arrange={arranging} />
+              <TourTab twin={t} active={mode === 'tour' && !studioOpen} soundBar={!clean && !arranging} arrange={arranging} />
             </div>
           )}
           {(mode === 'sound' || mode === 'neighborhood' || mode === 'design' || mode === 'family') && (
@@ -294,14 +301,17 @@ function House({ propertyId }: { propertyId: string }) {
               }}
             />
           )}
-          {has('hands') && <HandsOverlay />}
+          {/* The studio has its own camera panel, and the camera picture can only be in one place. */}
+          {has('hands') && !studioOpen && <HandsOverlay />}
           {clean && (
             <CleanOverlay twin={t} onShowControls={() => setScreen('controls')} onFurniture={canFurnish ? () => setFurnitureOpen(true) : undefined}
+              onStudio={canStudio ? () => useStudio.getState().enter() : undefined}
               pairing={has('family') ? <FamilyButton propertyId={propertyId} avatar /> : <PairingButton propertyId={propertyId} avatar />} />
           )}
         </main>
         {has('agent') && dockOpen && !clean && <AgentDock propertyId={propertyId} />}
       </div>
+      {has('hands') && <RoomStudio twin={t} />}
     </div>
   );
 }

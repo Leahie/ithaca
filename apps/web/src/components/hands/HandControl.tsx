@@ -48,7 +48,7 @@ export function HandsButton() {
  * A canvas to draw on in CSS pixels. Its size is measured when its box changes, not on every
  * frame: reading the layout sixty times a second, twice per canvas, was work for nothing.
  */
-interface Surface {
+export interface Surface {
   ctx: CanvasRenderingContext2D | null;
   w: number;
   h: number;
@@ -57,7 +57,7 @@ interface Surface {
 }
 
 /** Keeps a canvas at its box's size in device pixels. Returns the surface and how to stop. */
-function watchCanvas(canvas: HTMLCanvasElement): [Surface, () => void] {
+export function watchCanvas(canvas: HTMLCanvasElement): [Surface, () => void] {
   const surface: Surface = { ctx: canvas.getContext('2d'), w: 0, h: 0, drawn: null };
   const fit = () => {
     const dpr = window.devicePixelRatio || 1;
@@ -88,7 +88,7 @@ function watchCanvas(canvas: HTMLCanvasElement): [Surface, () => void] {
 }
 
 /** A ring per hand over the view, tightening as the pinch closes. */
-function drawCursors({ ctx, w, h }: Surface, hands: HandView[], zooming: boolean) {
+export function drawCursors({ ctx, w, h }: Surface, hands: HandView[], zooming: boolean) {
   if (!ctx) return;
   ctx.clearRect(0, 0, w, h);
   const at = (hand: HandView): [number, number] => [Math.min(Math.max(hand.u, -0.02), 1.02) * w, Math.min(Math.max(hand.v, -0.02), 1.02) * h];
@@ -165,7 +165,7 @@ function ring(ctx: CanvasRenderingContext2D, x: number, y: number, r: number, wi
  * What the cursor canvas would show, to the half pixel: when it is the same as last frame (a
  * hand held still, or no hand at all) the canvas, which covers the whole view, is left alone.
  */
-function cursorKey({ w, h }: Surface, hands: HandView[], zooming: boolean): string {
+export function cursorKey({ w, h }: Surface, hands: HandView[], zooming: boolean): string {
   let key = zooming && hands.length === 2 ? 'z' : '';
   for (const hand of hands) {
     key += `|${hand.side}${Math.round(hand.u * w * 2)},${Math.round(hand.v * h * 2)},${hand.pinching ? 'p' : Math.round(hand.strength * 40)}${hand.stale ? 's' : ''}`;
@@ -174,7 +174,7 @@ function cursorKey({ w, h }: Surface, hands: HandView[], zooming: boolean): stri
 }
 
 /** The tracked hands drawn over the camera picture. */
-function drawSkeletons({ ctx, w, h }: Surface, hands: HandView[]) {
+export function drawSkeletons({ ctx, w, h }: Surface, hands: HandView[]) {
   if (!ctx) return;
   ctx.clearRect(0, 0, w, h);
   for (const hand of hands) {

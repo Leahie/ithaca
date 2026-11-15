@@ -39,7 +39,7 @@ const emit = (nav: HandNav) => navListeners.forEach((cb) => cb(nav));
  * The part of the camera picture that maps to the whole viewport, as fractions of the frame
  * (HoloTouch's defaults): the hand never has to reach the edge of the picture.
  */
-const BOX = { x: 0.15, y: 0.2, w: 0.7, h: 0.6 };
+export const BOX = { x: 0.15, y: 0.2, w: 0.7, h: 0.6 };
 /** Max palm travel between frames for a detection to be the same hand, in frame heights. */
 const MATCH_GATE = 0.5;
 /**
@@ -120,6 +120,8 @@ export interface HandView {
   stale: boolean;
   /** Mirrored image landmarks, 0..1 of the frame. */
   landmarks: HandSample['image'];
+  /** Open, pointing (index finger out, the others curled) or a fist. */
+  pose: Pose;
 }
 
 export type Gesture = 'none' | 'drag' | 'zoom' | 'turn' | 'forward' | 'back';
@@ -348,6 +350,7 @@ export class HandEngine {
         pinching: tr.pinch.pinching,
         stale: now - tr.lastSeen > staleAfter,
         landmarks: tr.sample.image,
+        pose: tr.pose,
       };
     });
   }
