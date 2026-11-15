@@ -107,6 +107,24 @@ def others_plans(context: AgentContext) -> str:
     return f"<others_plans>{lines}\n</others_plans>\n"
 
 
+GREET_AGAIN_S = 3 * 3600  # a welcome is not repeated within this long, whatever reconnects
+
+
+def room_furniture(room: SessionRoom, context: AgentContext) -> str:
+    """For every turn: what stands in the room the user is in, and whether layout options are
+    waiting there. What the guide remembers from earlier turns goes stale the moment the user
+    keeps a layout or moves a piece on their phone."""
+    from services.api.furniture.store import furniture_store
+
+    here = room.state.room_id
+    if not here:
+        return ""
+    count = len(furniture_store().house_pieces(context.furniture_user, context.property_id, here))
+    waiting = design_gate._review.get(design_gate.key(room.session_id, context.user_id)) == here
+    state = "layout options are on screen, not kept yet" if waiting else "no layout options are waiting here"
+    return f'<this_room pieces_in_house="{count}" state="{state}"/>\n'
+
+
 def design_queue(conversation: str, room_id: str | None, property_id: str) -> str:
     """For a layouts_ready turn: the other rooms the user asked for and how far each is, so the
     guide can say what comes next and not forget one."""
@@ -182,12 +200,15 @@ class AgentBridge:
             asyncio.get_running_loop().call_soon(lambda: self._start(room, waiting, proactive=False, member_id=who))
         elif event.type == "session.joined" and p.get("member_id") and room.household_id:
             key = (sid, p["member_id"])
-            if key not in self._greeted_members:
-                self._greeted_members.add(key)
+            # Once per visit, not per connection: a phone reconnects often (a locked screen, a
+            # reload, a new session on the big screen), and each must not be welcomed again.
+            if key not in self._greeted_members and self.hub.once(f"hello:{p['member_id']}:{room.property_id}", GREET_AGAIN_S):
                 self._start(room, event_message("member_joined"), proactive=False, member_id=p["member_id"])
+            self._greeted_members.add(key)
         elif event.type == "session.joined" and p.get("client") == "desktop" and sid not in self._greeted:
             self._greeted.add(sid)
-            self._start(room, event_message("property_opened"), proactive=False)
+            if self.hub.once(f"hello:{self._context(room, None).memory_user}:{room.property_id}", GREET_AGAIN_S):
+                self._start(room, event_message("property_opened"), proactive=False)
         elif event.type == "viewer.goto" and p.get("room_id"):
             changed = self._last_room.get(sid) != p["room_id"]
             self._last_room[sid] = p["room_id"]
@@ -215,7 +236,8 @@ class AgentBridge:
             picked = describe_layout(room.user_id, room.property_id, p["layout_id"])
             if picked:
                 self._signal(room)
-                self._start(room, event_message("layout_chosen", picked), proactive=False)
+                # To the agent of whoever kept it: theirs is the conversation that showed the options.
+                self._start(room, event_message("layout_chosen", picked), proactive=False, member_id=event.member_id if room.household_id else None)
         elif event.type == "catalog.picked" and by_user:
             from services.api.furniture.store import furniture_store
 
@@ -315,7 +337,7 @@ class AgentBridge:
             s = room.state
             where = f'<viewer mode="{s.mode}" room_id="{s.room_id or ""}" datetime="{s.datetime or ""}"/>\n'
             context = self._context(room, member_id)
-            where += others_plans(context)
+            where += others_plans(context) + room_furniture(room, context)
             # The conversation belongs to the person (or the family's guide) and the house, not to
             # this browser session: a new visit goes on from the last one.
             thread_id = context.thread_id
