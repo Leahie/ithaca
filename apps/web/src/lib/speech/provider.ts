@@ -244,9 +244,13 @@ interface OpenMic {
  * types, and not in Safari or Firefox).
  */
 type TrackProcessor = new (init: { track: MediaStreamTrack }) => { readable: ReadableStream<AudioData> };
-/** Set on Android, where capture through an audio context stalls (see readTrack). Elsewhere the worklet works and stays. */
-const trackProcessor = (): TrackProcessor | undefined =>
-  /Android/i.test(navigator.userAgent) ? (globalThis as { MediaStreamTrackProcessor?: TrackProcessor }).MediaStreamTrackProcessor : undefined;
+/**
+ * Wherever Chromium has it (Android, desktop Chrome and Edge), not on Apple's devices. Capture
+ * through an audio context is unreliable: on Android it stalls (see readTrack), and on desktop
+ * Linux Chrome the worklet sent nothing at all, though the context said "running" (the speech
+ * log showed 0 blocks for every hold of the laptop's mic button). The track itself delivers.
+ */
+const trackProcessor = (): TrackProcessor | undefined => (isApple() ? undefined : (globalThis as { MediaStreamTrackProcessor?: TrackProcessor }).MediaStreamTrackProcessor);
 
 /** One channel of a frame of microphone sound as floats in -1..1, whatever format the browser hands over. */
 function frameSamples(frame: AudioData, scratch: Float32Array<ArrayBuffer>): Float32Array<ArrayBuffer> {
@@ -518,8 +522,18 @@ export class DeepgramProvider implements SpeechProvider {
       clearTimeout(this.micIdle);
       this.micIdle = window.setTimeout(() => this.closeMic(), KEEP_MIC_MS);
     };
+    const began = performance.now();
     const finish = (final: string) => {
       if (done) return;
+      if (!final.trim() && !frames && !opts?.auto) {
+        // Held, released, and not one block of sound came: say so rather than nothing.
+        const short = performance.now() - began < 700;
+        rest();
+        ws?.close();
+        done = true;
+        clearTimeout(timer);
+        return handlers.onError(short ? 'Hold the mic button while you talk.' : 'No sound came from the microphone. Check that the right microphone is chosen for this site.');
+      }
       done = true;
       clearTimeout(timer);
       rest();
@@ -566,8 +580,12 @@ export class DeepgramProvider implements SpeechProvider {
       let room = 300;
       let openUntil = 0;
       let held: Int16Array | null = null;
+      // Sound from before the connection is up waits here: the first words are said while it opens.
+      let early: Int16Array[] | null = [];
       const send = (block: Int16Array) => {
-        if (socket.readyState === WebSocket.OPEN && !stopping) socket.send(block.buffer as ArrayBuffer);
+        if (stopping) return;
+        if (socket.readyState === WebSocket.OPEN) socket.send(block.buffer as ArrayBuffer);
+        else if (early && early.length < 100) early.push(block); // up to 10 s
       };
       open.sink = (pcm) => {
         if (done) return;
@@ -611,6 +629,8 @@ export class DeepgramProvider implements SpeechProvider {
       socket.onopen = () => {
         // What this browser says about its microphone, for the server's speech log.
         socket.send(JSON.stringify({ type: 'diag', facts: `${facts()}, ${navigator.userAgent.slice(0, 120)}` }));
+        for (const block of early ?? []) socket.send(block.buffer as ArrayBuffer);
+        early = null;
         if (stopping) sendStop();
       };
       socket.onmessage = (e: MessageEvent<string>) => {
