@@ -55,17 +55,32 @@ export function SearchBox({ value, onChange, placeholder }: { value: string; onC
   );
 }
 
+/** The catalog's looks, in the order the API lists them; a piece with none goes last. */
+function byStyle(pieces: CatalogPiece[]): { style: string; pieces: CatalogPiece[] }[] {
+  const groups = new Map<string, CatalogPiece[]>();
+  for (const p of pieces) {
+    const style = p.style ?? 'Other';
+    groups.set(style, [...(groups.get(style) ?? []), p]);
+  }
+  return [...groups].map(([style, list]) => ({ style, pieces: list }));
+}
+
 /**
- * Ready-made furniture to add without a photo: a grid with a search box. Adding a piece puts it in
- * the user's inventory and hands it to `onAdded`, which places it in the room. `scroll`: the grid
- * scrolls on its own; off when the container already scrolls (a modal).
+ * Ready-made furniture to add without a photo: a grid with a search box, grouped by look
+ * (farmhouse, industrial, coastal…). The search also matches a look or a set by name, so
+ * "glam" or "Parson" narrows the grid to it. Adding a piece puts it in the user's inventory and
+ * hands it to `onAdded`, which places it in the room. `scroll`: the grid scrolls on its own; off
+ * when the container already scrolls (a modal).
  */
 export function CatalogBrowser({ onAdded, scroll = true }: { onAdded(item: InventoryItem): void | Promise<void>; scroll?: boolean }) {
   const catalog = useResource('catalog', () => api().listCatalog());
   const [query, setQuery] = useState('');
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const shown = useMemo(() => (catalog.data ?? []).filter((p) => matches(query, p.label, kind(p.item_class))), [catalog.data, query]);
+  const shown = useMemo(
+    () => byStyle((catalog.data ?? []).filter((p) => matches(query, p.label, kind(p.item_class), p.style ?? '', ...(p.sets ?? [])))),
+    [catalog.data, query],
+  );
 
   const add = async (piece: CatalogPiece) => {
     setBusy(piece.catalog_id);
@@ -87,22 +102,32 @@ export function CatalogBrowser({ onAdded, scroll = true }: { onAdded(item: Inven
 
   return (
     <div className="flex flex-col gap-2">
-      <SearchBox value={query} onChange={setQuery} placeholder="Search sofas, beds, lamps…" />
+      <SearchBox value={query} onChange={setQuery} placeholder="Search sofas, beds, farmhouse, glam…" />
       {!shown.length && <p className="py-4 text-center text-sm text-muted">Nothing in the catalog matches “{query.trim()}”.</p>}
-      <ul className={`grid grid-cols-2 gap-2 ${scroll ? 'max-h-[40vh] overflow-y-auto pr-1' : ''}`}>
-        {shown.map((p) => (
-          <li key={p.catalog_id}>
-            <button type="button" disabled={busy !== null} onClick={() => void add(p)} aria-label={`Add ${p.label} to the room`} aria-busy={busy === p.catalog_id}
-              className={CARD}>
-              <CardImage src={p.thumbnail_url} state={busy === p.catalog_id ? 'adding' : 'idle'} />
-              <span className={CARD_NAME}>{p.label}</span>
-              <span className={CARD_SUB}>{size(p)}</span>
-            </button>
-          </li>
+      <div className={`flex flex-col gap-3 ${scroll ? 'max-h-[40vh] overflow-y-auto pr-1' : ''}`} data-testid="catalog-grid">
+        {shown.map((group) => (
+          <section key={group.style} aria-label={group.style} data-style={group.style}>
+            <h3 className="mb-1.5 flex items-baseline justify-between px-0.5">
+              <span className="text-[11px] font-semibold tracking-wider text-faint uppercase">{group.style}</span>
+              <span className="text-[11px] text-faint tabular-nums">{group.pieces.length}</span>
+            </h3>
+            <ul className="grid grid-cols-2 gap-2">
+              {group.pieces.map((p) => (
+                <li key={p.catalog_id}>
+                  <button type="button" disabled={busy !== null} onClick={() => void add(p)} aria-label={`Add ${p.label} to the room`} aria-busy={busy === p.catalog_id}
+                    title={p.sets?.length ? `Part of: ${p.sets.join(', ')}` : undefined} className={CARD}>
+                    <CardImage src={p.thumbnail_url} state={busy === p.catalog_id ? 'adding' : 'idle'} />
+                    <span className={CARD_NAME}>{p.label}</span>
+                    <span className={CARD_SUB}>{size(p)}</span>
+                  </button>
+                </li>
+              ))}
+            </ul>
+          </section>
         ))}
-      </ul>
+      </div>
       {error && <p role="alert" className="text-sm text-danger">{error}</p>}
-      <p className="text-[11px] text-faint">Pieces from matching collections, at real size. 3D models and photos: Amazon Berkeley Objects, CC BY 4.0.</p>
+      <p className="text-[11px] text-faint">Pieces from matching collections, in several looks, at real size. 3D models: Amazon Berkeley Objects (Amazon.com), CC BY 4.0.</p>
     </div>
   );
 }

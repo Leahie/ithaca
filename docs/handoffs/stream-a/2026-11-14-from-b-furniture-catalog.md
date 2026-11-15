@@ -7,6 +7,9 @@ source: feat/furniture-catalog
 ---
 # A furniture catalog, and adding pieces from the Arrange panel
 
+> Out of date on what the catalog holds: see `2026-11-14-from-b-catalog-styles.md`. The routes
+> below still stand.
+
 **Why:** users could only get furniture by uploading a photo. There is now a catalog of 51
 ready-made pieces (free Poly Haven models at real size) that anyone can add, with no keys.
 

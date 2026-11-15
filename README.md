@@ -10,9 +10,10 @@ their family, find out what living there would be like:
 - **Hear it**: the highway, the street, birds and frogs by hour and season; windows open or
   closed, carpet or not; a TV placed in one room, heard from another.
 - **Know the neighbourhood**: the listing next to comparable homes, and what is nearby.
-- **Move your furniture in**: photograph a piece and it is rebuilt in 3D at its real size; arrange
-  rooms by hand (mouse, phone, or your hands in front of the webcam), or keep a layout the guide
-  proposes.
+- **Move your furniture in**: photograph a piece and it is rebuilt in 3D at its real size, or
+  furnish a room from a catalog of 160 pieces in matching sets and nine looks (farmhouse,
+  industrial, coastal, glam…); arrange rooms by hand (mouse, phone, or your hands in front of the
+  webcam), or keep a layout the guide proposes.
 - **Bring the family**: one QR code on the big screen. Each person's phone becomes a remote with
   its own guide, which keeps its own memory of that person between visits. All the guides read one
   register of the house's furniture (every piece has a number, a room, and who put it there), so

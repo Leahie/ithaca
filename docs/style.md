@@ -50,6 +50,7 @@ Errors on glass use `text-coral`, not `text-danger` (too dark to read).
 ## Filtering
 
 - Filter with a search box (`SearchBox` in `CatalogBrowser.tsx`), never a wall of filter chips. Every word typed must match the name, kind or owner.
+- The catalog is grouped by look (Farmhouse, Industrial, Coastal…) under small section headings, and its search also matches a look or a set by name ("glam", "Parson"). The headings are labels, not buttons: narrowing is still the search box's job.
 - Say so when nothing matches, quoting the search.
 
 ## Popovers
@@ -106,4 +107,5 @@ Errors on glass use `text-coral`, not `text-danger` (too dark to read).
 - 2026-11-14: Phone Add furniture became a modal with icon tabs (backpack: mine, bag: catalog). Catalog kind chips replaced by a search box; your own furniture is searchable too and shows as picture cards, with "From a photo" as the first card.
 - 2026-11-14: Fixed modal scrolling on the phone: definite panel height, contained overscroll, touch blocked outside the scroll area, page scroll locked while open. Same fix for the furniture sheets and the floor plan modal.
 - 2026-11-14: Add furniture gets a third tab (people: the family's) and a Manage mode for deleting pieces for good. The big screen gets a small glass plan while arranging, live dragging, a from-above toggle and two-finger look-around from the phone.
+- 2026-11-14: The catalog grew to nine looks. Its grid is grouped by look with section headings; the search box matches looks and set names. No style chips, by the filtering rule above.
 - 2026-11-14: When the guide asks the user to choose (a room, a look, a piece, a layout), the options come up on the phone as a modal of picture cards over whatever screen it is on (`GuidePopup`): paper panel, dimmed backdrop, rises into place. A room is drawn as its plan, a furniture set as four of its pieces. The same cards show in the chat on the big screen and in the phone's Guide screen. A piece's own number (`#4821`) is shown in grey monospace beside its name wherever pieces are listed.

@@ -9,7 +9,7 @@ from pathlib import Path
 from fastapi import APIRouter, Form, Header, HTTPException, Request, UploadFile
 from fastapi.responses import FileResponse
 
-from packages.schema.inventory import CatalogAddRequest, CatalogPiece, InventoryItem, ItemDims
+from packages.schema.inventory import CatalogAddRequest, CatalogPiece, CatalogSet, InventoryItem, ItemDims
 from packages.schema.session import JobRef, ObjectIngestRequest, UploadResult
 from services.api.agent import memory_files
 from services.api.furniture.store import furniture_store
@@ -111,15 +111,30 @@ async def import_model(
 
 
 @router.get("/catalog")
-def list_catalog(item_class: str | None = None) -> list[CatalogPiece]:
-    """Ready-made furniture anyone can add: free models, at real size."""
+def list_catalog(item_class: str | None = None, style: str | None = None) -> list[CatalogPiece]:
+    """Ready-made furniture anyone can add: free models, at real size. Each piece says which look
+    it belongs to and which sets it is part of. `style` keeps one look ("Farmhouse")."""
     return [
         CatalogPiece(
             catalog_id=cid, label=label, item_class=cls, dims_m=ItemDims(w=w, d=d, h=h),
             thumbnail_url=catalog.thumbnail_url(cid), source=catalog.SOURCE,
+            style=catalog.style_of(cid), sets=catalog.sets_of(cid),
         )
         for cid, cls, label, w, d, h in catalog.PIECES
-        if item_class is None or cls == item_class
+        if (item_class is None or cls == item_class) and (style is None or catalog.style_of(cid).lower() == style.lower())
+    ]
+
+
+@router.get("/catalog/sets")
+def list_catalog_sets(style: str | None = None) -> list[CatalogSet]:
+    """The catalog's sets: each a room's worth of pieces designed to go together, in one look."""
+    return [
+        CatalogSet(
+            set_id=st["id"], name=st["name"], style=st["style"], rooms=st["rooms"], look=st["look"],
+            piece_ids=st["pieces"], thumbnail_urls=[catalog.thumbnail_url(cid) for cid in st["pieces"][:4]],
+        )
+        for st in catalog.SETS
+        if style is None or st["style"].lower() == style.lower()
     ]
 
 
