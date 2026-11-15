@@ -55,6 +55,13 @@ const MATCH_GATE = 0.5;
  * these are 0.1 s and 0.25 s, as before; at 5 a second, 0.5 s and 0.8 s.
  */
 const UNSEEN = { staleS: 0.1, staleResults: 2.5, lostS: 0.25, lostResults: 4 } as const;
+/**
+ * A forgotten hand that turns up again near where it was, within this long (s), is the same
+ * hand: same id, still pinching if it was. The tracker often loses a pinching hand (its fingertips
+ * hide each other) and needs a few frames to find it again; found as a new hand, it could not
+ * pinch until it had been seen open, so a piece being carried fell.
+ */
+const REVIVE_S = 0.7;
 /** Left or right is taken from several frames, not one: the tracker's own guess flips now and then. */
 const SIDE_VOTES = { max: 5, flip: 3 } as const;
 /** The hand settles as the fingers close: motion in the first moments of a pinch is not a drag. */
@@ -117,8 +124,25 @@ export interface HandView {
 
 export type Gesture = 'none' | 'drag' | 'zoom' | 'turn' | 'forward' | 'back';
 
+/**
+ * How the tracking is keeping up, for the readout in the camera box (running averages).
+ * `rate`: results a second. `modelMs`: the hand model's time per frame (0 until known).
+ * `delayMs`: from the picture to its result reaching this page. Where the worker reads the camera
+ * itself, the picture's time is when the worker took it, so the camera's own buffering (about one
+ * frame) is not in it. The cursor's smoothing comes on top of this.
+ */
+export interface HandStats {
+  rate: number;
+  modelMs: number;
+  delayMs: number;
+}
+/** Weight of each new result in the running averages. */
+const STATS_WEIGHT = 0.1;
+
 export class HandEngine {
   private tracks: Track[] = [];
+  /** Hands forgotten lately, that may come back (see REVIVE_S). */
+  private gone: Track[] = [];
   private nextId = 1;
   private aspect = 16 / 9;
   private spread: number | null = null;
@@ -130,6 +154,7 @@ export class HandEngine {
   hands: HandView[] = [];
   /** Counts the results taken in: the hands' landmarks change only when this does. */
   results = 0;
+  stats: HandStats = { rate: 0, modelMs: 0, delayMs: 0 };
 
   /** A hand unseen for longer than this stops dragging (see UNSEEN). */
   private get staleAfter(): number {
@@ -161,6 +186,12 @@ export class HandEngine {
     }
     this.lastArrival = arrived;
     this.results++;
+    const avg = (was: number, now: number) => (this.results === 1 || was === 0 ? now : was + STATS_WEIGHT * (now - was));
+    this.stats = {
+      rate: this.paced ? 1 / this.interval : 0,
+      modelMs: frame.ms === undefined ? this.stats.modelMs : avg(this.stats.modelMs, frame.ms),
+      delayMs: avg(this.stats.delayMs, Math.max(0, (arrived - t) * 1000)),
+    };
     // Between results a hand travels further when they are far apart: the gate widens with them.
     const gate = MATCH_GATE * Math.min(3, Math.max(1, this.interval * 15));
     const features = frame.hands.map((h) => extractFeatures(h.image, h.world, frame.aspect));
@@ -186,6 +217,13 @@ export class HandEngine {
     features.forEach((f, di) => {
       if (usedD.has(di) || this.tracks.length >= 2) return;
       const hand = frame.hands[di]!;
+      const back = this.revive(f, arrived, gate);
+      if (back) {
+        back.dragFrom = null; // where it went while unseen is not a drag
+        this.feed(back, hand, f, t, arrived);
+        this.tracks.push(back);
+        return;
+      }
       const track: Track = {
         id: this.nextId++,
         side: hand.side,
@@ -205,7 +243,32 @@ export class HandEngine {
       this.feed(track, hand, f, t, arrived);
       this.tracks.push(track);
     });
-    this.tracks = this.tracks.filter((tr) => arrived - tr.lastSeen <= this.lostAfter);
+    this.forget(arrived);
+  }
+
+  /** Hands unseen for too long are forgotten, and kept a moment in case they come back. */
+  private forget(now: number): void {
+    const lost = this.lostAfter;
+    for (const tr of this.tracks) if (now - tr.lastSeen > lost) this.gone.push(tr);
+    this.tracks = this.tracks.filter((tr) => now - tr.lastSeen <= lost);
+    this.gone = this.gone.filter((tr) => now - tr.lastSeen <= REVIVE_S);
+  }
+
+  /** The hand forgotten lately nearest this new one, if it is near enough to be the same; taken out of `gone`. */
+  private revive(f: HandFeatures, now: number, gate: number): Track | null {
+    let best: Track | null = null;
+    let bestD = gate;
+    for (const tr of this.gone) {
+      if (now - tr.lastSeen > REVIVE_S) continue;
+      const ref = tr.pos ?? tr.features.palm;
+      const d = Math.hypot(f.palm[0] - ref[0], f.palm[1] - ref[1]);
+      if (d < bestD) {
+        bestD = d;
+        best = tr;
+      }
+    }
+    if (best) this.gone = this.gone.filter((tr) => tr !== best);
+    return best;
   }
 
   private feed(tr: Track, sample: HandSample, f: HandFeatures, t: number, arrived: number): void {
@@ -229,8 +292,8 @@ export class HandEngine {
 
   /** Once per display frame: move the cursors and emit navigation. `now` in seconds. */
   tick(now: number): void {
-    const { staleAfter, lostAfter } = this;
-    this.tracks = this.tracks.filter((tr) => now - tr.lastSeen <= lostAfter);
+    const { staleAfter } = this;
+    this.forget(now);
     for (const tr of this.tracks) tr.pos = tr.motion.step(now);
 
     const pinching = this.tracks.filter((tr) => tr.pinch.pinching && now - tr.lastSeen <= staleAfter);
@@ -308,11 +371,14 @@ export class HandEngine {
 
   reset(): void {
     this.tracks = [];
+    this.gone = [];
     this.hands = [];
     this.spread = null;
     this.gesture = 'none';
     this.interval = 1 / 30;
     this.paced = false;
     this.lastArrival = null;
+    this.results = 0;
+    this.stats = { rate: 0, modelMs: 0, delayMs: 0 };
   }
 }

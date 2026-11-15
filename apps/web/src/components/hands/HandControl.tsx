@@ -4,7 +4,7 @@ import { useEffect, useRef } from 'react';
 import { cn } from '@/components/ui';
 import { IconHand } from '@/components/ui/icons';
 import type { HandView } from '@/lib/hands/engine';
-import { handEngine, onHandTick, useHands } from '@/lib/hands/store';
+import { handEngine, handHint, onHandTick, useHands } from '@/lib/hands/store';
 
 /** The user's left hand is sky blue and the right coral, as in HoloTouch. */
 const COLOR = { L: '#4aa8ff', R: '#ff6b5c' } as const;
@@ -222,6 +222,7 @@ export function HandsOverlay() {
   const skeletons = useRef<HTMLCanvasElement | null>(null);
   const preview = useRef<HTMLDivElement | null>(null);
   const hint = useRef<HTMLSpanElement | null>(null);
+  const meter = useRef<HTMLSpanElement | null>(null);
 
   // The camera picture is the tracker's own <video>: put it in the preview.
   useEffect(() => {
@@ -237,7 +238,15 @@ export function HandsOverlay() {
     const [ring, unwatchRing] = cursors.current ? watchCanvas(cursors.current) : [null, () => {}];
     const [bones, unwatchBones] = skeletons.current ? watchCanvas(skeletons.current) : [null, () => {}];
     let lastHint = '';
+    let meterAt = 0;
     const off = onHandTick(() => {
+      // How the tracking keeps up, a few times a second: read every frame, it would flicker.
+      const now = performance.now();
+      if (meter.current && now - meterAt >= 250) {
+        meterAt = now;
+        const { rate, modelMs, delayMs } = handEngine.stats;
+        meter.current.textContent = rate ? `${rate.toFixed(0)}/s · model ${modelMs ? modelMs.toFixed(0) : '–'} ms · delay ${delayMs.toFixed(0)} ms` : '';
+      }
       const hands = handEngine.hands;
       const zooming = handEngine.gesture === 'zoom';
       // The rings move every display frame (they glide between the tracker's results), but only
@@ -256,7 +265,7 @@ export function HandsOverlay() {
           bones.drawn = bonesKey;
         }
       }
-      const text = hands.length === 0 ? 'Raise a hand in front of the camera' : HINT[handEngine.gesture];
+      const text = hands.length === 0 ? 'Raise a hand in front of the camera' : (handHint.text ?? HINT[handEngine.gesture]);
       if (hint.current && text !== lastHint) hint.current.textContent = lastHint = text;
     });
     return () => {
@@ -283,6 +292,11 @@ export function HandsOverlay() {
           <>
             <div ref={preview} className="relative aspect-video w-full bg-[#26232f]">
               <canvas ref={skeletons} className="absolute inset-0 h-full w-full" aria-hidden />
+              <span
+                ref={meter}
+                title="Tracker results a second · the hand model's time per frame · from the picture to its result reaching the page (the cursor's smoothing comes on top)"
+                className="absolute top-1 left-1 rounded bg-black/55 px-1.5 font-mono text-[11px] leading-4 text-cream tabular-nums empty:hidden"
+              />
               {status === 'starting' && <span className="absolute inset-0 grid place-items-center font-display text-base font-medium text-cream/80">Starting the camera…</span>}
             </div>
             <div className="flex items-center justify-between gap-2 py-1 pr-1 pl-3 font-display text-base font-medium text-text">

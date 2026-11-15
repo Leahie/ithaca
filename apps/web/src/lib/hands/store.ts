@@ -19,6 +19,9 @@ interface HandsStore {
 /** The one engine. The overlay reads it each frame; it is not React state. */
 export const handEngine = new HandEngine();
 
+/** What the view using the hands wants the hint under the camera box to say, over the gesture's own hint (null: the gesture's). */
+export const handHint: { text: string | null } = { text: null };
+
 const tickListeners = new Set<() => void>();
 /** Called once per display frame while tracking, after the engine has moved. */
 export function onHandTick(cb: () => void): () => void {
@@ -72,6 +75,7 @@ export const useHands = create<HandsStore>((set, get) => ({
     tracking?.stop();
     tracking = null;
     handEngine.reset();
+    handHint.text = null;
     tickListeners.forEach((cb) => cb());
     set({ status: 'off', video: null });
   },

@@ -3,10 +3,19 @@
 // `import()` that a bundler would rewrite. /mediapipe/ is copied there at install
 // (scripts/copy-assets.mjs).
 //
-// Messages in:  {type: 'init', modelUrl}  ·  {type: 'frame', bitmap: ImageBitmap, stamp: number}
-// Messages out: {type: 'ready', delegate}  ·  {type: 'error', message}
-//               {type: 'result', stamp, width, height, landmarks, worldLandmarks, sides, ms}
+// Messages in:  {type: 'init', modelUrl}
+//               {type: 'stream', readable: ReadableStream<VideoFrame>}   (Chrome, Edge: the camera itself)
+//               {type: 'frame', bitmap: ImageBitmap, at: number}         (elsewhere: one frame at a time)
+// Messages out: {type: 'ready', delegate}  ·  {type: 'error', message}  ·  {type: 'stream-error', message}
+//               {type: 'result', at, width, height, landmarks, worldLandmarks, sides, ms}
 //               {type: 'delegate', delegate, ms, was, wasMs}   (the tracker changed how it runs)
+//
+// `at` is when the picture was taken, in ms since the epoch (performance.timeOrigin + now): a
+// worker's performance.now() counts from a different moment than the page's.
+//
+// With a stream, frames come straight from the camera to here: the page's thread, busy drawing
+// the house, is not in the way. Each frame is worked on as soon as the last one is done, and the
+// ones that came meanwhile are dropped at the source (maxBufferSize 1), so the newest is used.
 //
 // Which processor the model runs on is chosen by measuring, not assumed. The graphics card is
 // usually the faster one, but here it is shared with the 3D house: every inference waits its
@@ -55,8 +64,10 @@ const options = (on) => ({
   runningMode: 'VIDEO',
   numHands: 2,
   minHandDetectionConfidence: 0.5,
-  minHandPresenceConfidence: 0.5,
-  minTrackingConfidence: 0.5,
+  // A little lower than the defaults: a pinching hand hides its own fingertips, and a hand lost
+  // there is found again only by the slower palm search.
+  minHandPresenceConfidence: 0.4,
+  minTrackingConfidence: 0.4,
 });
 
 const create = (on) => HandLandmarker.createFromOptions(fileset, options(on));
@@ -145,6 +156,89 @@ function settle() {
   }
 }
 
+/** MediaPipe wants strictly increasing timestamps (ms); this worker's own clock gives them. */
+let lastStamp = 0;
+function nextStamp() {
+  lastStamp = Math.max(performance.now(), lastStamp + 1);
+  return lastStamp;
+}
+
+/** One picture through the landmarker; the caller closes it. `at`: when it was taken, epoch ms. */
+function run(image, at) {
+  if (!landmarker) return;
+  const width = image.displayWidth ?? image.width;
+  const height = image.displayHeight ?? image.height;
+  const stamp = nextStamp();
+  try {
+    const began = performance.now();
+    const r = landmarker.detectForVideo(image, stamp);
+    const ms = performance.now() - began;
+    // The result goes out before anything else is done with this picture.
+    self.postMessage({
+      type: 'result',
+      at,
+      width,
+      height,
+      landmarks: r.landmarks,
+      worldLandmarks: r.worldLandmarks,
+      sides: r.handedness.map((h) => h[0]?.categoryName ?? ''),
+      ms,
+    });
+    if (!trial) {
+      consider(ms);
+    } else {
+      // The same picture through the other one, so the two are timed on the same work.
+      try {
+        const other = performance.now();
+        trial.other.detectForVideo(image, stamp);
+        const otherMs = performance.now() - other;
+        if (trial.warmup > 0) {
+          trial.warmup--;
+        } else {
+          trial.mine.push(ms);
+          trial.theirs.push(otherMs);
+        }
+        if (trial.mine.length >= TRIAL_FRAMES) settle();
+      } catch (err) {
+        // The landmarker in use has already answered for this picture: only the trial ends.
+        console.warn('[hands worker] the CPU trial failed', err);
+        try {
+          trial?.other.close();
+        } catch {}
+        trial = null;
+        lastTrialAt = performance.now();
+      }
+    }
+  } catch (err) {
+    // One bad frame is not fatal: report it and carry on with the next.
+    self.postMessage({ type: 'result', at, width, height, landmarks: [], worldLandmarks: [], sides: [], warning: String(err) });
+  }
+}
+
+/** The camera's frames, read here one after another until the stream ends or the worker closes. */
+let reader = null;
+let closing = false;
+async function readStream(readable) {
+  reader?.cancel().catch(() => {});
+  const mine = readable.getReader();
+  reader = mine;
+  try {
+    for (;;) {
+      const { value: frame, done } = await mine.read();
+      if (done) break;
+      const at = performance.timeOrigin + performance.now();
+      try {
+        run(frame, at);
+      } finally {
+        // A frame kept open holds one of the camera's few buffers: the camera stalls without it.
+        frame.close();
+      }
+    }
+  } catch (err) {
+    if (!closing && reader === mine) self.postMessage({ type: 'stream-error', message: err instanceof Error ? err.message : String(err) });
+  }
+}
+
 self.onmessage = async (e) => {
   const msg = e.data;
   if (msg.type === 'init') {
@@ -156,58 +250,22 @@ self.onmessage = async (e) => {
     }
     return;
   }
+  if (msg.type === 'stream') {
+    void readStream(msg.readable);
+    return;
+  }
   if (msg.type === 'frame') {
-    const { bitmap, stamp } = msg;
     try {
-      if (!landmarker) return;
-      const began = performance.now();
-      const r = landmarker.detectForVideo(bitmap, stamp);
-      const ms = performance.now() - began;
-      // The result goes out before anything else is done with this picture.
-      self.postMessage({
-        type: 'result',
-        stamp,
-        width: bitmap.width,
-        height: bitmap.height,
-        landmarks: r.landmarks,
-        worldLandmarks: r.worldLandmarks,
-        sides: r.handedness.map((h) => h[0]?.categoryName ?? ''),
-        ms,
-      });
-      if (!trial) {
-        consider(ms);
-      } else {
-        // The same picture through the other one, so the two are timed on the same work.
-        try {
-          const other = performance.now();
-          trial.other.detectForVideo(bitmap, stamp);
-          const otherMs = performance.now() - other;
-          if (trial.warmup > 0) {
-            trial.warmup--;
-          } else {
-            trial.mine.push(ms);
-            trial.theirs.push(otherMs);
-          }
-          if (trial.mine.length >= TRIAL_FRAMES) settle();
-        } catch (err) {
-          // The landmarker in use has already answered for this picture: only the trial ends.
-          console.warn('[hands worker] the CPU trial failed', err);
-          try {
-            trial?.other.close();
-          } catch {}
-          trial = null;
-          lastTrialAt = performance.now();
-        }
-      }
-    } catch (err) {
-      // One bad frame is not fatal: report it and carry on with the next.
-      self.postMessage({ type: 'result', stamp, width: bitmap.width, height: bitmap.height, landmarks: [], worldLandmarks: [], sides: [], warning: String(err) });
+      run(msg.bitmap, msg.at);
     } finally {
-      bitmap.close();
+      msg.bitmap.close();
     }
     return;
   }
   if (msg.type === 'close') {
+    closing = true;
+    reader?.cancel().catch(() => {});
+    reader = null;
     trial?.other.close();
     trial = null;
     landmarker?.close();

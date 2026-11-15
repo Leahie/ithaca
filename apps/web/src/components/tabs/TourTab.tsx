@@ -18,7 +18,8 @@ import { config } from '@/lib/config';
 import { useHouseFurniture, useInventory, useLayouts } from '@/lib/data/hooks';
 import { cubicBezier } from '@/lib/geometry/bezier';
 import { bounds, centroid, pointInPolygon } from '@/lib/geometry/polygon';
-import { handEngine, onHandTick, useHands } from '@/lib/hands/store';
+import { onHandNav } from '@/lib/hands/engine';
+import { handEngine, handHint, onHandTick, useHands } from '@/lib/hands/store';
 import type { House } from '@/lib/house/house';
 import { EYE_M } from '@/lib/house/walk';
 import { furnitureOnScreen, previewLayout } from '@/lib/layouts';
@@ -33,19 +34,33 @@ declare global {
   }
 }
 
-/** Picking a piece by hand: how near the pinch must be to it, as a fraction of the view's height. */
-const HAND_GRAB_RADIUS = 0.16;
+/** Picking a piece by hand: how near the ring must be to it, as a fraction of the view's height.
+ * The ring follows the palm, below the fingertips that pinch: at 0.16 a pinch "on" a piece often missed it. */
+const HAND_GRAB_RADIUS = 0.28;
 /** Arranging by hand looks down from this near (m), above where the camera stood. */
 const HAND_AERIAL_DISTANCE = 4.2;
-/** Holding a piece by hand: how long a lost hand or an opened pinch is forgiven (the tracker
- * flickers), how much nearer another piece must be to take the pointer, the time constant (ms) of
+/** Holding a piece by hand: how long a lost hand is forgiven (the tracker flickers; a hand seen
+ * open lets go at once, the pinch has its own short debounce), how much nearer another piece must be to take the pointer, the time constant (ms) of
  * the piece's move toward the hand (in time, not per frame: when the house draws slowly the piece
  * must not follow slowly too), and the hand movement (px) that is only trembling.
  * `dwellMs`: how long a hand must rest nearest a piece before the piece is pointed out; a hand on
  * its way across the room passes several, and each pointing-out re-renders the tour and goes to
  * every phone. `shadowMs`: the least time between two redraws of the shadow map while a piece is
  * carried (it covers the whole house, so not once per frame). */
-const HAND_HOLD = { graceMs: 450, steal: 0.6, followMs: 67, still: 1.5, dwellMs: 120, shadowMs: 33 } as const;
+const HAND_HOLD = { graceMs: 650, steal: 0.6, followMs: 35, still: 1.5, dwellMs: 120, shadowMs: 33 } as const;
+/** Looking around by hand (not arranging): degrees per viewport the pinch-drag turns the view and
+ * an open-hand sweep turns on the spot, how strongly the spread of two pinching hands zooms, and
+ * the most one display frame may zoom (a jump in the tracking must not throw the camera). */
+const HAND_LOOK = { yawDegPerView: 160, pitchDegPerView: 90, sweepDegPerView: 220, zoomGain: 2, maxZoomStep: 0.25 } as const;
+/** What the hint under the camera box says while the hands look around. */
+const HAND_LOOK_HINT = {
+  none: 'Pinch and drag to look · pinch both hands to zoom',
+  drag: 'Drag to look around · let go to stop',
+  zoom: 'Hands apart to zoom in, together to zoom out',
+  turn: 'Turning',
+  forward: 'Stepping forward',
+  back: 'Stepping back',
+} as const;
 
 // Phone look and zoom are eased: quick off the mark, soft landing (an ease-out bezier).
 const LOOK_EASE = cubicBezier(0.22, 0.8, 0.3, 1);
@@ -83,7 +98,19 @@ function ShadowHandle({ invalidate }: { invalidate: { current: (() => void) | nu
  * best scan position; the room list can also ask for the outside view. The chosen layout's
  * furniture stands at its stored poses, as they are (A5).
  */
-export function TourTab({ twin, active, soundBar = true }: { twin: PropertyTwin; active: boolean; /** Show the sound and time bar. Off, it still plays: the phone has its controls. */ soundBar?: boolean }) {
+export function TourTab({
+  twin,
+  active,
+  soundBar = true,
+  arrange = false,
+}: {
+  twin: PropertyTwin;
+  active: boolean;
+  /** Show the sound and time bar. Off, it still plays: the phone has its controls. */
+  soundBar?: boolean;
+  /** The big screen's Arrange panel is open: hands arrange furniture rather than look around. */
+  arrange?: boolean;
+}) {
   const [error, setError] = useState<string | null>(null);
   const { house: rebuilt, known } = useRebuiltHouse(twin, setError);
   const datetime = useSession((s) => s.viewer.datetime);
@@ -359,7 +386,8 @@ export function TourTab({ twin, active, soundBar = true }: { twin: PropertyTwin;
   }, [ready]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // viewer.step (the phone's joystick): hop to the neighbouring scan position that lies most nearly
-  // ahead of (or behind) the way the camera faces, keeping the camera's direction.
+  // ahead of (or behind) the way the camera faces, keeping the camera's direction. Hands step the same way.
+  const stepRef = useRef<((angleDeg: number, steps: number) => void) | null>(null);
   useEffect(() => {
     if (!ready) return;
     const hop = (angleDeg: number, left: number) => {
@@ -411,14 +439,22 @@ export function TourTab({ twin, active, soundBar = true }: { twin: PropertyTwin;
         if (left > 1) hop(angleDeg, left - 1);
       });
     };
-    return onSessionEvent((event) => {
-      if (event.type !== 'viewer.step' || useSession.getState().viewer.mode !== 'tour') return;
+    const step = (angleDeg: number, steps: number) => {
       if (aerial.current) {
         aerialDismissed.current = aerial.current;
         aerial.current = null;
       }
-      hop(event.payload.angle_deg ?? (event.payload.direction === 'back' ? 180 : 0), event.payload.steps ?? 1);
+      hop(angleDeg, steps);
+    };
+    stepRef.current = step;
+    const off = onSessionEvent((event) => {
+      if (event.type !== 'viewer.step' || useSession.getState().viewer.mode !== 'tour') return;
+      step(event.payload.angle_deg ?? (event.payload.direction === 'back' ? 180 : 0), event.payload.steps ?? 1);
     });
+    return () => {
+      if (stepRef.current === step) stepRef.current = null;
+      off();
+    };
   }, [ready, sweepsById, sweepPosition]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // The house's furniture (or the layout being tried in its room).
@@ -513,15 +549,49 @@ export function TourTab({ twin, active, soundBar = true }: { twin: PropertyTwin;
     [],
   );
 
-  // Hands arrange furniture. While hand control is on, the big screen looks down, from close, on
-  // the part of the room the camera stood in. A piece that has been picked up stays the chosen
+  // Hands look around: unless furniture is being arranged (below), a pinch-drag turns the view as
+  // a mouse drag does (inside, the scene follows the hand; outside and from above, the camera
+  // orbits), both hands pinching zoom, an open-hand sweep turns on the spot, and pointing or a
+  // fist steps forward or back. The engine sends small steps every display frame: they are
+  // applied at once, not eased.
+  const handsOn = useHands((s) => s.status === 'on');
+  const handArrange = handsOn && active && (arrange || arrangingFromPhone || !!overview || !!previewLayout(layouts.data, selectedLayoutId));
+  useEffect(() => {
+    if (!ready || !handsOn || !active || handArrange) return;
+    const offNav = onHandNav((nav) => {
+      const rig = rigRef.current;
+      if (!rig || useSession.getState().viewer.mode !== 'tour') return;
+      if (nav.type === 'drag') {
+        if (rig.place === 'inside') rig.turn(-nav.du * HAND_LOOK.yawDegPerView, nav.dv * HAND_LOOK.pitchDegPerView);
+        else rig.turn(nav.du * HAND_LOOK.yawDegPerView, -nav.dv * HAND_LOOK.pitchDegPerView * 0.7);
+      } else if (nav.type === 'zoom') {
+        const d = (nav.factor - 1) * HAND_LOOK.zoomGain;
+        rig.zoom(Math.max(-HAND_LOOK.maxZoomStep, Math.min(HAND_LOOK.maxZoomStep, d)));
+      } else if (nav.type === 'turn') {
+        if (rig.place === 'inside') rig.turn(nav.du * HAND_LOOK.sweepDegPerView, 0);
+      } else if (nav.type === 'step') {
+        stepRef.current?.(nav.forward ? 0 : 180, 1); // the same hop as the phone's stick
+      }
+    });
+    const offTick = onHandTick(() => {
+      handHint.text = HAND_LOOK_HINT[handEngine.gesture];
+    });
+    return () => {
+      offNav();
+      offTick();
+      handHint.text = null;
+    };
+  }, [ready, handsOn, active, handArrange]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Hands arrange furniture: while the Arrange panel is open, the phone shows Furniture, or a
+  // layout is on show. Then the big screen looks down, from close, on the part of the room the
+  // camera stood in. A piece that has been picked up stays the chosen
   // one (blue) after it is put down: the next pinch, anywhere, picks it up again, and only a pinch
   // right on another piece changes the choice. Before that, the piece nearest a hand is pointed
   // out; a pinch picks it up, the hand slides it over the floor, a second pinching hand turns it
   // (as the line between the hands turns), and letting go saves it where it stands.
-  const handsOn = useHands((s) => s.status === 'on');
   useEffect(() => {
-    if (!ready || !handsOn || !active) return;
+    if (!ready || !handArrange) return;
     const rig = rigRef.current;
     if (!rig) return;
     const onScreen = (x: number, y: number, z: number) => rig.project(x, y, z);
@@ -583,9 +653,13 @@ export function TourTab({ twin, active, soundBar = true }: { twin: PropertyTwin;
       lastTick = now;
       const seen = handEngine.hands;
       const hands = seen.filter((x) => !x.stale);
+      // Carrying: the gesture's own hint ("Move your hand · let go to place") says it.
+      handHint.text = null;
       if (held) {
         const grip = held;
         if (!pieces.current.has(grip.id)) return drop();
+        // The holding hand is in view and open: that is letting go, not the tracker losing it.
+        if (hands.some((x) => x.id === grip.hand && !x.pinching)) return drop();
         let hand = hands.find((x) => x.id === grip.hand && x.pinching);
         if (!hand) {
           // The tracker lost the hand for a moment and found it again as a new one: still the same grip.
@@ -687,6 +761,15 @@ export function TourTab({ twin, active, soundBar = true }: { twin: PropertyTwin;
       }
       // Pointed out once the hand has rested on it: not each piece a moving hand passes.
       if (!locked && best && now - aimedAt >= HAND_HOLD.dwellMs) point(best.item_id);
+      // Say why a pinch does nothing, rather than nothing.
+      const target = best ?? (locked ? placementsRef.current.find((p) => p.item_id === locked) : undefined);
+      handHint.text = !placementsRef.current.some((p) => pieces.current.has(p.item_id))
+        ? 'No furniture in this room to move'
+        : hand.pinching && !started
+          ? 'Nothing picked up · open, move onto a piece, pinch'
+          : target
+            ? 'Pinch to pick it up'
+            : 'Move the ring onto a piece';
       if (!started) return;
       // A pinch right on a piece picks that one; anywhere else, the chosen one.
       const take = best ?? placementsRef.current.find((p) => p.item_id === locked) ?? null;
@@ -700,8 +783,9 @@ export function TourTab({ twin, active, soundBar = true }: { twin: PropertyTwin;
       off();
       drop();
       point(null);
+      handHint.text = null;
     };
-  }, [ready, handsOn, active, twin]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [ready, handArrange, twin]); // eslint-disable-line react-hooks/exhaustive-deps
 
   /** What to look down on: a key that changes when the view must, where, and in which room. 'wait': a piece just added is not loaded yet. */
   const aerialTarget = useMemo(() => {
@@ -712,7 +796,7 @@ export function TourTab({ twin, active, soundBar = true }: { twin: PropertyTwin;
       const [x, z] = centroid(triedRoom.polygon);
       return { key: `layout:${tried.layout_id}`, at: { x, y: triedRoom.floor_y, z }, room: triedRoom };
     }
-    if (handsOn && active && roomId) {
+    if (handArrange && roomId) {
       // By hand the camera stays put: it must not chase each piece a hand passes.
       const room = twin.rooms.find((r) => r.room_id === roomId);
       const stood = here.current ? sweepPosition(here.current) : undefined;
@@ -731,7 +815,7 @@ export function TourTab({ twin, active, soundBar = true }: { twin: PropertyTwin;
     if (!room) return null;
     const [x, z] = centroid(room.polygon);
     return { key: `room:${room.room_id}`, at: { x, y: room.floor_y, z }, room };
-  }, [arranging, overview, placements, layouts.data, selectedLayoutId, twin.rooms, handsOn, active, roomId, sweepPosition]);
+  }, [arranging, overview, placements, layouts.data, selectedLayoutId, twin.rooms, handArrange, roomId, sweepPosition]);
   useEffect(() => {
     if (!ready || aerialTarget === 'wait') return;
     const rig = rigRef.current;

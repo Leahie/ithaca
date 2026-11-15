@@ -64,15 +64,20 @@ export interface MotionConfig {
   /**
    * The follow's time constant as a share of the time between samples, when that is longer than
    * `followTauMs`. Samples come at the tracker's pace, not the camera's: on a slow machine that
-   * is 5 to 15 a second, and a 12 ms follow then shows every sample as a jump. At 0.4 the shown
-   * position covers nine tenths of a step by the time the next sample lands, so it glides; at
-   * 30 samples a second 0.4 of the interval is 13 ms, which is what the fixed value already was.
+   * is 5 to 15 a second, and a 12 ms follow then shows every sample as a jump. At 0.15 the shown
+   * position has covered about half a step a tenth of the way to the next sample, and nearly all
+   * of it by halfway, so it still glides. (It was 0.4: smoother, but at 10 samples a second it
+   * kept the cursor about 30 ms further behind the hand, measured in a simulation of this filter.)
    */
   followShare: number;
 }
 
-/** HoloTouch's defaults, for positions in camera-frame heights. */
-export const MOTION_DEFAULTS: MotionConfig = { minCutoff: 1.5, beta: 12, dCutoff: 1, velocityCutoff: 5, predictMaxMs: 50, followTauMs: 12, followShare: 0.4 };
+/**
+ * HoloTouch's defaults, for positions in camera-frame heights, made quicker where the tracker is
+ * slow: `followShare` 0.15 (was 0.4) and `dCutoff` 2 (was 1: the speed the 1€ filter reads, to
+ * open up for a moving hand, was itself smoothed so much that it opened late).
+ */
+export const MOTION_DEFAULTS: MotionConfig = { minCutoff: 1.5, beta: 12, dCutoff: 2, velocityCutoff: 5, predictMaxMs: 50, followTauMs: 12, followShare: 0.15 };
 
 /** The follow never takes longer than this to settle, however slow the samples (ms). */
 const FOLLOW_TAU_MAX_MS = 140;

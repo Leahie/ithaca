@@ -267,7 +267,7 @@ function House({ propertyId }: { propertyId: string }) {
               is faded out, not display:none, so its canvas keeps its size. */}
           {has('tour') && (visited.has('tour') || mode === 'tour') && (
             <div className={cn('absolute inset-0', mode === 'tour' ? 'z-10' : 'pointer-events-none z-0 opacity-0')} aria-hidden={mode !== 'tour'} inert={mode !== 'tour'}>
-              <TourTab twin={t} active={mode === 'tour'} soundBar={!clean && !arranging} />
+              <TourTab twin={t} active={mode === 'tour'} soundBar={!clean && !arranging} arrange={arranging} />
             </div>
           )}
           {(mode === 'sound' || mode === 'neighborhood' || mode === 'design' || mode === 'family') && (

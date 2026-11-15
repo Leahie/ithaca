@@ -3,10 +3,13 @@
  * Landmarks are mirrored before they leave here, as HoloTouch mirrors its frames: moving a hand
  * to the right moves it to the right on screen.
  *
- * Inference runs in a Web Worker (public/hand-worker.mjs) so it never stalls the 3D render: the
- * camera stays here, each new frame goes over as a transferred ImageBitmap, and a frame that
- * arrives while the worker is busy is dropped rather than queued. Where workers or OffscreenCanvas
- * are missing, the same landmarker runs on the main thread instead.
+ * Inference runs in a Web Worker (public/hand-worker.mjs) so it never stalls the 3D render. Where
+ * the browser can (Chrome, Edge: MediaStreamTrackProcessor), the worker reads the camera itself:
+ * this thread, which also draws the house, no longer has to wait for a display frame, copy the
+ * picture out and post it, so tracking keeps the camera's pace however heavy the scene. Elsewhere
+ * each new frame goes over as a transferred ImageBitmap, and a frame that arrives while the worker
+ * is busy is dropped rather than queued. Where workers or OffscreenCanvas are missing, the same
+ * landmarker runs on the main thread instead.
  *
  * The picture is kept small (FRAME_PX): the model looks at a 224 px crop of each hand, so a
  * 720p frame buys nothing, and copying one out of the camera and into the worker for every
@@ -34,6 +37,8 @@ export interface FrameSample {
   /** Frame width over height. */
   aspect: number;
   hands: HandSample[];
+  /** How long the hand model took on this frame, ms, when known. */
+  ms?: number;
 }
 
 export interface Tracking {
@@ -74,14 +79,14 @@ const FRAME_PX = { width: 640, height: 360 } as const;
 const WORKER_SILENT_MS = 3000;
 
 /** One inference, mirrored to how the user sees themselves. */
-function toFrame(stamp: number, aspect: number, landmarks: NormalizedLandmark[][], worldLandmarks: Landmark[][], sides: string[]): FrameSample {
+function toFrame(stamp: number, aspect: number, landmarks: NormalizedLandmark[][], worldLandmarks: Landmark[][], sides: string[], ms?: number): FrameSample {
   const hands: HandSample[] = landmarks.map((lm, i) => ({
     image: lm.map((p) => ({ x: 1 - p.x, y: p.y, z: p.z })),
     world: (worldLandmarks[i] ?? []).map((p) => ({ x: -p.x, y: p.y, z: p.z })),
     // MediaPipe names hands as if the picture were mirrored; this one is not, so swap.
     side: sides[i] === 'Left' ? 'R' : 'L',
   }));
-  return { t: stamp / 1000, aspect, hands: hands.filter((h) => h.world.length === 21) };
+  return { t: stamp / 1000, aspect, hands: hands.filter((h) => h.world.length === 21), ms };
 }
 
 async function createLandmarker(): Promise<HandLandmarker> {
@@ -92,8 +97,8 @@ async function createLandmarker(): Promise<HandLandmarker> {
     runningMode: 'VIDEO' as const,
     numHands: 2,
     minHandDetectionConfidence: 0.5,
-    minHandPresenceConfidence: 0.5,
-    minTrackingConfidence: 0.5,
+    minHandPresenceConfidence: 0.4,
+    minTrackingConfidence: 0.4,
   });
   try {
     return await HandLandmarker.createFromOptions(fileset, options('GPU'));
@@ -105,7 +110,8 @@ async function createLandmarker(): Promise<HandLandmarker> {
 
 interface WorkerResult {
   type: 'result';
-  stamp: number;
+  /** When the picture was taken, ms since the epoch (the worker's clock starts elsewhere). */
+  at: number;
   width: number;
   height: number;
   landmarks: NormalizedLandmark[][];
@@ -128,8 +134,17 @@ interface WorkerDelegate {
 interface Detector {
   /** Send a frame; returns false when it was dropped because the detector is still busy. */
   detect(video: HTMLVideoElement, stamp: number): boolean;
+  /**
+   * Give the detector the camera itself, to read frames on its own. True when it now does;
+   * `lost` is called if that stops, and frames must then be sent with `detect` again.
+   */
+  stream?(video: HTMLVideoElement, lost: () => void): boolean;
   close(): void;
 }
+
+/** Chrome's reader of a camera track's frames (not in every lib.dom yet). */
+type TrackProcessor = new (init: { track: MediaStreamTrack; maxBufferSize?: number }) => { readable: ReadableStream };
+const trackProcessor = (): TrackProcessor | undefined => (globalThis as { MediaStreamTrackProcessor?: TrackProcessor }).MediaStreamTrackProcessor;
 
 /** False once this browser has refused to resize a video frame into a bitmap. */
 let resizeWorks = true;
@@ -157,6 +172,13 @@ function startWorkerDetector(onFrame: (frame: FrameSample) => void): Promise<Det
     let busySince = 0;
     let ready = false;
     let closed = false;
+    /** The copy of the camera track the worker reads, while it does. */
+    let streamed: MediaStreamTrack | null = null;
+    let onLost: (() => void) | null = null;
+    const endStream = () => {
+      streamed?.stop();
+      streamed = null;
+    };
     const detector: Detector = {
       detect(video, stamp) {
         if (closed) return false;
@@ -170,7 +192,7 @@ function startWorkerDetector(onFrame: (frame: FrameSample) => void): Promise<Det
         grab(video).then(
           (bitmap) => {
             if (closed) return bitmap.close();
-            worker.postMessage({ type: 'frame', bitmap, stamp }, [bitmap]);
+            worker.postMessage({ type: 'frame', bitmap, at: performance.timeOrigin + stamp }, [bitmap]);
           },
           () => {
             busy = false;
@@ -178,14 +200,34 @@ function startWorkerDetector(onFrame: (frame: FrameSample) => void): Promise<Det
         );
         return true;
       },
+      stream(video, lost) {
+        const Processor = trackProcessor();
+        const track = (video.srcObject as MediaStream | null)?.getVideoTracks()[0];
+        if (closed || !Processor || !track) return false;
+        // A copy, so the preview keeps playing whatever the worker does with its frames.
+        const copy = track.clone();
+        try {
+          const { readable } = new Processor({ track: copy, maxBufferSize: 1 });
+          worker.postMessage({ type: 'stream', readable }, [readable as unknown as Transferable]);
+        } catch (err) {
+          // No transferable streams here: frames go one at a time instead.
+          console.info('[hands] the camera cannot be handed to the worker; sending it frames', err);
+          copy.stop();
+          return false;
+        }
+        streamed = copy;
+        onLost = lost;
+        return true;
+      },
       close() {
         closed = true;
+        endStream();
         worker.postMessage({ type: 'close' });
         // Give it a moment to free the landmarker, then make sure it is gone.
         setTimeout(() => worker.terminate(), 500);
       },
     };
-    worker.onmessage = (e: MessageEvent<WorkerResult | WorkerDelegate | { type: 'ready'; delegate: string } | { type: 'error'; message: string }>) => {
+    worker.onmessage = (e: MessageEvent<WorkerResult | WorkerDelegate | { type: 'ready'; delegate: string } | { type: 'error' | 'stream-error'; message: string }>) => {
       const msg = e.data;
       if (msg.type === 'ready') {
         ready = true;
@@ -194,12 +236,18 @@ function startWorkerDetector(onFrame: (frame: FrameSample) => void): Promise<Det
       } else if (msg.type === 'error') {
         worker.terminate();
         reject(new Error(msg.message));
+      } else if (msg.type === 'stream-error') {
+        console.warn('[hands] the worker stopped reading the camera; sending it frames instead', msg.message);
+        endStream();
+        busy = false;
+        onLost?.();
+        onLost = null;
       } else if (msg.type === 'delegate') {
         // The graphics card was not keeping up with the camera, so the worker timed the CPU on the same frames.
         console.info(`[hands] tracking on the ${msg.delegate} (${msg.ms.toFixed(0)} ms a frame; the ${msg.was} took ${msg.wasMs.toFixed(0)} ms)`);
       } else if (msg.type === 'result') {
         busy = false;
-        if (!closed) onFrame(toFrame(msg.stamp, msg.width / Math.max(msg.height, 1), msg.landmarks, msg.worldLandmarks, msg.sides));
+        if (!closed) onFrame(toFrame(msg.at - performance.timeOrigin, msg.width / Math.max(msg.height, 1), msg.landmarks, msg.worldLandmarks, msg.sides, msg.ms));
       }
     };
     // A module worker that fails to load (old browser, missing file) only says so here.
@@ -218,8 +266,10 @@ async function startMainThreadDetector(onFrame: (frame: FrameSample) => void): P
   return {
     detect(video, stamp) {
       try {
+        const began = performance.now();
         const r = landmarker.detectForVideo(video, stamp);
-        onFrame(toFrame(stamp, video.videoWidth / Math.max(video.videoHeight, 1), r.landmarks, r.worldLandmarks, r.handedness.map((h) => h[0]?.categoryName ?? '')));
+        const ms = performance.now() - began;
+        onFrame(toFrame(stamp, video.videoWidth / Math.max(video.videoHeight, 1), r.landmarks, r.worldLandmarks, r.handedness.map((h) => h[0]?.categoryName ?? ''), ms));
       } catch (err) {
         console.warn('[hands] detection failed', err);
       }
@@ -285,10 +335,14 @@ export async function startTracking(onFrame: (frame: FrameSample) => void): Prom
   let lastFrameTime = -1;
   let lastStamp = 0;
 
+  // Where it can, the worker reads the camera itself and this thread only takes the results.
+  let streaming = detector.stream?.(video, () => (streaming = false)) ?? false;
+  if (streaming) console.info('[hands] the worker reads the camera directly');
+
   let sending = false;
   pump = () => {
     // On the main thread `detect` answers before it returns, which calls this again: once is enough.
-    if (stopped || sending) return;
+    if (stopped || sending || streaming) return;
     // One inference per camera frame, not per display frame.
     if (video.readyState < 2 || video.currentTime === lastFrameTime) return;
     sending = true;

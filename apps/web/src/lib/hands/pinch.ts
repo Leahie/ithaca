@@ -28,17 +28,25 @@ const FINGERS = [
 ] as const;
 
 export const PINCH = {
-  /** Thumb tip to index tip, in palm lengths: under this a pinch starts, over `exit` it ends. */
-  enter: 0.25,
-  exit: 0.42,
+  /**
+   * Thumb tip to index tip, in palm lengths: under this a pinch starts, over `exit` it ends. The
+   * landmarks sit at the very ends of the fingers, so tips touching pad to pad are still a fifth
+   * to a third of a palm apart: at 0.25 many real pinches were never seen.
+   */
+  enter: 0.33,
+  exit: 0.5,
   onMs: 30,
   offMs: 60,
-  /** Every fingertip this near its knuckle (palm lengths) is a fist, which is not a pinch. */
-  fist: 0.58,
+  /**
+   * An index fingertip this near its knuckle (palm lengths) is tucked into the palm: a fist, not a
+   * pinch. Only the index is asked: a pinch reaches it out to the thumb, while the other fingers
+   * often curl in. (Asking every finger made a natural pinch, with the others curled, a "fist".)
+   */
+  fist: 0.42,
   /** A pinch that starts while the hand moves faster than this (frame heights / s) is ignored. */
-  maxOnsetSpeed: 2.5,
+  maxOnsetSpeed: 4,
   /** A hand must be in view, not pinching, this long before it can pinch. */
-  armMs: 150,
+  armMs: 100,
   /** The same, after letting go: dragging the view round is a run of pinches. */
   regrabMs: 60,
   /** Thumb and index this far apart in depth (palm lengths) are not touching, whatever the picture shows. */
@@ -93,7 +101,7 @@ export class PinchTracker {
 
   /** `speed` is the hand's speed in frame heights per second. */
   update(f: HandFeatures, t: number, speed: number): boolean {
-    const fist = f.curl.every((c) => c < PINCH.fist);
+    const fist = (f.curl[0] ?? 1) < PINCH.fist;
     const reading = !fist && f.pinch < (this.pinching ? PINCH.exit : PINCH.enter);
     if (reading === this.pinching) {
       this.candidate = reading;
