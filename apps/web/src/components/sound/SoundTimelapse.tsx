@@ -35,7 +35,7 @@ const TOGGLE = 'inline-flex h-10 w-10 shrink-0 items-center justify-center round
 /**
  * A day of outside noise, heard from wherever the tour is: the room you stand in, or the
  * outside of its most exposed wall in the outside view. Time is `viewer.setTime`, shared with
- * the Sun Lab, the phone and the agent (A1).
+ * the phone and the agent (A1).
  */
 export function SoundTimelapse({ twin, active }: { twin: PropertyTwin; active: boolean }) {
   const roomId = useSession((s) => s.viewer.room_id);

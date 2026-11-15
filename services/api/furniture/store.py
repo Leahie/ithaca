@@ -1,9 +1,12 @@
-"""Storage, in-house furniture and proposals. Owner: B. Rules: docs/specs/furniture.md (F1-F11).
+"""Storage, in-house furniture and proposals. Owner: B. Rules: docs/specs/furniture.md (F1-F12).
 
 SQLite for now (data/agent/furniture.sqlite). The rules the database can hold itself are in the
 schema: once per house (F2), nothing dangles (F3), yaw range (F5), real sizes, one number per
 piece (F10). The rules that need the twin (F4, F6) are in furniture/house.py, which builds every
 in-house row this store writes.
+
+A small thing may stand on a piece of furniture, or hang on a wall above the floor (F12): its
+row names the piece it rests on and how high it is, and it moves, turns and leaves with that piece.
 
 Every change to what stands in a house is also written to that house's log (F11): which piece,
 which room, who, and how. furniture/ledger.py reads the house and the log back as the register
@@ -14,6 +17,7 @@ from __future__ import annotations
 
 import json
 import logging
+import math
 import secrets
 import sqlite3
 import threading
@@ -31,8 +35,8 @@ from services.api.integrations.config import REPO_ROOT, env, fixtures_dir
 log = logging.getLogger(__name__)
 
 # How a change to the house came about: by hand (a drag, a tap on a card), by keeping a layout
-# the designer proposed, or by a guide's own tool call.
-HAND, LAYOUT, GUIDE = "hand", "layout", "guide"
+# the designer proposed, by a guide's own tool call, or from a photo of the person's own room.
+HAND, LAYOUT, GUIDE, PHOTO = "hand", "layout", "guide", "photo"
 # A piece nudged again by the same person within this long is one move in the log, not many.
 SAME_MOVE_S = 120
 LOG_KEPT = 400  # log rows kept per house
@@ -61,6 +65,8 @@ CREATE TABLE IF NOT EXISTS in_house (
     yaw_deg       REAL NOT NULL CHECK (yaw_deg >= 0 AND yaw_deg < 360),
     placed_by     TEXT NOT NULL,
     updated_at    TEXT NOT NULL,
+    on_item_id    TEXT,
+    lift_m        REAL NOT NULL DEFAULT 0,
     PRIMARY KEY (house_user_id, property_id, item_id)
 );
 CREATE INDEX IF NOT EXISTS in_house_room ON in_house(house_user_id, property_id, room_id);
@@ -254,6 +260,7 @@ class FurnitureStore:
             owner = db.execute("SELECT owner_id FROM storage WHERE item_id = ?", (item_id,)).fetchone()
             for house_key, property_id, room_id in stood:  # while the piece can still be named
                 self._log(db, house_key, property_id, "deleted", item_id, room_id, by or (owner[0] if owner else "?"), via)
+                self._drop_riders(db, house_key, property_id, item_id, by or (owner[0] if owner else "?"), via)
             if db.execute("DELETE FROM storage WHERE item_id = ?", (item_id,)).rowcount == 0:
                 return False
             for pid, body in db.execute("SELECT proposal_id, body FROM proposals").fetchall():
@@ -304,18 +311,20 @@ class FurnitureStore:
 
     @staticmethod
     def _piece(row: tuple) -> HousePiece:
-        property_id, item_id, room_id, x, y, z, yaw, placed_by, updated_at = row
+        property_id, item_id, room_id, x, y, z, yaw, placed_by, updated_at, on_item_id, lift_m = row
         return HousePiece(item_id=item_id, property_id=property_id, room_id=room_id, position=Vec3(x=x, y=y, z=z),
-                          yaw_deg=yaw, placed_by=placed_by, updated_at=updated_at)
+                          yaw_deg=yaw, placed_by=placed_by, updated_at=updated_at, on_item_id=on_item_id, lift_m=lift_m or 0.0)
 
-    _PIECE_COLUMNS = "property_id, item_id, room_id, x, y, z, yaw_deg, placed_by, updated_at"
+    _PIECE_COLUMNS = "property_id, item_id, room_id, x, y, z, yaw_deg, placed_by, updated_at, on_item_id, lift_m"
 
     def house_pieces(self, house_user_id: str, property_id: str, room_id: str | None = None, keyed: bool = False) -> list[HousePiece]:
-        """keyed: `house_user_id` is already the house's key (what listeners are handed), not a screen's user."""
+        """What stands in a house (or one room of it): the pieces on the floor first, then what
+        rests on them or hangs on the walls, so a list drawn in order puts a lamp over its table.
+        keyed: `house_user_id` is already the house's key (what listeners are handed), not a screen's user."""
         house_user_id = house_user_id if keyed else house_key(house_user_id)
         rows = self._run(
             f"SELECT {self._PIECE_COLUMNS} FROM in_house WHERE house_user_id = ? AND property_id = ? "
-            "AND (? IS NULL OR room_id = ?) ORDER BY updated_at, rowid",
+            "AND (? IS NULL OR room_id = ?) ORDER BY (on_item_id IS NOT NULL OR lift_m > 0), updated_at, rowid",
             (house_user_id, property_id, room_id, room_id),
         )
         return [self._piece(r) for r in rows]
@@ -332,11 +341,42 @@ class FurnitureStore:
     def _upsert(db: sqlite3.Connection, house_user_id: str, piece: HousePiece) -> None:
         p = piece.position
         db.execute(
-            "INSERT INTO in_house VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT(house_user_id, property_id, item_id) DO UPDATE SET "
+            "INSERT INTO in_house (house_user_id, property_id, item_id, room_id, x, y, z, yaw_deg, placed_by, updated_at, on_item_id, lift_m) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT(house_user_id, property_id, item_id) DO UPDATE SET "
             "room_id = excluded.room_id, x = excluded.x, y = excluded.y, z = excluded.z, yaw_deg = excluded.yaw_deg, "
-            "placed_by = excluded.placed_by, updated_at = excluded.updated_at",
-            (house_user_id, piece.property_id, str(piece.item_id), piece.room_id, p.x, p.y, p.z, norm_yaw(piece.yaw_deg), piece.placed_by, piece.updated_at),
+            "placed_by = excluded.placed_by, updated_at = excluded.updated_at, on_item_id = excluded.on_item_id, lift_m = excluded.lift_m",
+            (house_user_id, piece.property_id, str(piece.item_id), piece.room_id, p.x, p.y, p.z, norm_yaw(piece.yaw_deg), piece.placed_by,
+             piece.updated_at, str(piece.on_item_id) if piece.on_item_id else None, piece.lift_m),
         )
+
+    # --- what rests on a piece (F12) --------------------------------------------------------------
+
+    @staticmethod
+    def _carry(db: sqlite3.Connection, house_user_id: str, was: tuple, now_: HousePiece) -> None:
+        """A piece moved from `was` (room_id, x, y, z, yaw_deg) to where `now_` says: everything
+        resting on it goes along, turned about it by as much as it turned."""
+        _room, ox, oy, oz, oyaw = was
+        turn = math.radians(now_.yaw_deg - oyaw)
+        cos, sin = math.cos(turn), math.sin(turn)
+        riders = db.execute(
+            "SELECT item_id, x, y, z, yaw_deg FROM in_house WHERE house_user_id = ? AND property_id = ? AND on_item_id = ?",
+            (house_user_id, now_.property_id, str(now_.item_id)),
+        ).fetchall()
+        for item_id, x, y, z, yaw in riders:
+            dx, dz = x - ox, z - oz  # a piece's front is (sin yaw, cos yaw): turning by `turn` takes (dx, dz) here
+            db.execute(
+                "UPDATE in_house SET room_id = ?, x = ?, y = ?, z = ?, yaw_deg = ?, updated_at = ? WHERE house_user_id = ? AND property_id = ? AND item_id = ?",
+                (now_.room_id, round(now_.position.x + dx * cos + dz * sin, 3), y + (now_.position.y - oy), round(now_.position.z - dx * sin + dz * cos, 3),
+                 norm_yaw(yaw + math.degrees(turn)), now_.updated_at, house_user_id, now_.property_id, item_id),
+            )
+
+    def _drop_riders(self, db: sqlite3.Connection, house_user_id: str, property_id: str, item_id: str, by: str, via: str) -> None:
+        """The piece `item_id` has left its spot for good: what rested on it goes back to storage."""
+        for rider, room_id in db.execute(
+            "SELECT item_id, room_id FROM in_house WHERE house_user_id = ? AND property_id = ? AND on_item_id = ?", (house_user_id, property_id, item_id)
+        ).fetchall():
+            db.execute("DELETE FROM in_house WHERE house_user_id = ? AND property_id = ? AND item_id = ?", (house_user_id, property_id, rider))
+            self._log(db, house_user_id, property_id, "removed", rider, room_id, by, via)
 
     def put_piece(self, house_user_id: str, piece: HousePiece, via: str = HAND) -> HousePiece:
         """Place or move one piece (F2: a piece already in the house moves, it is never doubled).
@@ -344,10 +384,16 @@ class FurnitureStore:
         house_user_id = house_key(house_user_id)
         with self._tx() as db:
             was = db.execute(
-                "SELECT 1 FROM in_house WHERE house_user_id = ? AND property_id = ? AND item_id = ?",
+                "SELECT room_id, x, y, z, yaw_deg FROM in_house WHERE house_user_id = ? AND property_id = ? AND item_id = ?",
                 (house_user_id, piece.property_id, str(piece.item_id)),
             ).fetchone()
             self._upsert(db, house_user_id, piece)
+            if was:
+                if piece.on_item_id or piece.lift_m > 0:
+                    # It now rests on something itself, or hangs on a wall: nothing can rest on it there.
+                    self._drop_riders(db, house_user_id, piece.property_id, str(piece.item_id), piece.placed_by, via)
+                else:
+                    self._carry(db, house_user_id, was, piece)
             self._log(db, house_user_id, piece.property_id, "moved" if was else "placed", str(piece.item_id), piece.room_id, piece.placed_by, via)
         self._changed([(house_user_id, piece.property_id)])
         return piece.model_copy(update={"yaw_deg": norm_yaw(piece.yaw_deg), "warnings": None})
@@ -364,8 +410,28 @@ class FurnitureStore:
                 return False
             db.execute("DELETE FROM in_house WHERE house_user_id = ? AND property_id = ? AND item_id = ?", (house_user_id, property_id, str(item_id)))
             self._log(db, house_user_id, property_id, "removed", str(item_id), was[0], by or was[1], via)
+            self._drop_riders(db, house_user_id, property_id, str(item_id), by or was[1], via)
         self._changed([(house_user_id, property_id)])
         return True
+
+    def set_room(self, house_user_id: str, property_id: str, room_id: str, pieces: list[HousePiece], by: str, via: str = PHOTO) -> None:
+        """One room becomes exactly `pieces`, in one transaction: on its floor, on those pieces and
+        on its walls. Everything else that was in the room goes back to storage. The caller has
+        built the rows (furniture/own_room.py): pieces on the floor come before what rests on them."""
+        house_user_id = house_key(house_user_id)
+        coming = {str(p.item_id) for p in pieces}
+        with self._tx() as db:
+            before = dict(db.execute("SELECT item_id, room_id FROM in_house WHERE house_user_id = ? AND property_id = ?", (house_user_id, property_id)).fetchall())
+            for item_id, was_in in before.items():
+                if was_in == room_id and item_id not in coming:
+                    db.execute("DELETE FROM in_house WHERE house_user_id = ? AND property_id = ? AND item_id = ?", (house_user_id, property_id, item_id))
+                    self._log(db, house_user_id, property_id, "removed", item_id, room_id, by, via)
+            for piece in pieces:
+                if str(piece.item_id) in before:  # it stood elsewhere in the house: what rested on it there stays behind, in storage
+                    self._drop_riders(db, house_user_id, property_id, str(piece.item_id), by, via)
+                self._upsert(db, house_user_id, piece)
+                self._log(db, house_user_id, property_id, "moved" if str(piece.item_id) in before else "placed", str(piece.item_id), piece.room_id, by, via)
+        self._changed([(house_user_id, property_id)])
 
     # --- proposals ------------------------------------------------------------------------------
 
@@ -407,17 +473,27 @@ class FurnitureStore:
         chosen = layout.model_copy(update={"status": "chosen"})
         who = by or (pieces[0].placed_by if pieces else layout.user_id)
         with self._tx() as db:
-            before = dict(db.execute("SELECT item_id, room_id FROM in_house WHERE house_user_id = ? AND property_id = ?", (house_user_id, layout.property_id)).fetchall())
+            rows = db.execute(
+                "SELECT item_id, room_id, x, y, z, yaw_deg, on_item_id, lift_m FROM in_house WHERE house_user_id = ? AND property_id = ?",
+                (house_user_id, layout.property_id),
+            ).fetchall()
+            before = {r[0]: r[1] for r in rows}
+            on_floor = {r[0]: (r[1], r[2], r[3], r[4], r[5]) for r in rows if r[6] is None and not r[7]}
+            staying = {str(p.item_id) for p in pieces}
+            # The proposal arranges what stands on the floor (F8). What rests on a piece goes with
+            # it, and what hangs on a wall stays where it hangs (F12).
             db.execute(
-                "DELETE FROM in_house WHERE house_user_id = ? AND property_id = ? AND room_id = ?",
+                "DELETE FROM in_house WHERE house_user_id = ? AND property_id = ? AND room_id = ? AND on_item_id IS NULL AND lift_m = 0",
                 (house_user_id, layout.property_id, layout.room_id),
             )
             for piece in pieces:
                 self._upsert(db, house_user_id, piece)
-            staying = {str(p.item_id) for p in pieces}
-            for item_id, room_id in before.items():  # what the layout sent back to storage
+                if str(piece.item_id) in on_floor:
+                    self._carry(db, house_user_id, on_floor[str(piece.item_id)], piece)
+            for item_id, (room_id, *_pose) in on_floor.items():  # what the layout sent back to storage
                 if room_id == layout.room_id and item_id not in staying:
                     self._log(db, house_user_id, layout.property_id, "removed", item_id, room_id, who, LAYOUT)
+                    self._drop_riders(db, house_user_id, layout.property_id, item_id, who, LAYOUT)
             for piece in pieces:
                 self._log(db, house_user_id, layout.property_id, "moved" if str(piece.item_id) in before else "placed", str(piece.item_id), piece.room_id, who, LAYOUT)
             for pid, body in db.execute(
@@ -440,6 +516,12 @@ class FurnitureStore:
     def _migrate(self) -> None:
         """Once, from the tables before docs/specs/furniture.md: items go to storage, layouts
         become proposals, and each room's chosen layout is written into the house."""
+        # F12: a database from before pieces could rest on one another gets the two columns.
+        columns = {row[1] for row in self._run("PRAGMA table_info(in_house)")}
+        if "on_item_id" not in columns:
+            self._run("ALTER TABLE in_house ADD COLUMN on_item_id TEXT")
+        if "lift_m" not in columns:
+            self._run("ALTER TABLE in_house ADD COLUMN lift_m REAL NOT NULL DEFAULT 0")
         # F10: a database from before pieces had numbers gets the column, and every piece a number.
         if "tag" not in {row[1] for row in self._run("PRAGMA table_info(storage)")}:
             self._run("ALTER TABLE storage ADD COLUMN tag TEXT")

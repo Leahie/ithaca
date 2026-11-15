@@ -24,9 +24,9 @@ function VariantCard({ layout, index, twin, items, selected }: { layout: LayoutV
   // its room; keeping it makes its pieces the room's furniture.
   const kept = layout.status === 'chosen';
   const trying = selected && layout.status === 'proposed';
-  const see = (mode: 'tour' | 'sun') => {
+  const see = () => {
     dispatch('viewer.goto', { room_id: layout.room_id });
-    dispatch('viewer.setMode', { mode });
+    dispatch('viewer.setMode', { mode: 'tour' });
   };
 
   const sendFeedback = async () => {
@@ -104,8 +104,7 @@ function VariantCard({ layout, index, twin, items, selected }: { layout: LayoutV
           )}
           {(trying || kept) && (
             <>
-              <Button onClick={() => see('tour')}>Tour</Button>
-              <Button onClick={() => see('sun')}>Sun Lab</Button>
+              <Button onClick={see}>See it in the house</Button>
             </>
           )}
           {trying && (
@@ -138,7 +137,7 @@ function VariantCard({ layout, index, twin, items, selected }: { layout: LayoutV
   );
 }
 
-/** Design: layout variants as cards. Trying one draws it in the Tour and the Sun Lab; keeping it furnishes the room. */
+/** Design: layout variants as cards. Trying one draws it in the Tour; keeping it furnishes the room. */
 export function DesignTab({ twin }: { twin: PropertyTwin }) {
   const roomId = useSession((s) => s.viewer.room_id);
   const shown = useSession((s) => s.viewer.shown_layout_ids);

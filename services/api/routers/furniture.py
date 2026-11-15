@@ -11,13 +11,18 @@ from fastapi import APIRouter, Body, Header, HTTPException, Request, Response
 from fastapi.responses import PlainTextResponse
 from pydantic import BaseModel
 
+import mimetypes
+
 from packages.schema.inventory import InventoryItem
 from packages.schema.layout import HousePiece, LayoutVariant, PlacePiece
-from packages.schema.session import LayoutFeedbackRequest
+from packages.schema.session import JobRef, LayoutFeedbackRequest, RoomFromPhotoRequest
 from services.api.agent import memory_files
-from services.api.furniture import house, ledger
+from services.api.furniture import house, ledger, own_room
 from services.api.furniture.house import FurnitureError
 from services.api.furniture.store import furniture_store, house_key
+from services.api.objects import pipeline, video
+from services.api.runner_hooks import own_room_ready
+from services.api.twin.service import TwinNotFound, get_twin
 
 router = APIRouter(tags=["furniture"])
 
@@ -93,6 +98,52 @@ def house_register(property_id: str, x_user_id: str = Header("demo")) -> dict:
         return ledger.register(x_user_id, property_id)
     except KeyError as e:
         raise HTTPException(404, f"no such property: {e}") from e
+
+
+@router.post("/properties/{property_id}/furniture/from-photo")
+def furnish_from_photo(
+    property_id: str, body: RoomFromPhotoRequest, request: Request, x_user_id: str = Header("demo"), x_person_id: str | None = Header(None)
+) -> JobRef:
+    """Set a room of this house up with the person's own room, from one photo of it. Everything
+    of theirs in the photo (furniture, lamps, plants, rugs, pictures, things standing on the
+    furniture) is cut out with SAM 3 and rebuilt in 3D with SAM 3D Objects, becomes their
+    furniture, and is put in the room: on the floor where it fits this room, on the piece it
+    stood on, on the wall it hung on. What stood in the room before goes back to storage.
+    Returns at once; follow `job.progress` (about two minutes)."""
+    from services.api.routers.objects import find_upload
+
+    person = x_person_id or x_user_id  # the photo and the new pieces are the person's; the house is the screen's
+    try:
+        twin = get_twin(property_id)
+    except TwinNotFound as e:
+        raise HTTPException(404, str(e)) from e
+    if house.room_by_id(twin, body.room_id) is None:
+        raise HTTPException(404, "no such room")
+    path = find_upload(person, body.upload_id)
+    if path is None:
+        raise HTTPException(404, "no such upload")
+    if path.suffix in video.VIDEO_SUFFIXES:
+        raise HTTPException(422, "a room is set up from a photo, not a video")
+    store, memory = furniture_store(), request.app.state.memory_store
+    providers = request.app.state.object_providers or pipeline.default_providers()
+    mime = mimetypes.guess_type(path.name)[0] or "image/jpeg"
+
+    def work(progress):
+        scene = pipeline.ingest_room_photo(path.read_bytes(), mime, person, store, providers, progress)
+        memory_files.sync_inventory(memory, person, store.list_items(person))
+        if not scene.things:
+            raise RuntimeError("nothing of yours could be made from this photo" + (": " + "; ".join(scene.skipped) if scene.skipped else ""))
+        progress(88, "Setting up the room with them")
+        return own_room.furnish(x_user_id, property_id, body.room_id, scene, person)
+
+    job_id = request.app.state.jobs.submit(
+        "room_photo",
+        x_user_id,  # every screen of this house hears how far it is
+        work,
+        on_done=lambda outcome: own_room_ready(request.app.state.bridge, x_user_id, person, outcome.summary()),
+        result_ref=lambda outcome: ",".join(str(i.item_id) for i in outcome.placed) or None,
+    )
+    return JobRef(job_id=job_id)
 
 
 # --- proposals ----------------------------------------------------------------------------------

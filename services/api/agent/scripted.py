@@ -101,8 +101,8 @@ def stream_turn_scripted(text: str, context: AgentContext, thread_id: str) -> It
 
     if "december" in said:
         when = datetime(datetime.now().year, 12, 21, 8, 0, tzinfo=ZoneInfo(twin.timezone)).isoformat()
-        yield ("action", "viewer_set_mode", {"mode": "sun"})
-        yield ("ui", {"type": "viewer.setMode", "payload": {"mode": "sun"}})
+        yield ("action", "viewer_set_mode", {"mode": "tour"})
+        yield ("ui", {"type": "viewer.setMode", "payload": {"mode": "tour"}})
         yield ("action", "viewer_set_time", {"datetime_iso": when})
         yield ("ui", {"type": "viewer.setTime", "payload": {"datetime": when}})
         yield from _say("Here is the house at 8 in the morning on December 21, the shortest day of the year.")

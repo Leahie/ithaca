@@ -288,6 +288,10 @@ export function createFixtureApi(): ApiClient {
       if (!job) throw new ApiError('no such job', 404);
       return job;
     },
+    async furnishFromPhoto() {
+      // Cutting things out of a photo and rebuilding them in 3D needs the API and its model services.
+      throw new ApiError('Setting a room up from a photo needs the API (fixture mode has none).', 503, true);
+    },
     async ingestObject(uploadId) {
       const job_id = `fx-job-${uuid().slice(0, 8)}`;
       const base = { job_id, kind: 'object.ingest' };

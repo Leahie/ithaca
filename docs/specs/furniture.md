@@ -56,6 +56,8 @@ CREATE TABLE in_house (
     yaw_deg       REAL NOT NULL CHECK (yaw_deg >= 0 AND yaw_deg < 360),
     placed_by     TEXT NOT NULL,           -- the person who put it there last
     updated_at    TEXT NOT NULL,
+    on_item_id    TEXT,                    -- the piece it rests on, if it stands on one (F12)
+    lift_m        REAL NOT NULL DEFAULT 0, -- how far above the floor its underside is (F12); y includes it
     PRIMARY KEY (house_user_id, property_id, item_id)
 );
 
@@ -80,7 +82,7 @@ CREATE TABLE house_log (
     label       TEXT NOT NULL,
     room_id     TEXT,
     by          TEXT NOT NULL,             -- the person
-    via         TEXT NOT NULL              -- hand | layout (a kept proposal) | guide (an agent's tool call)
+    via         TEXT NOT NULL              -- hand | layout (a kept proposal) | guide (an agent's tool call) | photo (a room set up from a photo)
 );
 ```
 
@@ -128,6 +130,53 @@ the `tag` column, and every piece in it a number, the first time it is opened.
   piece leaving its rooms), adds a `house_log` line in the same transaction. Nudging one piece
   again within two minutes updates its last line rather than adding one. After the transaction
   the house's register is written again (next section).
+
+- **F12. Small things rest on furniture, or hang on a wall.** An `in_house` row may name the
+  piece it stands on (`on_item_id`) and how far above the floor its underside is (`lift_m`: the
+  height of that piece, or how high it hangs on a wall with no piece under it). `position.y` is
+  the floor height plus `lift_m`, so every view draws it at the right height with no extra work.
+  - Put down by hand on the top of a piece that can carry it, a thing rests on that piece
+    (`house.can_rest_on`: a lamp, a plant, a decoration, on a piece with a top at least 25 cm
+    high and no smaller than the thing). Put down on bare floor, it stands on the floor again.
+  - A thing goes where its piece goes: moving or turning the piece carries it, turned about the
+    piece by as much; a kept proposal that moves the piece carries it too.
+  - It leaves with its piece: when the piece is taken out, deleted, or dropped by a kept
+    proposal, what rested on it goes back to storage.
+  - It takes up no floor: the solver, the warnings of F9 and the "where could it go?" options
+    do not see it. A thing hung on a wall keeps its height when it is slid along by hand, and a
+    kept proposal leaves it where it hangs (F8 arranges the floor).
+
+## From a photo of your own room
+
+`POST /properties/{pid}/furniture/from-photo` (`{upload_id, room_id}`) sets a room of the house
+up with a room the person lives in now, from one photo of it. It is a job (`job.progress`, kind
+`room_photo`, with a `note` saying what it is doing), about two minutes:
+
+1. **Read** (`objects/providers/vision.py`, `OWN_ROOM_PROMPT`): the vision model lists up to 14
+   things of theirs: furniture, lamps, plants, rugs, mirrors, pictures, things standing on the
+   furniture. Each with a box, two or three words that single it out, whether it hangs on a wall,
+   and which piece it stood on or beside.
+2. **Cut out** (SAM 3): by those words; when the words find nothing, by the box.
+3. **Rebuild** (SAM 3D Objects): every thing at once, side by side. The service works through
+   them a few at a time; after 130 s the room is set up with what is ready. Each answer carries
+   the model and where it says the object is in the photo (rotation, translation, scale).
+4. **Size** (`objects/pipeline.py`): the photo's sizes are off by one factor for the whole photo,
+   found from the furniture of known size in it, so a lamp is the right size next to its desk.
+   Furniture that still comes out unbelievable for its kind gets the typical size.
+5. **How it stood**: from the placing of the objects in the photo, which way is up is what most
+   of them agree on; a thing stood on the piece whose top it was over, at a place measured along
+   that piece's own front and right; a thing on the wall hung nearest some piece, at some height.
+   Where the photo's placing cannot be trusted, what the reading said is used.
+6. **Set up the room** (`furniture/own_room.py`): the floor pieces by the layout solver, with a
+   designer's usual wishes (the bed on a solid wall, the nightstand beside it, the chair at the
+   desk) and the pairings from the photo; the small things on their pieces, where they stood
+   (F12); the hung things on the wall behind the piece they hung nearest, clear of doors and
+   windows. The room becomes exactly that: what stood there goes back to storage. Pieces the
+   room has no place for stay in storage, and the outcome says which.
+
+The new pieces are the person's (`X-Person-Id`); the house is the screen's (`X-User-Id`). When it
+is done every screen of the house draws the furniture again, and that person's guide is told
+what came in (`own_room_ready`) and says so in a sentence.
 
 ## The register
 
@@ -181,6 +230,7 @@ In the house, as the house user (`X-User-Id` = house user):
 | `GET /properties/{pid}/furniture[?room_id=]` | The house's pieces (`HousePiece[]`). |
 | `PUT /properties/{pid}/furniture/{item_id}` | Place or move one piece (`PlacePiece`: `x`, `z`, optional `yaw_deg`, `floor_id`, `room_id`, `snap`). Returns the `HousePiece` with `warnings`. |
 | `DELETE /properties/{pid}/furniture/{item_id}` | Take it out of the house (F7). 204, or 404 if it isn't there. |
+| `POST /properties/{pid}/furniture/from-photo` | Set a room up with the person's own room, from one photo (`{upload_id, room_id}`). A job. See "From a photo of your own room". |
 | `GET /properties/{pid}/furniture/register` | The register: rooms, pieces with their numbers and places in words, storage, last changes (F10, F11). |
 
 Proposals, as the house user:

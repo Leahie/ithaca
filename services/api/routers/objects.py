@@ -44,7 +44,8 @@ async def upload(file: UploadFile, x_user_id: str = Header("demo")) -> UploadRes
     return UploadResult(upload_id=upload_id, url=url)
 
 
-def _find_upload(user_id: str, upload_id: str) -> Path | None:
+def find_upload(user_id: str, upload_id: str) -> Path | None:
+    """A person's uploaded file by its id, or None."""
     folder = files.root() / "uploads" / user_id
     return next(iter(folder.glob(f"{upload_id}__*")), None) if folder.is_dir() and upload_id.isalnum() else None
 
@@ -54,7 +55,7 @@ def ingest(body: ObjectIngestRequest, request: Request, x_user_id: str = Header(
     """Turn an uploaded image, or a video of a room, into inventory items. Returns at once;
     follow `job.progress`. With `at` (a spot tapped on the image) only the thing there is built,
     and the job fails with the reason if it can't be."""
-    path = _find_upload(x_user_id, body.upload_id)
+    path = find_upload(x_user_id, body.upload_id)
     if path is None:
         raise HTTPException(404, "no such upload")
     if body.at and path.suffix in video.VIDEO_SUFFIXES:

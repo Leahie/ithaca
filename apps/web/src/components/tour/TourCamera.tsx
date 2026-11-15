@@ -138,7 +138,7 @@ export function TourCamera({
   lidRef.current = onLid;
 
   const outsideView = useMemo(() => {
-    // From the south-west and above, as the Sun Lab's outside view.
+    // From the south-west and above.
     const toCamera = new Vector3(-0.9, 1.25, 1.15).normalize();
     const forward = toCamera.clone().negate();
     return { center, distance: radius * 1.95, yaw: Math.atan2(-forward.x, -forward.z), pitch: Math.asin(forward.y) };

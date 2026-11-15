@@ -626,6 +626,18 @@
           "title": "Kind",
           "type": "string"
         },
+        "note": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Note"
+        },
         "pct": {
           "title": "Pct",
           "type": "number"
@@ -1144,7 +1156,6 @@
         "mode": {
           "enum": [
             "tour",
-            "sun",
             "sound",
             "neighborhood",
             "design"
@@ -1182,7 +1193,6 @@
         "mode": {
           "enum": [
             "tour",
-            "sun",
             "sound",
             "neighborhood",
             "design"

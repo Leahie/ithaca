@@ -13,7 +13,7 @@ import { sunPosition } from '@/lib/sun/position';
 import { floorGeometry, wallGeometry } from '@/lib/three/roomShell';
 
 /**
- * The house as every 3D view draws it (the Tour, the Sun Lab, layout pictures): the house rebuilt
+ * The house as every 3D view draws it (the Tour, layout pictures): the house rebuilt
  * from the floor plan with its baked light (lib/house, ported from 3d_rendering_matterport), the
  * sun of the moment with one shadow map over the house, its lot and the block around it, and
  * furniture lit the same way. A twin without a rebuilt house shows its rooms drawn from their

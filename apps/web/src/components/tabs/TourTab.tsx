@@ -769,7 +769,7 @@ export function TourTab({ twin, active, soundBar = true }: { twin: PropertyTwin;
   }, []);
   const onShellsReady = useCallback(() => setReady(true), []);
 
-  // Resolution follows the frame rate, as in the Sun Lab.
+  // Resolution follows the frame rate: from 1 up to the screen's own pixel ratio (at most 2), in quarter steps.
   const [dprFactor, setDprFactor] = useState(0.5);
   const maxDpr = typeof window === 'undefined' ? 1 : Math.min(2, Math.max(1, window.devicePixelRatio || 1));
   const dpr = 1 + (maxDpr - 1) * dprFactor;

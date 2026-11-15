@@ -3,7 +3,7 @@
  * startup (I-G21). The Showcase SDK key is the only secret the frontend holds (I-G22).
  */
 /** Parts of the app. Every one is on unless NEXT_PUBLIC_FEATURES names a smaller set. */
-export const FEATURES = ['tour', 'sun', 'sound', 'neighborhood', 'design', 'agent', 'phone', 'me', 'hands', 'family'] as const;
+export const FEATURES = ['tour', 'sound', 'neighborhood', 'design', 'agent', 'phone', 'me', 'hands', 'family'] as const;
 export type Feature = (typeof FEATURES)[number];
 
 function parseFeatures(raw: string | undefined): ReadonlySet<Feature> {
@@ -11,13 +11,13 @@ function parseFeatures(raw: string | undefined): ReadonlySet<Feature> {
   if (wanted.includes('all')) return new Set(FEATURES);
   const set = new Set(FEATURES.filter((f) => wanted.includes(f)));
   // At least one view must exist.
-  if (!(['tour', 'sun', 'sound', 'neighborhood', 'design'] as const).some((v) => set.has(v))) set.add('tour');
+  if (!(['tour', 'sound', 'neighborhood', 'design'] as const).some((v) => set.has(v))) set.add('tour');
   return set;
 }
 
 export const config = {
   /**
-   * What the house page shows: any of tour, sun, sound, neighborhood, design (views), agent
+   * What the house page shows: any of tour, sound, neighborhood, design (views), agent
    * (chat dock), phone (pairing), me (link to /me), hands (drag and zoom the view with your hands,
    * through the webcam), family (one QR code for the whole family: each phone gets its own agent);
    * or "all". Default: "all", the whole app. A shorter list cuts it down (a kiosk, a demo of one view).

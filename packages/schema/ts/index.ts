@@ -19,7 +19,7 @@ export type EventSource = (typeof EVENT_SOURCES)[number];
 export const CLIENT_KINDS = ["desktop", "phone"] as const;
 export type ClientKind = (typeof CLIENT_KINDS)[number];
 
-export const VIEWER_MODES = ["tour", "sun", "sound", "neighborhood", "design"] as const;
+export const VIEWER_MODES = ["tour", "sound", "neighborhood", "design"] as const;
 export type ViewerMode = (typeof VIEWER_MODES)[number];
 
 export const JOB_STATUSES = ["queued", "running", "done", "failed"] as const;
@@ -325,6 +325,8 @@ export interface HousePiece {
   yaw_deg: number;
   placed_by: string;
   updated_at: string;
+  on_item_id?: string | null;
+  lift_m?: number;
   warnings?: string[] | null;
 }
 
@@ -377,6 +379,7 @@ export interface JobProgressPayload {
   pct: number;
   status: "queued" | "running" | "done" | "failed";
   result_ref?: string | null;
+  note?: string | null;
 }
 
 export interface JobRef {
@@ -663,6 +666,16 @@ export interface RoomDaylight {
   grid?: LuxGrid | null;
 }
 
+/**
+ * Body of POST /properties/{property_id}/furniture/from-photo: furnish a room of this house
+ * with everything in a photo of the person's own room (their furniture, belongings and
+ * decorations, each cut out and rebuilt in 3D).
+ */
+export interface RoomFromPhotoRequest {
+  upload_id: string;
+  room_id: string;
+}
+
 export interface Session {
   session_id: string;
   pair_token: string;
@@ -911,7 +924,7 @@ export interface ViewerPlaybackPayload {
 }
 
 export interface ViewerSetModePayload {
-  mode: "tour" | "sun" | "sound" | "neighborhood" | "design";
+  mode: "tour" | "sound" | "neighborhood" | "design";
 }
 
 export interface ViewerSetTimePayload {
@@ -923,7 +936,7 @@ export interface ViewerSetTimePayload {
  * and sends it on join (B9).
  */
 export interface ViewerState {
-  mode: "tour" | "sun" | "sound" | "neighborhood" | "design";
+  mode: "tour" | "sound" | "neighborhood" | "design";
   room_id?: string | null;
   datetime: string;
   sound_scenario?: SoundSetScenarioPayload | null;

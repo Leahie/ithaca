@@ -9,7 +9,7 @@ log at the bottom whenever a decision changes.
 | Surface | Where | Look |
 | --- | --- | --- |
 | **Paper** | Pages and chrome that are not over the house: top bar, room rail, Me page, the phone remote | `bg-surface` / `bg-raised`, evergreen text (`text-text`), `border-line` |
-| **Glass** | Anything floating over the 3D tour or the Sun Lab: pills, badges, popovers, panels, the floor plan, the sound bar | Dark translucent black with blur, white text |
+| **Glass** | Anything floating over the 3D tour: pills, badges, popovers, panels, the floor plan, the sound bar | Dark translucent black with blur, white text |
 
 If it sits on top of the house, it is glass. A white card over the house is a bug.
 
@@ -83,7 +83,7 @@ Errors on glass use `text-coral`, not `text-danger` (too dark to read).
 - While the phone is on its furniture screen, the big screen shows the room as a small glass plan in the bottom-left corner (`ArrangeMinimap`): the furniture in `white/25`, the piece in hand in leaf, and a leaf cone for where the camera stands and looks. It is drawn the same way up as the phone's plan.
 - A piece dragged on the phone moves live in the 3D view and on the small plan before it is saved (`furniture.drag`).
 - The selected piece in the 3D view is tinted clearly blue (`SELECTED` in `components/house3d/House3D.tsx`: colours 45% of the way to blue; 10% was too faint to see). No pulsing or scaling: it was distracting.
-- The tour and the Sun Lab draw the house rebuilt from the floor plan, which has none of the seller's furniture: only the family's own pieces stand in it.
+- The tour draws the house rebuilt from the floor plan, which has none of the seller's furniture: only the family's own pieces stand in it.
 - The phone's furniture screen reads top to bottom: the island (Add / In room / Suggest, or the piece's tools, or the layout options) with any sheet dropping below it, then the plan, then a bottom row with the compass and cube on the left and the look stick on the right. The plan keeps a fixed gap the height of the plain island; taller islands float over its top edge so the plan never jumps mid-drag. No loose hint text floats over the plan.
 - The room name in the phone's top bar (with a small map icon) is a button: it opens the Rooms map, and picking a room returns to the screen you came from.
 - The phone's cube button (beside the compass) switches the big screen to the room from above (`furniture.overview`); it is a round toggle, leaf when on. Only then does the big screen look down on the selected piece and follow it.
@@ -109,3 +109,5 @@ Errors on glass use `text-coral`, not `text-danger` (too dark to read).
 - 2026-11-14: Add furniture gets a third tab (people: the family's) and a Manage mode for deleting pieces for good. The big screen gets a small glass plan while arranging, live dragging, a from-above toggle and two-finger look-around from the phone.
 - 2026-11-14: The catalog grew to nine looks. Its grid is grouped by look with section headings; the search box matches looks and set names. No style chips, by the filtering rule above.
 - 2026-11-14: When the guide asks the user to choose (a room, a look, a piece, a layout), the options come up on the phone as a modal of picture cards over whatever screen it is on (`GuidePopup`): paper panel, dimmed backdrop, rises into place. A room is drawn as its plan, a furniture set as four of its pieces. The same cards show in the chat on the big screen and in the phone's Guide screen. A piece's own number (`#4821`) is shown in grey monospace beside its name wherever pieces are listed.
+- 2026-11-14: The Sun Lab page is gone. The Tour already draws the house under the sun of the moment; the time bar under it, the phone and the guide set the moment.
+- 2026-11-14: "My room from a photo" is a paper card with two steps (take or pick the photo; look at it and say yes), because it replaces what stands in the room. On the phone it is the first thing under the backpack tab of Add furniture; on the big screen it is at the top of Arrange, Add furniture. Its progress stays in view after the Add window is closed.

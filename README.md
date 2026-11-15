@@ -10,6 +10,9 @@ their family, find out what living there would be like:
 - **Hear it**: the highway, the street, birds and frogs by hour and season; windows open or
   closed, carpet or not; a TV placed in one room, heard from another.
 - **Know the neighbourhood**: the listing next to comparable homes, and what is nearby.
+- **Bring your own room**: one photo of the bedroom you live in now, and everything of yours in
+  it (the furniture, the lamps, the plants, the pictures on the wall) is cut out, rebuilt in 3D and
+  set up in a bedroom of this house: the lamp on its desk, the picture on a wall.
 - **Move your furniture in**: photograph a piece and it is rebuilt in 3D at its real size, or
   furnish a room from a catalog of 160 pieces in matching sets and nine looks (farmhouse,
   industrial, coastal, glam…); arrange rooms by hand (mouse, phone, or your hands in front of the
@@ -53,7 +56,7 @@ Keys in `.env` (each is optional; a missing key turns that part down, never the 
 |---|---|
 | `ANTHROPIC_API_KEY` (or `OPENROUTER_API_KEY`) | The guide is a scripted stand-in |
 | `DEEPGRAM_API_KEY` | Speech uses the browser's own voice and recognition |
-| `FAL_KEY` | A photo becomes a ready-made catalog model of that kind of piece, not a 3D model of yours |
+| `FAL_KEY` | A photo becomes a ready-made catalog model of that kind of piece, not a 3D model of yours; a room photo gives stand-ins the same way |
 | `MATTERPORT_*`, `VEXCEL_API_KEY` | The committed twin is used as it is; no re-ingestion, no scan photos |
 
 Offline, with no API at all: set `NEXT_PUBLIC_USE_FIXTURES=1` in `apps/web/.env.local` and run

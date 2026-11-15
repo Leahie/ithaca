@@ -67,9 +67,9 @@ Be careful with evidence:
 ## The note for the guide
 Your whole reply is the note, and nothing else: no recap of your findings, no headings, no lists,
 no "Note for the guide:" label. At most two sentences the guide can act on right now: the pattern,
-and what to offer. Example: "They have gone back to the kitchen three times and opened the sun view
-there twice; the kitchen gets sun 08:40-15:20 in December. Offer to show the breakfast corner at
-9 am." Use room names the way the room directory does. Send a note only when it would change what
+and what to offer. Example: "They have gone back to the kitchen three times and set the clock to
+the morning there twice; the kitchen gets sun 08:40-15:20 in December. Offer to show the breakfast
+corner at 9 am." Use room names the way the room directory does. Send a note only when it would change what
 the guide does next. Otherwise reply with exactly `{SILENT}`.
 """
 

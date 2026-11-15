@@ -43,6 +43,40 @@ class RoomReading(BaseModel):
     pieces: list[FramePiece] = Field(description="Each distinct piece once, most prominent first. At most 8.")
 
 
+class RoomThing(BaseModel):
+    """One thing in a photo of someone's own room: a piece of furniture, or a belonging or
+    decoration that stands on one, hangs on the wall, or stands on the floor. Only the fields a
+    room photo needs: the model writes one of these per thing, and every field it writes is time."""
+
+    label: str = Field(description='Short name a person would use, e.g. "White desk".')
+    item_class: str = Field(description=f"One of: {', '.join(FURNITURE_CLASSES)}.")
+    segment_prompt: str = Field(description='Two or three plain words that pick it out in the photo, e.g. "white desk".')
+    box: list[float] = Field(description="Rough box around the whole thing, as fractions of the image width and height: [left, top, right, bottom], each from 0 to 1.")
+    rests_on: int | None = Field(None, description="If it stands or lies on a piece of furniture in this list (a lamp on a desk, a plant on a dresser): that piece's number, counting from 0. Empty for things on the floor or on the wall.")
+    on_wall: bool = Field(False, description="True if it is fixed to a wall: a picture, a mirror, a wall lamp, a shelf, a clock.")
+    beside: int | None = Field(None, description="For a piece on the floor that goes with another (a nightstand beside the bed, a chair at the desk, a lamp by the armchair): that piece's number.")
+
+    def piece(self) -> Piece:
+        """The same thing as the rest of the pipeline knows a piece."""
+        return Piece(label=self.label, item_class=self.item_class, segment_prompt=self.segment_prompt, box=self.box)
+
+
+class RoomPhotoReading(BaseModel):
+    room: str = Field(description="What kind of room this is, in a word or two: bedroom, living room, office.")
+    things: list[RoomThing] = Field(description="Furniture first, largest first, then the smaller things. Each thing once. At most 14.")
+
+
+@dataclass
+class PhotoPose:
+    """Where the 3D model says an object is in the photo, in the camera's own frame (SAM 3D
+    Objects). Only comparisons between objects of one photo are made from it: which way is up,
+    what stands on what, how far apart, how they are turned to each other (pipeline.py)."""
+
+    rotation: tuple[float, float, float, float]  # quaternion (w, x, y, z), camera frame to the object's own
+    translation: tuple[float, float, float]  # the object's middle
+    scale: float  # of the unit-sized model, in the photo's own (roughly metric) units
+
+
 @dataclass
 class Segment:
     mask_png: bytes  # white = the piece, black = everything else, same size as the image
@@ -53,6 +87,7 @@ class Segment:
 class Model3D:
     glb: bytes  # glTF binary of the piece, any scale and position
     size_m: tuple[float, float, float] | None = None  # (w, d, h) in meters, when the model estimates the real size
+    pose: PhotoPose | None = None  # where it is in the photo, when the model says
 
 
 MIN_OVERLAP = 0.1  # a detection must overlap the hint box at least this much (intersection over union)
@@ -125,10 +160,23 @@ class RoomDescriber(Protocol):
         ...
 
 
+class RoomPhotoDescriber(Protocol):
+    def read_room(self, image: bytes, mime_type: str) -> RoomPhotoReading:
+        """Everything of the person's in one photo of their room, with what stands on what."""
+        ...
+
+
 class Segmenter(Protocol):
     def segment(self, image: bytes, mime_type: str, prompt: str, near: list[float] | None = None, at: tuple[float, float] | None = None) -> Segment | None:
         """Cut out the thing `prompt` names. `near` is Piece.box: where it roughly is, if known.
         `at` is a spot the user tapped on it (fractions of the image): the cut-out must cover it."""
+        ...
+
+
+class BoxSegmenter(Protocol):
+    def segment_box(self, image: bytes, mime_type: str, box: list[float]) -> Segment | None:
+        """Cut out whatever fills `box` ([left, top, right, bottom] as fractions of the image):
+        for a thing no words find (a woven stool, a small wall lamp)."""
         ...
 
 

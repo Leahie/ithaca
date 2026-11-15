@@ -106,7 +106,7 @@ export async function scriptedAgentTurn(text: string, emit: Emit, ctx: ScriptedA
       twin.timezone,
     );
     const iso = toZonedIso(when, twin.timezone);
-    setMode('sun', 'the Sun Lab');
+    setMode('tour', 'the Tour');
     if (room) goto(room);
     emit('agent.action', { tool: 'viewer_set_time', summary: `Set the time to ${iso.slice(0, 16).replace('T', ' ')}` });
     emit('viewer.setTime', { datetime: iso });
@@ -117,7 +117,7 @@ export async function scriptedAgentTurn(text: string, emit: Emit, ctx: ScriptedA
       const caveat = twin.quality.alignment === 'gps_only' ? ' The compass alignment of this twin is GPS only, so treat the direction as approximate.' : '';
       return say(hours === undefined ? `Here is ${nameOf(room)} at that time.` : `${nameOf(room)} gets about ${hours} hours of direct sun on ${date}.${caveat}`);
     }
-    return say('Here is the house at that time. Scrub the slider to watch the light move through the day.');
+    return say('Here is the house at that time. Press play on the bar below to watch the light move through the day.');
   }
 
   if (/neighbou?rhood|area|nearby|comps?|school|grocery|park/.test(t)) {
@@ -128,7 +128,7 @@ export async function scriptedAgentTurn(text: string, emit: Emit, ctx: ScriptedA
   }
 
   if (room) {
-    setMode(ctx.viewer().mode === 'sun' ? 'sun' : 'tour', 'the Tour');
+    setMode('tour', 'the Tour');
     goto(room);
     return say(`This is ${nameOf(room)}.`);
   }

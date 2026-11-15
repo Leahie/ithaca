@@ -90,7 +90,7 @@ class TourLog:
         if skipped:
             lines.append("Not visited yet: " + "; ".join(skipped))
         if self.sun_times:
-            lines.append("Times of day they looked at in the sun view: " + ", ".join(self.sun_times))
+            lines.append("Times of day they set the house to, to see the light: " + ", ".join(self.sun_times))
         if self.said:
             lines.append("What the user said, oldest first:")
             lines += [f'- "{q}"' for q in self.said]

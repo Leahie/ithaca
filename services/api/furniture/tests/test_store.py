@@ -32,14 +32,14 @@ def _raw(db: FurnitureStore, sql: str, args: tuple) -> None:
 
 def test_the_database_refuses_what_breaks_the_rules(db):
     sofa = str(db.list_items("alice")[0].item_id)
-    row = ("alice", PROPERTY, sofa, "r1", 0.0, 0.0, 0.0, 10.0, "alice", "t")
-    _raw(db, "INSERT INTO in_house VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", row)
+    row = ("alice", PROPERTY, sofa, "r1", 0.0, 0.0, 0.0, 10.0, "alice", "t", None, 0.0)  # the last two: on no piece, on the floor (F12)
+    _raw(db, "INSERT INTO in_house VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", row)
     with pytest.raises(sqlite3.IntegrityError):  # F2: once per house
-        _raw(db, "INSERT INTO in_house VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", row[:3] + ("r2",) + row[4:])
+        _raw(db, "INSERT INTO in_house VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", row[:3] + ("r2",) + row[4:])
     with pytest.raises(sqlite3.IntegrityError):  # F3: no row for a piece that isn't stored
-        _raw(db, "INSERT INTO in_house VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", ("alice", PROPERTY, str(uuid.uuid4())) + row[3:])
+        _raw(db, "INSERT INTO in_house VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", ("alice", PROPERTY, str(uuid.uuid4())) + row[3:])
     with pytest.raises(sqlite3.IntegrityError):  # F5
-        _raw(db, "INSERT INTO in_house VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", ("bob",) + row[1:7] + (360.0,) + row[8:])
+        _raw(db, "INSERT INTO in_house VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", ("bob",) + row[1:7] + (360.0,) + row[8:])
     with pytest.raises(sqlite3.IntegrityError):  # real sizes
         _raw(db, "INSERT INTO storage VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", (str(uuid.uuid4()), "alice", "x", "x", 0.0, 1.0, 1.0, "{}", "t", None))
 

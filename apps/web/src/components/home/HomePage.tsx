@@ -24,7 +24,7 @@ const OFFERS: { on: boolean; icon: typeof IconTour; title: string; text: string 
     text: 'Every room at eye height, rebuilt from the scan and the floor plan. Walk with the keyboard, click where you want to stand, or step outside and look at the house from the street.',
   },
   {
-    on: has('sun'),
+    on: has('tour'),
     icon: IconSun,
     title: 'Watch the sun move',
     text: 'Pick any day of the year and any hour. See where the light falls in each room, with the neighbours’ houses and trees casting their real shadows.',

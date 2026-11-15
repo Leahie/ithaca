@@ -49,7 +49,7 @@ def test_hub_delivers_in_order_to_everyone_and_sends_state_on_join():
         hub = Hub()
         sid = hub.create_session("demo", PROPERTY).session_id
         desktop = hub.connect(sid, "desktop")
-        hub.publish(make_event(sid, "desktop", "viewer.setMode", {"mode": "sun"}))
+        hub.publish(make_event(sid, "desktop", "viewer.setMode", {"mode": "sound"}))
         hub.publish(make_event(sid, "desktop", "viewer.goto", {"room_id": "r1"}))
         # the sender gets its own events back, in order (B9)
         assert drain(desktop) == [
@@ -59,7 +59,7 @@ def test_hub_delivers_in_order_to_everyone_and_sends_state_on_join():
         # a late joiner gets the latest state first, not the history
         phone = hub.connect(sid, "phone")
         first = phone.queue.get_nowait()
-        assert first.type == "session.state" and first.payload["mode"] == "sun" and first.payload["room_id"] == "r1"
+        assert first.type == "session.state" and first.payload["mode"] == "sound" and first.payload["room_id"] == "r1"
         assert drain(phone) == [("session.joined", "server"), ("session.joined", "server")]  # desktop, then itself
 
     asyncio.run(scenario())

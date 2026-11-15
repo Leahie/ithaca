@@ -8,14 +8,37 @@ and 30 s a piece. The TRELLIS 2 branch has not been run.
 from __future__ import annotations
 
 import functools
+import hashlib
 import io
+import threading
+import time
 
 import httpx
 import trimesh
 from PIL import Image
 
 from services.api.integrations.config import IntegrationNotConfigured, env
-from services.api.objects.providers.base import Model3D, Piece, Segment, covers, cut_out, pick
+from services.api.objects.providers.base import Model3D, PhotoPose, Piece, Segment, covers, cut_out, pick
+
+# A room photo is sent once per thing in it, to two services: the same bytes are uploaded once.
+_uploaded: dict[str, tuple[float, str]] = {}
+_uploads = threading.Lock()
+UPLOAD_KEPT_S = 600
+
+
+def _upload(fal, data: bytes, mime_type: str) -> str:
+    """fal's address for these bytes, uploading them only if they were not sent in the last minutes."""
+    key = hashlib.sha1(data).hexdigest()
+    with _uploads:
+        hit = _uploaded.get(key)
+        if hit and time.monotonic() - hit[0] < UPLOAD_KEPT_S:
+            return hit[1]
+    url = fal.upload(data, mime_type)
+    with _uploads:
+        _uploaded[key] = (time.monotonic(), url)
+        while len(_uploaded) > 32:
+            _uploaded.pop(next(iter(_uploaded)))
+    return url
 
 
 def _client():
@@ -58,7 +81,7 @@ class FalSegmenter:
     @_explain_auth
     def segment(self, image: bytes, mime_type: str, prompt: str, near: list[float] | None = None, at: tuple[float, float] | None = None) -> Segment | None:
         fal = _client()
-        image_url = fal.upload(image, mime_type)
+        image_url = _upload(fal, image, mime_type)
         result = fal.subscribe(
             "fal-ai/sam-3/image",
             arguments={
@@ -84,6 +107,23 @@ class FalSegmenter:
         if best is None:
             return None
         return cut_out(image, Image.open(io.BytesIO(_download(masks[best]["url"]))))
+
+    @_explain_auth
+    def segment_box(self, image: bytes, mime_type: str, box: list[float]) -> Segment | None:
+        """Whatever fills the box, with no words: SAM 3 takes a box in pixels as a prompt of its own."""
+        fal = _client()
+        width, height = Image.open(io.BytesIO(image)).size
+        result = fal.subscribe(
+            "fal-ai/sam-3/image",
+            arguments={
+                "image_url": _upload(fal, image, mime_type),
+                "box_prompts": [{"x_min": round(box[0] * width), "y_min": round(box[1] * height), "x_max": round(box[2] * width), "y_max": round(box[3] * height)}],
+                "apply_mask": False,
+                "output_format": "png",
+            },
+        )
+        found = result.get("masks") or []
+        return cut_out(image, Image.open(io.BytesIO(_download(found[0]["url"])))) if found else None
 
     def _tapped(self, fal, image: bytes, image_url: str, prompt: str, masks: list[dict], scores: list[float], at: tuple[float, float]) -> Segment | None:
         order = sorted(range(len(masks)), key=lambda n: -scores[n]) if len(scores) == len(masks) else range(len(masks))
@@ -126,13 +166,29 @@ class FalImageTo3D:
             mime_type = Image.open(io.BytesIO(image)).get_format_mimetype() or "image/jpeg"
             result = fal.subscribe(
                 "fal-ai/sam-3/3d-objects",
-                arguments={"image_url": fal.upload(image, mime_type), "mask_urls": [fal.upload(segment.mask_png, "image/png")], "export_textured_glb": True},
+                arguments={"image_url": _upload(fal, image, mime_type), "mask_urls": [fal.upload(segment.mask_png, "image/png")], "export_textured_glb": True},
             )
         file = result.get("model_glb")
         if not file:
             raise RuntimeError("the 3D model service returned no GLB file")
         glb = _download(file["url"])
-        return Model3D(glb, _real_size(glb, result.get("metadata")))
+        return Model3D(glb, _real_size(glb, result.get("metadata")), _photo_pose(result.get("metadata")))
+
+
+def _photo_pose(metadata: list[dict] | None) -> PhotoPose | None:
+    """Where SAM 3D Objects places the object in the photo: per object it returns `rotation` (a
+    quaternion, w first), `translation` and `scale`, each wrapped in a one-row list. None when
+    the model gives none (TRELLIS) or the numbers are not what is expected."""
+    try:
+        m = metadata[0]
+        rotation = tuple(float(v) for v in m["rotation"][0])
+        translation = tuple(float(v) for v in m["translation"][0])
+        scale = float(m["scale"][0][0])
+    except Exception:
+        return None
+    if len(rotation) != 4 or len(translation) != 3 or not 1e-4 < scale < 100:
+        return None
+    return PhotoPose(rotation, translation, scale)  # type: ignore[arg-type]
 
 
 def _real_size(glb: bytes, metadata: list[dict] | None) -> tuple[float, float, float] | None:

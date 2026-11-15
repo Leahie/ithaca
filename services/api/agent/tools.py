@@ -362,16 +362,17 @@ def viewer_walk(from_room_id: str, to_room_id: str, runtime: Runtime) -> str:
 
 
 @tool
-def viewer_set_mode(mode: Literal["tour", "sun", "sound", "neighborhood", "design"], runtime: Runtime) -> str:
-    """Switch the user's screen: tour (photo walkthrough), sun (light and shadows), sound (noise),
-    neighborhood (map and comps), design (furniture layouts)."""
+def viewer_set_mode(mode: Literal["tour", "sound", "neighborhood", "design"], runtime: Runtime) -> str:
+    """Switch the user's screen: tour (the walk through the house, with its sun and shadows),
+    sound (noise), neighborhood (map and comps), design (furniture layouts)."""
     _emit(runtime, "viewer.setMode", {"mode": mode})
     return f"The user's screen now shows the {mode} view."
 
 
 @tool
 def viewer_set_time(datetime_iso: str, runtime: Runtime) -> str:
-    """Set the date and time of day shown in the sun view.
+    """Set the date and time of day the house is shown at: the sun, the shadows and the light in
+    the rooms on the tour follow it.
 
     datetime_iso: ISO 8601 in the property's local time, with its UTC offset,
     e.g. 2026-12-21T08:00:00-06:00.
@@ -383,7 +384,7 @@ def viewer_set_time(datetime_iso: str, runtime: Runtime) -> str:
     if dt.tzinfo is None:
         return "Error: the datetime needs a UTC offset, e.g. 2026-12-21T08:00:00-06:00."
     _emit(runtime, "viewer.setTime", {"datetime": dt.isoformat()})
-    return f"The sun view now shows {dt.strftime('%B %d, %H:%M')} local time."
+    return f"The house is now shown at {dt.strftime('%B %d, %H:%M')} local time, with the sun where it stands then."
 
 
 @tool

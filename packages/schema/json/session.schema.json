@@ -201,7 +201,6 @@
         "mode": {
           "enum": [
             "tour",
-            "sun",
             "sound",
             "neighborhood",
             "design"

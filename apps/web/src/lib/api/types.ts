@@ -75,6 +75,11 @@ export interface ApiClient {
   getJob(jobId: string): Promise<JobProgressPayload>;
   /** at: the spot tapped on the photo (fractions of its size); only the thing there becomes a piece. */
   ingestObject(uploadId: string, at?: PhotoPoint): Promise<JobRef>;
+  /**
+   * A photo of the person's own room: everything of theirs in it is rebuilt in 3D and set up in
+   * that room of the house (what stood there goes back to storage). A job: follow its progress.
+   */
+  furnishFromPhoto(propertyId: string, uploadId: string, roomId: string): Promise<JobRef>;
   // Furniture: docs/specs/furniture.md.
   /** Storage: the family's pieces (each with its owner). */
   listInventory(): Promise<InventoryItem[]>;

@@ -23,14 +23,18 @@ interface PendingJob {
   job_id: string;
   filename: string;
   started: number;
+  /** A whole room from one photo: the server puts every piece in the house itself. */
+  room?: boolean;
 }
 
 /**
  * Upload an image -> object pipeline job -> a new inventory item. Shared by /me, the phone and the
  * Arrange panel. `at`: the spot tapped on the photo, so only that thing is built. `onItem` gets the
- * first new item of each job that finishes (to put it in the room).
+ * first new item of each job that finishes (to put it in the room). `uploadRoom` sends a photo of
+ * the person's own room instead: everything in it is built and set up in a room of the house, and
+ * `onRoom` is called when that is done.
  */
-export function useObjectUpload(onItem?: (itemId: string) => void) {
+export function useObjectUpload(onItem?: (itemId: string) => void, onRoom?: () => void) {
   const jobs = useSession((s) => s.jobs);
   const dispatch = useSession((s) => s.dispatch);
   const [pending, setPending] = useState<PendingJob[]>([]);
@@ -39,6 +43,8 @@ export function useObjectUpload(onItem?: (itemId: string) => void) {
   const handled = useRef(new Set<string>());
   const latest = useRef(onItem);
   latest.current = onItem;
+  const latestRoom = useRef(onRoom);
+  latestRoom.current = onRoom;
 
   const upload = async (file: File, at?: PhotoPoint, label?: string) => {
     setError(null);
@@ -51,6 +57,24 @@ export function useObjectUpload(onItem?: (itemId: string) => void) {
       return true;
     } catch (err) {
       setError(err instanceof ApiError && err.notConfigured ? `The object pipeline is not configured: ${err.message}` : err instanceof Error ? err.message : String(err));
+      return false;
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  /** A photo of the person's own room: rebuild everything in it and set it up in `roomId` of the house. */
+  const uploadRoom = async (file: File, propertyId: string, roomId: string, label = 'Your room, from the photo') => {
+    setError(null);
+    setBusy(true);
+    try {
+      const up = await api().upload(file, file.name || 'room.jpg');
+      const job = await api().furnishFromPhoto(propertyId, up.upload_id, roomId);
+      dispatch('capture.upload', { upload_id: up.upload_id });
+      setPending((p) => [...p, { job_id: job.job_id, filename: label, started: Date.now(), room: true }]);
+      return true;
+    } catch (err) {
+      setError(err instanceof ApiError && err.notConfigured ? `This needs the object pipeline, which is not configured: ${err.message}` : err instanceof Error ? err.message : String(err));
       return false;
     } finally {
       setBusy(false);
@@ -78,8 +102,16 @@ export function useObjectUpload(onItem?: (itemId: string) => void) {
   useEffect(() => {
     for (const p of pending) {
       const progress = progressOf(p.job_id);
-      const itemId = progress?.status === 'done' ? progress.result_ref?.split(',')[0] : undefined;
-      if (!itemId || handled.current.has(p.job_id)) continue;
+      if (progress?.status !== 'done' || handled.current.has(p.job_id)) continue;
+      if (p.room) {
+        // The server has already put every piece in the room: only the screens need to draw it.
+        handled.current.add(p.job_id);
+        invalidate('inventory');
+        latestRoom.current?.();
+        continue;
+      }
+      const itemId = progress.result_ref?.split(',')[0];
+      if (!itemId) continue;
       handled.current.add(p.job_id);
       invalidate('inventory');
       latest.current?.(itemId);
@@ -89,7 +121,7 @@ export function useObjectUpload(onItem?: (itemId: string) => void) {
 
   const rows = pending.map((p) => ({ ...p, progress: progressOf(p.job_id) }));
   const dismiss = (jobId: string) => setPending((p) => p.filter((j) => j.job_id !== jobId));
-  return { upload, busy, error, rows, dismiss };
+  return { upload, uploadRoom, busy, error, rows, dismiss };
 }
 
 export function JobRows({ rows, dismiss }: Pick<ReturnType<typeof useObjectUpload>, 'rows' | 'dismiss'>) {
@@ -104,7 +136,7 @@ export function JobRows({ rows, dismiss }: Pick<ReturnType<typeof useObjectUploa
             <div className="flex items-center justify-between gap-3">
               <span className="min-w-0 truncate">{r.filename}</span>
               <span className="flex shrink-0 items-center gap-2">
-                <Badge tone={status === 'done' ? 'leaf' : status === 'failed' ? 'danger' : 'sun'}>{status === 'done' ? 'added to inventory' : status === 'failed' ? 'failed' : `${status} ${Math.round(pct)}%`}</Badge>
+                <Badge tone={status === 'done' ? 'leaf' : status === 'failed' ? 'danger' : 'sun'}>{status === 'done' ? (r.room ? 'in the room' : 'added to inventory') : status === 'failed' ? 'failed' : `${status} ${Math.round(pct)}%`}</Badge>
                 {(status === 'done' || status === 'failed') && (
                   <button type="button" onClick={() => dismiss(r.job_id)} className="text-xs text-faint hover:text-text">
                     dismiss
@@ -118,10 +150,16 @@ export function JobRows({ rows, dismiss }: Pick<ReturnType<typeof useObjectUploa
             {status === 'failed' && (
               <p className="mt-1.5 text-xs text-danger">
                 {r.progress?.result_ref ? `It could not be made: ${r.progress.result_ref}.` : 'The pipeline could not turn this image into a correctly scaled 3D model.'}
-                {!r.progress?.result_ref?.includes('not configured') && ' Try a clearer photo, or a product page that lists dimensions.'}
+                {!r.progress?.result_ref?.includes('not configured') && (r.room ? ' Try a photo that shows more of the room, in good light.' : ' Try a clearer photo, or a product page that lists dimensions.')}
               </p>
             )}
-            {status === 'running' && <p className="mt-1.5 text-xs text-muted">Cutting it out with SAM and building the 3D model. This takes about half a minute.</p>}
+            {status === 'running' && (
+              <p className="mt-1.5 text-xs text-muted">
+                {r.room
+                  ? `${r.progress?.note ?? 'Cutting your things out and rebuilding them in 3D'}. A whole room takes about two minutes.`
+                  : 'Cutting it out with SAM and building the 3D model. This takes about half a minute.'}
+              </p>
+            )}
           </li>
         );
       })}

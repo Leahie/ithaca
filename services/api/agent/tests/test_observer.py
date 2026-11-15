@@ -23,14 +23,14 @@ KITCHEN, BEDROOM = "xy2x8mpaaqknp7q2c3nnbw1ma", "peina19mpqedsku6a3huu38md"
 def test_tour_log_adds_up_time_per_room():
     log = TourLog(started=0)
     log.enter_room(KITCHEN, by_user=True, now=0)
-    log.set_view("sun")
+    log.set_view("sound")
     log.enter_room(BEDROOM, by_user=False, now=90)  # the guide led this one
     log.enter_room(KITCHEN, by_user=True, now=100)
     log.heard("is it bright in the morning?")
     text = log.summary(get_twin(PROPERTY), now=130)  # 30 s into the visit still in progress
 
     kitchen_line = next(line for line in text.splitlines() if KITCHEN in line)
-    assert "2 visits" in kitchen_line and "2m00s" in kitchen_line and "sun" in kitchen_line
+    assert "2 visits" in kitchen_line and "2m00s" in kitchen_line and "sound" in kitchen_line
     assert "1 led by the guide" in next(line for line in text.splitlines() if BEDROOM in line)
     assert log.user_moves == 2 and "is it bright in the morning?" in text
 

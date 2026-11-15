@@ -47,6 +47,12 @@ class HousePiece(Model):
     # The person who put it there last.
     placed_by: str
     updated_at: str
+    # F12. A small thing standing on a piece of furniture (a lamp on a desk): that piece. It moves,
+    # turns and leaves the room with it. None for everything standing on the floor or hung on a wall.
+    on_item_id: UUID | None = None
+    # How far above the room's floor its underside is: the height of the piece it rests on, or how
+    # high it hangs on the wall. 0 on the floor. position.y already includes it.
+    lift_m: float = 0.0
     # Only in the reply to a move: things a designer would flag (a blocked door, an overlap).
     # The move was saved anyway. Never stored (F9).
     warnings: list[str] | None = None

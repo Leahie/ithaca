@@ -1,8 +1,9 @@
 """The furniture rules that need the house's plan or the family (docs/specs/furniture.md).
 
 Every in-house row is built here: the room comes from the coordinates (F4), only the family's
-pieces go in (F6), hand moves come back with warnings (F9), and applying a proposal replaces its
-room in one go (F8). Routes and agent tools call these; FurnitureError carries the HTTP status.
+pieces go in (F6), hand moves come back with warnings (F9), applying a proposal replaces its
+room in one go (F8), and a small thing put down on a piece of furniture rests on it (F12).
+Routes and agent tools call these; FurnitureError carries the HTTP status.
 """
 
 from __future__ import annotations
@@ -17,6 +18,7 @@ from packages.schema.layout import HousePiece, LayoutVariant, Placement, PlacePi
 from packages.schema.twin import PropertyTwin, Room, Vec3
 from services.api.agent import views
 from services.api.furniture.store import HAND, furniture_store, norm_yaw, now
+from services.api.objects.classes import MIN_TOP_M, NO_TOP, RESTS_ON_FURNITURE
 from services.api.realtime.households import households
 from services.api.sim import layout_solver
 from services.api.twin.service import get_twin
@@ -88,23 +90,54 @@ def _solver_item(item: InventoryItem) -> layout_solver.Item:
 
 
 def _room_state(house_user_id: str, property_id: str, room_id: str, without: str | None = None):
-    """The solver's view of the pieces standing in a room now."""
+    """The solver's view of the pieces standing in a room now: the ones on its floor. What rests
+    on a piece or hangs on a wall takes up no floor (F12)."""
     items, poses = [], {}
     for p in furniture_store().house_pieces(house_user_id, property_id, room_id):
         key = str(p.item_id)
         item = furniture_store().get_item(key)
-        if key != without and item is not None:
+        if key != without and item is not None and not p.on_item_id and not p.lift_m:
             items.append(_solver_item(item))
             poses[key] = layout_solver.Pose(p.position.x, p.position.z, p.yaw_deg)
     return items, poses
 
 
-def _piece(twin: PropertyTwin, property_id: str, item_id: str, room: Room, x: float, z: float, yaw: float, by: str) -> HousePiece:
+def _piece(
+    twin: PropertyTwin, property_id: str, item_id: str, room: Room, x: float, z: float, yaw: float, by: str,
+    on_item_id: str | None = None, lift_m: float = 0.0,
+) -> HousePiece:
+    """A row for the house. `lift_m` is how far above the floor the piece's underside is (F12)."""
     return HousePiece(
         item_id=item_id, property_id=property_id, room_id=room.room_id,
-        position=Vec3(x=round(x, 3), y=views.floor_height(twin, room.room_id), z=round(z, 3)),
-        yaw_deg=norm_yaw(yaw), placed_by=by, updated_at=now(),
+        position=Vec3(x=round(x, 3), y=round(views.floor_height(twin, room.room_id) + lift_m, 3), z=round(z, 3)),
+        yaw_deg=norm_yaw(yaw), placed_by=by, updated_at=now(), on_item_id=on_item_id, lift_m=round(lift_m, 3),
     )
+
+
+# --- resting on a piece (F12) ---------------------------------------------------------------------
+
+
+def can_rest_on(item: InventoryItem, support: InventoryItem) -> bool:
+    """Whether `item` is the kind of thing that stands on `support`: a lamp on a desk, not a desk
+    on a lamp. The thing must be small next to the piece under it."""
+    if item.item_class not in RESTS_ON_FURNITURE or support.item_class in NO_TOP or support.dims_m.h < MIN_TOP_M:
+        return False
+    # A plant's leaves may reach past the edge of the nightstand it stands on; a wardrobe on a stool may not.
+    return item.dims_m.w * item.dims_m.d <= support.dims_m.w * support.dims_m.d and max(item.dims_m.w, item.dims_m.d) <= 1.15 * max(support.dims_m.w, support.dims_m.d)
+
+
+def support_at(house_user_id: str, property_id: str, room_id: str, item: InventoryItem, x: float, z: float) -> tuple[HousePiece, InventoryItem] | None:
+    """The piece standing on the floor of a room whose top holds the spot (x, z) and can carry
+    `item`: the smallest such, if tops overlap."""
+    found = []
+    for p in furniture_store().house_pieces(house_user_id, property_id, room_id):
+        under = furniture_store().get_item(str(p.item_id))
+        if under is None or p.on_item_id or p.lift_m or str(p.item_id) == str(item.item_id) or not can_rest_on(item, under):
+            continue
+        top = layout_solver.footprint(_solver_item(under), layout_solver.Pose(p.position.x, p.position.z, p.yaw_deg))
+        if top.contains(Point(x, z)):
+            found.append((top.area, p, under))
+    return min(found, key=lambda f: f[0])[1:] if found else None
 
 
 # --- in the house -------------------------------------------------------------------------------
@@ -132,7 +165,24 @@ def place(house_user_id: str, property_id: str, item_id: str, body: PlacePiece, 
         if len({r.floor_id for r in under}) > 1:
             names = ", ".join(sorted(f"{r.label} ({r.floor_id})" for r in under))
             raise FurnitureError(409, {"error": "which_floor", "violations": [f"That spot is in rooms on more than one floor: {names}. Say which floor."]})
+
     key = str(item.item_id)
+
+    # F12. Put down on a piece of furniture, a small thing rests on it: no floor rules apply.
+    spot_room = room_at(twin, body.x, body.z, floor) or hint
+    resting_on = support_at(house_user_id, property_id, spot_room.room_id, item, body.x, body.z) if spot_room is not None else None
+    if resting_on is not None:
+        support, support_item = resting_on
+        yaw = body.yaw_deg if body.yaw_deg is not None else (current.yaw_deg if current else support.yaw_deg)
+        resting = _piece(twin, property_id, key, room_by_id(twin, support.room_id) or spot_room, body.x, body.z, yaw, by, str(support.item_id), support_item.dims_m.h)
+        return store.put_piece(house_user_id, resting, via)
+    # Hanging on a wall, a thing keeps its height when it is slid along by hand.
+    if current is not None and current.lift_m > 0 and not current.on_item_id and not body.snap:
+        room = room_at(twin, body.x, body.z, floor)
+        if room is None:
+            raise FurnitureError(409, {"error": "outside_room", "violations": [f"{item.label} has to stay inside a room"]})
+        yaw = body.yaw_deg if body.yaw_deg is not None else current.yaw_deg
+        return store.put_piece(house_user_id, _piece(twin, property_id, key, room, body.x, body.z, yaw, by, None, current.lift_m), via)
 
     if body.snap:
         room = room_at(twin, body.x, body.z, floor)
@@ -236,7 +286,8 @@ def options(house_user_id: str, property_id: str, room_id: str, item_id: str) ->
 
     floor = views.floor_height(twin, room_id)
     kept = [Placement(item_id=p.item_id, position=p.position, yaw_deg=p.yaw_deg)
-            for p in furniture_store().house_pieces(house_user_id, property_id, room_id) if str(p.item_id) != key]
+            for p in furniture_store().house_pieces(house_user_id, property_id, room_id)
+            if str(p.item_id) != key and not p.on_item_id and not p.lift_m]  # F12: what rests on a piece stays with it
     out = []
     for n, pose in enumerate(picked):
         option = LayoutVariant(

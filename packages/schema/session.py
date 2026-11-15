@@ -8,7 +8,7 @@ from typing import Literal
 from .common import Model
 from .reports import NoiseScenario
 
-ViewerMode = Literal["tour", "sun", "sound", "neighborhood", "design"]
+ViewerMode = Literal["tour", "sound", "neighborhood", "design"]
 ClientKind = Literal["desktop", "phone"]
 
 
@@ -149,6 +149,15 @@ class ObjectIngestRequest(Model):
     # Additive to v0. The spot the user tapped on the photo: only the thing there becomes a piece.
     # Without it, up to 4 pieces are read from the image.
     at: PhotoPoint | None = None
+
+
+class RoomFromPhotoRequest(Model):
+    """Body of POST /properties/{property_id}/furniture/from-photo: furnish a room of this house
+    with everything in a photo of the person's own room (their furniture, belongings and
+    decorations, each cut out and rebuilt in 3D)."""
+
+    upload_id: str  # the photo, from POST /uploads
+    room_id: str  # the room of this house to furnish with it
 
 
 class JobRef(Model):

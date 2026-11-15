@@ -6,7 +6,7 @@ Next.js app for [PLAN.md](../../PLAN.md) sections 7 and 8, built to the contract
 | Route | What it is |
 |---|---|
 | `/` | Front page: what Ithaca is, the home that is open for a visit (from its twin and listing), and the way in |
-| `/house/[id]` | The home: Tour, Sun Lab, Sound, Neighborhood, Design, the guide's chat dock, family phones, hand control |
+| `/house/[id]` | The home: Tour (with its sun and shadows), Sound, Neighborhood, Design, the guide's chat dock, family phones, hand control |
 | `/join/[token]` | A family member's phone: scan the family code, type a name, get a remote and a guide of your own |
 | `/remote/[session]` | Phone controller for one phone (QR pairing) |
 | `/me` | Furniture inventory, memory files, per-home decision history |
@@ -46,7 +46,7 @@ Pairs with a session on the real hub and sends any v0 event.
 
 ```sh
 pnpm --filter @ithaca/web mock-phone new
-pnpm --filter @ithaca/web mock-phone --session <id> --token <pair_token> send viewer.setMode '{"mode":"sun"}'
+pnpm --filter @ithaca/web mock-phone --session <id> --token <pair_token> send viewer.setMode '{"mode":"sound"}'
 pnpm --filter @ithaca/web mock-phone --session <id> --token <pair_token> listen
 pnpm --filter @ithaca/web mock-phone --session <id> --token <pair_token> repl
 ```
@@ -62,7 +62,7 @@ Options: `--api http://localhost:8000`, `--ws`, `--user`, `--client phone|deskto
 | A2 phone is a pure controller | The phone uses the same store and rebuilds from `session.state`. The desktop persists `layout.select`. |
 | A3 show numbers, do not compute them | Sun hours, dBA and RT60 are read from reports. The one computed value is the sun direction (`src/lib/sun/position.ts`), held within 0.5° of `fixtures/sun/reference.json` by `position.test.ts` (worst case today: 0.05°). |
 | A4 audio from `NoiseReport` only | `src/lib/audio/auralizer.ts`: gain from `laeq_dba`, band filters from `bands_db`, impulse response from `rt60_s`. The free values are named in `AURALIZATION`. |
-| A5 frame-free placement | `Placement.position` and `yaw_deg` are used as stored in the Tour, the Sun Lab, the plan preview and the render page. |
+| A5 frame-free placement | `Placement.position` and `yaw_deg` are used as stored in the Tour, the plan preview and the render page. |
 | A6 every tab works offline | `src/lib/api/fixture.ts`, `src/lib/realtime/local.ts`, the `/fixtures/[...path]` route. |
 | A7 one typed client | `src/lib/api/types.ts` (`ApiClient`), with HTTP and fixture implementations. Types come from `@ithaca/schema`. Unknown events are logged and dropped in `store/session.ts`. |
 | A8 streaming agent output | Tokens, action chips and errors: `components/house/AgentDock.tsx`. |
@@ -108,11 +108,9 @@ What C asked A for (handoff section 6):
    for a room, the Tour falls back to the nearest Showcase sweep.
 2. **The meshopt GLB loads** with drei's `useGLTF` and no extra setup (about 15 s under software
    WebGL in CI). `fixtures.test.ts` checks that it lies in the interior frame around the rooms.
-   The materials have `baseColorFactor` 0.4, which darkens the photo textures; the Sun Lab
-   ignores the factor on textured materials.
-3. **Annotation UI** starts from the detected openings, lets the user add and delete, and saves
-   the full `Opening[]` with `PUT /openings`. New openings have ids `ann-<uuid>` and a provisional
-   `facade_azimuth_deg` (outward normal through `interior_to_world`).
+   The materials have `baseColorFactor` 0.4, which darkens the photo textures.
+3. **Annotation UI**: gone with the Sun Lab page, which held it. The API still takes a full
+   `Opening[]` with `PUT /openings`.
 
 How the web app uses the twin:
 
@@ -121,7 +119,7 @@ How the web app uses the twin:
 - **Repeated room labels.** `src/lib/rooms.ts` names rooms for display: a label used once stays
   ("Office"); a repeated one is numbered from the ground floor up and from the largest room down
   ("Bedroom 1" .. "Bedroom 6"). The room list also shows the area. Everything keys on `room_id`.
-- **The Sun Lab draws the rebuilt house** (`assets.house`, a `house.json` with `house.glb`, the
+- **The Tour draws the rebuilt house** (`assets.house`, a `house.json` with `house.glb`, the
   `light_*.png` lightmaps and `context.glb`/`context.jpg` beside it), made by the
   `3d_rendering_matterport` project's `pnpm house all` and copied into
   `fixtures/blobs/<pid>/house/`. The renderer is ported from that project (`src/lib/house/`):
@@ -131,7 +129,7 @@ How the web app uses the twin:
   not the twin's `interior_to_world`, which carries Matterport's heading (6.5 degrees off).
   Furniture is lit the same way and casts shadows. `interior_glb` and `context_glb` are no
   longer drawn there.
-- **No rebuilt house** (`house: null`): the Sun Lab draws rooms from their outlines on a plain
+- **No rebuilt house** (`house: null`): the Tour draws rooms from their outlines on a plain
   ground, and the sun's shadow map lets light through the twin's openings.
 - **Sun direction** uses suncalc 2.x, whose azimuth is already in degrees clockwise from north.
   The recipe in the handoff is for suncalc 1.x (radians, from south). `position.test.ts` holds
@@ -140,8 +138,9 @@ How the web app uses the twin:
 - **Light through openings.** The rebuilt house has real holes and glass. For rooms drawn from
   their outlines, windows, sliders and glazed doors let sun in: the shadow pass skips the walls
   inside each such opening (`src/lib/house/sun.ts`). A plain door blocks light.
-- **Sun report shape.** The Sun Lab asks for a whole calendar year per room and reads
-  `heatmap.hours[row][col]` with rows along +z and columns along +x from `origin_xz`.
+- **Sun report shape.** A sun report covers a date range per room; `heatmap.hours[row][col]` has
+  rows along +z and columns along +x from `origin_xz`. No view draws it since the Sun Lab page
+  was removed; the guide reads the reports through its tools.
 
 Still open for C:
 
@@ -161,7 +160,6 @@ one view):
 | Value | Part |
 |---|---|
 | `tour` | The Tour (walk through the rebuilt house) and the room list |
-| `sun` | The Sun Lab: the house rebuilt from the floor plan under the moving sun |
 | `sound` | The Sound view, and the sound and time bar in the Tour |
 | `neighborhood`, `design` | That view, as a tab |
 | `agent` | The guide: the chat dock, and its voice |
@@ -171,7 +169,7 @@ one view):
 | `family` | One QR code for a whole family; each phone gets its own agent |
 | `all` (default) | Everything |
 
-Example: `NEXT_PUBLIC_FEATURES=tour,sun,agent`.
+Example: `NEXT_PUBLIC_FEATURES=tour,sound,agent`.
 
 How the parts share one screen (`src/components/house/HouseExperience.tsx`, `src/lib/store/guide.ts`):
 
@@ -222,8 +220,6 @@ HTTPS; typed chat works over plain HTTP.
 The **Hands** button turns on the webcam and follows the user's hands with MediaPipe, in the
 browser (`src/lib/hands/`, after HoloTouch). Nothing leaves the machine.
 
-- In the Sun Lab, pinch thumb and index and move the hand to orbit, as with a mouse; pinch with
-  both hands and pull them apart to zoom in, together to zoom out.
 - In the Tour, hands arrange furniture (the phone moves the camera): see
   `docs/testing/hands-furniture.md`.
 
@@ -234,8 +230,9 @@ fingers close; a small camera picture in the corner shows what is tracked. The w
 
 ## The Tour: indoors and outdoors
 
-The Tour walks through the same rebuilt house the Sun Lab shows (`src/components/house3d/`), with
-its baked light and the sun of the session's moment (the phone's time scrubber moves it here too).
+The Tour walks through the rebuilt house (`src/components/house3d/`), with its baked light and the
+sun of the session's moment: the time bar under the view, the phone's time scrubber and the guide
+all move it. There is no separate sun page.
 It replaced the Matterport Showcase viewer: no SDK key, and furniture is drawn by our own renderer.
 The camera (`src/components/tour/TourCamera.tsx`, walking ported from 3d_rendering_matterport):
 

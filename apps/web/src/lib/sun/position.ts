@@ -27,3 +27,7 @@ export function sunTimes(instant: Date, lat: number, lon: number): { sunrise: Da
   const t = getTimes(instant, lat, lon);
   return { sunrise: t.sunrise, sunset: t.sunset, solarNoon: t.solarNoon };
 }
+
+const COMPASS = ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'];
+/** An azimuth (degrees clockwise from north) as one of eight compass points. */
+export const compassWord = (az: number) => COMPASS[Math.round(az / 45) % 8]!;

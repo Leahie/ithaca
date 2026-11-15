@@ -31,7 +31,25 @@ TYPICAL_SIZE_M: dict[str, tuple[float, float, float]] = {
     "floor_lamp": (0.40, 0.40, 1.60),
     "plant": (0.50, 0.50, 1.20),
     "rug": (2.40, 1.70, 0.02),
+    # Belongings and decorations, from a photo of someone's own room (objects/pipeline.py,
+    # ingest_room_photo). They stand on furniture or hang on a wall more often than on the floor.
+    "table_lamp": (0.30, 0.30, 0.50),
+    "mirror": (0.60, 0.05, 1.20),
+    "wall_art": (0.60, 0.04, 0.45),
+    "decor": (0.25, 0.25, 0.30),
     "other": (0.80, 0.60, 0.80),
 }
 
 FURNITURE_CLASSES = tuple(TYPICAL_SIZE_M)
+
+# Things that may stand on top of a piece of furniture (docs/specs/furniture.md, F12).
+RESTS_ON_FURNITURE = frozenset({"table_lamp", "decor", "plant", "mirror", "wall_art", "other"})
+# What a small thing cannot be put down on: these have no top to stand on.
+NO_TOP = frozenset({"rug", "plant", "floor_lamp", "table_lamp", "decor", "mirror", "wall_art", "chair", "stool"})
+MIN_TOP_M = 0.25  # nothing rests on a piece lower than this
+# Their typical size says little (a vase and a guitar are both "decor"): a size worked out from
+# the photo always stands for these.
+NO_TYPICAL_SIZE = frozenset({"table_lamp", "mirror", "wall_art", "decor", "other"})
+# Furniture whose typical size is steady enough to tell how far off a photo's scale is.
+SIZE_ANCHORS = frozenset({"bed", "desk", "chair", "nightstand", "dresser", "wardrobe", "sofa", "loveseat", "armchair", "dining_table",
+                          "bookshelf", "cabinet", "tv_stand", "side_table", "coffee_table", "console_table", "bench", "stool", "crib"})

@@ -6,9 +6,8 @@ import { IconPause, IconPlay } from '@/components/ui/icons';
 import { useSession } from '@/lib/store/session';
 import { togglePlaying } from '@/lib/store/usePlayback';
 import { useThrottledDispatch } from '@/lib/store/useThrottledDispatch';
-import { sunPosition, sunTimes } from '@/lib/sun/position';
+import { compassWord, sunPosition, sunTimes } from '@/lib/sun/position';
 import { formatClock, fromZonedParts, localDate, minutesOfDay, toZonedIso, withDate, withTimeOfDay, zonedParts } from '@/lib/time';
-import { compassWord } from '@/components/sunlab/TimeScrubber';
 
 /** The remote's card: outlined, light, as on every other screen. */
 export const CARD = 'rounded-2xl border border-line bg-surface text-text';

@@ -1,5 +1,5 @@
 /**
- * The house rebuilt from the floor plan, as the Sun Lab draws it (ported from
+ * The house rebuilt from the floor plan, as the Tour draws it (ported from
  * 3d_rendering_matterport/src/house.ts; the model and its light come from that project's
  * pipeline, `pnpm house all`, and sit in the twin's `assets.house` folder).
  *

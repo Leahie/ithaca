@@ -1,7 +1,7 @@
 /**
  * Mock phone (WORKSTREAMS.md section 3): pairs with a session and sends any v0 event.
  *
- *   pnpm --filter @ithaca/web mock-phone --session <id> --token <pair_token> send viewer.setMode '{"mode":"sun"}'
+ *   pnpm --filter @ithaca/web mock-phone --session <id> --token <pair_token> send viewer.setMode '{"mode":"sound"}'
  *   pnpm --filter @ithaca/web mock-phone --session <id> --token <t> send viewer.goto '{"room_id":"..."}' chat.user '{"text":"hi"}'
  *   pnpm --filter @ithaca/web mock-phone --session <id> --token <t> listen
  *   pnpm --filter @ithaca/web mock-phone --session <id> --token <t> repl        # one "<type> <json>" per line

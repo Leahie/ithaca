@@ -27,8 +27,8 @@ class JobRunner:
         self._pool = ThreadPoolExecutor(max_workers=2, thread_name_prefix="job")
         self.status: dict[str, dict] = {}
 
-    def _publish(self, user_id: str, job_id: str, kind: str, pct: float, status: str, result_ref: str | None = None) -> None:
-        self.status[job_id] = {"job_id": job_id, "kind": kind, "pct": round(pct, 1), "status": status, "result_ref": result_ref}
+    def _publish(self, user_id: str, job_id: str, kind: str, pct: float, status: str, result_ref: str | None = None, note: str | None = None) -> None:
+        self.status[job_id] = {"job_id": job_id, "kind": kind, "pct": round(pct, 1), "status": status, "result_ref": result_ref, "note": note or None}
 
         def send() -> None:
             for room in self.hub.rooms.values():
@@ -51,7 +51,7 @@ class JobRunner:
 
         def run() -> None:
             try:
-                result = work(lambda pct, note="": self._publish(user_id, job_id, kind, min(pct, 99), "running"))
+                result = work(lambda pct, note="": self._publish(user_id, job_id, kind, min(pct, 99), "running", note=note))
             except Exception as e:
                 log.exception("job %s (%s) failed", job_id, kind)
                 self._publish(user_id, job_id, kind, 100, "failed", str(e))

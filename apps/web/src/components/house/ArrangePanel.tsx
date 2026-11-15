@@ -3,6 +3,7 @@
 import type { InventoryItem, PhotoPoint, PropertyTwin } from '@ithaca/schema';
 import { useMemo, useState } from 'react';
 import { CatalogBrowser } from '@/components/design/CatalogBrowser';
+import { OwnRoom } from '@/components/design/OwnRoom';
 import { PhotoButtons, TapToPick, preparePhoto } from '@/components/design/PhotoPiece';
 import { PlanEditor } from '@/components/design/PlanEditor';
 import { JobRows, useObjectUpload } from '@/components/me/InventorySection';
@@ -44,7 +45,7 @@ export async function offerPlacement(propertyId: string, roomId: string, itemId:
 
 /**
  * Floating panel over the 3D views: the furniture standing in the room the user is in, as a plan
- * they can rearrange by hand (docs/specs/furniture.md). The Tour and the Sun Lab redraw from the
+ * they can rearrange by hand (docs/specs/furniture.md). The Tour redraws from the
  * house after each change. While a suggested layout is being tried in this room, the panel offers
  * to keep it or go back to what is really there; any edit goes back first.
  * `inline`: the same editor as a plain block, for the phone remote; every change is announced to
@@ -120,9 +121,17 @@ export function ArrangePanel({ twin, onClose, inline = false }: { twin: Property
   };
 
   // A photo: tap the piece, SAM cuts it out and builds it in 3D, and it is put in this room.
-  const { upload, busy: uploading, error: uploadError, rows, dismiss } = useObjectUpload((itemId) => {
-    void api().getInventoryItem(itemId).then(place, (err: unknown) => setPlaceError(err instanceof Error ? err.message : String(err)));
-  });
+  // A photo of the person's own room: everything in it is built, and the server sets this room up with it.
+  const { upload, uploadRoom, busy: uploading, error: uploadError, rows, dismiss } = useObjectUpload(
+    (itemId) => {
+      void api().getInventoryItem(itemId).then(place, (err: unknown) => setPlaceError(err instanceof Error ? err.message : String(err)));
+    },
+    () => {
+      backToHouse();
+      furnitureChanged(twin.property_id);
+      setBrowsing(false);
+    },
+  );
   const [photo, setPhoto] = useState<File | null>(null);
   const sendPhoto = async (at: PhotoPoint | undefined) => {
     if (!photo) return;
@@ -171,9 +180,12 @@ export function ArrangePanel({ twin, onClose, inline = false }: { twin: Property
       )}
       {browsing || rows.length > 0 ? (
         <div className="mb-2 space-y-2 border-b border-line pb-2" aria-label="Add from a photo">
+          {browsing && !photo && room && (
+            <OwnRoom roomName={roomName(twin, room.room_id)} busy={uploading} onSend={(file) => uploadRoom(file, twin.property_id, room.room_id)} />
+          )}
           {browsing && !photo && (
             <>
-              <p className="text-xs text-muted">Take or import a photo of a piece you own, tap it, and it is cut out and built in 3D.</p>
+              <p className="text-xs text-muted">Or one piece: take or import a photo of it, tap it, and it is cut out and built in 3D.</p>
               <PhotoButtons disabled={uploading} onPicked={(f) => void preparePhoto(f).then(setPhoto)} />
             </>
           )}

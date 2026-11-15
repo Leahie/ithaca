@@ -463,6 +463,18 @@ def _stand(runtime: Runtime, item: InventoryItem, room_id: str, near_item_id: st
         if at is None or at.room_id != room_id:
             return f"Error: piece {near_item_id} does not stand in that room. The house register says what does."
         tries = [(at.position.x, at.position.z)]
+        if house.can_rest_on(item, beside) and not at.on_item_id and not at.lift_m:
+            # A lamp "next to" a desk goes on it (F12): put down on the piece's top, it rests there.
+            try:
+                piece = house.place(
+                    ctx.furniture_user, ctx.property_id, str(item.item_id),
+                    PlacePiece(x=at.position.x, z=at.position.z, room_id=room_id, floor_id=room.floor_id, snap=False), ctx.user_id, GUIDE,
+                )
+            except FurnitureError:
+                piece = None
+            if piece is not None and piece.on_item_id:
+                _changed(runtime)
+                return f"{_name(item)} now stands on {_name(beside)}. {_room_now(ctx, piece.room_id)}"
     else:
         tries = _spots(twin, room, where, item)
         if not tries:
@@ -525,7 +537,8 @@ def place_piece(
     somewhere in this house moves. Only when the user asked for it in this message.
 
     item_id: the piece's number from the house register.
-    near_item_id: the number of a piece in that room to put it next to.
+    near_item_id: the number of a piece in that room to put it next to. A small thing (a lamp, a
+    plant, a vase) given a table, desk, dresser or shelf here is stood on top of it.
     where: the side of the room ("north"), a corner ("south-west") or "middle". Leave both out and
     it goes where such a piece usually stands (a seat or a lamp against a wall, a rug in the middle).
     go_ahead_with_others_piece: only after the tool told you the piece is someone else's and your

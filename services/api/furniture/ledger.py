@@ -27,7 +27,7 @@ from zoneinfo import ZoneInfo
 from packages.schema.inventory import InventoryItem
 from packages.schema.twin import PropertyTwin, Room
 from services.api.agent import prompts
-from services.api.furniture.store import GUIDE, LAYOUT, furniture_store, house_key
+from services.api.furniture.store import GUIDE, LAYOUT, PHOTO, furniture_store, house_key
 from services.api.realtime.households import households
 from services.api.twin.service import get_twin
 
@@ -140,6 +140,16 @@ def register(house_user_id: str, property_id: str, keyed: bool = False) -> dict:
     room_names = prompts.room_short_names(twin)
     floors = {f.floor_id: f.index for f in twin.floors}
 
+    def spot(p, item, room) -> str:
+        """Where a piece is, in words: on the floor of its room, on another piece, or on a wall (F12)."""
+        if p.on_item_id and (under := pool.get(str(p.on_item_id))) is not None:
+            return f"on #{under.tag} {under.label}"
+        on_floor = where(twin, room, p.position.x, p.position.z, p.yaw_deg, item)
+        if p.lift_m > 0.05:
+            wall = on_floor.split(",")[0].replace("against the", "on the").replace("in the", "on the wall in the")
+            return f"{wall}, hung {p.lift_m:.1f} m above the floor"
+        return on_floor
+
     def piece(p) -> dict:
         item = pool.get(str(p.item_id))
         room = next(r for r in twin.rooms if r.room_id == p.room_id)
@@ -151,7 +161,9 @@ def register(house_user_id: str, property_id: str, keyed: bool = False) -> dict:
             "size_m": [round(v, 2) for v in (item.dims_m.w, item.dims_m.d, item.dims_m.h)] if item else None,
             "owner_id": item.user_id if item else None,
             "owner": names.get(item.user_id) if item else None,
-            "where": where(twin, room, p.position.x, p.position.z, p.yaw_deg, item),
+            "where": spot(p, item, room),
+            "on_item_id": str(p.on_item_id) if p.on_item_id else None,
+            "lift_m": p.lift_m,
             "position": {"x": p.position.x, "z": p.position.z, "yaw_deg": p.yaw_deg},
             "placed_by_id": p.placed_by,
             "placed_by": _who(p.placed_by, names),
@@ -209,7 +221,11 @@ def _changes(reg: dict, viewer: str | None) -> list[str]:
         when = datetime.fromisoformat(h["at"]).astimezone(zone).strftime("%b %d %H:%M")
         room = h["room"] or "a room"
         actor = guide if h["via"] == GUIDE else who
-        if h["via"] == LAYOUT and h["action"] in ("placed", "moved"):
+        if h["via"] == PHOTO and h["action"] in ("placed", "moved"):
+            kind, head = "photo", f"{who} brought into {room}, from a photo of {'their' if mine else 'their own'} room,"
+        elif h["via"] == PHOTO and h["action"] == "removed":
+            kind, head = "photo-out", f"Making room for that, these went from {room} back to storage"
+        elif h["via"] == LAYOUT and h["action"] in ("placed", "moved"):
             kind, head = "layout", f"{who} kept a layout for {room}, which set out"
         elif h["action"] == "placed":
             kind, head = "placed", f"{actor} put in {room}"

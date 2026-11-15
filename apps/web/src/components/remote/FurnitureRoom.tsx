@@ -4,11 +4,11 @@ import type { InventoryItem, LayoutVariant, PhotoPoint, PropertyTwin } from '@it
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import { CARD, CARD_NAME, CARD_SUB, CardImage, CatalogBrowser, SearchBox, matches } from '@/components/design/CatalogBrowser';
+import { OwnRoom } from '@/components/design/OwnRoom';
 import { PhotoButtons, TapToPick, preparePhoto } from '@/components/design/PhotoPiece';
 import { PlanEditor, type PlanControls } from '@/components/design/PlanEditor';
 import { furnitureChanged } from '@/components/house/ArrangePanel';
 import { JobRows, useObjectUpload } from '@/components/me/InventorySection';
-import { compassWord } from '@/components/sunlab/TimeScrubber';
 import { MODAL_BACKDROP, MODAL_SCROLL, Spinner, cn, useScrollLock } from '@/components/ui';
 import { IconArrowUp, IconBackpack, IconBag, IconCheck, IconClose, IconCube, IconEye, IconGear, IconList, IconMic, IconPeople, IconPlus, IconSend, IconSparkle, IconTrash, IconTurnLeft, IconTurnRight } from '@/components/ui/icons';
 import { api } from '@/lib/api';
@@ -19,6 +19,7 @@ import { compassToInterior, interiorDirectionToAzimuth } from '@/lib/geometry/fr
 import { bounds, frontDirection } from '@/lib/geometry/polygon';
 import { previewLayout, visibleLayouts } from '@/lib/layouts';
 import { roomName } from '@/lib/rooms';
+import { compassWord } from '@/lib/sun/position';
 import { floorSweeps } from '@/lib/showcase/rooms';
 import { useFamily } from '@/lib/store/family';
 import { useSession } from '@/lib/store/session';
@@ -264,9 +265,17 @@ export function FurnitureRoom({ twin, talk }: { twin: PropertyTwin; talk?: Talk 
   };
 
   // A photo: tap the piece in it, SAM cuts it out and builds it in 3D, and it goes straight into this room.
-  const { upload, busy: uploading, error: uploadError, rows, dismiss } = useObjectUpload((itemId) => {
-    void api().getInventoryItem(itemId).then(place, (err: unknown) => setNote({ tone: 'error', text: reason(err) }));
-  });
+  // A photo of the person's own room: everything in it is built, and the server sets this room up with it.
+  const { upload, uploadRoom, busy: uploading, error: uploadError, rows, dismiss } = useObjectUpload(
+    (itemId) => {
+      void api().getInventoryItem(itemId).then(place, (err: unknown) => setNote({ tone: 'error', text: reason(err) }));
+    },
+    () => {
+      furnitureChanged(twin.property_id);
+      setSelected(null);
+      setNote({ tone: 'ok', text: 'Your room is set up here. Drag anything to move it.' });
+    },
+  );
   const [photo, setPhoto] = useState<File | null>(null);
   const sendPhoto = async (at: PhotoPoint | undefined) => {
     if (!photo) return;
@@ -339,6 +348,7 @@ export function FurnitureRoom({ twin, talk }: { twin: PropertyTwin; talk?: Talk 
       <div ref={island} className="absolute inset-x-3 top-3 flex flex-col gap-2">
         {sheet === 'add' && (
           <AddModal name={name} stored={stored} me={me} host={me === config.userId} onClose={() => setSheet(null)} onPlace={place} onDelete={deleteForGood}
+            ownRoom={<OwnRoom roomName={name} busy={uploading} onSend={(file) => uploadRoom(file, twin.property_id, room.room_id)} />}
             photo={
               (photo || uploadError || rows.length > 0) && (
                 <div className="space-y-2">
@@ -428,7 +438,14 @@ export function FurnitureRoom({ twin, talk }: { twin: PropertyTwin; talk?: Talk 
                       <button type="button" className="min-w-0 flex-1 py-1 text-left" onClick={() => { select(p.item_id); setSheet(null); }}>
                         <span className="block truncate text-sm font-semibold">{item?.label ?? 'A piece'}</span>
                         {/* The piece's own number: what the guide calls it, and what you can call it too. */}
-                        {item && <span className="block truncate text-xs text-muted">{item.tag ? <span className="font-mono">#{item.tag} · </span> : null}{item.owner_name ? `${item.owner_name}'s · ` : ''}{item.dims_m.w.toFixed(1)}×{item.dims_m.d.toFixed(1)} m</span>}
+                        {item && (
+                          <span className="block truncate text-xs text-muted">
+                            {item.tag ? <span className="font-mono">#{item.tag} · </span> : null}
+                            {item.owner_name ? `${item.owner_name}'s · ` : ''}
+                            {/* A lamp on a desk, a picture on the wall: it says so (and moves with the desk). */}
+                            {p.on_item_id ? `on the ${(items.get(p.on_item_id)?.label ?? 'piece under it').toLowerCase()}` : p.lift_m ? `on the wall, ${p.lift_m.toFixed(1)} m up` : `${item.dims_m.w.toFixed(1)}×${item.dims_m.d.toFixed(1)} m`}
+                          </span>
+                        )}
                       </button>
                       <RoundButton label={`Take ${item?.label ?? 'it'} out of the room`} onClick={() => void takeOut(p.item_id)} className="h-8 w-8">
                         <IconTrash width={15} height={15} />
@@ -449,6 +466,13 @@ export function FurnitureRoom({ twin, talk }: { twin: PropertyTwin; talk?: Talk 
             onAsk={(text) => { ask(text); setSheet(null); }}
           />
         ) : null}
+
+        {/* A room being rebuilt from a photo takes a minute and a half: its progress stays in view after the Add window is closed. */}
+        {sheet !== 'add' && rows.some((r) => r.room) && (
+          <div className={cn(ISLAND, 'p-2')} data-testid="own-room-progress">
+            <JobRows rows={rows.filter((r) => r.room)} dismiss={dismiss} />
+          </div>
+        )}
 
         {(note || asked) && !sheet && (
           <div role="status" className={cn(ISLAND, 'flex items-start gap-2 px-3 py-2 text-sm')}>
@@ -512,7 +536,7 @@ const size = (i: InventoryItem) => `${i.dims_m.w.toFixed(1)}×${i.dims_m.d.toFix
  * Tapping a card puts it in the room. Manage turns the cards into delete buttons, for the pieces
  * you may delete (yours; the host may delete anyone's).
  */
-function AddModal({ name, stored, me, host, onClose, onPlace, onDelete, photo, photoCard }: {
+function AddModal({ name, stored, me, host, onClose, onPlace, onDelete, photo, photoCard, ownRoom }: {
   name: string;
   /** The family's pieces that are in no room of this house. */
   stored: InventoryItem[];
@@ -527,6 +551,8 @@ function AddModal({ name, stored, me, host, onClose, onPlace, onDelete, photo, p
   photo: ReactNode;
   /** The "From a photo" card that opens the camera. */
   photoCard: ReactNode;
+  /** "My room from a photo": the whole room the person lives in now, set up here. */
+  ownRoom: ReactNode;
 }) {
   const own = stored.filter((i) => i.user_id === me);
   const others = stored.filter((i) => i.user_id !== me);
@@ -649,6 +675,7 @@ function AddModal({ name, stored, me, host, onClose, onPlace, onDelete, photo, p
           {error && <p role="alert" className="text-sm text-danger">{error}</p>}
           {tab === 'mine' ? (
             <>
+              {!managing && ownRoom}
               {!managing && photo}
               {own.length > 0 && <SearchBox value={query} onChange={setQuery} placeholder="Search your furniture" />}
               <ul className="grid grid-cols-2 gap-2">

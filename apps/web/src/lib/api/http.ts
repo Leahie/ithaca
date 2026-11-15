@@ -85,6 +85,9 @@ export function createHttpApi(): ApiClient {
     },
     getJob: (jobId) => request(`/jobs/${enc(jobId)}`),
     ingestObject: (uploadId, at) => request('/objects/ingest', { method: 'POST', body: JSON.stringify(at ? { upload_id: uploadId, at } : { upload_id: uploadId }) }),
+    // A house route: sent as the screen's user, with the person in X-Person-Id (the photo and the new pieces are theirs).
+    furnishFromPhoto: (pid, uploadId, roomId) =>
+      request(`/properties/${enc(pid)}/furniture/from-photo`, { method: 'POST', body: JSON.stringify({ upload_id: uploadId, room_id: roomId }) }),
     listInventory: () => request('/inventory'),
     getInventoryItem: (id) => request(`/inventory/${enc(id)}`),
     deleteInventoryItem: (id) => request(`/inventory/${enc(id)}`, { method: 'DELETE' }, 'none'),

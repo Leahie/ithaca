@@ -11,7 +11,9 @@ from PIL import Image, ImageDraw
 
 from services.api.agent.models import get_model
 from services.api.objects.classes import FURNITURE_CLASSES
-from services.api.objects.providers.base import ImageReading, Piece, RoomReading
+from services.api.objects.providers.base import ImageReading, Piece, RoomPhotoReading, RoomReading
+
+MAX_ROOM_THINGS = 14
 
 PROMPT = f"""\
 This image was uploaded by someone furnishing a home. It is a product page screenshot, a product
@@ -43,6 +45,29 @@ large freestanding things such as an air purifier or a floor fan.
   computers, and small things (papers, bottles, bags, decor).
 - Leave the dimensions, price and product_title empty.
 - At most 8 pieces, most prominent first.
+"""
+
+
+OWN_ROOM_PROMPT = f"""\
+This is a photo of someone's own room. They are moving, and want to see this room's things in the
+home they may buy. List what is theirs to take: every piece of furniture, and the belongings and
+decorations that make the room theirs (lamps, plants, rugs, mirrors, pictures on the wall, and
+things standing on the furniture such as a vase, a clock, a speaker or a stack of books).
+
+- Furniture first, largest first, then the smaller things. At most {MAX_ROOM_THINGS} in all. Each
+  thing once. Number them from 0 in the order you list them.
+- Skip what stays with the house (doors, windows, curtains and blinds, ceiling lights and fans,
+  built-in cupboards, radiators, sockets), bedding and pillows (they come with the bed), and loose
+  clutter (clothes, cables, cups, papers, chargers). Skip anything mostly cut off by the edge of
+  the photo or mostly hidden.
+- item_class must be one of: {", ".join(FURNITURE_CLASSES)}. Use table_lamp for a lamp that stands
+  on furniture, wall_art for a picture or poster, decor for other small things, other for anything
+  larger that fits no class.
+- box: a rough box around the whole thing.
+- segment_prompt: two or three plain words that single it out in this photo, e.g. "white desk".
+- rests_on: for a thing standing or lying on a piece of furniture, that piece's number.
+- on_wall: true for a thing fixed to a wall.
+- beside: for a piece on the floor that goes with another, that piece's number.
 """
 
 
@@ -91,6 +116,18 @@ class LlmDescriber:
             ]
         )
         return model.invoke([message])
+
+    def read_room(self, image: bytes, mime_type: str) -> RoomPhotoReading:
+        model = get_model("vision").with_structured_output(RoomPhotoReading, method="json_schema")
+        message = HumanMessage(
+            content=[
+                {"type": "text", "text": OWN_ROOM_PROMPT},
+                {"type": "image", "base64": base64.b64encode(image).decode(), "mime_type": mime_type},
+            ]
+        )
+        reading = model.invoke([message])
+        reading.things = reading.things[:MAX_ROOM_THINGS]
+        return reading
 
     def read_frames(self, frames: list[bytes]) -> RoomReading:
         model = get_model("vision").with_structured_output(RoomReading, method="json_schema")

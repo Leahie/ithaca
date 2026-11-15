@@ -296,6 +296,8 @@ class JobProgressPayload(Model):
     pct: float
     status: JobStatus
     result_ref: str | None = None
+    # Additive to v0. What the job is doing now, in words ("Rebuilt 4 of 9 things in 3D").
+    note: str | None = None
 
 
 # type -> (payload model, who may send it)
