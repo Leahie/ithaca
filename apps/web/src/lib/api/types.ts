@@ -16,6 +16,8 @@ import type {
   Session,
   SunReport,
   UploadResult,
+  PhotoPoint,
+  JobProgressPayload,
 } from '@ithaca/schema';
 
 export class ApiError extends Error {
@@ -48,7 +50,8 @@ export interface ApiClient {
   // Stream B
   /** householdId: the family whose phones may join through the family QR code. */
   createSession(opts?: { propertyId?: string; householdId?: string }): Promise<Session>;
-  createHousehold(name: string): Promise<Household>;
+  /** fresh: a new family was asked for, so the host's current one is set aside instead of reused. */
+  createHousehold(name: string, fresh?: boolean): Promise<Household>;
   getHousehold(householdId: string): Promise<Household>;
   /** A new family QR code; the old one stops working. */
   /** The screen leaves its family: the next one starts with an empty house. */
@@ -58,7 +61,10 @@ export interface ApiClient {
   joinHousehold(inviteToken: string, name: string, memberId?: string): Promise<JoinHouseholdResult>;
   joinSession(sessionId: string, pairToken: string): Promise<Ok>;
   upload(file: Blob, filename: string): Promise<UploadResult>;
-  ingestObject(uploadId: string): Promise<JobRef>;
+  /** A background job's latest progress, for when its `job.progress` events don't reach this client. */
+  getJob(jobId: string): Promise<JobProgressPayload>;
+  /** at: the spot tapped on the photo (fractions of its size); only the thing there becomes a piece. */
+  ingestObject(uploadId: string, at?: PhotoPoint): Promise<JobRef>;
   // Furniture: docs/specs/furniture.md.
   /** Storage: the family's pieces (each with its owner). */
   listInventory(): Promise<InventoryItem[]>;

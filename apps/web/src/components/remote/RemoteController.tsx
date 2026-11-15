@@ -318,7 +318,7 @@ function Remote({ propertyId }: { propertyId: string }) {
           <MovePad />
         </div>
       )}
-      {view === 'furniture' && twin.data && <FurnitureRoom twin={twin.data} />}
+      {view === 'furniture' && twin.data && <FurnitureRoom twin={twin.data} talk={{ supported: ptt.supported, listening: ptt.listening, toggle: ptt.toggle, stop: ptt.stop }} />}
       {view === 'guide' && (
         <div className="flex min-h-0 flex-1 flex-col" data-testid="remote-guide">
           <div className="min-h-0 flex-1 overflow-y-auto px-4 py-3">

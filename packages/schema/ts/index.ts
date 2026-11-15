@@ -138,6 +138,7 @@ export interface Comp {
 
 export interface CreateHouseholdRequest {
   name: string;
+  fresh?: boolean;
 }
 
 export interface CreateSessionRequest {
@@ -500,6 +501,7 @@ export interface NoiseSources {
 
 export interface ObjectIngestRequest {
   upload_id: string;
+  at?: PhotoPoint | null;
 }
 
 export interface Ok {
@@ -530,6 +532,14 @@ export interface OutdoorSource {
   distance_m?: number | null;
   facade_laeq_dba: number;
   path?: [number, number][][];
+}
+
+/**
+ * A spot on an image, as fractions of its width and height (0 to 1, from the top left).
+ */
+export interface PhotoPoint {
+  x: number;
+  y: number;
 }
 
 /**

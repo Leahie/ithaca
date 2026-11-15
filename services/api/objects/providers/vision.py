@@ -4,12 +4,14 @@ dimensions, price and title printed on it (PLAN.md section 4, steps 1 and 5)."""
 from __future__ import annotations
 
 import base64
+import io
 
 from langchain_core.messages import HumanMessage
+from PIL import Image, ImageDraw
 
 from services.api.agent.models import get_model
 from services.api.objects.classes import FURNITURE_CLASSES
-from services.api.objects.providers.base import ImageReading, RoomReading
+from services.api.objects.providers.base import ImageReading, Piece, RoomReading
 
 PROMPT = f"""\
 This image was uploaded by someone furnishing a home. It is a product page screenshot, a product
@@ -44,7 +46,42 @@ large freestanding things such as an air purifier or a floor fan.
 """
 
 
+TAP_PROMPT = f"""\
+Someone furnishing a home photographed something they own and tapped it: the red ring marks the
+spot. Describe the one thing they tapped, so a 3D model can be made of it.
+
+- If the ring is on part of a piece (a drawer, a leg, a cushion), it is the whole piece. If it is
+  on something standing on a piece (a lamp on a desk), it is that smaller thing.
+- item_class must be one of: {", ".join(FURNITURE_CLASSES)}. Use "other" for anything else.
+- segment_prompt: two or three plain words that single it out in this photo, e.g. "white desk".
+- box: a rough box around the whole thing, not just the ring.
+- Dimensions only from numbers printed in the image, converted to meters. Never estimate.
+"""
+
+
+def _mark(image: bytes, at: tuple[float, float]) -> bytes:
+    """The photo as a JPEG with a red ring around the tapped spot."""
+    picture = Image.open(io.BytesIO(image)).convert("RGB")
+    x, y = at[0] * picture.width, at[1] * picture.height
+    r = max(12, min(picture.size) // 30)
+    draw = ImageDraw.Draw(picture)
+    draw.ellipse((x - r, y - r, x + r, y + r), outline=(255, 0, 0), width=max(3, r // 4))
+    out = io.BytesIO()
+    picture.save(out, "JPEG", quality=90)
+    return out.getvalue()
+
+
 class LlmDescriber:
+    def read_at(self, image: bytes, mime_type: str, at: tuple[float, float]) -> Piece:
+        model = get_model("vision").with_structured_output(Piece, method="json_schema")
+        message = HumanMessage(
+            content=[
+                {"type": "text", "text": TAP_PROMPT},
+                {"type": "image", "base64": base64.b64encode(_mark(image, at)).decode(), "mime_type": "image/jpeg"},
+            ]
+        )
+        return model.invoke([message])
+
     def read(self, image: bytes, mime_type: str, filename: str) -> ImageReading:
         model = get_model("vision").with_structured_output(ImageReading, method="json_schema")
         message = HumanMessage(

@@ -10,6 +10,7 @@ from __future__ import annotations
 import math
 from datetime import date, datetime
 from typing import Literal
+from zoneinfo import ZoneInfo
 
 from langchain.tools import ToolRuntime, tool
 
@@ -401,7 +402,92 @@ def sound_place_source(room_id: str, sound: SoundName, runtime: Runtime) -> str:
 PROPERTY_TOOLS = [list_rooms, get_room_geometry]
 SUN_TOOLS = [sun_by_room, sun_report, daylight_at]
 AREA_TOOLS = [area_profile, area_search]
-SOUND_TOOLS = [sound_heard_from]
+def _loudness(dba: float) -> str:
+    """A level in words a buyer can picture."""
+    if dba < 20:
+        return "close to silent"
+    if dba < 30:
+        return "very quiet, quieter than a library"
+    if dba < 40:
+        return "quiet, like a library"
+    if dba < 50:
+        return "noticeable, like a quiet office"
+    return "loud, like a conversation in the room"
+
+
+# What people usually worry about, the hours it concerns, and the level usually taken as fine.
+_CONCERNS = {
+    "sleep": ("sleeping at night", [22, 23, 0, 1, 2, 3, 4, 5, 6], 30.0, "the usual guideline for a bedroom at night is 30 dBA"),
+    "meetings": ("calls and meetings in the day", list(range(9, 18)), 35.0, "a room for calls wants about 35 dBA or less"),
+    "evening": ("evenings at home", [18, 19, 20, 21], 40.0, "a living room in the evening is comfortable under about 40 dBA"),
+}
+
+
+@tool
+def outside_noise(runtime: Runtime, room_id: str | None = None, concern: Literal["sleep", "meetings", "evening"] = "sleep", windows_open: bool = False) -> str:
+    """How loud the outside (traffic, rail, the neighbourhood) is inside a room, judged for what the
+    user cares about: "sleep" (22:00 to 07:00), "meetings" (calls and work, 09:00 to 18:00) or
+    "evening" (18:00 to 22:00). room_id: one room. Leave it out to rank the rooms, quietest first
+    (bedrooms only for sleep). windows_open: with the windows half open. Follow it with
+    `sound_play_outside` when they want to hear it."""
+    from packages.schema.reports import NoiseScenario
+
+    twin = get_twin(runtime.context.property_id)
+    names = prompts.room_display_names(twin)
+    what, hours, fine, guideline = _CONCERNS[concern]
+    scenario = NoiseScenario(windows_open=windows_open)
+
+    def level(rid: str) -> tuple[float, int, float, list]:
+        report = service.noise_report(twin.property_id, rid, scenario)
+        at = [h for h in report.hourly if h.hour in hours]
+        mean = 10 * math.log10(sum(10 ** (h.laeq_dba / 10) for h in at) / len(at))
+        worst = max(at, key=lambda h: h.laeq_dba)
+        return mean, worst.hour, worst.laeq_dba, report.sources
+
+    try:
+        if room_id is not None:
+            if error := _room_or_error(twin, room_id):
+                return error
+            mean, hour, peak, sources = level(room_id)
+            main = ", then ".join(s.name for s in sources[:2])
+            verdict = "comfortably under" if mean <= fine - 5 else "under" if mean <= fine else "over"
+            return (
+                f"{names[room_id]}, {what}{' with the windows open' if windows_open else ''}: about {mean:.0f} dBA on average "
+                f"({_loudness(mean)}), loudest around {hour:02d}:00 at {peak:.0f} dBA. That is {verdict} what is usually "
+                f"wanted ({guideline}). Mostly: {main}. These are modelled from traffic counts and maps, good to about 3 dB."
+            )
+        rooms = [r for r in twin.rooms if _has_window(twin, r.room_id) and (concern != "sleep" or "bedroom" in r.label.lower())]
+        rows = sorted((level(r.room_id)[0], names[r.room_id]) for r in rooms[:12])
+    except Exception as e:  # no traffic data, no windows mapped
+        return f"The outside noise can't be worked out here ({e})."
+    lines = [f"Outside noise indoors for {what}, quietest first ({guideline}):"]
+    lines += [f"- {name}: {mean:.0f} dBA, {_loudness(mean)}" for mean, name in rows]
+    return "\n".join(lines)
+
+
+@tool
+def sound_play_outside(room_id: str, hour: int, runtime: Runtime) -> str:
+    """Let the user hear the outside as it sounds in a room at one hour of the day (0 to 23): takes
+    them to the room, sets the clock and turns the outside sounds on. Use 2 for the dead of night,
+    7 or 8 for the morning rush, 14 for a working afternoon, 20 for the evening."""
+    twin = get_twin(runtime.context.property_id)
+    if error := _room_or_error(twin, room_id):
+        return error
+    hour = max(0, min(23, int(hour)))
+    when = datetime.now(ZoneInfo(twin.timezone)).replace(hour=hour, minute=0, second=0, microsecond=0)
+    payload: dict = {"room_id": room_id}
+    if view := views.best_view(twin, room_id):
+        payload |= {"at_sweep_id": view.sweep_id, "look_at": view.look_at.model_dump()}
+    _emit(runtime, "viewer.goto", payload)
+    _emit(runtime, "viewer.setTime", {"datetime": when.isoformat()})
+    _emit(runtime, "viewer.playback", {"listening": True, "playing": False})
+    return (
+        f"The user is in {prompts.room_display_names(twin)[room_id]} hearing the outside at {hour:02d}:00. The sound is "
+        "playing on the big screen now: say one short sentence and then stay quiet so they can listen."
+    )
+
+
+SOUND_TOOLS = [sound_heard_from, outside_noise, sound_play_outside]
 @tool
 def viewer_step(direction: Literal["forward", "back", "left", "right"], runtime: Runtime, steps: int = 1) -> str:
     """Move the user a little from where they stand: "closer", "back up", "scoot left". The

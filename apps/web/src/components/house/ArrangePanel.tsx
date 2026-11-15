@@ -1,9 +1,11 @@
 'use client';
 
-import type { InventoryItem, PropertyTwin } from '@ithaca/schema';
+import type { InventoryItem, PhotoPoint, PropertyTwin } from '@ithaca/schema';
 import { useMemo, useState } from 'react';
 import { CatalogBrowser } from '@/components/design/CatalogBrowser';
+import { PhotoButtons, TapToPick, preparePhoto } from '@/components/design/PhotoPiece';
 import { PlanEditor } from '@/components/design/PlanEditor';
+import { JobRows, useObjectUpload } from '@/components/me/InventorySection';
 import { api } from '@/lib/api';
 import { useHouseFurniture, useInventory, useLayouts } from '@/lib/data/hooks';
 import { invalidate } from '@/lib/data/resource';
@@ -117,6 +119,16 @@ export function ArrangePanel({ twin, onClose, inline = false }: { twin: Property
     }
   };
 
+  // A photo: tap the piece, SAM cuts it out and builds it in 3D, and it is put in this room.
+  const { upload, busy: uploading, error: uploadError, rows, dismiss } = useObjectUpload((itemId) => {
+    void api().getInventoryItem(itemId).then(place, (err: unknown) => setPlaceError(err instanceof Error ? err.message : String(err)));
+  });
+  const [photo, setPhoto] = useState<File | null>(null);
+  const sendPhoto = async (at: PhotoPoint | undefined) => {
+    if (!photo) return;
+    if (await upload(photo, at, at ? 'The piece you tapped' : 'Every piece in the photo')) setPhoto(null);
+  };
+
   /** Turn the big screen to a piece: stand at a scan position a few steps away and face it. */
   const lookAt = (_itemId: string, at: { x: number; z: number }) => {
     if (!room) return;
@@ -157,8 +169,21 @@ export function ArrangePanel({ twin, onClose, inline = false }: { twin: Property
           </button>
         </div>
       )}
+      {browsing || rows.length > 0 ? (
+        <div className="mb-2 space-y-2 border-b border-line pb-2" aria-label="Add from a photo">
+          {browsing && !photo && (
+            <>
+              <p className="text-xs text-muted">Take or import a photo of a piece you own, tap it, and it is cut out and built in 3D.</p>
+              <PhotoButtons disabled={uploading} onPicked={(f) => void preparePhoto(f).then(setPhoto)} />
+            </>
+          )}
+          {photo && <TapToPick file={photo} busy={uploading} onSubmit={(at) => void sendPhoto(at)} onCancel={() => setPhoto(null)} />}
+          {uploadError && <p role="alert" className="text-sm text-danger">{uploadError}</p>}
+          <JobRows rows={rows} dismiss={dismiss} />
+        </div>
+      ) : null}
       {browsing ? (
-        <CatalogBrowser onAdded={place} />
+        photo ? null : <CatalogBrowser onAdded={place} />
       ) : room && pieces.length ? (
         <PlanEditor
           propertyId={twin.property_id}

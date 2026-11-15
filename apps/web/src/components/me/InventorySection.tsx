@@ -1,6 +1,6 @@
 'use client';
 
-import type { InventoryItem, JobProgressPayload } from '@ithaca/schema';
+import type { InventoryItem, JobProgressPayload, PhotoPoint } from '@ithaca/schema';
 import { useEffect, useRef, useState } from 'react';
 import { Badge, Button, Notice, Spinner, Toggle, cn } from '@/components/ui';
 import { IconTrash, IconUpload } from '@/components/ui/icons';
@@ -10,44 +10,84 @@ import { invalidate } from '@/lib/data/resource';
 import { useSession } from '@/lib/store/session';
 import { ItemPreview } from './ItemPreview';
 
+const FINISHED = new Set(['done', 'failed']);
+
+/** Of two reports on one job, the one further along: finished beats running, then the higher percent. */
+function furthest(a: JobProgressPayload | undefined, b: JobProgressPayload | undefined): JobProgressPayload | undefined {
+  if (!a || !b) return a ?? b;
+  if (FINISHED.has(a.status) !== FINISHED.has(b.status)) return FINISHED.has(a.status) ? a : b;
+  return b.pct > a.pct ? b : a;
+}
+
 interface PendingJob {
   job_id: string;
   filename: string;
   started: number;
 }
 
-/** Upload an image -> object pipeline job -> a new inventory item. Shared by /me and the phone. */
-export function useObjectUpload() {
+/**
+ * Upload an image -> object pipeline job -> a new inventory item. Shared by /me, the phone and the
+ * Arrange panel. `at`: the spot tapped on the photo, so only that thing is built. `onItem` gets the
+ * first new item of each job that finishes (to put it in the room).
+ */
+export function useObjectUpload(onItem?: (itemId: string) => void) {
   const jobs = useSession((s) => s.jobs);
   const dispatch = useSession((s) => s.dispatch);
   const [pending, setPending] = useState<PendingJob[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const handled = useRef(new Set<string>());
+  const latest = useRef(onItem);
+  latest.current = onItem;
 
-  const upload = async (file: File) => {
+  const upload = async (file: File, at?: PhotoPoint, label?: string) => {
     setError(null);
     setBusy(true);
     try {
       const up = await api().upload(file, file.name || 'capture.jpg');
-      const job = await api().ingestObject(up.upload_id);
+      const job = await api().ingestObject(up.upload_id, at);
       dispatch('capture.upload', { upload_id: up.upload_id });
-      setPending((p) => [...p, { job_id: job.job_id, filename: file.name || 'photo', started: Date.now() }]);
+      setPending((p) => [...p, { job_id: job.job_id, filename: label ?? (file.name || 'photo'), started: Date.now() }]);
+      return true;
     } catch (err) {
       setError(err instanceof ApiError && err.notConfigured ? `The object pipeline is not configured: ${err.message}` : err instanceof Error ? err.message : String(err));
+      return false;
     } finally {
       setBusy(false);
     }
   };
 
-  // Progress arrives as job.progress events. If the session is not connected, fall back to
-  // re-reading the inventory while a job is open.
+  // Progress arrives as job.progress events, but only to sessions of the user who started the job:
+  // a family member's phone, or a page whose session dropped, hears nothing. So open jobs are also
+  // asked for, and whichever answer is further along counts.
+  const [polled, setPolled] = useState<Record<string, JobProgressPayload>>({});
+  const progressOf = (jobId: string): JobProgressPayload | undefined => furthest(jobs[jobId] as JobProgressPayload | undefined, polled[jobId]);
+  const open = pending.filter((p) => !FINISHED.has(progressOf(p.job_id)?.status ?? 'queued')).map((p) => p.job_id);
+  const openKey = open.join(',');
   useEffect(() => {
-    if (!pending.length) return;
-    const t = setInterval(() => invalidate('inventory'), 4000);
+    if (!openKey) return;
+    const ids = openKey.split(',');
+    const t = setInterval(() => {
+      for (const id of ids) {
+        api().getJob(id).then((job) => setPolled((s) => ({ ...s, [id]: job })), () => {});
+      }
+    }, 2500);
     return () => clearInterval(t);
-  }, [pending.length]);
+  }, [openKey]);
 
-  const rows = pending.map((p) => ({ ...p, progress: jobs[p.job_id] as JobProgressPayload | undefined }));
+  useEffect(() => {
+    for (const p of pending) {
+      const progress = progressOf(p.job_id);
+      const itemId = progress?.status === 'done' ? progress.result_ref?.split(',')[0] : undefined;
+      if (!itemId || handled.current.has(p.job_id)) continue;
+      handled.current.add(p.job_id);
+      invalidate('inventory');
+      latest.current?.(itemId);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [jobs, polled, pending]);
+
+  const rows = pending.map((p) => ({ ...p, progress: progressOf(p.job_id) }));
   const dismiss = (jobId: string) => setPending((p) => p.filter((j) => j.job_id !== jobId));
   return { upload, busy, error, rows, dismiss };
 }
@@ -75,7 +115,13 @@ export function JobRows({ rows, dismiss }: Pick<ReturnType<typeof useObjectUploa
             <div className="mt-2 h-1 overflow-hidden rounded-full bg-line">
               <div className={cn('h-full rounded-full transition-[width] duration-300', status === 'failed' ? 'bg-danger' : 'bg-sun')} style={{ width: `${pct}%` }} />
             </div>
-            {status === 'failed' && <p className="mt-1.5 text-xs text-danger">The pipeline could not turn this image into a correctly scaled 3D model. Try a clearer photo, or a product page that lists dimensions.</p>}
+            {status === 'failed' && (
+              <p className="mt-1.5 text-xs text-danger">
+                {r.progress?.result_ref ? `It could not be made: ${r.progress.result_ref}.` : 'The pipeline could not turn this image into a correctly scaled 3D model.'}
+                {!r.progress?.result_ref?.includes('not configured') && ' Try a clearer photo, or a product page that lists dimensions.'}
+              </p>
+            )}
+            {status === 'running' && <p className="mt-1.5 text-xs text-muted">Cutting it out with SAM and building the 3D model. This takes about half a minute.</p>}
           </li>
         );
       })}

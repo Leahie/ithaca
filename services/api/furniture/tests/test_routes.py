@@ -213,6 +213,26 @@ def test_a_host_gets_a_family_back_by_its_name_and_another_name_is_a_new_family(
     assert client.post("/api/households", headers={"X-User-Id": "bob"}, json={"name": "Bob's"}).json()["household_id"] != first["household_id"]
 
 
+def test_start_a_new_family_starts_empty_and_stays_separate(client, tmp_path):
+    host = {"X-User-Id": "screen"}
+    old = client.post("/api/households", headers=host, json={"name": "Us"}).json()
+    client.post("/api/households/join", json={"invite_token": old["invite_token"], "name": "Leah"})
+    new = client.post("/api/households", headers=host, json={"name": "Us", "fresh": True}).json()  # same name, new family
+    assert new["household_id"] != old["household_id"] and new["members"] == []
+    assert client.post("/api/households/join", json={"invite_token": old["invite_token"], "name": "Leah"}).status_code != 200
+    again = client.post("/api/households", headers=host, json={"name": "Us"}).json()  # the screen lost its saved family
+    assert again["household_id"] == new["household_id"]
+
+    path = tmp_path / "households.sqlite"
+    store_ = hh.HouseholdStore(path)
+    a = store_.create("Us", host_user_id="screen")
+    store_.join(a.invite_token, "Leah")
+    b = store_.create("Us", host_user_id="screen", fresh=True)
+    restarted = hh.HouseholdStore(path)  # the set-aside family is not merged back in
+    assert restarted.get(b.household_id).members == []
+    assert restarted.get(a.household_id).household_id == a.household_id
+
+
 def test_a_hosts_old_duplicate_families_are_merged_into_the_newest(tmp_path):
     path = tmp_path / "households.sqlite"
     old = hh.HouseholdStore(path)

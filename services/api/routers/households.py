@@ -24,7 +24,7 @@ router = APIRouter()
 @router.post("/households")
 def create_household(body: CreateHouseholdRequest, x_user_id: str = Header("demo")) -> Household:
     """The caller (the big screen's user) is the host: the family arranges their house."""
-    return households().create(body.name, host_user_id=x_user_id)
+    return households().create(body.name, host_user_id=x_user_id, fresh=body.fresh)
 
 
 @router.post("/households/leave", status_code=204)

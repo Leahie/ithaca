@@ -3,6 +3,7 @@
 import type { ClientKind, Session } from '@ithaca/schema';
 import { useEffect, useState, type ReactNode, useRef } from 'react';
 import { api } from '@/lib/api';
+import { ApiError } from '@/lib/api/types';
 import { config } from '@/lib/config';
 import { invalidate } from '@/lib/data/resource';
 import { LocalTransport } from '@/lib/realtime/local';
@@ -19,6 +20,32 @@ function reloadFurniture(): void {
   invalidate('furniture:');
   invalidate('layouts:');
   invalidate('layout:');
+}
+
+/**
+ * A pairing token admits one join, and the effect below can run twice for the same link (React's
+ * development double run, a reload, a reconnect after the server restarts). So the join is sent
+ * once per token, and a token that is already used is not an error here: the connection itself
+ * is refused unless the token joined.
+ */
+const joins = new Map<string, Promise<void>>();
+function joinOnce(sessionId: string, token: string): Promise<void> {
+  const key = `${sessionId}:${token}`;
+  let joining = joins.get(key);
+  if (!joining) {
+    joining = api()
+      .joinSession(sessionId, token)
+      .then(
+        () => undefined,
+        (err) => {
+          if (err instanceof ApiError && err.status === 403) return;
+          joins.delete(key);
+          throw err;
+        },
+      );
+    joins.set(key, joining);
+  }
+  return joining;
 }
 
 function restoreSession(): Session | null {
@@ -96,7 +123,7 @@ export function SessionProvider({ client, propertyId, join, householdId = null, 
       try {
         let session: Session;
         if (join) {
-          if (!join.prejoined) await api().joinSession(join.sessionId, join.token);
+          if (!join.prejoined) await joinOnce(join.sessionId, join.token);
           session = { session_id: join.sessionId, pair_token: join.token, expires_at: '' };
         } else {
           // A saved session is reused only for the same family: phones find the house through it.

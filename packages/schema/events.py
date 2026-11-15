@@ -281,7 +281,7 @@ EVENTS: dict[str, tuple[type[Model], frozenset[str]]] = {
     "viewer.look": (ViewerLookPayload, frozenset({"phone", "agent"})),
     "viewer.step": (ViewerStepPayload, frozenset({"phone", "agent"})),
     "viewer.zoom": (ViewerZoomPayload, frozenset({"phone", "agent"})),
-    "viewer.playback": (ViewerPlaybackPayload, frozenset({"phone", "desktop", "server"})),
+    "viewer.playback": (ViewerPlaybackPayload, frozenset({"phone", "desktop", "server", "agent"})),
     "layout.changed": (LayoutChangedPayload, frozenset({"agent", "phone", "desktop", "server"})),
     "furniture.select": (FurnitureSelectPayload, frozenset({"phone", "desktop"})),
     "furniture.drag": (FurnitureDragPayload, frozenset({"phone", "desktop"})),

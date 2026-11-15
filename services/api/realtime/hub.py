@@ -22,6 +22,7 @@ import json
 import logging
 import secrets
 import sqlite3
+import time
 import uuid
 from collections.abc import Callable
 from dataclasses import dataclass, field
@@ -65,6 +66,7 @@ class SessionRoom:
     joined_pair_tokens: set[str] = field(default_factory=set)
     household_id: str | None = None
     member_tokens: dict[str, str] = field(default_factory=dict)  # client_token -> member_id
+    greeted: set[str] = field(default_factory=set)  # "desktop" and member_ids the guide has welcomed
 
     @property
     def visitor(self) -> str:
@@ -116,6 +118,7 @@ class Hub:
         self._listeners: list[Callable[[SessionRoom, EventEnvelope], None]] = []
         self._db = None
         self._places: dict[tuple[str, str], str] = {}  # (visitor, property_id) -> the room they were in last
+        self._done: dict[str, float] = {}  # things done once in a while (see once): key -> when, epoch seconds
         if persist is not None:
             persist.parent.mkdir(parents=True, exist_ok=True)
             self._db = sqlite3.connect(persist, check_same_thread=False, isolation_level=None)
@@ -123,6 +126,8 @@ class Hub:
             self._db.execute("DELETE FROM sessions WHERE created < julianday('now') - 2")  # two days is plenty
             self._db.execute("CREATE TABLE IF NOT EXISTS places (visitor TEXT, property_id TEXT, room_id TEXT, PRIMARY KEY (visitor, property_id))")
             self._places = {(v, p): r for v, p, r in self._db.execute("SELECT visitor, property_id, room_id FROM places")}
+            self._db.execute("CREATE TABLE IF NOT EXISTS done (key TEXT PRIMARY KEY, at REAL)")
+            self._done = dict(self._db.execute("SELECT key, at FROM done"))
             for (body,) in self._db.execute("SELECT body FROM sessions"):
                 saved = json.loads(body)
                 room = SessionRoom(
@@ -135,7 +140,19 @@ class Hub:
                 room.member_tokens = saved.get("member_tokens", {})
                 room.issued_pair_tokens = set(saved["issued"])
                 room.joined_pair_tokens = set(saved["joined"])
+                room.greeted = set(saved.get("greeted", []))
                 self.rooms[room.session_id] = room
+
+    def once(self, key: str, within_s: float) -> bool:
+        """True the first time `key` is asked about, and again only after `within_s` seconds. It
+        survives a new session and a restart, so a greeting is not repeated on every reconnect."""
+        now = time.time()
+        if now - self._done.get(key, 0.0) < within_s:
+            return False
+        self._done[key] = now
+        if self._db is not None:
+            self._db.execute("INSERT OR REPLACE INTO done VALUES (?, ?)", (key, now))
+        return True
 
     def _remember_place(self, room: SessionRoom) -> None:
         """So the next visit (a new tab, a restart) opens in the room this one was left in."""
@@ -154,6 +171,7 @@ class Hub:
             "datetime": room.state.datetime, "client_tokens": room.client_tokens,
             "issued": sorted(room.issued_pair_tokens), "joined": sorted(room.joined_pair_tokens),
             "household_id": room.household_id, "member_tokens": room.member_tokens,
+            "greeted": sorted(room.greeted),
         })
         self._db.execute("INSERT OR REPLACE INTO sessions VALUES (?, julianday('now'), ?)", (room.session_id, body))
 
@@ -175,6 +193,16 @@ class Hub:
         client_token = secrets.token_urlsafe(24)
         room.client_tokens[client_token] = "desktop"
         return self.new_pair_token(room.session_id).model_copy(update={"client_token": client_token})
+
+    def first_greeting(self, session_id: str, who: str) -> bool:
+        """True once per session for "desktop" or a member_id, even across server restarts: a
+        reconnect is not a new arrival."""
+        room = self.rooms[session_id]
+        if who in room.greeted:
+            return False
+        room.greeted.add(who)
+        self._save(room)
+        return True
 
     def new_pair_token(self, session_id: str, now: datetime | None = None) -> Session:
         """A fresh token for the QR code. Raises KeyError for an unknown session."""
