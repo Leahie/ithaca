@@ -88,6 +88,7 @@ class FurnitureStore:
         if path is None:
             path = REPO_ROOT / "data" / "agent" / "furniture.sqlite"
             path.parent.mkdir(parents=True, exist_ok=True)
+        self._samples = env("SEED_DEMO_INVENTORY", "1" if str(path) == ":memory:" else "0") == "1"
         self._db = sqlite3.connect(path, check_same_thread=False, isolation_level=None)
         self._db.execute("PRAGMA foreign_keys = ON")  # F3: off by default in SQLite, per connection
         self._lock = threading.RLock()
@@ -115,12 +116,13 @@ class FurnitureStore:
     def _seed(self, user_id: str) -> None:
         """Dev convenience: a new user starts with the three sample items from fixtures/inventory.
         Family members (m-...) bring their own pieces; the samples come with the house user.
-        SEED_DEMO_INVENTORY=0 turns it off."""
+        Off in the real database, where pieces nobody added read as invented; SEED_DEMO_INVENTORY=1
+        turns it on. On for in-memory stores (tests)."""
         if user_id.startswith("m-") or self._run("SELECT 1 FROM seeded WHERE user_id = ?", (user_id,)):
             return
         self._run("INSERT OR IGNORE INTO seeded VALUES (?)", (user_id,))
         path = fixtures_dir() / "inventory" / "demo.json"
-        if env("SEED_DEMO_INVENTORY", "1") == "0" or not path.exists():
+        if not self._samples or not path.exists():
             return
         for row in json.loads(path.read_text(encoding="utf-8")):
             # the sample ids are kept for the demo user so the sample layouts still point at them
