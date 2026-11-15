@@ -119,8 +119,8 @@ export function TourCamera({
   active: boolean;
   /** A click on a spot (not a drag): where it landed, interior frame. */
   onPick(point: Vector3): void;
-  /** What of the house to draw for the way the camera stands: the lid (from inside) and the top storey (from above). */
-  onLid(lid: { inside: boolean; topStorey: number | null }): void;
+  /** What of the house to draw for the way the camera stands: the lid (from inside), and from above the top storey and the spot looked down at. */
+  onLid(lid: { inside: boolean; topStorey: number | null; focus: P3 | null }): void;
 }) {
   const camera = useThree((s) => s.camera) as PerspectiveCamera;
   const gl = useThree((s) => s.gl);
@@ -146,7 +146,12 @@ export function TourCamera({
 
   useEffect(() => {
     const fovOf = (zoom: number) => (2 * Math.atan(Math.tan((WALK_FOV / 2) * DEG) / zoom)) / DEG;
-    const showFor = (v: View, storey: number | null = null) => lidRef.current({ inside: v.place === 'inside', topStorey: v.place === 'above' ? storey : null });
+    const showFor = (v: View, storey: number | null = null) =>
+      lidRef.current({
+        inside: v.place === 'inside',
+        topStorey: v.place === 'above' ? storey : null,
+        focus: v.place === 'above' ? { x: v.center.x, y: v.center.y, z: v.center.z } : null,
+      });
 
     /** Fly to a view (or jump, with ms 0). A newer flight takes over; the older one counts as done. */
     const fly = (to: View, ms: number, storey: number | null = null): Promise<void> =>
@@ -285,12 +290,14 @@ export function TourCamera({
       const click = press.moved < 4;
       press = null;
       if (!click) return;
-      // A click: the first surface drawn under the pointer.
+      // A click: the first surface drawn under the pointer (through a wall faded out of the way).
       const r = el.getBoundingClientRect();
       const ndc = new Vector2(((e.clientX - r.left) / r.width) * 2 - 1, -((e.clientY - r.top) / r.height) * 2 + 1);
       const ray = new Raycaster();
       ray.setFromCamera(ndc, camera);
-      const hit = ray.intersectObjects(scene.children, true).find((i) => shown(i.object) && i.object.userData.kind !== 'sky' && i.object.userData.kind !== 'mirror');
+      const hit = ray
+        .intersectObjects(scene.children, true)
+        .find((i) => shown(i.object) && i.object.userData.kind !== 'sky' && i.object.userData.kind !== 'mirror' && !house.current?.seesThrough(i.object, i.point, i.face?.normal, camera.position));
       if (hit) pickRef.current(hit.point);
     };
     const wheel = (e: WheelEvent) => {
@@ -328,7 +335,7 @@ export function TourCamera({
       removeEventListener('keyup', keyUp);
       removeEventListener('blur', blur);
     };
-  }, [gl, camera, scene]);
+  }, [gl, camera, scene, house]);
   useEffect(() => {
     if (!active) keys.current.clear();
   }, [active]);

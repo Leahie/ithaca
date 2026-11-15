@@ -26,10 +26,11 @@ import { useHouseLighting } from './House3D';
 /** What a fully shaded corner is multiplied by: dark, and cooler than it is dark. */
 const CORNER = new Color(0.1, 0.12, 0.18);
 /**
- * How far from an edge the shadow reaches (m). Short: a door or a skirting board throws a crisp
- * contact shadow, not a soft smudge around itself (the bake has the broad soft shading already).
+ * How far from an edge the shadow reaches (m). Short enough that a door or a skirting board
+ * throws a crisp contact shadow, not a smudge (the bake has the broad soft shading already); long
+ * enough that a sofa or a chair, which the bake never saw, sits in its own shadow on the floor.
  */
-const AO_RADIUS_M = 0.15;
+const AO_RADIUS_M = 0.3;
 /** The AO is worked out at this fraction of the screen's resolution. */
 const AO_SCALE = 0.5;
 
@@ -92,8 +93,8 @@ export function HouseAO({ enabled }: { enabled: boolean }) {
     const u = lighting.sun.uniforms;
     const golden = (u.sunGolden!.value as number) ?? 0;
     const night = (u.sunNight!.value as number) ?? 0;
-    const work = (u.sunWork?.value as number) ?? 0; // working-hours lights: corners read lighter, furniture colours true
-    chain.ao.blendIntensity = Math.min(1, 0.4 + 0.4 * golden + 0.3 * night) * (1 - 0.5 * work);
+    const work = (u.sunWork?.value as number) ?? 0; // working-hours lights: corners a little lighter, furniture still grounded
+    chain.ao.blendIntensity = Math.min(1, 0.55 + 0.35 * golden + 0.25 * night) * (1 - 0.15 * work);
     chain.composer.render(delta);
   }, 1);
 
