@@ -74,8 +74,12 @@ light coming in**, not radiating from the window. So now:
 - The bounce levels off toward `BOUNCE_MAX` (0.3): `0.3 * (1 - exp(-3 * bounce / 0.3))`. A
   sunlit room is brighter than a shaded one, but its walls do not go white.
 - It no longer counts as warm in the grade (section 5).
-- Furniture and room outlines (lit by `PLAIN`, with no lightmap) get the lamps and the room's
-  bounce as one colour per frame (`houseGlow` / `indoorWarm`).
+- Furniture and room outlines (lit by `PLAIN`, with no lightmap) get the usual floor's daylight
+  plus the room's bounce (`houseAmbient` / `indoor`) and the lamps (`houseGlow` / `indoorWarm`).
+- Each piece of furniture then takes the light of the spot it stands on (`houseLocal`): rays
+  straight down around its footprint find the floor, read the sky and lamp lightmaps there (a CPU
+  copy, at most 512²), and divide by the usual floor's level (`House.lightAround`). A sofa in a
+  room the bake left dim is as dim as that room's floor, instead of lit like the house's average.
 
 ## 4. Sun patches with soft edges
 
@@ -105,8 +109,10 @@ At the end of `HOUSE_BODY`, after the light is applied:
 2. **Push the gap a little further, by time.** Where the cool part dominates, the colour leans
    toward `0.86, 0.92, 1.08`; where the warm part dominates, toward `1.08, 0.96, 0.84`. Strength
    `0.15 + 0.5 * sunGolden + 0.4 * sunBlueHour`, at most 0.75.
-3. **Cap and contrast.** A surface's colour is capped at 0.85 before light is applied, so nothing
-   is pure white. Then an S-curve on brightness only (`l * l * (3 - 2l)`), blended in at 0.2,
+3. **Cap and contrast.** A surface's colour is pressed toward 0.85 above 0.55 (slope 2/3, not a
+   hard cut, so a white rug keeps its weave), so nothing is pure white. Light above 0.75 is
+   compressed toward 1.25 before it meets the colour, so a pale surface in a sun patch is bright
+   but not flat white. Then an S-curve on brightness only (`l * l * (3 - 2l)`), blended in at 0.2,
    deepens the darks and leaves colours alone. An ACES curve was tried first and dropped: it
    washed the shadows out.
 4. **Grain in the shade.** Shaded surfaces carry a fine grain, about 4 mm, fixed to the surface so
@@ -160,14 +166,14 @@ switched-off fitting is a pale face lit by the room's daylight).
 
 **8c. Shadow in corners and along edges (ambient occlusion).** The bake that made the lightmaps
 lives in another project, so this is worked out each frame from the screen. `HouseAO.tsx` uses
-three's own `GTAOPass` (no new dependency), at half resolution: radius 0.15 m, scale 1.5,
-12 samples. The small radius gives crisp contact shadows where a door, a cabinet or a wall meets
-another surface, not wide smudges. It runs only indoors (the Tour inside a room);
+three's own `GTAOPass` (no new dependency), at half resolution: radius 0.3 m, scale 1.5,
+12 samples. Crisp contact shadows where a door, a cabinet or a wall meets another surface, and
+long enough that furniture (which the bake never saw) sits in its own shadow on the floor. It runs only indoors (the Tour inside a room);
 outside, the haze already sets things apart.
 
 **8d. Cool in the corners.** The AO blend is tinted: an occluded corner goes toward a deep
-blue-grey (`0.10, 0.12, 0.18`), with strength `0.4 + 0.4 * sunGolden + 0.3 * sunNight`
-(at most 1). A corner far from the window reads cool and dark, and a sun patch or lamp pool next
+blue-grey (`0.10, 0.12, 0.18`), with strength `0.55 + 0.35 * sunGolden + 0.25 * sunNight`
+(at most 1), and only 15% weaker under the working-hours lights. A corner far from the window reads cool and dark, and a sun patch or lamp pool next
 to it reads warm.
 
 **8e. Smoother lightmaps.** The baked lightmaps were blotchy. They now get an edge-preserving

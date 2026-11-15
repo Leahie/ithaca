@@ -4,7 +4,8 @@ import type { FloorOpening, Opening, PropertyTwin, Room, Vec3 } from '@ithaca/sc
 import { useGLTF } from '@react-three/drei';
 import { useFrame, useThree, type ThreeEvent } from '@react-three/fiber';
 import { Component, createContext, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState, type MutableRefObject, type ReactNode } from 'react';
-import { Box3, BufferAttribute, BufferGeometry, Color, DoubleSide, FrontSide, Group, Mesh as ThreeMesh, MeshBasicMaterial, Vector3, type Camera, type IUniform, type Material, type Mesh, type MeshStandardMaterial, type Object3D, type Scene as ThreeScene, type WebGLRenderer } from 'three';
+import { Box3, BufferAttribute, BufferGeometry, Color, DoubleSide, FrontSide, Group, Mesh as ThreeMesh, MeshBasicMaterial, Vector2, Vector3, type Camera, type IUniform, type Material, type Mesh, type MeshStandardMaterial, type Object3D, type Scene as ThreeScene, type WebGLRenderer } from 'three';
+import { Ray as DebugRay } from 'three';
 import { compassToInterior, type V3 } from '@/lib/geometry/frames';
 import { bounds, pointInPolygon } from '@/lib/geometry/polygon';
 import { House, loadHouseInfo, plainLamps, plainLight, shadePlain, type HouseInfo } from '@/lib/house/house';
@@ -302,6 +303,7 @@ export function HouseLight({
   children: ReactNode;
 }) {
   const gl = useThree((s) => s.gl);
+  const debugGet = useThree((s) => s.get);
   const scene = useThree((s) => s.scene);
   const frame = useThree((s) => s.invalidate);
   const houseRef = useRef<House | null>(null);
@@ -398,14 +400,16 @@ export function HouseLight({
     const on = lit.current * lit.current * (3 - 2 * lit.current);
     if (sunWork) sunWork.value = work.current * work.current * (3 - 2 * work.current) * on;
     houseRef.current?.setLight(lighting.sun.sky, toSun, lighting.sun.uniforms.sunColor!.value as Color, on);
-    plainLight(lighting.sun.sky, true, true, lighting.indoor.value);
+    // The glow of a room the sun shines into is thrown-back daylight, not lamplight: it goes with the sky's light.
+    plainLight(lighting.sun.sky, true, true, lighting.indoor.value).add(houseRef.current?.glow ?? BLACK);
     plainLight(lighting.sun.sky, true, false, lighting.outdoor.value);
-    plainLamps(lighting.sun.uniforms.sunNight!.value as number, on, lighting.indoorWarm.value).add(houseRef.current?.glow ?? BLACK);
+    plainLamps(lighting.sun.uniforms.sunNight!.value as number, on, lighting.indoorWarm.value);
     // Seen only where the house's own sky is not there (a twin without a rebuilt house).
     background.copy(NIGHT).lerp(DUSK, smoothstep(-8, 1, el) * (1 - smoothstep(4, 18, el)) * 0.7).lerp(DAY, smoothstep(-2, 16, el));
   });
 
   if (!lighting) return null;
+  (window as unknown as Record<string, unknown>).__ithacaDebug = { lighting, scene, gl, get: debugGet, Ray: DebugRay, Vector3, DoubleSide, hmr: 1 };
   return <LightContext.Provider value={lighting}>{children}</LightContext.Provider>;
 }
 
@@ -436,6 +440,7 @@ export function HouseModel({
   info,
   inside,
   topStorey = null,
+  cutaway = null,
   onWallClick,
   onAssetError,
   onReady,
@@ -448,6 +453,8 @@ export function HouseModel({
   inside: boolean;
   /** Draw only the storeys up to this one (looking down into a room); null for all. */
   topStorey?: number | null;
+  /** The spot looked down at (on its floor): the walls between the camera and it are faded. */
+  cutaway?: { x: number; y: number; z: number } | null;
   onWallClick?: ((point: V3, normal: V3) => void) | null;
   onAssetError(message: string): void;
   /** The house is on screen. */
@@ -500,6 +507,9 @@ export function HouseModel({
     house.setTopStorey(topStorey);
     frame();
   }, [house, inside, topStorey, frame]);
+  useEffect(() => {
+    house?.setCutaway(cutaway);
+  }, [house, cutaway]);
   useEffect(() => {
     if (house) onReady?.();
     onHouse?.(house);
@@ -587,11 +597,21 @@ export function poseObject(object: Object3D, x: number, y: number, z: number, ya
   object.rotation.set(0, yawDeg * DEG, 0);
 }
 
+/**
+ * The lamplight on a piece against the floor it stands on. The floor's lightmap counts every lamp
+ * from the whole ceiling; the piece shades itself from part of that, and its sides face away from
+ * the ceiling. Near a lamp it still gets no more than this many times a usual floor's.
+ */
+const LAMPS_ON_PIECE = 0.65;
+const LAMPS_ON_PIECE_MAX = 1.1;
+
 /** A furniture GLB, lit like the rooms around it, casting its own shadow. */
 export function Furniture({ item, selected = false, onObject, onLoaded }: { item: PlacedItem; selected?: boolean; onObject?(id: string, object: Object3D | null): void; onLoaded?(): void }) {
   const lighting = useHouseLighting();
   const gltf = useGLTF(item.url);
-  const { scene, materials } = useMemo(() => {
+  // The light of the spot it stands on (House.lightAround), shared by all its materials.
+  const local = useMemo(() => ({ value: new Vector2(1, 1) }), []);
+  const { scene, materials, reach } = useMemo(() => {
     const root = gltf.scene.clone(true);
     // One material per source material.
     const made = new Map<string, { material: MeshBasicMaterial; own: Color }>();
@@ -605,7 +625,7 @@ export function Furniture({ item, selected = false, onObject, onLoaded }: { item
         // A photo texture is the surface color; untextured meshes keep their own color.
         const own = map ? new Color('#ffffff') : (src?.color?.clone() ?? new Color('#d8d4cc'));
         const material = new MeshBasicMaterial({ color: own.clone(), map, side: src?.side ?? FrontSide, transparent: src?.transparent ?? false, opacity: src?.opacity ?? 1, alphaTest: src?.alphaTest ?? 0 });
-        shadePlain(material, lighting.indoor, lighting.sun.uniforms, lighting.indoorWarm);
+        shadePlain(material, lighting.indoor, lighting.sun.uniforms, lighting.indoorWarm, local);
         entry = { material, own };
         if (src) made.set(src.uuid, entry);
       }
@@ -616,8 +636,25 @@ export function Furniture({ item, selected = false, onObject, onLoaded }: { item
       mesh.material = entry.material;
       mesh.userData = { ...mesh.userData, caster: true };
     });
-    return { scene: root, materials: [...made.values()] };
-  }, [gltf.scene, lighting]);
+    const size = new Box3().setFromObject(root).getSize(new Vector3());
+    return { scene: root, materials: [...made.values()], reach: Math.max(0.15, Math.min(size.x, size.z) / 2) };
+  }, [gltf.scene, lighting, local]);
+
+  // Looked up again when the piece moves, or once the house's lightmaps can be read.
+  const lookedUp = useRef('');
+  const standing = useMemo(() => new Vector3(), []);
+  const frame = useThree((s) => s.invalidate);
+  useFrame(() => {
+    const house = lighting.house.current;
+    if (!house) return;
+    const { x, y, z } = scene.getWorldPosition(standing);
+    const key = `${house.lightVersion}|${x.toFixed(2)},${y.toFixed(2)},${z.toFixed(2)}`;
+    if (key === lookedUp.current) return;
+    lookedUp.current = key;
+    const here = house.lightAround(x, y, z, reach * scene.scale.x);
+    local.value.set(here?.sky ?? 1, Math.min(here?.lamps ?? 1, LAMPS_ON_PIECE_MAX) * LAMPS_ON_PIECE);
+    frame();
+  });
   useEffect(() => () => materials.forEach((m) => m.material.dispose()), [materials]);
 
   // A5: the stored pose, as it is. A view may move the piece itself in between (a drag).
@@ -630,7 +667,6 @@ export function Furniture({ item, selected = false, onObject, onLoaded }: { item
   }, [scene, x, y, z, item.yaw_deg, scale, lighting]);
   useEffect(() => () => lighting.invalidate(), [lighting, scene]);
 
-  const frame = useThree((s) => s.invalidate);
   useEffect(() => {
     for (const { material, own } of materials) material.color.copy(own).lerp(SELECTED.color, selected ? SELECTED.mix : 0);
     frame();

@@ -95,7 +95,7 @@ export function TourTab({ twin, active, soundBar = true }: { twin: PropertyTwin;
   const shadows = useRef<(() => void) | null>(null);
   /** The house is on screen and the camera can move: what the Showcase's "playing" was. */
   const [ready, setReady] = useState(false);
-  const [lid, setLid] = useState<{ inside: boolean; topStorey: number | null }>({ inside: false, topStorey: null });
+  const [lid, setLid] = useState<{ inside: boolean; topStorey: number | null; focus: P3 | null }>({ inside: false, topStorey: null, focus: null });
   /** The first view is in place: the loading screen fades out, then goes. */
   const [revealed, setRevealed] = useState(false);
   const [loaderGone, setLoaderGone] = useState(false);
@@ -786,7 +786,7 @@ export function TourTab({ twin, active, soundBar = true }: { twin: PropertyTwin;
             <HouseAO enabled={lid.inside} />
             <TourCamera rig={rigRef} house={houseRef} center={bounds3.center} radius={bounds3.radius} active={active} onPick={onPick} onLid={setLid} />
             {rebuilt ? (
-              <HouseModel url={rebuilt.url} info={rebuilt.info} inside={lid.inside} topStorey={lid.topStorey} onAssetError={setError} onHouse={onHouse} />
+              <HouseModel url={rebuilt.url} info={rebuilt.info} inside={lid.inside} topStorey={lid.topStorey} cutaway={lid.focus} onAssetError={setError} onHouse={onHouse} />
             ) : (
               <>
                 <RoomShells rooms={twin.rooms} onReady={onShellsReady} />
