@@ -104,8 +104,9 @@ const AERIAL_PITCH_DEG = 60;
  * so the screen is turned like the phone's plan (+X right, +Z down the page) and "up" on the phone
  * is up on the screen. `span` is the room's longest side: a bigger room is seen from further away.
  */
-export function aerialView(target: P3, span: number): { position: P3; rotation: { x: number; y: number } } {
-  const distance = Math.min(9, Math.max(5.5, span * 0.6));
+export function aerialView(target: P3, span: number, close?: number): { position: P3; rotation: { x: number; y: number } } {
+  // close: a fixed, nearer distance (arranging by hand looks at the pieces around one spot, not the whole room)
+  const distance = close ?? Math.min(9, Math.max(5.5, span * 0.6));
   const pitch = (AERIAL_PITCH_DEG * Math.PI) / 180;
   return {
     position: { x: target.x, y: target.y + distance * Math.sin(pitch), z: target.z + distance * Math.cos(pitch) },

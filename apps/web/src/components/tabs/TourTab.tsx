@@ -49,6 +49,8 @@ const HAND_GRAB_RADIUS = 0.16;
 /** Holding a piece by hand: how long a lost hand or an opened pinch is forgiven (the tracker
  * flickers), how much nearer another piece must be to take the pointer, how far the piece moves
  * toward the hand each frame, and the hand movement (px) that is only trembling. */
+/** Arranging by hand looks down from this near (m), above where the camera stood. */
+const HAND_AERIAL_DISTANCE = 4.2;
 const HAND_HOLD = { graceMs: 450, steal: 0.6, follow: 0.22, still: 1.5 } as const;
 const HAND_TOUR = { yawDegPerView: 160, pitchDegPerView: 90, speedDegPerS: 900, zoomGain: 2, sweepDegPerView: 220 } as const;
 
@@ -811,8 +813,10 @@ export function TourTab({ twin, active }: { twin: PropertyTwin; active: boolean 
       }),
     [],
   );
-  // Hands arrange furniture, in whatever view the big screen is in: standing in the room, or from
-  // above when the phone asks for that. The piece nearest a hand is pointed out; a pinch picks it up, the hand slides
+  // Hands arrange furniture. While hand control is on, the big screen looks down, from close, on
+  // the part of the room the camera stood in. A piece that has been picked up stays the chosen
+  // one (blue) after it is put down: the next pinch, anywhere, picks it up again, and only a pinch
+  // right on another piece changes the choice. Before that, the piece nearest a hand is pointed out; a pinch picks it up, the hand slides
   // it over the floor, a second pinching hand turns it (as the line between the hands turns),
   // and letting go saves it where it stands.
   const handsOn = useHands((s) => s.status === 'on');
@@ -830,6 +834,9 @@ export function TourTab({ twin, active }: { twin: PropertyTwin; active: boolean 
     // x, z: where the piece is drawn; tx, tz: where the hand has taken it (the drawn one follows, smoothly).
     let held: { id: string; hand: number; x: number; y: number; z: number; tx: number; tz: number; yaw: number; px: number; py: number; twist: number | null; lostAt: number | null } | null = null;
     let pointed: string | null = null;
+    /** The chosen piece: picked up once, it stays chosen until another is pinched. */
+    let locked: string | null = null;
+    const wasPinching = new Set<number>();
     const point = (id: string | null) => {
       if (id === pointed) return;
       pointed = id;
@@ -920,6 +927,9 @@ export function TourTab({ twin, active }: { twin: PropertyTwin; active: boolean 
         return;
       }
       const hand = hands.find((x) => x.pinching) ?? hands[0];
+      const started = !!hand && hand.pinching && !wasPinching.has(hand.id); // a pinch counts once, when it closes
+      wasPinching.clear();
+      for (const x of hands) if (x.pinching) wasPinching.add(x.id);
       if (!hand) return;
       const px = hand.u * w;
       const py = hand.v * h;
@@ -938,8 +948,15 @@ export function TourTab({ twin, active }: { twin: PropertyTwin; active: boolean 
           best = p;
         }
       }
-      if (best) point(best.item_id);
-      if (best && hand.pinching) held = { id: best.item_id, hand: hand.id, x: best.position.x, y: best.position.y, z: best.position.z, tx: best.position.x, tz: best.position.z, yaw: best.yaw_deg, px, py, twist: null, lostAt: null };
+      if (locked && !placementsRef.current.some((p) => p.item_id === locked)) locked = null; // it was removed
+      if (!locked && best) point(best.item_id);
+      if (!started) return;
+      // A pinch right on a piece picks that one; anywhere else, the chosen one.
+      const take = best ?? placementsRef.current.find((p) => p.item_id === locked) ?? null;
+      if (!take) return;
+      locked = take.item_id;
+      point(take.item_id);
+      held = { id: take.item_id, hand: hand.id, x: take.position.x, y: take.position.y, z: take.position.z, tx: take.position.x, tz: take.position.z, yaw: take.yaw_deg, px, py, twist: null, lostAt: null };
     });
     return () => {
       off();
@@ -951,8 +968,16 @@ export function TourTab({ twin, active }: { twin: PropertyTwin; active: boolean 
 
   /** What to look down on: a key that changes when the view must, where, and in which room. 'wait': a piece just added is not loaded yet. */
   const aerialTarget = useMemo(() => {
-    // By hand the whole room stays in view: the camera must not chase each piece a hand passes.
-    if (overview && arranging && !handsOn) {
+    if (handsOn && active && roomId) {
+      // By hand the camera stays put: it must not chase each piece a hand passes.
+      const room = twin.rooms.find((r) => r.room_id === roomId);
+      const stood = here.current ? sweepPosition(here.current) : undefined;
+      if (room) {
+        const [cx, cz] = centroid(room.polygon);
+        return { key: `hands:${roomId}`, at: { x: stood?.x ?? cx, y: room.floor_y, z: stood?.z ?? cz }, room, close: HAND_AERIAL_DISTANCE };
+      }
+    }
+    if (overview && arranging) {
       const p = placements.find((x) => x.item_id === arranging);
       const room = p && twin.rooms.find((r) => r.room_id === p.room_id);
       if (!p || !room) return 'wait' as const;
@@ -968,7 +993,7 @@ export function TourTab({ twin, active }: { twin: PropertyTwin; active: boolean 
     if (!room) return null;
     const [x, z] = centroid(room.polygon);
     return { key: `room:${room.room_id}`, at: { x, y: room.floor_y, z }, room };
-  }, [arranging, overview, placements, layouts.data, selectedLayoutId, twin.rooms, handsOn]);
+  }, [arranging, overview, placements, layouts.data, selectedLayoutId, twin.rooms, handsOn, active, roomId, sweepPosition]);
   useEffect(() => {
     if (!sdk || !canPlaceObjects || aerialTarget === 'wait') return;
     if (!aerialTarget) {
@@ -980,10 +1005,11 @@ export function TourTab({ twin, active }: { twin: PropertyTwin; active: boolean 
       return;
     }
     const { key, at, room } = aerialTarget;
+    const close = 'close' in aerialTarget ? aerialTarget.close : undefined;
     if (key === aerial.current || key === aerialDismissed.current) return;
     aerial.current = key;
     const b = bounds(room.polygon);
-    const view = aerialView(at, Math.max(b.maxX - b.minX, b.maxZ - b.minZ));
+    const view = aerialView(at, Math.max(b.maxX - b.minX, b.maxZ - b.minZ), close);
     const floor = twin.floors.find((f) => f.floor_id === room.floor_id)?.index;
     void (async () => {
       while (moving.current) await new Promise((resolve) => setTimeout(resolve, 100));

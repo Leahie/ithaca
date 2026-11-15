@@ -20,8 +20,7 @@ should see, within a few seconds:
 - the pill reads **Hands on**;
 - a small camera box at the bottom left showing you, with coloured lines drawn on your hands.
 
-The view stays where it is, standing in the room. For the room from above, press the cube button
-on the phone's furniture screen; hands work in both views, and from above is easier for long moves.
+The big screen looks down, from close, on the part of the room the camera was standing in.
 
 Raise one hand. A ring appears on the big screen and follows your palm: that is your cursor.
 Blue ring and **L** for your left hand, coral and **R** for your right.
@@ -34,6 +33,7 @@ Blue ring and **L** for your left hand, coral and **R** for your right.
 | **Grab** | With the piece blue, touch thumb tip to index fingertip and hold. Keep the other fingers relaxed, not in a fist. | The ring tightens. The hint under the camera box reads "Move your hand · let go to place". |
 | **Move** | Keep pinching and move your hand. | The piece slides over the floor and follows your hand, slightly behind it. |
 | **Turn** | Still holding with the first hand, pinch with the second hand too, then turn both hands like a steering wheel. | The piece rotates on the spot. Open the second hand to stop turning; the first still holds it. |
+| **Keep working on it** | After placing, the piece stays blue: it is the chosen one. Pinch anywhere to pick it up again; your hand does not have to be on it. To choose another piece, pinch right on that one. | The chosen piece stays blue while your open hand moves over others. |
 | **Place** | Open the first hand. | After about half a second the piece settles and is saved. The phone's plan shows it in the new place. |
 
 ## Things to try, and what counts as a pass
