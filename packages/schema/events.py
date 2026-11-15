@@ -109,8 +109,13 @@ class ViewerSetModePayload(Model):
 
 
 class ViewerLookPayload(Model):
+    """`ms` and `delay_ms` are additive: a slow turn (the guide showing a room once around) that
+    takes `ms` and starts after `delay_ms`. Without them the turn is quick, as from a finger."""
+
     yaw_delta_deg: float
     pitch_delta_deg: float
+    ms: float | None = None
+    delay_ms: float | None = None
 
 
 class ViewerStepPayload(Model):

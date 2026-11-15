@@ -7,6 +7,7 @@ from langchain_core.messages import AIMessage
 from langgraph.store.memory import InMemoryStore
 
 from services.api.agent import views
+from services.api.agent import design_gate, house_plans
 from services.api.agent.context import AgentContext
 from services.api.agent.design_tools import BACKGROUND_DESIGN
 from services.api.agent.graph import build_designer, run_designer
@@ -17,6 +18,15 @@ from services.api.sim import layout_solver
 from services.api.twin.service import get_twin
 
 LIVING_ROOM = "tt6gm2a0463x9wmnx7rn6gugc"
+
+
+@pytest.fixture(autouse=True)
+def open_gate():
+    design_gate.reset()
+    house_plans.reset()
+    yield
+    design_gate.reset()
+    house_plans.reset()
 
 
 @pytest.fixture
@@ -81,7 +91,7 @@ def test_guide_starts_the_designer_in_the_background_then_shows_valid_layouts(fu
 
     shown = [e[1] for e in out if e[0] == "ui"]
     # cards for all options, option 1 placed in the room, and the user taken there: no tab switch
-    assert [e["type"] for e in shown] == ["design.showVariants", "layout.select", "viewer.goto"]
+    assert [e["type"] for e in shown] == ["design.showVariants", "layout.select", "viewer.goto", "viewer.look"]  # the last: once around the room
     assert sorted(shown[0]["payload"]["layout_ids"]) == sorted(str(l.layout_id) for l in layouts)
     assert shown[1]["payload"]["layout_id"] == shown[0]["payload"]["layout_ids"][0] and shown[2]["payload"]["room_id"] == LIVING_ROOM
 
@@ -90,8 +100,8 @@ def test_suggested_catalog_pieces_reach_the_chat_as_cards(furniture):
     """catalog_suggest sends the pieces with pictures and sizes; it adds nothing by itself."""
     model = ScriptedModel(
         script=[
-            call("catalog_suggest", catalog_ids=["dining_chair_02", "mid_century_lounge_chair", "made-up"], room_id=LIVING_ROOM),
-            call("catalog_suggest", catalog_ids=["dining_chair_02", "mid_century_lounge_chair"], room_id=LIVING_ROOM, near_item_id="desk-1"),
+            call("catalog_suggest", catalog_ids=["B07B78LXYF", "B0714QGLSD", "made-up"], room_id=LIVING_ROOM),
+            call("catalog_suggest", catalog_ids=["B07B78LXYF", "B0714QGLSD"], room_id=LIVING_ROOM, near_item_id="desk-1"),
             AIMessage(content="Two chairs that would suit a desk."),
         ]
     )
@@ -99,6 +109,72 @@ def test_suggested_catalog_pieces_reach_the_chat_as_cards(furniture):
     assert model.tool_results[0].startswith("Error")  # an unknown id shows nothing
     (card,) = [e[1] for e in out if e[0] == "ui"]
     assert card["type"] == "catalog.suggest" and card["payload"]["near_item_id"] == "desk-1"
-    assert [p["catalog_id"] for p in card["payload"]["pieces"]] == ["dining_chair_02", "mid_century_lounge_chair"]
-    assert all(p["thumbnail_url"].startswith("https://") and p["dims_m"]["w"] > 0 for p in card["payload"]["pieces"])
+    assert [p["catalog_id"] for p in card["payload"]["pieces"]] == ["B07B78LXYF", "B0714QGLSD"]
+    assert all(p["thumbnail_url"].endswith(".jpg") and p["dims_m"]["w"] > 0 for p in card["payload"]["pieces"])
     assert len(furniture.list_items("alice")) == 3  # only the seeded pieces: showing is not adding
+
+
+def test_furnishing_with_a_set_adds_its_pieces_and_starts_the_designer(furniture, monkeypatch):
+    """One set per room: its pieces (with their counts) go into the user's furniture, and the designer gets them as its brief."""
+    import trimesh
+
+    from services.api.objects.providers import catalog
+
+    def box(cid):  # a box of the piece's own size stands in for its model: no download in tests
+        _id, _cls, _label, w, d, h = catalog.BY_ID[cid]
+        return trimesh.creation.box(extents=(w, h, d)).export(file_type="glb")
+
+    monkeypatch.setattr(catalog, "fetch", box)
+    before = len(furniture.list_items("alice"))
+    model = ScriptedModel(script=[call("catalog_sets"), call("furnish_with_set", set_id="jonathan_bedroom", room_id=LIVING_ROOM), AIMessage(content="I chose the walnut bedroom set.")])
+    out = run(model, InMemoryStore(), user="alice", thread="t1", text="furnish this room")
+
+    assert "Jonathan walnut bedroom" in model.tool_results[0] and "nightstand ×2" in model.tool_results[0]
+    added = furniture.list_items("alice")[before:]
+    wanted = sum(catalog.SET_COUNTS.get(("jonathan_bedroom", c), 1) for c in catalog.SET_BY_ID["jonathan_bedroom"]["pieces"])
+    assert len(added) == wanted and sum(i.item_class == "nightstand" for i in added) == 2
+    job = next(e[1] for e in out if e[0] == "ui" and e[1]["type"] == BACKGROUND_DESIGN)
+    assert job["payload"]["room_id"] == LIVING_ROOM and all(str(i.item_id) in job["payload"]["brief"] for i in added)
+
+
+def test_rooms_are_planned_together_and_shown_one_at_a_time(furniture):
+    """Asking for two rooms starts the designer on both at once; the second room's layouts are
+    held until the user has decided on the first (human in the loop between rooms)."""
+    twin = get_twin(PROPERTY)
+    other = next(r.room_id for r in twin.rooms if r.room_id != LIVING_ROOM)
+    conversation = design_gate.key(None, "alice")
+    both = ScriptedModel(script=[
+        call("design_in_background", room_id=LIVING_ROOM, brief="whatever fits"),
+        call("design_in_background", room_id=other, brief="whatever fits"),
+        call("design_in_background", room_id=other, brief="whatever fits"),  # asked twice: not started twice
+        AIMessage(content="ok"),
+    ])
+    out = run(both, InMemoryStore(), user="alice", thread="t1")
+    assert [e[1]["payload"]["room_id"] for e in out if e[0] == "ui" and e[1]["type"] == BACKGROUND_DESIGN] == [LIVING_ROOM, other]
+    assert "already being arranged" in both.tool_results[2]
+
+    assert design_gate.ready(conversation, LIVING_ROOM, "living room ready")  # the first to finish is shown
+    assert not design_gate.ready(conversation, other, "next room ready")  # the second waits for the user
+    assert design_gate.user_spoke(conversation) == "next room ready"  # they decided: now it comes up
+    assert design_gate.user_spoke(conversation) is None
+
+
+def test_planning_a_room_someone_else_has_plans_for_is_raised_with_the_person_first(furniture):
+    """Two people's agents on one house share no context, only who has plans for which room."""
+    from services.api.agent.runner import stream_turn
+    from services.api.agent.graph import build_agent
+    from services.api.realtime.agent_bridge import others_plans
+
+    maya = AgentContext(user_id="m-maya", property_id=PROPERTY, session_id="s", household_id="h", member_name="Maya", house_user_id="demo")
+    leo = AgentContext(user_id="m-leo", property_id=PROPERTY, session_id="s", household_id="h", member_name="Leo", house_user_id="demo")
+
+    def ask(who, **extra):
+        model = ScriptedModel(script=[call("design_in_background", room_id=LIVING_ROOM, brief="whatever fits", **extra), AIMessage(content="ok")])
+        out = list(stream_turn(build_agent(PROPERTY, store=InMemoryStore(), model=model), "plan the living room", who, who.thread_id))
+        return model.tool_results[0], [e for e in out if e[0] == "ui" and e[1]["type"] == BACKGROUND_DESIGN]
+
+    assert ask(maya)[1] and others_plans(maya) == ""  # her own plan is not news to her
+    said, started = ask(leo)
+    assert started == [] and "Hold on: Maya is having layouts drawn up" in said
+    assert "Maya is having layouts drawn up for" in others_plans(leo)
+    assert ask(leo, go_ahead_over_other_plans=True)[1]  # Leo said to go ahead anyway

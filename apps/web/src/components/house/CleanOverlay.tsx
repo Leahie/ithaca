@@ -4,7 +4,9 @@ import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import type { CatalogPiece, PropertyTwin } from '@ithaca/schema';
 import { PlanPreview } from '@/components/design/PlanPreview';
 import { GLASS, GLASS_PANEL } from '@/components/ui';
+import { config } from '@/lib/config';
 import { useInventory, useLayouts } from '@/lib/data/hooks';
+import { useHands } from '@/lib/hands/store';
 import { placeName, roomName } from '@/lib/rooms';
 import { onSoundBlocked, pageHasBeenClicked, setVoiceKind, speechProvider, unlockSound } from '@/lib/speech/provider';
 import { canSpeak, useSpeakGuide } from '@/lib/speech/useSpeakGuide';
@@ -59,6 +61,10 @@ export function CleanOverlay({ twin, pairing, onShowControls }: { twin: Property
   const [visible, setVisible] = useState(false);
   // The guide talks; the caption is a small subtitle, not a chat.
   const [voice, setVoice] = useState(true);
+  const hands = useHands((s) => s.status);
+  const handsError = useHands((s) => s.error);
+  const toggleHands = useHands((s) => s.toggle);
+  const handsOn = hands === 'on' || hands === 'starting';
   useSpeakGuide(voice);
   // Which voice is chosen on the phone, in its settings; a new choice says hello in it.
   const kind = useSession((s) => s.viewer.playback.voice);
@@ -156,6 +162,17 @@ export function CleanOverlay({ twin, pairing, onShowControls }: { twin: Property
         {canSpeak() && (
           <button type="button" aria-pressed={voice} onClick={() => setVoice(!voice)} className={`px-3.5 py-2 text-sm ${PILL}`}>
             {voice ? 'Voice on' : 'Voice off'}
+          </button>
+        )}
+        {config.features.has('hands') && (
+          <button
+            type="button"
+            aria-pressed={handsOn}
+            onClick={toggleHands}
+            title={hands === 'error' ? (handsError ?? undefined) : 'Arrange furniture with your hands. Pinch a piece to pick it up, move your hand to slide it, pinch with the other hand and turn to rotate it, let go to place it.'}
+            className={`px-3.5 py-2 text-sm ${PILL}`}
+          >
+            {hands === 'starting' ? 'Hands…' : hands === 'error' ? 'Hands failed' : handsOn ? 'Hands on' : 'Hands off'}
           </button>
         )}
         <button type="button" onClick={onShowControls} className={`px-3.5 py-2 text-sm ${PILL}`}>

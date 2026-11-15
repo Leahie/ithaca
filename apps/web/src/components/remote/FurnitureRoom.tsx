@@ -284,11 +284,23 @@ export function FurnitureRoom({ twin, talk }: { twin: PropertyTwin; talk?: Talk 
   const facing = front ? compassWord(interiorDirectionToAzimuth(twin.interior_to_world, [front[0], 0, front[1]])) : null;
   const choosing = options.length > 0;
   const current = trying ?? options[0];
+  // While the guide's options are up, their island is three rows tall: the plan starts under it,
+  // so the room being judged is never hidden behind the choice.
+  const island = useRef<HTMLDivElement | null>(null);
+  const [islandHeight, setIslandHeight] = useState(0);
+  useEffect(() => {
+    const el = island.current;
+    if (!el || typeof ResizeObserver === 'undefined') return;
+    const seen = new ResizeObserver(() => setIslandHeight(el.offsetHeight));
+    seen.observe(el);
+    return () => seen.disconnect();
+  }, []);
+  const planTop = choosing && !sheet && islandHeight ? islandHeight + 20 : null;
 
   return (
     <div className="relative min-h-0 flex-1 overflow-hidden bg-ink" data-testid="furniture-room">
       {/* The plan sits between the island at the top and the compass and stick at the bottom; a taller island (a piece's tools) floats over its top edge. */}
-      <div className="absolute inset-x-0 top-[6.5rem] bottom-[7.75rem] px-2">
+      <div className="absolute inset-x-0 top-[6.5rem] bottom-[7.75rem] px-2" style={planTop ? { top: planTop } : undefined}>
         {trying ? (
           <PlanEditor fill readOnly propertyId={twin.property_id} room={room} openings={openings} pieces={trying.placements} items={items} interiorToWorld={twin.interior_to_world} onTapFloor={({ x, z }) => viewSpot(x, z)} />
         ) : (
@@ -322,7 +334,7 @@ export function FurnitureRoom({ twin, talk }: { twin: PropertyTwin; talk?: Talk 
         <LookStick />
       </div>
 
-      <div className="absolute inset-x-3 top-3 flex flex-col gap-2">
+      <div ref={island} className="absolute inset-x-3 top-3 flex flex-col gap-2">
         {sheet === 'add' && (
           <AddModal name={name} stored={stored} me={me} host={me === config.userId} onClose={() => setSheet(null)} onPlace={place} onDelete={deleteForGood}
             photo={

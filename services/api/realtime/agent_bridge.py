@@ -33,7 +33,7 @@ from collections.abc import Callable
 from typing import Any
 
 from packages.schema.events import EventEnvelope, make_event
-from services.api.agent import family
+from services.api.agent import design_gate, family, house_plans
 from services.api.agent.context import AgentContext
 from services.api.agent.design_tools import BACKGROUND_DESIGN
 from services.api.agent.provider import TurnRunner
@@ -68,6 +68,8 @@ def action_summary(tool: str, args: dict) -> str:
         "viewer_turn": "Turning the view",
         "viewer_zoom": "Zooming",
         "design_in_background": "Starting on the room layout",
+        "catalog_sets": "Looking at the furniture sets",
+        "furnish_with_set": "Furnishing the room with a set",
         "task": f"Asking the {args.get('subagent_type', 'helper')}",
         "inventory_search": "Looking at your furniture",
         "propose_layouts": "Arranging the room",
@@ -94,6 +96,17 @@ def action_summary(tool: str, args: dict) -> str:
         "family_read_board": "Reading the family board",
         "family_ask_member": f"Asking {args.get('name', 'a family member')}'s agent",
     }.get(tool, tool.replace("_", " "))
+
+
+def others_plans(context: AgentContext) -> str:
+    """What this agent may know of the others arranging the same house: who has plans for which
+    room, and nothing more (agent/house_plans.py)."""
+    plans = house_plans.of_others(context)
+    if not plans:
+        return ""
+    names = prompts.room_short_names(get_twin(context.property_id))
+    lines = "".join(f"\n- {p.who} {p.status} for {names.get(p.room_id, p.room_id)} (room_id {p.room_id})" for p in plans)
+    return f"<others_plans>{lines}\n</others_plans>\n"
 
 
 def spoken_cue(tool: str, args: dict, property_id: str) -> str | None:
@@ -141,10 +154,19 @@ class AgentBridge:
 
         if event.type == "voice.transcript" and p.get("final") and not p.get("text", "").strip():
             return  # the microphone closed without hearing anything: not a turn
+        waiting, who = None, None
+        if event.type == "chat.user" or (event.type == "voice.transcript" and p.get("final")) or (event.type == "layout.confirm" and by_user):
+            # The user has spoken or kept a layout: the room that was waiting for them is settled,
+            # and the guide may go on to another one (agent/design_gate.py).
+            who = event.member_id if room.household_id else None
+            waiting = design_gate.user_spoke(design_gate.key(sid, self._context(room, who).user_id))
         if event.type == "chat.user" or (event.type == "voice.transcript" and p.get("final")):
             log_.heard(p["text"])
             self._signal(room)
             self._start(room, p["text"], proactive=False, member_id=event.member_id, interrupts=True)
+        if (event.type == "chat.user" or (event.type == "voice.transcript" and p.get("final")) or (event.type == "layout.confirm" and by_user)) and waiting:
+            # They have judged one room: the next one that was planned meanwhile comes up now.
+            asyncio.get_running_loop().call_soon(lambda: self._start(room, waiting, proactive=False, member_id=who))
         elif event.type == "session.joined" and p.get("member_id") and room.household_id:
             if self.hub.first_greeting(sid, p["member_id"]):
                 self._start(room, event_message("member_joined"), proactive=False, member_id=p["member_id"])
@@ -164,6 +186,7 @@ class AgentBridge:
         elif event.type == "layout.confirm" and by_user:  # a click on an option only previews it (layout.select)
             from services.api.agent.design_tools import describe_layout
             from services.api.furniture import house
+            from services.api.furniture.store import furniture_store
 
             try:  # the kept layout goes into the house (F8), and every screen reloads
                 house.apply(room.user_id, p["layout_id"], event.member_id or room.user_id)
@@ -171,6 +194,9 @@ class AgentBridge:
                 log.warning("layout %s not applied: %s", p["layout_id"], e.detail)
             else:
                 asyncio.get_running_loop().call_soon(self.hub.publish, make_event(sid, "server", "layout.changed", {"layout_id": p["layout_id"]}))
+            kept = furniture_store().get_proposal(room.user_id, p["layout_id"])
+            if kept is not None:  # the others' agents hear that this room is taken, and by whom
+                house_plans.note(self._context(room, event.member_id if room.household_id else None), kept.room_id, house_plans.KEPT)
             picked = describe_layout(room.user_id, room.property_id, p["layout_id"])
             if picked:
                 self._signal(room)
@@ -213,7 +239,7 @@ class AgentBridge:
 
     async def _run_observer(self, room: SessionRoom, deliver: bool) -> None:
         sid = room.session_id
-        context = self._context(room, None)
+        context = self._context(room, None)  # the guide's own memory: the family's in a family session
         try:
             note = await asyncio.to_thread(self.observe, context)
         except Exception:
@@ -250,7 +276,6 @@ class AgentBridge:
             property_id=room.property_id,
             session_id=room.session_id,
             household_id=room.household_id,
-            memory_user=f"household-{room.household_id}" if room.household_id else None,
         )
 
     def _start(self, room: SessionRoom, text: str, proactive: bool, member_id: str | None = None, interrupts: bool = False) -> None:
@@ -269,8 +294,7 @@ class AgentBridge:
 
     async def _run_turn(self, room: SessionRoom, text: str, lock: asyncio.Lock, member_id: str | None = None) -> None:
         sid = room.session_id
-        # A member's agent keeps its own conversation with its own person.
-        thread_id = f"{sid}:{member_id}" if member_id else sid
+        turn_key = f"{sid}:{member_id}" if member_id else sid
 
         def emit(type: str, payload: dict) -> None:
             try:
@@ -278,12 +302,16 @@ class AgentBridge:
             except (KeyError, ValueError) as e:  # an event the schema doesn't know or accept
                 log.warning("agent event %s dropped: %s", type, e)
 
-        key = thread_id
+        key = turn_key
         async with lock:
             s = room.state
             phone = self._phone_screen.get((sid, member_id), "")
             where = f'<viewer mode="{s.mode}" room_id="{s.room_id or ""}" datetime="{s.datetime or ""}" phone="{phone}"/>\n'
             context = self._context(room, member_id)
+            where += others_plans(context)
+            # The conversation belongs to the person (or the family's guide) and the house, not to
+            # this browser session: a new visit goes on from the last one.
+            thread_id = context.thread_id
             loop, queue = asyncio.get_running_loop(), asyncio.Queue()
             stop = threading.Event()
             self._running[key] = stop
@@ -362,6 +390,7 @@ class AgentBridge:
         same room (say, after the user answered a question) replaces a run still going: the old
         run's thoughts, layouts and report are dropped."""
         if self.design is None:
+            design_gate.dropped(design_gate.key(room.session_id, self._context(room, member_id).user_id), room_id)
             self._start(room, event_message("layouts_failed", "The designer is not available in this setup."), proactive=False, member_id=member_id)
             return
         job = (key, room_id)
@@ -390,16 +419,25 @@ class AgentBridge:
                 loop.call_soon_threadsafe(publish, data["type"], data["payload"])
 
         async def run() -> None:
+            conversation = design_gate.key(room.session_id, context.user_id)
             try:
                 report = await asyncio.to_thread(self.design, context, room_id, brief, progress)
+            except Exception as e:
+                log.exception("background designer failed")
+                if not current():
+                    return  # a newer run for this room took over, gate and all
+                message = event_message("layouts_failed", f"room_id: {room_id}\n{e}")
+                design_gate.dropped(conversation, room_id)
+            else:
+                if not current():
+                    return
                 # The thoughts reached the user as the guide's own words; this is the guide's only record of them.
                 aloud = "".join(f"\n- {t}" for t in said)
                 aloud = f"\nWhile it worked, you already told the user:{aloud}\n" if aloud else ""
                 message = event_message("layouts_ready", f"room_id: {room_id}{aloud}\n{report}")
-            except Exception as e:
-                log.exception("background designer failed")
-                message = event_message("layouts_failed", f"room_id: {room_id}\n{e}")
-            if current():
-                self._start(room, message, proactive=False, member_id=member_id)
+                house_plans.note(context, room_id, house_plans.CHOOSING)
+                if not design_gate.ready(conversation, room_id, message):
+                    return  # another room is waiting for the user: this one is shown after it
+            self._start(room, message, proactive=False, member_id=member_id)
 
         self._keep(asyncio.create_task(run()))

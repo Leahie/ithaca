@@ -181,16 +181,35 @@ def test_a_family_shares_one_pool_and_each_piece_keeps_its_owner(client):
     assert client.get(HOUSE, headers=host).json() == []
 
 
-def test_a_host_has_one_family_even_when_the_screen_makes_it_again(client):
-    """A screen that lost its saved household (another browser) gets the same family back, so a
-    phone that joined then and a phone that joins now share one pool."""
+def test_a_host_gets_a_family_back_by_its_name_and_another_name_is_a_new_family(client):
+    """A screen that lost its saved household (another browser) gets the family back by its name, so
+    a phone that joined then and a phone that joins now share one pool. A new name starts from
+    nothing: no members, and none of the first family's furniture."""
     host = {"X-User-Id": "screen"}
     first = client.post("/api/households", headers=host, json={"name": "Us"}).json()
     maya = client.post("/api/households/join", json={"invite_token": first["invite_token"], "name": "Maya"}).json()["member"]["member_id"]
-    again = client.post("/api/households", headers=host, json={"name": "Zhang"}).json()
-    assert again["household_id"] == first["household_id"] and again["name"] == "Zhang"
+    again = client.post("/api/households", headers=host, json={"name": "us"}).json()
+    assert again["household_id"] == first["household_id"]
     leo = client.post("/api/households/join", json={"invite_token": again["invite_token"], "name": "Leo"}).json()["member"]["member_id"]
     assert {maya, leo} <= hh.households().family_of(maya)
+
+    new = client.post("/api/households", headers=host, json={"name": "Zhang"}).json()
+    assert new["household_id"] != first["household_id"] and new.get("members", []) == []
+    assert hh.households().family_of("screen") == {"screen"}  # the screen's pool is the family it has on now
+    # each family furnishes its own house: what the first placed is not in the new family's
+    from packages.schema.layout import HousePiece
+    from packages.schema.twin import Vec3
+
+    fs, sofa = store.furniture_store(), store.furniture_store().list_items("screen")[0]
+    fs.put_piece("screen", HousePiece(item_id=sofa.item_id, property_id=PROPERTY, room_id="r", position=Vec3(x=0, y=0, z=0), yaw_deg=0, placed_by="screen", updated_at=store.now()))
+    assert len(fs.house_pieces("screen", PROPERTY)) == 1
+    client.post("/api/households", headers=host, json={"name": "Us"})  # back to the first family
+    assert fs.house_pieces("screen", PROPERTY) == []
+    assert client.post("/api/households/leave", headers=host).status_code == 204  # no family: the screen's own house
+    assert fs.house_pieces("screen", PROPERTY) == []
+    client.post("/api/households", headers=host, json={"name": "Zhang"})
+    assert len(fs.house_pieces("screen", PROPERTY)) == 1
+    assert {maya, leo, "screen"} <= hh.households().family_of(maya)  # the first family is still whole for its own members
     assert client.post("/api/households", headers={"X-User-Id": "bob"}, json={"name": "Bob's"}).json()["household_id"] != first["household_id"]
 
 
@@ -198,17 +217,17 @@ def test_start_a_new_family_starts_empty_and_stays_separate(client, tmp_path):
     host = {"X-User-Id": "screen"}
     old = client.post("/api/households", headers=host, json={"name": "Us"}).json()
     client.post("/api/households/join", json={"invite_token": old["invite_token"], "name": "Leah"})
-    new = client.post("/api/households", headers=host, json={"name": "Riveras", "fresh": True}).json()
+    new = client.post("/api/households", headers=host, json={"name": "Us", "fresh": True}).json()  # same name, new family
     assert new["household_id"] != old["household_id"] and new["members"] == []
     assert client.post("/api/households/join", json={"invite_token": old["invite_token"], "name": "Leah"}).status_code != 200
-    again = client.post("/api/households", headers=host, json={"name": "Riveras"}).json()  # the screen lost its saved family
+    again = client.post("/api/households", headers=host, json={"name": "Us"}).json()  # the screen lost its saved family
     assert again["household_id"] == new["household_id"]
 
     path = tmp_path / "households.sqlite"
     store_ = hh.HouseholdStore(path)
     a = store_.create("Us", host_user_id="screen")
     store_.join(a.invite_token, "Leah")
-    b = store_.create("Riveras", host_user_id="screen", fresh=True)
+    b = store_.create("Us", host_user_id="screen", fresh=True)
     restarted = hh.HouseholdStore(path)  # the set-aside family is not merged back in
     assert restarted.get(b.household_id).members == []
     assert restarted.get(a.household_id).household_id == a.household_id

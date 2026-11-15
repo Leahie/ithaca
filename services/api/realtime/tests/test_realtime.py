@@ -28,7 +28,7 @@ def test_big_screen_guide_remembers_each_family_apart_from_the_host():
     bridge = AgentBridge(hub, runner=None)
     rooms = [hub.rooms[hub.create_session("demo", PROPERTY, household_id=h).session_id] for h in ("h-a", "h-b", None)]
     a, b, solo = (bridge._context(r, None) for r in rooms)
-    assert {a.memory_owner, b.memory_owner, solo.memory_owner} == {"household-h-a", "household-h-b", "demo"}
+    assert (a.memory_user, b.memory_user) == ("h-a", "h-b") and solo.memory_user.startswith("guest-")
     assert a.furniture_user == b.furniture_user == "demo"
 
 
@@ -237,3 +237,41 @@ def test_the_designer_thinks_out_loud_and_a_new_request_replaces_the_one_still_r
         assert len(reports) == 1 and "layouts for lay out second" in reports[0]  # the first run's report was dropped
 
     asyncio.run(scenario())
+
+
+def test_a_new_visit_continues_the_conversation_and_the_room_while_families_and_members_stay_apart():
+    """The conversation and the last room belong to who is looking (a person, or a family), not to
+    the browser session. Another family, or another member of the same one, shares neither."""
+    from services.api.realtime.agent_bridge import AgentBridge
+
+    seen = []  # (thread, whose memory) per turn
+
+    def runner(text, context, thread_id):
+        seen.append((thread_id, context.memory_user))
+        return iter(())
+
+    async def scenario():
+        hub = Hub()
+        AgentBridge(hub, runner)
+
+        def visit(household=None, member=None, room=None):
+            s = hub.create_session("demo", PROPERTY, household_id=household)
+            start = hub.rooms[s.session_id].state.room_id
+            hub.publish(make_event(s.session_id, "phone" if member else "desktop", "chat.user", {"text": "hi"}, member_id=member))
+            if room:
+                hub.publish(make_event(s.session_id, "desktop", "viewer.goto", {"room_id": room}))
+            return start
+
+        assert visit("h-zhang", room="kitchen") is None  # a first visit starts at the door
+        assert visit("h-zhang") == "kitchen"  # a new session opens where the family left off
+        assert visit("h-lee") is None  # another family on the same screen does not
+        visit("h-zhang", member="m-maya")
+        visit("h-zhang", member="m-leo")
+        await asyncio.sleep(0.05)
+
+    asyncio.run(scenario())
+    # one conversation and one memory per family guide and per member, however many sessions
+    assert set(seen) == {
+        (f"h-zhang:{PROPERTY}", "h-zhang"), (f"h-lee:{PROPERTY}", "h-lee"),
+        (f"m-maya:{PROPERTY}", "m-maya"), (f"m-leo:{PROPERTY}", "m-leo"),
+    }

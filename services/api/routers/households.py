@@ -27,6 +27,12 @@ def create_household(body: CreateHouseholdRequest, x_user_id: str = Header("demo
     return households().create(body.name, host_user_id=x_user_id, fresh=body.fresh)
 
 
+@router.post("/households/leave", status_code=204)
+def leave_household(x_user_id: str = Header("demo")) -> None:
+    """The screen starts a new family: until it names one it has none, and its house is its own."""
+    households().leave(x_user_id)
+
+
 @router.get("/households/{household_id}")
 def get_household(household_id: str) -> Household:
     h = households().get(household_id)

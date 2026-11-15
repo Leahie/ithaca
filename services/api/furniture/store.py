@@ -73,11 +73,22 @@ def norm_yaw(deg: float) -> float:
     return 0.0 if yaw >= 360 else yaw
 
 
+
+def house_key(house_user_id: str) -> str:
+    """Which house the rows belong to. A big screen with a family on shows that family's house, so
+    each family furnishes its own and a new family starts with an empty one. Every caller still
+    passes the screen's user; a screen with no family keeps its own house."""
+    from services.api.realtime.households import households
+
+    return households().current_for(house_user_id) or house_user_id
+
+
 class FurnitureStore:
     def __init__(self, path: Path | str | None = None) -> None:
         if path is None:
             path = REPO_ROOT / "data" / "agent" / "furniture.sqlite"
             path.parent.mkdir(parents=True, exist_ok=True)
+        self._samples = env("SEED_DEMO_INVENTORY", "1" if str(path) == ":memory:" else "0") == "1"
         self._db = sqlite3.connect(path, check_same_thread=False, isolation_level=None)
         self._db.execute("PRAGMA foreign_keys = ON")  # F3: off by default in SQLite, per connection
         self._lock = threading.RLock()
@@ -105,12 +116,13 @@ class FurnitureStore:
     def _seed(self, user_id: str) -> None:
         """Dev convenience: a new user starts with the three sample items from fixtures/inventory.
         Family members (m-...) bring their own pieces; the samples come with the house user.
-        SEED_DEMO_INVENTORY=0 turns it off."""
+        Off in the real database, where pieces nobody added read as invented; SEED_DEMO_INVENTORY=1
+        turns it on. On for in-memory stores (tests)."""
         if user_id.startswith("m-") or self._run("SELECT 1 FROM seeded WHERE user_id = ?", (user_id,)):
             return
         self._run("INSERT OR IGNORE INTO seeded VALUES (?)", (user_id,))
         path = fixtures_dir() / "inventory" / "demo.json"
-        if env("SEED_DEMO_INVENTORY", "1") == "0" or not path.exists():
+        if not self._samples or not path.exists():
             return
         for row in json.loads(path.read_text(encoding="utf-8")):
             # the sample ids are kept for the demo user so the sample layouts still point at them
@@ -176,6 +188,7 @@ class FurnitureStore:
     _PIECE_COLUMNS = "property_id, item_id, room_id, x, y, z, yaw_deg, placed_by, updated_at"
 
     def house_pieces(self, house_user_id: str, property_id: str, room_id: str | None = None) -> list[HousePiece]:
+        house_user_id = house_key(house_user_id)
         rows = self._run(
             f"SELECT {self._PIECE_COLUMNS} FROM in_house WHERE house_user_id = ? AND property_id = ? "
             "AND (? IS NULL OR room_id = ?) ORDER BY updated_at, rowid",
@@ -184,6 +197,7 @@ class FurnitureStore:
         return [self._piece(r) for r in rows]
 
     def house_piece(self, house_user_id: str, property_id: str, item_id: str) -> HousePiece | None:
+        house_user_id = house_key(house_user_id)
         rows = self._run(
             f"SELECT {self._PIECE_COLUMNS} FROM in_house WHERE house_user_id = ? AND property_id = ? AND item_id = ?",
             (house_user_id, property_id, str(item_id)),
@@ -201,6 +215,7 @@ class FurnitureStore:
         )
 
     def put_piece(self, house_user_id: str, piece: HousePiece) -> HousePiece:
+        house_user_id = house_key(house_user_id)
         """Place or move one piece (F2: a piece already in the house moves, it is never doubled).
         The caller has checked F4 and F6 (furniture/house.py)."""
         with self._tx() as db:
@@ -208,6 +223,7 @@ class FurnitureStore:
         return piece.model_copy(update={"yaw_deg": norm_yaw(piece.yaw_deg), "warnings": None})
 
     def remove_piece(self, house_user_id: str, property_id: str, item_id: str) -> bool:
+        house_user_id = house_key(house_user_id)
         """Take a piece out of the house (F7). It stays in storage. False if it wasn't there."""
         with self._lock:
             cur = self._db.execute(
@@ -222,10 +238,11 @@ class FurnitureStore:
         self._run(
             "INSERT INTO proposals (proposal_id, house_user_id, property_id, room_id, status, body) VALUES (?, ?, ?, ?, ?, ?) "
             "ON CONFLICT(proposal_id) DO UPDATE SET status = excluded.status, body = excluded.body",
-            (str(layout.layout_id), layout.user_id, layout.property_id, layout.room_id, layout.status, layout.model_dump_json()),
+            (str(layout.layout_id), house_key(layout.user_id), layout.property_id, layout.room_id, layout.status, layout.model_dump_json()),
         )
 
     def list_proposals(self, house_user_id: str, property_id: str | None = None, room_id: str | None = None) -> list[LayoutVariant]:
+        house_user_id = house_key(house_user_id)
         rows = self._run(
             "SELECT body FROM proposals WHERE house_user_id = ? AND (? IS NULL OR property_id = ?) AND (? IS NULL OR room_id = ?) "
             "ORDER BY created DESC, rowid DESC",
@@ -234,7 +251,7 @@ class FurnitureStore:
         return [LayoutVariant.model_validate_json(body) for (body,) in rows]
 
     def get_proposal(self, house_user_id: str, layout_id: str) -> LayoutVariant | None:
-        rows = self._run("SELECT body FROM proposals WHERE house_user_id = ? AND proposal_id = ?", (house_user_id, str(layout_id)))
+        rows = self._run("SELECT body FROM proposals WHERE house_user_id = ? AND proposal_id = ?", (house_key(house_user_id), str(layout_id)))
         if rows:
             return LayoutVariant.model_validate_json(rows[0][0])
         return next((l for l in _sample_layouts() if str(l.layout_id) == str(layout_id) and l.user_id == house_user_id), None)
@@ -248,6 +265,7 @@ class FurnitureStore:
         return updated
 
     def apply_proposal(self, house_user_id: str, layout: LayoutVariant, pieces: list[HousePiece]) -> LayoutVariant:
+        house_user_id = house_key(house_user_id)
         """F8, in one transaction: the room's pieces become exactly `pieces` (built and checked by
         furniture/house.py from the proposal), the proposal is chosen and the room's previous
         choice goes back to proposed."""

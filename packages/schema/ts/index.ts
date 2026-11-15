@@ -832,9 +832,15 @@ export interface ViewerGotoPayload {
   look_at?: Vec3 | null;
 }
 
+/**
+ * `ms` and `delay_ms` are additive: a slow turn (the guide showing a room once around) that
+ * takes `ms` and starts after `delay_ms`. Without them the turn is quick, as from a finger.
+ */
 export interface ViewerLookPayload {
   yaw_delta_deg: number;
   pitch_delta_deg: number;
+  ms?: number | null;
+  delay_ms?: number | null;
 }
 
 export interface ViewerPlayback {

@@ -298,5 +298,5 @@ def add_from_catalog(
     stated = size if all(size) else (w, d, h)
     return import_glb(
         catalog.fetch(catalog_id), label or name, item_class, stated, user_id, store,
-        source_url=catalog.thumbnail_url(catalog_id), product_url=f"https://polyhaven.com/a/{catalog_id}",
+        source_url=catalog.thumbnail_url(catalog_id), product_url=None,
     )

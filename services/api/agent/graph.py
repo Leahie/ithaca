@@ -1,7 +1,7 @@
 """The Ithaca agent graph: create_deep_agent wired with our prompt, tools and memory.
 
 Files the agent writes go to one of two places (PLAN.md section 3):
-- /memories/**  -> StoreBackend, namespace (user_id,). Persistent across threads and houses (B4).
+- /memories/**  -> StoreBackend, namespace (context.memory_user,): the person's, or the family's for a family's shared guide (B4).
 - anything else -> StateBackend. Scratch space that lives only in the current thread.
 
 Memory files are loaded into the system prompt at the start of each thread by deepagents'
@@ -27,15 +27,17 @@ from langgraph.store.base import BaseStore
 
 from services.api.agent import prompts
 from services.api.agent.context import AgentContext
-from services.api.agent.family import FAMILY_TOOLS, FamilyContextMiddleware
+from services.api.agent.family import FamilyContextMiddleware, family_tools
 from services.api.agent.models import get_model
 from services.api.agent.design_tools import (
     catalog_add,
     catalog_search,
+    catalog_sets,
     catalog_suggest,
     delete_from_inventory,
     design_apply_layout,
     design_in_background,
+    furnish_with_set,
     design_show_variants,
     inventory_search,
     propose_layouts,
@@ -91,11 +93,11 @@ def build_agent(
     """
     backend = CompositeBackend(
         default=StateBackend(),
-        routes={MEMORY_ROOT: StoreBackend(namespace=lambda rt: memory_namespace(rt.context.memory_owner))},
+        routes={MEMORY_ROOT: StoreBackend(namespace=lambda rt: memory_namespace(rt.context.memory_user))},
     )
     return create_deep_agent(
         model=model or get_model("main"),
-        tools=[*PROPERTY_TOOLS, *SUN_TOOLS, *AREA_TOOLS, *SOUND_TOOLS, inventory_search, *UI_TOOLS, design_in_background, design_show_variants, design_apply_layout, catalog_search, catalog_suggest, catalog_add, remove_from_room, delete_from_inventory, *FAMILY_TOOLS],
+        tools=[*PROPERTY_TOOLS, *SUN_TOOLS, *AREA_TOOLS, *SOUND_TOOLS, inventory_search, *UI_TOOLS, design_in_background, design_show_variants, design_apply_layout, catalog_sets, furnish_with_set, catalog_search, catalog_suggest, catalog_add, remove_from_room, delete_from_inventory, *family_tools()],
         system_prompt=prompts.main_persona(subagents=()),  # no helpers through `task`: the designer runs in the background
         middleware=[PropertyContextMiddleware(), FamilyContextMiddleware()],
         memory=memory_files(property_id),

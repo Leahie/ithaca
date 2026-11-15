@@ -77,6 +77,12 @@ def get_room_geometry(room_id: str, runtime: Runtime) -> str:
                 f"{prompts.compass_point(o.facade_azimuth_deg)}, {o.glazing} glazing"
             )
         lines.append(desc)
+    if not any(o.kind == "window" and room_id in (o.room_id, o.other_room_id) for o in twin.openings):
+        lines.append(
+            "- No windows are listed for this room. That is a gap in the scan's data as often as a fact: glass walls and "
+            "sliding glass doors are recorded as doors to outside, or missed. Never tell the user this room has no "
+            "windows; if it matters, say the data lists none and that the doors to outside may be glass."
+        )
     return "\n".join(lines)
 
 

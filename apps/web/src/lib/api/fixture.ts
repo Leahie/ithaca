@@ -244,6 +244,7 @@ export function createFixtureApi(): ApiClient {
       if (!h) throw new ApiError('unknown household', 404);
       return h;
     },
+    async leaveHousehold() {},
     async rotateInvite(hid) {
       const h = loadHouseholds()[hid];
       if (!h) throw new ApiError('unknown household', 404);

@@ -163,10 +163,14 @@ function drawSkeletons(canvas: HTMLCanvasElement, hands: HandView[]) {
   }
 }
 
+// Short, one line each: the box must not change size as the gesture changes.
 const HINT = {
-  none: 'Pinch thumb and index to grab the view',
-  drag: 'Dragging the view',
-  zoom: 'Spread hands to zoom in, bring together to zoom out',
+  none: 'Pinch a piece to pick it up',
+  drag: 'Move your hand · let go to place',
+  zoom: 'Turn your hands to turn it',
+  turn: 'Pinch a piece to pick it up',
+  forward: 'Pinch a piece to pick it up',
+  back: 'Pinch a piece to pick it up',
 } as const;
 
 /**
@@ -208,7 +212,7 @@ export function HandsOverlay() {
   return (
     <>
       <canvas ref={cursors} className="pointer-events-none absolute inset-0 z-30 h-full w-full" aria-hidden />
-      <div className="absolute bottom-3 left-3 z-30 w-64 overflow-hidden rounded-[var(--radius-frame)] border border-line bg-surface shadow-float" data-testid="hands-preview">
+      <div className="absolute bottom-14 left-3 z-30 w-64 overflow-hidden rounded-[var(--radius-frame)] border border-line bg-surface shadow-float" data-testid="hands-preview">
         {status === 'error' ? (
           <div className="space-y-2 p-4 text-sm">
             <p className="font-semibold text-danger">Hand control could not start</p>
@@ -224,7 +228,7 @@ export function HandsOverlay() {
               {status === 'starting' && <span className="absolute inset-0 grid place-items-center font-display text-base font-medium text-cream/80">Starting the camera…</span>}
             </div>
             <div className="flex items-center justify-between gap-2 py-1 pr-1 pl-3 font-display text-base font-medium text-text">
-              <span ref={hint} className="leading-5">{status === 'starting' ? 'Loading hand tracking…' : ''}</span>
+              <span ref={hint} className="h-5 truncate leading-5">{status === 'starting' ? 'Loading hand tracking…' : ''}</span>
               <button type="button" onClick={stop} className="h-11 min-w-11 shrink-0 rounded-full px-3 font-semibold text-muted hover:bg-ink hover:text-text" aria-label="Turn hand control off">
                 Off
               </button>
