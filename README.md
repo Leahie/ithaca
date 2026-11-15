@@ -28,20 +28,24 @@ keeps the big screen, the phones and the guides in step, and the photo-to-furnit
 
 ```sh
 pnpm install
-git lfs pull                 # the house model and textures
 cp .env.example .env         # then add keys: see below
-pnpm dev:all                 # API on :8000, web on :3000, both reachable from phones on your Wi-Fi
+pnpm dev:all                 # everything: API on :8000, web on :3000, and a tunnel for phones
 ```
 
 Open <http://localhost:3000>, then **Step inside**. To connect phones, press **Family** on the
-house page and scan the code. `scripts/dev.sh` prints the addresses and what to do if a phone
-cannot reach the page. On Windows: `pnpm dev:win`.
+house page and scan the code.
 
-If a phone cannot reach this computer (a firewall here, or Wi-Fi that keeps devices apart, such
-as eduroam or venue Wi-Fi), run `pnpm dev:all:tunnel` instead (Windows: `pnpm dev:tunnel`). It
-needs `cloudflared`, and points the QR code at a public HTTPS address that works from any
-network and lets the phone use its microphone. Anyone who has that address can reach the app
-while it runs.
+`pnpm dev:all` (`scripts/dev.sh`) is the one command. It starts the API and the web app, fetches
+what a fresh checkout lacks (the Git LFS files: the house model and the furniture pictures), and
+opens a Cloudflare quick tunnel so the QR code points at a public HTTPS address. That address
+works from any network (a firewall here, eduroam and venue Wi-Fi keep phones from reaching a
+laptop directly) and lets a phone use its microphone. Anyone who has the address can reach the
+app while it runs.
+
+- The tunnel needs `cloudflared`. Without it, or if the tunnel does not open, the app still
+  starts for phones on the same Wi-Fi, and the script says what is missing.
+- `pnpm dev:all:local` runs with no tunnel; `pnpm dev:all:tunnel` stops if the tunnel cannot open.
+- On Windows: `pnpm dev:win` (no tunnel) or `pnpm dev:tunnel`.
 
 Keys in `.env` (each is optional; a missing key turns that part down, never the app off):
 

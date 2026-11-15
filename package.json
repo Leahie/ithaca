@@ -5,6 +5,7 @@
   "scripts": {
     "dev": "pnpm --filter @ithaca/web dev",
     "dev:all": "bash scripts/dev.sh",
+    "dev:all:local": "bash scripts/dev.sh --no-tunnel",
     "dev:all:tunnel": "bash scripts/dev.sh --tunnel",
     "dev:win": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/dev.ps1",
     "dev:tunnel": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/dev.ps1 -Tunnel",

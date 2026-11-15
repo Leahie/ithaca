@@ -202,8 +202,9 @@ its own memory of what they need (B4), its own conversation. The agents compare 
 family board and ask each other ("ask Leo about the kitchen"), and the big screen's agent dock
 shows everything, labelled by person. A phone that scans again comes back as the same person.
 
-Real phones need the real API (the hub and the agents), on your Wi-Fi so they can reach it.
-`pnpm dev:all` (repo root) starts both and points the QR code at this computer. By hand:
+Real phones need the real API (the hub and the agents), and a way to reach this computer.
+`pnpm dev:all` (repo root) starts both, opens a tunnel for the phones and points the QR code at
+it (`pnpm dev:all:local` keeps to your Wi-Fi). By hand, on your Wi-Fi:
 
 ```sh
 uvicorn services.api.main:app --host 0.0.0.0 --port 8000      # repo root
