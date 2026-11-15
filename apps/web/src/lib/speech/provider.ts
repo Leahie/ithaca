@@ -225,13 +225,55 @@ const GATE_HOLD_MS = 450;
 const KEEP_MIC_MS = 120_000;
 
 interface OpenMic {
-  ctx: AudioContext;
+  /** The audio context the capture runs in; null when the track is read directly. */
+  ctx: AudioContext | null;
+  /** Samples per second of the blocks handed to `sink`. */
+  rate: number;
   stream: MediaStream;
   nodes: AudioNode[];
   /** Where blocks of samples go while someone is listening. */
   sink: ((pcm: Int16Array) => void) | null;
-  apple: boolean;
+  /** How the samples are taken from the microphone (see openMic). */
+  how: 'script' | 'worklet' | 'track';
+  /** Ends a direct read of the track. */
+  stop?: () => void;
 }
+
+/**
+ * Chromium's reader of raw audio straight from a microphone track (not in TypeScript's DOM
+ * types, and not in Safari or Firefox).
+ */
+type TrackProcessor = new (init: { track: MediaStreamTrack }) => { readable: ReadableStream<AudioData> };
+/** Set on Android, where capture through an audio context stalls (see readTrack). Elsewhere the worklet works and stays. */
+const trackProcessor = (): TrackProcessor | undefined =>
+  /Android/i.test(navigator.userAgent) ? (globalThis as { MediaStreamTrackProcessor?: TrackProcessor }).MediaStreamTrackProcessor : undefined;
+
+/** One channel of a frame of microphone sound as floats in -1..1, whatever format the browser hands over. */
+function frameSamples(frame: AudioData, scratch: Float32Array<ArrayBuffer>): Float32Array<ArrayBuffer> {
+  const len = frame.numberOfFrames;
+  const out = scratch.length >= len ? scratch : new Float32Array(len);
+  try {
+    frame.copyTo(out, { planeIndex: 0, format: 'f32-planar' }); // the browser converts
+    return out;
+  } catch {
+    // No conversion in this browser: read the frame as it is and take the first channel.
+    const planar = (frame.format ?? '').endsWith('-planar');
+    const step = planar ? 1 : frame.numberOfChannels;
+    if (frame.format?.startsWith('s16')) {
+      const raw = new Int16Array(len * step);
+      frame.copyTo(raw, { planeIndex: 0 });
+      for (let i = 0; i < len; i++) out[i] = raw[i * step]! / 0x8000;
+    } else {
+      const raw = new Float32Array(len * step);
+      frame.copyTo(raw, { planeIndex: 0 });
+      for (let i = 0; i < len; i++) out[i] = raw[i * step]!;
+    }
+    return out;
+  }
+}
+const isApple = () => /iPhone|iPad|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+/** The first block of sound must come within this long, or the track is not delivering. */
+const FIRST_SOUND_MS = 2500;
 
 /** Closes the listen socket: the API has no Deepgram key. */
 const NOT_CONFIGURED = 4503;
@@ -297,7 +339,7 @@ export class DeepgramProvider implements SpeechProvider {
   /** The microphone is open and running from an earlier tap, so listening can start without one. */
   canListenUntapped(): boolean {
     const m = this.mic;
-    return !!m && m.ctx.state === 'running' && m.stream.getAudioTracks()[0]?.readyState === 'live';
+    return !!m && (!m.ctx || m.ctx.state === 'running') && m.stream.getAudioTracks()[0]?.readyState === 'live';
   }
 
   private closeMic(): void {
@@ -306,9 +348,73 @@ export class DeepgramProvider implements SpeechProvider {
     this.mic = null;
     if (!m) return;
     m.sink = null;
+    m.stop?.();
     m.stream.getTracks().forEach((t) => t.stop());
     m.nodes.forEach((n) => n.disconnect());
-    if (m.ctx.state !== 'closed') void m.ctx.close();
+    if (m.ctx && m.ctx.state !== 'closed') void m.ctx.close();
+  }
+
+  /**
+   * Read the microphone track's own samples (Chromium), with no audio context in between. On
+   * Android an audio context stalls a moment after the microphone opens: the phone moves its
+   * sound output to "call" mode, and a worklet or script node in that context is then never run
+   * again, though the context still says "running". The track itself keeps delivering.
+   * Resolves once the first sound has arrived (so the sample rate is known), or throws.
+   */
+  private async readTrack(mic: OpenMic, Processor: TrackProcessor): Promise<void> {
+    const track = mic.stream.getAudioTracks()[0];
+    if (!track) throw new Error('no audio track');
+    const reader = new Processor({ track }).readable.getReader();
+    let live = true;
+    mic.stop = () => {
+      live = false;
+      void reader.cancel().catch(() => {});
+    };
+    let block: Int16Array | null = null;
+    let n = 0;
+    let scratch = new Float32Array(0);
+    const take = (frame: AudioData) => {
+      try {
+        const len = frame.numberOfFrames;
+        scratch = frameSamples(frame, scratch);
+        if (!block || mic.rate !== frame.sampleRate) {
+          mic.rate = frame.sampleRate;
+          block = new Int16Array(Math.round(frame.sampleRate / 10)); // a tenth of a second, as the worklet sends
+          n = 0;
+        }
+        for (let i = 0; i < len; i++) {
+          const v = Math.max(-1, Math.min(1, scratch[i]!));
+          block[n++] = v < 0 ? v * 0x8000 : v * 0x7fff;
+          if (n === block.length) {
+            mic.sink?.(block);
+            block = new Int16Array(block.length);
+            n = 0;
+          }
+        }
+      } finally {
+        frame.close();
+      }
+    };
+    const first = await Promise.race([reader.read(), new Promise<null>((r) => setTimeout(() => r(null), FIRST_SOUND_MS))]);
+    if (!first || first.done || !first.value) {
+      mic.stop();
+      mic.stop = undefined;
+      throw new Error('the microphone track delivered no sound');
+    }
+    try {
+      take(first.value);
+    } catch (err) {
+      mic.stop();
+      mic.stop = undefined;
+      throw err;
+    }
+    void (async () => {
+      while (live) {
+        const { value, done } = await reader.read();
+        if (done || !value) break;
+        take(value);
+      }
+    })().catch((err: unknown) => console.warn('[speech] the microphone track stopped', err));
   }
 
   /**
@@ -317,9 +423,26 @@ export class DeepgramProvider implements SpeechProvider {
    * audio nodes nothing refers to can be collected by the browser, and the microphone then reads
    * as silence.
    */
-  private async openMic(ctx: AudioContext, apple: boolean): Promise<OpenMic> {
+  private async openMic(made: AudioContext | null, apple: boolean): Promise<OpenMic> {
     const stream = await navigator.mediaDevices.getUserMedia({ audio: { channelCount: 1, echoCancellation: true, noiseSuppression: true } });
-    const mic: OpenMic = { ctx, stream, nodes: [], sink: null, apple };
+    const mic: OpenMic = { ctx: null, rate: stream.getAudioTracks()[0]?.getSettings().sampleRate ?? 48000, stream, nodes: [], sink: null, how: 'track' };
+    // Chromium (Android phones, desktop Chrome and Edge): straight from the track.
+    const Processor = apple ? undefined : trackProcessor();
+    if (Processor) {
+      try {
+        await this.readTrack(mic, Processor);
+        if (made && made.state !== 'closed') void made.close();
+        return mic;
+      } catch (err) {
+        console.warn('[speech] reading the microphone track failed; using an audio context.', err);
+      }
+    }
+    // Everything else goes through an audio context. Outside Apple's browsers one may be made
+    // here, after the tap; an iPhone's must come from the tap itself (see listen).
+    const ctx = made ?? new AudioContext();
+    mic.ctx = ctx;
+    mic.rate = ctx.sampleRate;
+    mic.how = apple ? 'script' : 'worklet';
     // Opening the microphone switches an iPhone's audio route, which can interrupt the context.
     if (ctx.state !== 'running') await Promise.race([ctx.resume(), new Promise((r) => setTimeout(r, 800))]);
     const source = ctx.createMediaStreamSource(stream);
@@ -362,18 +485,22 @@ export class DeepgramProvider implements SpeechProvider {
 
   listen(handlers: ListenHandlers, opts?: ListenOptions): () => void {
     if (!this.streams()) return this.browser.listen(handlers, opts);
-    const apple = /iPhone|iPad|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+    const apple = isApple();
     clearTimeout(this.micIdle);
     // A microphone still open from the last question is used again: that needs no tap, which is
     // what lets the phone listen by itself when the guide asks something. Otherwise the audio
     // context is made and started here, inside the tap: an iPhone only lets audio start from a
-    // user gesture (a context made later reports "running" but stalls after a moment).
+    // user gesture (a context made later reports "running" but stalls after a moment). Where the
+    // track is read directly (Chromium) there is no context to make.
     let mic = this.canListenUntapped() ? this.mic : null;
     let fresh: AudioContext | null = null;
+    const opening = !mic;
     if (!mic) {
       this.closeMic();
-      fresh = new AudioContext();
-      void fresh.resume().catch(() => {});
+      if (apple || !trackProcessor()) {
+        fresh = new AudioContext();
+        void fresh.resume().catch(() => {});
+      }
     }
     let frames = 0;
     let watchdog = 0;
@@ -414,7 +541,7 @@ export class DeepgramProvider implements SpeechProvider {
     void (async () => {
       if (!mic) {
         try {
-          mic = await this.openMic(fresh!, apple);
+          mic = await this.openMic(fresh, apple);
         } catch (err) {
           return fail(micError(err));
         }
@@ -424,9 +551,9 @@ export class DeepgramProvider implements SpeechProvider {
       if (stopping) return finish(''); // stopped before the microphone opened
       const { ctx } = open;
       const track = open.stream.getAudioTracks()[0];
-      const facts = () => `microphone ${track?.muted ? 'muted' : 'live'} at ${track?.getSettings().sampleRate ?? '?'} Hz, audio ${ctx.state} at ${ctx.sampleRate} Hz, ${open.apple ? 'script' : 'worklet'} capture${fresh ? '' : ', microphone kept open'}`;
+      const facts = () => `microphone ${track?.muted ? 'muted' : 'live'} at ${track?.getSettings().sampleRate ?? '?'} Hz, ${ctx ? `audio ${ctx.state} at ${ctx.sampleRate} Hz` : `read at ${open.rate} Hz`}, ${open.how} capture${opening ? '' : ', microphone kept open'}`;
 
-      const socket = new WebSocket(`${wsOrigin()}/ws/speech/listen?sample_rate=${ctx.sampleRate}${opts?.auto ? '&auto=1' : ''}`);
+      const socket = new WebSocket(`${wsOrigin()}/ws/speech/listen?sample_rate=${open.rate}${opts?.auto ? '&auto=1' : ''}`);
       ws = socket;
       socket.binaryType = 'arraybuffer';
       let loudest = 0;
@@ -476,7 +603,7 @@ export class DeepgramProvider implements SpeechProvider {
         if (!frames && now - started > 3000) return fail(`The microphone opened but no sound arrived (${facts()}). Tap the mic to try again.`);
         if (frames && now - lastFrame > 2000) return fail(`The microphone stopped delivering sound (${facts()}). Tap the mic to try again.`);
         if (frames && loudest === 0 && now - started > 3000) return fail(`The microphone is open but sends only silence (${facts()}). Close other apps that use the microphone.`);
-        if (ctx.state !== 'running') void ctx.resume().catch(() => {});
+        if (ctx && ctx.state !== 'running') void ctx.resume().catch(() => {});
         watchdog = window.setTimeout(check, 700);
       };
       watchdog = window.setTimeout(check, 700);

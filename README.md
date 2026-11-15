@@ -33,6 +33,12 @@ Open <http://localhost:3000>, then **Step inside**. To connect phones, press **F
 house page and scan the code. `scripts/dev.sh` prints the addresses and what to do if a phone
 cannot reach the page. On Windows: `pnpm dev:win`.
 
+If a phone cannot reach this computer (a firewall here, or Wi-Fi that keeps devices apart, such
+as eduroam or venue Wi-Fi), run `pnpm dev:all:tunnel` instead (Windows: `pnpm dev:tunnel`). It
+needs `cloudflared`, and points the QR code at a public HTTPS address that works from any
+network and lets the phone use its microphone. Anyone who has that address can reach the app
+while it runs.
+
 Keys in `.env` (each is optional; a missing key turns that part down, never the app off):
 
 | Key | Without it |
