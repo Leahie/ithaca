@@ -329,6 +329,11 @@ class FurnitureStore:
         )
         return [self._piece(r) for r in rows]
 
+    def stands_in_house(self, house_user_id: str, item_id: str) -> bool:
+        """True if this piece stands in this screen's house (any property)."""
+        rows = self._run("SELECT 1 FROM in_house WHERE house_user_id = ? AND item_id = ? LIMIT 1", (house_key(house_user_id), str(item_id)))
+        return bool(rows)
+
     def house_piece(self, house_user_id: str, property_id: str, item_id: str) -> HousePiece | None:
         house_user_id = house_key(house_user_id)
         rows = self._run(

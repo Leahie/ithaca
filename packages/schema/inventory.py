@@ -41,6 +41,15 @@ class InventoryItem(Model):
     # The piece's own short number ("4821"): random, unique among all stored pieces, and never
     # reused. People and the guides name a piece by it; item_id stays the key in the database.
     tag: str | None = None
+    # How many times its model's own size it is drawn (resized by hand in the editor). dims_m is
+    # already the resized size; the GLB is drawn at this scale.
+    scale: float = 1.0
+
+
+class ResizeItem(Model):
+    """Body of PUT /properties/{property_id}/furniture/{item_id}/scale: draw a piece at this many times its model's size."""
+
+    scale: float
 
 
 class CatalogPiece(Model):

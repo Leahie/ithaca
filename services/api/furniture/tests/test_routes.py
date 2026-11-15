@@ -273,3 +273,17 @@ def test_a_family_without_a_host_gets_one_when_the_screen_connects(client):
     with client.websocket_connect(f"/api/ws/sessions/{session.session_id}?client=desktop&token={session.client_token}"):
         pass
     assert _snap(client, host, lamp["item_id"]).status_code == 200
+
+
+def test_resizing_a_piece_scales_its_size_and_is_clamped(client):
+    alice = {"X-User-Id": "alice"}
+    item = client.get("/api/inventory", headers=alice).json()[0]
+    w = item["dims_m"]["w"]
+    r = client.put(f"{HOUSE}/{item['item_id']}/scale", headers=alice, json={"scale": 1.5})
+    assert r.status_code == 200 and r.json()["scale"] == 1.5
+    assert r.json()["dims_m"]["w"] == pytest.approx(w * 1.5)
+    # Back to its model's size: the dims come back too.
+    back = client.put(f"{HOUSE}/{item['item_id']}/scale", headers=alice, json={"scale": 1.0}).json()
+    assert back["dims_m"]["w"] == pytest.approx(w)
+    assert client.put(f"{HOUSE}/{item['item_id']}/scale", headers=alice, json={"scale": 99}).json()["scale"] == 5.0
+    assert client.put(f"{HOUSE}/{item['item_id']}/scale", headers={"X-User-Id": "bob"}, json={"scale": 2}).status_code == 404

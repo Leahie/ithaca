@@ -240,6 +240,7 @@ In the house, as the house user (`X-User-Id` = house user):
 |---|---|
 | `GET /properties/{pid}/furniture[?room_id=]` | The house's pieces (`HousePiece[]`). |
 | `PUT /properties/{pid}/furniture/{item_id}` | Place or move one piece (`PlacePiece`: `x`, `z`, optional `yaw_deg`, `floor_id`, `room_id`, `snap`). Returns the `HousePiece` with `warnings`. |
+| `PUT /properties/{pid}/furniture/{item_id}/scale` | Resize a piece (`{scale}`: times its model's own size, clamped to 0.2–5). The piece itself changes: `dims_m` follow and the GLB is drawn at `scale`. Allowed for the family's pieces and for anything standing in the screen's house. Returns the `InventoryItem`. |
 | `DELETE /properties/{pid}/furniture/{item_id}` | Take it out of the house (F7). 204, or 404 if it isn't there. |
 | `POST /properties/{pid}/furniture/from-photo` | Set a room up with the person's own room, from one photo (`{upload_id, room_id}`). A job. See "From a photo of your own room". |
 | `GET /properties/{pid}/furniture/register` | The register: rooms, pieces with their numbers and places in words, storage, last changes (F10, F11). |

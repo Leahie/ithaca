@@ -90,6 +90,7 @@ export function createHttpApi(): ApiClient {
       request(`/properties/${enc(pid)}/furniture/from-photo`, { method: 'POST', body: JSON.stringify({ upload_id: uploadId, room_id: roomId }) }),
     listInventory: () => request('/inventory'),
     getInventoryItem: (id) => request(`/inventory/${enc(id)}`),
+    resizePiece: (pid, id, scale) => request(`/properties/${enc(pid)}/furniture/${enc(id)}/scale`, { method: 'PUT', body: JSON.stringify({ scale }) }),
     deleteInventoryItem: (id) => request(`/inventory/${enc(id)}`, { method: 'DELETE' }, 'none'),
     listHouseFurniture: (pid) => request(`/properties/${enc(pid)}/furniture`),
     placePiece: (pid, itemId, place) => request(`/properties/${enc(pid)}/furniture/${enc(itemId)}`, { method: 'PUT', body: JSON.stringify(place) }),

@@ -12,6 +12,8 @@ const ITEM_COLORS = ['#b9c7d6', '#e2c39b', '#f0d58a', '#b5dcc4', '#d3c2e6', '#e6
 const SELECTED = '#0a6b47';
 const NUDGE_M = 0.05;
 const TURN_DEG = 15;
+/** One press of − or + makes a piece this much smaller or bigger. */
+export const SIZE_STEP = 1.1;
 
 interface Pose {
   x: number;
@@ -25,6 +27,8 @@ export interface PlanControls {
   turn(deg: number): void;
   /** Move by this many meters along the plan: +x right, +z down the page. */
   nudge(dx: number, dz: number): void;
+  /** Make it this many times bigger (below 1: smaller). */
+  resize(factor: number): void;
   remove(): void;
 }
 
@@ -257,6 +261,20 @@ export function PlanEditor({ propertyId, room, openings, pieces, items, classNam
     void commit(id, next);
   };
 
+  /** Make a piece bigger or smaller: the piece itself is resized, wherever it stands. */
+  const resize = async (id: string, factor: number) => {
+    const item = items.get(id);
+    if (!item || readOnly) return;
+    try {
+      await api().resizePiece(propertyId, id, (item.scale ?? 1) * factor);
+      setNote(null);
+      invalidate('inventory'); // its new size, for the plan and the 3D views
+      reload();
+    } catch (err) {
+      setNote({ tone: 'error', text: err instanceof Error ? err.message : String(err) });
+    }
+  };
+
   /** Take a piece out of the house. It stays in the family's furniture. */
   const remove = async (id: string) => {
     try {
@@ -272,6 +290,7 @@ export function PlanEditor({ propertyId, room, openings, pieces, items, classNam
   useImperativeHandle(controls, () => ({
     turn: (deg) => selected && change(selected, (p) => ({ ...p, yaw: norm(p.yaw + deg) })),
     nudge: (dx, dz) => selected && change(selected, (p) => ({ ...p, x: p.x + dx, z: p.z + dz })),
+    resize: (factor) => selected && void resize(selected, factor),
     remove: () => selected && void remove(selected),
   }));
 
@@ -280,6 +299,11 @@ export function PlanEditor({ propertyId, room, openings, pieces, items, classNam
     if (e.key === 'Delete' || e.key === 'Backspace') {
       e.preventDefault();
       void remove(selected);
+      return;
+    }
+    if (e.key === '-' || e.key === '=' || e.key === '+') {
+      e.preventDefault();
+      void resize(selected, e.key === '-' ? 1 / SIZE_STEP : SIZE_STEP);
       return;
     }
     const step = e.shiftKey ? NUDGE_M * 4 : NUDGE_M;
@@ -435,6 +459,15 @@ export function PlanEditor({ propertyId, room, openings, pieces, items, classNam
             <button type="button" className="rounded-full bg-ink px-2.5 py-1 hover:bg-raised" onClick={() => change(selected!, (p) => ({ ...p, yaw: norm(p.yaw + 90) }))} aria-label="Turn a quarter">
               90°
             </button>
+            <span className="ml-1 inline-flex items-center rounded-full bg-ink">
+              <button type="button" className="rounded-l-full py-1 pl-2.5 pr-1.5 hover:bg-raised" onClick={() => void resize(selected!, 1 / SIZE_STEP)} aria-label="Make it smaller" title="Smaller (−)">
+                −
+              </button>
+              <span className="px-1 tabular-nums text-muted" title="Size, against its model">{Math.round((selectedItem.scale ?? 1) * 100)}%</span>
+              <button type="button" className="rounded-r-full py-1 pl-1.5 pr-2.5 hover:bg-raised" onClick={() => void resize(selected!, SIZE_STEP)} aria-label="Make it bigger" title="Bigger (+)">
+                +
+              </button>
+            </span>
             {onLookAt && (
               <button type="button" className="rounded-full bg-main px-2.5 py-1 font-semibold text-on-main" onClick={() => onLookAt(selected!, { x: selectedPose.x, z: selectedPose.z })}>
                 Look at it
@@ -446,7 +479,7 @@ export function PlanEditor({ propertyId, room, openings, pieces, items, classNam
             </button>
           </>
         ) : (
-          <span className="text-muted">Drag a piece to move it. Select it to turn it.</span>
+          <span className="text-muted">Drag a piece to move it. Select it to turn or resize it.</span>
         )}
       </div>
       {note && (

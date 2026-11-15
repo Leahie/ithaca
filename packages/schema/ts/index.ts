@@ -356,6 +356,7 @@ export interface InventoryItem {
   price?: number | null;
   product_url?: string | null;
   tag?: string | null;
+  scale?: number;
 }
 
 export interface ItemAttributes {
@@ -642,6 +643,13 @@ export interface Quat {
 export interface RemoteViewPayload {
   view: "move" | "rooms" | "guide" | "furniture" | "light";
   floor_id?: string | null;
+}
+
+/**
+ * Body of PUT /properties/{property_id}/furniture/{item_id}/scale: draw a piece at this many times its model's size.
+ */
+export interface ResizeItem {
+  scale: number;
 }
 
 export interface Room {

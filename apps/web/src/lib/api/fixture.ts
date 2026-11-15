@@ -20,9 +20,17 @@ interface Overlay {
   deletedItems: string[];
   memory: Record<string, string | null>; // null = deleted
   uploads: Record<string, string>; // upload_id -> preview URL
+  scales: Record<string, number>; // item_id -> scale set by hand
 }
 
-const empty = (): Overlay => ({ openings: {}, layouts: {}, house: {}, addedItems: [], deletedItems: [], memory: {}, uploads: {} });
+const empty = (): Overlay => ({ openings: {}, layouts: {}, house: {}, addedItems: [], deletedItems: [], memory: {}, uploads: {}, scales: {} });
+
+/** A piece at the scale set by hand (its dims follow). */
+const resized = (item: InventoryItem, scale: number | undefined): InventoryItem => {
+  if (scale === undefined) return item;
+  const k = scale / (item.scale ?? 1);
+  return { ...item, scale, dims_m: { w: item.dims_m.w * k, d: item.dims_m.d * k, h: item.dims_m.h * k } };
+};
 
 /** Yaw in [0, 360), to 0.1° (F5). */
 const normYaw = (deg: number): number => {
@@ -152,7 +160,7 @@ export function createFixtureApi(): ApiClient {
   const inventory = async (): Promise<InventoryItem[]> => {
     const o = readOverlay();
     const base = await fixture<InventoryItem[]>(`inventory/${encodeURIComponent(config.userId)}.json`).catch(() => [] as InventoryItem[]);
-    return [...base, ...o.addedItems].filter((i) => !o.deletedItems.includes(i.item_id));
+    return [...base, ...o.addedItems].filter((i) => !o.deletedItems.includes(i.item_id)).map((i) => resized(i, o.scales[i.item_id]));
   };
 
   /**
@@ -326,6 +334,13 @@ export function createFixtureApi(): ApiClient {
       const hit = (await inventory()).find((i) => i.item_id === id);
       if (!hit) throw new ApiError(`No inventory item ${id}`, 404);
       return hit;
+    },
+    async resizePiece(_pid, id, scale) {
+      if (!(await inventory()).some((i) => i.item_id === id)) throw new ApiError(`No inventory item ${id}`, 404);
+      patchOverlay((o) => {
+        o.scales[id] = Math.min(5, Math.max(0.2, scale));
+      });
+      return (await inventory()).find((i) => i.item_id === id)!;
     },
     async deleteInventoryItem(id) {
       // A deleted piece leaves every house too (F3).

@@ -84,6 +84,8 @@ export interface ApiClient {
   /** Storage: the family's pieces (each with its owner). */
   listInventory(): Promise<InventoryItem[]>;
   getInventoryItem(itemId: string): Promise<InventoryItem>;
+  /** Draw a piece at `scale` times its model's own size (0.2 to 5); its dims_m follow. */
+  resizePiece(propertyId: string, itemId: string, scale: number): Promise<InventoryItem>;
   /** Delete a piece for good; it leaves the house too. Only its owner (or the host) may. */
   deleteInventoryItem(itemId: string): Promise<void>;
   /** In the house: every piece standing in it, with its room and pose. */
