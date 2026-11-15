@@ -34,10 +34,31 @@ let raf = 0;
 /** Counts starts, so a stop during a slow start wins. */
 let generation = 0;
 
-function loop() {
-  raf = requestAnimationFrame(loop);
+/** The display frame the engine last stepped in (requestAnimationFrame's own time: every callback of one frame is given the same). */
+let steppedIn = -1;
+
+/** The engine's step for this display frame, once, whoever asks first. */
+function step(frame: number): void {
+  if (frame === steppedIn) return;
+  steppedIn = frame;
   handEngine.tick(performance.now() / 1000);
   tickListeners.forEach((cb) => cb());
+}
+
+function loop(frame: number) {
+  raf = requestAnimationFrame(loop);
+  step(frame);
+}
+
+/**
+ * For a view that draws from the hands: call at the start of its own frame, with that frame's
+ * requestAnimationFrame time (in a 3D view: `addEffect(syncHands)`). The engine then steps before
+ * the view draws, not after it. Which of two animation callbacks runs first in a frame is only the
+ * order they were asked for in, and the 3D views ask before the hands start: left to that, every
+ * picture showed the hands where they were one frame earlier. Does nothing while tracking is off.
+ */
+export function syncHands(frame: number): void {
+  if (tracking) step(frame);
 }
 
 /** Hand tracking: on only when the user asks, since it opens the camera. */

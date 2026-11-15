@@ -2,6 +2,8 @@
  * Jitter filtering and between-frame prediction for hand positions. Ported from HoloTouch
  * (`core/filters.py`): a 1€ filter on each sample, then a velocity estimate that carries the
  * position forward between camera frames so the cursor moves at display rate, not camera rate.
+ * Unlike HoloTouch, the carrying forward is counted from when each sample arrives (see
+ * `glideShare`), so it still happens when samples arrive late.
  */
 
 export type P2 = [number, number];
@@ -57,8 +59,18 @@ export interface MotionConfig {
   dCutoff: number;
   /** Cutoff (Hz) of the velocity estimate used for prediction. */
   velocityCutoff: number;
-  /** The furthest ahead of the last sample the position is carried, in ms. */
+  /** The most of a sample's lateness (from its picture to its arrival) that is made up for by carrying the position forward, in ms. */
   predictMaxMs: number;
+  /**
+   * After a sample arrives, the position is carried on at the hand's speed until the next one
+   * comes: for this share of the usual time between samples, and at most `glideMaxMs`. This is
+   * what makes the cursor move at the display's pace. It is counted from the sample's ARRIVAL, not
+   * from its picture: counted from the picture and capped at `predictMaxMs`, a sample that was
+   * already that late when it arrived (a busy graphics card, a slow machine) was carried no
+   * further at all, and the cursor moved once per sample, in steps, however fast the display.
+   */
+  glideShare: number;
+  glideMaxMs: number;
   /** Time constant of the follow that hides the step when a new sample lands, in ms: the least it is. */
   followTauMs: number;
   /**
@@ -77,7 +89,7 @@ export interface MotionConfig {
  * slow: `followShare` 0.15 (was 0.4) and `dCutoff` 2 (was 1: the speed the 1€ filter reads, to
  * open up for a moving hand, was itself smoothed so much that it opened late).
  */
-export const MOTION_DEFAULTS: MotionConfig = { minCutoff: 1.5, beta: 12, dCutoff: 2, velocityCutoff: 5, predictMaxMs: 50, followTauMs: 12, followShare: 0.15 };
+export const MOTION_DEFAULTS: MotionConfig = { minCutoff: 1.5, beta: 12, dCutoff: 2, velocityCutoff: 5, predictMaxMs: 50, glideShare: 1.1, glideMaxMs: 45, followTauMs: 12, followShare: 0.15 };
 
 /** The follow never takes longer than this to settle, however slow the samples (ms). */
 const FOLLOW_TAU_MAX_MS = 140;
@@ -88,6 +100,8 @@ export class MotionTrack {
   private pos: P2 | null = null;
   private vel: P2 = [0, 0];
   private tSample = 0;
+  /** When the last sample got here (the clock `step` is called with). */
+  private tArrived = 0;
   private shown: P2 | null = null;
   private tShown = 0;
   /** The usual time between samples, seconds (a guess until two have come): what the follow is paced by. */
@@ -107,7 +121,8 @@ export class MotionTrack {
     return Math.hypot(this.vel[0], this.vel[1]);
   }
 
-  update(p: P2, t: number): void {
+  /** `t`: when the sample's picture was taken. `arrived`: when the sample got here, on the clock `step` is called with. */
+  update(p: P2, t: number, arrived: number = t): void {
     const prev = this.pos;
     const prevT = this.tSample;
     const filtered = this.oneEuro.filter(p, t);
@@ -123,11 +138,16 @@ export class MotionTrack {
     }
     this.pos = filtered;
     this.tSample = t;
+    this.tArrived = Math.max(arrived, t);
   }
 
   private predict(now: number): P2 {
     const p = this.pos ?? [0, 0];
-    const lead = Math.min(Math.max(now - this.tSample, 0), this.cfg.predictMaxMs / 1000);
+    // Made up for: the time the picture took to get here, up to the cap.
+    const late = Math.min(this.tArrived - this.tSample, this.cfg.predictMaxMs / 1000);
+    // Carried on: since it got here, until about when the next one is due.
+    const glide = Math.min(Math.max(now - this.tArrived, 0), this.cfg.glideShare * this.interval, this.cfg.glideMaxMs / 1000);
+    const lead = late + glide;
     return [p[0] + this.vel[0] * lead, p[1] + this.vel[1] * lead];
   }
 

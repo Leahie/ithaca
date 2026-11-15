@@ -2,7 +2,7 @@
 
 import type { InventoryItem, PropertyTwin } from '@ithaca/schema';
 import { PerformanceMonitor } from '@react-three/drei';
-import { Canvas } from '@react-three/fiber';
+import { Canvas, addEffect } from '@react-three/fiber';
 import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { Object3D, Vector3 } from 'three';
 import { AssetBoundary, Furniture, Ground, HouseLight, HouseModel, RoomShells, houseBounds, poseObject, useHouseLighting, useRebuiltHouse, useSun } from '@/components/house3d/House3D';
@@ -19,7 +19,7 @@ import { useHouseFurniture, useInventory, useLayouts } from '@/lib/data/hooks';
 import { cubicBezier } from '@/lib/geometry/bezier';
 import { bounds, centroid, pointInPolygon } from '@/lib/geometry/polygon';
 import { onHandNav } from '@/lib/hands/engine';
-import { handEngine, handHint, onHandTick, useHands } from '@/lib/hands/store';
+import { handEngine, handHint, onHandTick, syncHands, useHands } from '@/lib/hands/store';
 import type { House } from '@/lib/house/house';
 import { EYE_M } from '@/lib/house/walk';
 import { furnitureOnScreen, previewLayout } from '@/lib/layouts';
@@ -555,6 +555,8 @@ export function TourTab({
   // fist steps forward or back. The engine sends small steps every display frame: they are
   // applied at once, not eased.
   const handsOn = useHands((s) => s.status === 'on');
+  // The hands are read at the start of each frame the house is drawn in, not after it (see syncHands).
+  useEffect(() => addEffect(syncHands), []);
   const handArrange = handsOn && active && (arrange || arrangingFromPhone || !!overview || !!previewLayout(layouts.data, selectedLayoutId));
   useEffect(() => {
     if (!ready || !handsOn || !active || handArrange) return;

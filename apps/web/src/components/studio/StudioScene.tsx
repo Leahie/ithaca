@@ -2,7 +2,7 @@
 
 import type { PropertyTwin, Room } from '@ithaca/schema';
 import { Edges, Html, Line, useGLTF } from '@react-three/drei';
-import { Canvas, useFrame, useThree } from '@react-three/fiber';
+import { Canvas, addEffect, useFrame, useThree } from '@react-three/fiber';
 import { Suspense, useEffect, useLayoutEffect, useMemo, useRef } from 'react';
 import { BufferAttribute, BufferGeometry, DoubleSide, FrontSide, PMREMGenerator, Plane, Raycaster, Vector2, Vector3, type DirectionalLight, type Group, type Mesh, type MeshBasicMaterial, type OrthographicCamera } from 'three';
 import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js';
@@ -12,7 +12,7 @@ import { api } from '@/lib/api';
 import { useHouseFurniture, useInventory } from '@/lib/data/hooks';
 import { bounds, pointInPolygon } from '@/lib/geometry/polygon';
 import { BOX, onHandNav, type HandView } from '@/lib/hands/engine';
-import { handEngine, useHands } from '@/lib/hands/store';
+import { handEngine, syncHands, useHands } from '@/lib/hands/store';
 import { studioLive, useStudio, type StudioFraming } from '@/lib/studio/store';
 import { floorGeometry, wallGeometry } from '@/lib/three/roomShell';
 
@@ -28,8 +28,14 @@ import { floorGeometry, wallGeometry } from '@/lib/three/roomShell';
 const DEG = Math.PI / 180;
 /** Where the camera settles (degrees round and up), its limits, and how far it stands (m; with no perspective this only has to clear the room). */
 const VIEW = { yaw: 38, pitch: 33, minPitch: 14, maxPitch: 80, minZoom: 0.45, maxZoom: 3.4, distance: 60 } as const;
-/** Hands on the view: degrees per viewport dragged, how strongly the spread zooms, the time constant (s) the view follows with, and how long a flick keeps turning (s). */
-const HAND = { yawDegPerView: 220, pitchDegPerView: 80, zoomGain: 1.6, easeS: 0.085, coastS: 0.75, maxSpin: 420 } as const;
+/**
+ * Hands on the view: degrees per viewport dragged, how strongly the spread zooms, and how long a
+ * flick keeps turning (s). The time constants (s) the view follows with: the turn is short, since
+ * the hand's place is already smoothed where it is tracked and a second long smoothing only puts
+ * the room behind the hand; the zoom is longer, since it is read from the gap between two hands,
+ * which trembles twice over.
+ */
+const HAND = { yawDegPerView: 220, pitchDegPerView: 80, zoomGain: 1.6, turnEaseS: 0.05, zoomEaseS: 0.1, slideEaseS: 0.065, coastS: 0.75, maxSpin: 420 } as const;
 /**
  * Marking. `holdS` / `pinHoldS`: how long the hands must rest before the mark locks. `stillMps`:
  * moving slower than this (metres of floor a second) is resting. `settleS`: after a pinch, this
@@ -41,7 +47,16 @@ const HAND = { yawDegPerView: 220, pitchDegPerView: 80, zoomGain: 1.6, easeS: 0.
  * they are and however the room is zoomed) and the piece is `scale` times that: hands 40 cm
  * apart are a two metre sofa. At 1, the piece would be as wide as the gap itself.
  */
-const MARK = { holdS: 0.9, pinHoldS: 0.8, stillMps: 0.5, minW: 0.3, maxW: 4.5, settleS: 0.6, snapDeg: 14, easeS: 0.07, scale: 5, palmM: 0.1, palmEaseS: 0.25 } as const;
+const MARK = {
+  holdS: 0.9, pinHoldS: 0.8, stillMps: 0.5, minW: 0.3, maxW: 4.5, settleS: 0.6, snapDeg: 14, easeS: 0.07, scale: 5, palmM: 0.1, palmEaseS: 0.25,
+  /** Once squared to a wall, the footprint stays squared this much further (degrees): at the edge it would flick between the two. */
+  snapHoldDeg: 7,
+  /** The footprint's turn follows the hands with this time constant (s). A change of more than `jumpDeg` (its front flipped, or another wall became the nearest) is taken only once it has lasted `jumpS`. */
+  yawEaseS: 0.09, jumpDeg: 40, jumpS: 0.22,
+  /** Widths are told and kept in steps of this (m): a number that changes in its last digit as the hands tremble reads as noise. */
+  stepM: 0.05,
+} as const;
+const inSteps = (m: number) => Math.round(m / MARK.stepM) * MARK.stepM;
 /** The room on screen: its diagonal over the shorter side of the view (smaller is a bigger room), and how far above the floor the camera looks (m), so floor and walls sit in the middle together. */
 const FIT = { span: 2.5, lookUp: 1.25 } as const;
 const COLOR = { frame: '#f1c84b', lock: '#2bdc86', L: '#4aa8ff', R: '#ff6b5c' } as const;
@@ -84,7 +99,7 @@ function nearestWall(room: Room, x: number, z: number) {
  * runs along the line between the spots, squared to the nearest wall when nearly so, and the
  * piece's front (+Z of its model) looks away from that wall, into the room.
  */
-function frameBetween(room: Room, ax: number, az: number, bx: number, bz: number): { x: number; z: number; width: number; yaw_deg: number } {
+function frameBetween(room: Room, ax: number, az: number, bx: number, bz: number, snapDeg: number = MARK.snapDeg): { x: number; z: number; width: number; yaw_deg: number; snapped: boolean } {
   const x = (ax + bx) / 2;
   const z = (az + bz) / 2;
   const width = Math.min(Math.max(Math.hypot(bx - ax, bz - az), MARK.minW), MARK.maxW);
@@ -92,9 +107,10 @@ function frameBetween(room: Room, ax: number, az: number, bx: number, bz: number
   let yaw = Math.atan2(-(bz - az), bx - ax) / DEG;
   const wallYaw = Math.atan2(-wall.tz, wall.tx) / DEG;
   const off = ((((yaw - wallYaw + 45) % 90) + 90) % 90) - 45;
-  if (Math.abs(off) < MARK.snapDeg) yaw -= off;
+  const snapped = Math.abs(off) < snapDeg;
+  if (snapped) yaw -= off;
   if (Math.sin(yaw * DEG) * wall.nx + Math.cos(yaw * DEG) * wall.nz < 0) yaw += 180;
-  return { x, z, width, yaw_deg: ((yaw % 360) + 360) % 360 };
+  return { x, z, width, yaw_deg: ((yaw % 360) + 360) % 360, snapped };
 }
 
 /** A hand's palm in the camera picture, in picture heights: its length or, scaled to match, its width, whichever a turned hand has not foreshortened. */
@@ -129,7 +145,7 @@ function Rig({ room, center, radius }: { room: Room; center: Vector3; radius: nu
   const gl = useThree((s) => s.gl);
   // It opens from higher up and further round, small, and swings in.
   const view = useRef({ yaw: VIEW.yaw - 80, pitch: 66, zoom: 0.5, tYaw: VIEW.yaw as number, tPitch: VIEW.pitch as number, tZoom: 1, spin: 0, dragAt: 0, age: 0, busyAt: performance.now() / 1000, mouse: false, panX: 0, panZ: 0, tPanX: 0, tPanZ: 0, midU: 0, midV: 0, mid: false });
-  const mark = useRef({ x: 0, z: 0, w: 1, yaw: 0, hold: 0, has: false, lastX: 0, lastZ: 0, lastW: 0, motion: 0, pinchAt: 0, locked: false, apartAt: 0, mouse: false, palm: 0 });
+  const mark = useRef({ x: 0, z: 0, w: 1, yaw: 0, hold: 0, has: false, lastX: 0, lastZ: 0, lastW: 0, motion: 0, pinchAt: 0, locked: false, apartAt: 0, mouse: false, palm: 0, snapped: false, jumpAt: 0 });
   const tools = useMemo(() => ({ ray: new Raycaster(), ndc: new Vector2(), hit: new Vector3(), look: new Vector3(), plane: new Plane(new Vector3(0, 1, 0), -room.floor_y) }), [room.floor_y]);
 
   /** Where a spot of the view (fractions of it, from the top left) lands on the room's floor. */
@@ -140,6 +156,9 @@ function Rig({ room, center, radius }: { room: Room; center: Vector3; radius: nu
   };
   const hitRef = useRef(floorHit);
   hitRef.current = floorHit;
+
+  // The hands are read at the start of each frame, before the camera and the mark are worked out from them.
+  useEffect(() => addEffect(syncHands), []);
 
   // Hands turn and zoom the room.
   useEffect(
@@ -206,7 +225,7 @@ function Rig({ room, center, radius }: { room: Room; center: Vector3; radius: nu
     const up = () => {
       if (drag?.from) {
         const f = studioLive.framing;
-        if (f && pointInPolygon([f.x, f.z], room.polygon)) useStudio.getState().setMark({ x: f.x, z: f.z, width: f.width, depth: f.depth, yaw_deg: f.yaw_deg, kind: f.kind });
+        if (f && pointInPolygon([f.x, f.z], room.polygon)) useStudio.getState().setMark({ x: f.x, z: f.z, width: f.width === null ? null : inSteps(f.width), depth: f.depth, yaw_deg: f.yaw_deg, kind: f.kind });
         studioLive.framing = null;
       }
       drag = null;
@@ -291,12 +310,16 @@ function Rig({ room, center, radius }: { room: Room; center: Vector3; radius: nu
     }
 
     v.age += dt;
-    const k = 1 - Math.exp(-dt / (v.age < 1.8 ? 0.42 : HAND.easeS));
-    v.yaw += (v.tYaw - v.yaw) * k;
-    v.pitch += (v.tPitch - v.pitch) * k;
-    v.zoom += (v.tZoom - v.zoom) * k;
-    v.panX += (v.tPanX - v.panX) * k;
-    v.panZ += (v.tPanZ - v.panZ) * k;
+    // The swing in as the room opens is slow; after it, each move follows at its own pace.
+    const opening = v.age < 1.8;
+    const follow = (s: number) => 1 - Math.exp(-dt / (opening ? 0.42 : s));
+    const turn = follow(HAND.turnEaseS);
+    const slide = follow(HAND.slideEaseS);
+    v.yaw += (v.tYaw - v.yaw) * turn;
+    v.pitch += (v.tPitch - v.pitch) * turn;
+    v.zoom += (v.tZoom - v.zoom) * follow(HAND.zoomEaseS);
+    v.panX += (v.tPanX - v.panX) * slide;
+    v.panZ += (v.tPanZ - v.panZ) * slide;
     const yaw = v.yaw * DEG;
     const pitch = v.pitch * DEG;
     const look = tools.look.set(center.x + v.panX, center.y, center.z + v.panZ);
@@ -337,7 +360,9 @@ function Rig({ room, center, radius }: { room: Room; center: Vector3; radius: nu
         if (palm > 1e-3) m.palm = m.palm > 0 ? m.palm + (palm - m.palm) * (1 - Math.exp(-dt / MARK.palmEaseS)) : palm;
         if (m.palm > 0) {
           const width = Math.min(Math.max((handGap(l, r, aspect) / m.palm) * MARK.palmM * MARK.scale, MARK.minW), MARK.maxW);
-          raw = { ...frameBetween(room, a[0], a[1], b[0], b[1]), width, kind: 'size' };
+          const f = frameBetween(room, a[0], a[1], b[0], b[1], m.snapped ? MARK.snapDeg + MARK.snapHoldDeg : MARK.snapDeg);
+          m.snapped = f.snapped;
+          raw = { x: f.x, z: f.z, yaw_deg: f.yaw_deg, width, kind: 'size' };
         }
       }
     } else if (free && one) {
@@ -361,6 +386,7 @@ function Rig({ room, center, radius }: { room: Room; center: Vector3; radius: nu
         m.locked = false;
         m.hold = 0;
         m.palm = 0;
+        m.snapped = false;
       }
       if (!m.has || up) studioLive.framing = null;
       studioLive.gesture = gesture === 'drag' ? 'spin' : gesture === 'zoom' ? 'zoom' : 'idle';
@@ -374,9 +400,22 @@ function Rig({ room, center, radius }: { room: Room; center: Vector3; radius: nu
       m.x = raw.x;
       m.z = raw.z;
       m.w = w;
+      m.yaw = raw.yaw_deg;
+      m.jumpAt = 0;
       m.hold = 0;
       m.motion = 2;
     } else {
+      // The turn: followed smoothly, the short way round; a jump only once it has lasted.
+      const off = ((raw.yaw_deg - m.yaw + 540) % 360) - 180;
+      if (Math.abs(off) <= MARK.jumpDeg) {
+        m.jumpAt = 0;
+        m.yaw = (m.yaw + off * (1 - Math.exp(-dt / MARK.yawEaseS)) + 360) % 360;
+      } else if (!m.jumpAt) {
+        m.jumpAt = now;
+      } else if (now - m.jumpAt > MARK.jumpS) {
+        m.yaw = raw.yaw_deg;
+        m.jumpAt = 0;
+      }
       // A fingertip is read straight from the tracker and trembles more than a palm: it is smoothed
       // harder. Rest is judged on the smoothed spot, so that trembling alone is not movement.
       const e = 1 - Math.exp(-dt / (raw.kind === 'pin' ? MARK.easeS * 2 : MARK.easeS));
@@ -389,7 +428,6 @@ function Rig({ room, center, radius }: { room: Room; center: Vector3; radius: nu
     m.lastX = m.x;
     m.lastZ = m.z;
     m.lastW = m.w;
-    m.yaw = raw.yaw_deg;
     studioLive.gesture = raw.kind === 'size' ? 'frame' : 'pin';
     if (m.locked) {
       studioLive.framing = null; // the locked mark is what shows, until the hands let go
@@ -402,7 +440,7 @@ function Rig({ room, center, radius }: { room: Room; center: Vector3; radius: nu
     if (framing.progress >= 1) {
       m.locked = true;
       studioLive.framing = null;
-      useStudio.getState().setMark({ x: framing.x, z: framing.z, width: framing.width, depth: null, yaw_deg: framing.yaw_deg, kind: framing.kind });
+      useStudio.getState().setMark({ x: framing.x, z: framing.z, width: framing.width === null ? null : inSteps(framing.width), depth: null, yaw_deg: framing.yaw_deg, kind: framing.kind });
       return;
     }
     studioLive.framing = framing;
@@ -524,7 +562,31 @@ function Surroundings() {
   return null;
 }
 
+/**
+ * The shadow map is drawn again only when something that casts a shadow has changed: the light
+ * stands still and so does the room (it is the camera that turns), so drawing every piece a second
+ * time each frame, for a shadow that would come out the same, was half the scene's work for nothing.
+ * Counted in frames, so the frame after the last change is drawn too.
+ */
+let shadowFrames = 0;
+const castAgain = (frames = 3) => {
+  shadowFrames = Math.max(shadowFrames, frames);
+};
+
 function Sun({ center, radius }: { center: Vector3; radius: number }) {
+  const gl = useThree((s) => s.gl);
+  useEffect(() => {
+    gl.shadowMap.autoUpdate = false;
+    castAgain(4);
+    return () => {
+      gl.shadowMap.autoUpdate = true;
+    };
+  }, [gl]);
+  useFrame(() => {
+    if (shadowFrames <= 0) return;
+    shadowFrames--;
+    gl.shadowMap.needsUpdate = true;
+  });
   const light = useRef<DirectionalLight>(null);
   useLayoutEffect(() => {
     const l = light.current;
@@ -537,6 +599,7 @@ function Sun({ center, radius }: { center: Vector3; radius: number }) {
     cam.near = 0.5;
     cam.far = radius * 8;
     cam.updateProjectionMatrix();
+    castAgain();
   }, [center, radius]);
   return <directionalLight ref={light} position={[center.x + radius * 0.9, center.y + radius * 2.4, center.z + radius * 0.7]} intensity={2.3} castShadow shadow-mapSize={[2048, 2048]} shadow-bias={-0.0005} shadow-normalBias={0.02} />;
 }
@@ -563,11 +626,17 @@ function PieceModel({ id, url, x, y, z, yaw, size, fresh }: { id: string; url: s
   const t = useRef(fresh ? 0 : 1);
   /** 0 standing, 1 gone: it shrinks away once a fist has taken it out. */
   const out = useRef(0);
+  // It casts a shadow: where it stands, how big it is and whether it is there at all change the shadows.
+  useEffect(() => {
+    castAgain();
+    return () => castAgain();
+  }, [scene, x, y, z, yaw, size]);
   useFrame(({ clock }, dt) => {
     const g = group.current;
     if (!g) return;
     let scale = 1;
     if (t.current < 1.6) {
+      castAgain(2); // dropping in
       t.current += dt / 0.85;
       const e = Math.min(1, t.current);
       scale = 1 + 2.70158 * Math.pow(e - 1, 3) + 1.70158 * Math.pow(e - 1, 2);
@@ -585,7 +654,9 @@ function PieceModel({ id, url, x, y, z, yaw, size, fresh }: { id: string; url: s
     // house refuses, it is no longer listed as gone and stands again.)
     const aim = studioLive.aim;
     const squeeze = aim && aim.id === id ? aim.progress : 0;
+    const was = out.current;
     out.current = studioLive.gone.has(id) ? Math.min(1, out.current + dt / 0.28) : 0;
+    if (squeeze > 0 || out.current !== was) castAgain(2); // squeezed, shrinking away, or back
     g.visible = out.current < 1;
     g.scale.setScalar(Math.max(0.001, size * scale * (1 - 0.22 * squeeze) * (1 - out.current * out.current)));
     g.rotation.y = yaw * DEG + (squeeze > 0 ? Math.sin(clock.elapsedTime * 38) * 0.04 * squeeze : 0);
@@ -870,7 +941,8 @@ function Footprint({ floorY }: { floorY: number }) {
       pulse.current.visible = !isLive && p < 1;
       pulse.current.scale.setScalar(1 + p * 0.7);
     }
-    const text = pin ? (isLive ? 'Hold still to pin' : 'Pinned · say what goes here') : isLive ? `${w.toFixed(2)} m · hold still` : `${w.toFixed(2)} m wide · say what goes here`;
+    const told = inSteps(w).toFixed(2);
+    const text = pin ? (isLive ? 'Hold still to pin' : 'Pinned · say what goes here') : isLive ? `${told} m · hold still` : `${told} m wide · say what goes here`;
     if (label.current && text !== said.current) {
       said.current = text;
       label.current.firstElementChild!.textContent = text;
@@ -985,8 +1057,12 @@ export function StudioScene({ twin, room }: { twin: PropertyTwin; room: Room }) 
     return { center: new Vector3((b.minX + b.maxX) / 2, room.floor_y + FIT.lookUp, (b.minZ + b.maxZ) / 2), radius: Math.max(1.6, Math.hypot(b.maxX - b.minX, b.maxZ - b.minZ) / 2) };
   }, [room]);
   const grid = Math.ceil(radius * 5) * 2;
+  // While hands are on, the room is drawn at 1x, as the house is in the tour: every picture the
+  // hand model looks at goes through the graphics card and waits behind whatever is queued there,
+  // and a sharper room is a longer queue. (Hands are on from the moment a room is picked.)
+  const handsOn = useHands((s) => s.status === 'on' || s.status === 'starting');
   return (
-    <Canvas orthographic shadows dpr={[1, 1.5]} gl={{ alpha: true, antialias: true }} camera={{ position: [center.x + 30, center.y + 30, center.z + 30], zoom: 50, near: 0.1, far: 500 }} className="touch-none">
+    <Canvas orthographic shadows dpr={handsOn ? 1 : [1, 1.5]} gl={{ alpha: true, antialias: true }} camera={{ position: [center.x + 30, center.y + 30, center.z + 30], zoom: 50, near: 0.1, far: 500 }} className="touch-none">
       <Surroundings />
       <hemisphereLight args={['#ffffff', '#9db4aa', 1.2]} />
       <Sun center={center} radius={radius} />

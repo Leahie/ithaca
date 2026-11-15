@@ -97,6 +97,17 @@ function Held({ url }: { url: string | null }) {
   /** The loaded model's height and depth over its width; null while the ghost is shown. */
   const shape = useRef<Ratios | null>(null);
   const now = useRef({ x: 0, y: 0, scale: 0, roll: 0, yaw: 0, shown: 0 });
+  // Drawn only while there is something to draw: a hand in view, or the piece still fading out.
+  // A second 3D picture drawn sixty times a second for an empty panel is graphics-card time the
+  // hand model waits behind.
+  const invalidate = useThree((s) => s.invalidate);
+  useEffect(
+    () =>
+      onHandTick(() => {
+        if (handEngine.hands.length > 0 || now.current.shown > 0.01) invalidate();
+      }),
+    [invalidate],
+  );
 
   useFrame(({ clock }, delta) => {
     const g = rig.current;
@@ -178,6 +189,7 @@ export function HandCam({ className }: { className?: string }) {
   const host = useRef<HTMLDivElement | null>(null);
   const bones = useRef<HTMLCanvasElement | null>(null);
   const label = useRef<HTMLSpanElement | null>(null);
+  const meter = useRef<HTMLSpanElement | null>(null);
 
   // The camera picture is the tracker's own <video>: put it in the panel.
   useEffect(() => {
@@ -191,11 +203,21 @@ export function HandCam({ className }: { className?: string }) {
   useEffect(() => {
     if (status !== 'on') {
       if (label.current) label.current.textContent = '';
+      if (meter.current) meter.current.textContent = '';
       return;
     }
     const [surface, unwatch] = bones.current ? watchCanvas(bones.current) : [null, () => {}];
     let said = '';
+    let meterAt = 0;
     const off = onHandTick(() => {
+      // How the tracking keeps up, a few times a second: what runs the hand model, its results a
+      // second, and how long a picture takes to become a result on this page (ms).
+      const t = performance.now();
+      if (meter.current && t - meterAt >= 250) {
+        meterAt = t;
+        const { rate, delayMs, on } = handEngine.stats;
+        meter.current.textContent = rate ? `${on || '?'} ${rate.toFixed(0)}/s · ${delayMs.toFixed(0)} ms` : '';
+      }
       const hands = handEngine.hands;
       // The hands in the picture change only when the tracker has a new result.
       if (surface) {
@@ -209,7 +231,7 @@ export function HandCam({ className }: { className?: string }) {
       const framing = studioLive.framing;
       const piece = useStudio.getState().piece;
       const twoOpen = hands.filter((h) => !h.stale && !h.pinching).length === 2;
-      const text = twoOpen && framing && typeof framing.width === 'number' ? `${framing.width.toFixed(2)} m wide` : piece ? `${piece.label} · ${piece.dims.w.toFixed(2)} m` : '';
+      const text = twoOpen && framing && typeof framing.width === 'number' ? `${(Math.round(framing.width / 0.05) * 0.05).toFixed(2)} m wide` : piece ? `${piece.label} · ${piece.dims.w.toFixed(2)} m` : '';
       if (label.current && text !== said) label.current.textContent = said = text;
     });
     return () => {
@@ -224,7 +246,7 @@ export function HandCam({ className }: { className?: string }) {
         <canvas ref={bones} className="absolute inset-0 h-full w-full" aria-hidden />
         {status === 'on' && (
           <div className="pointer-events-none absolute inset-0" aria-hidden>
-            <Canvas orthographic frameloop="always" dpr={[1, 1.5]} gl={{ alpha: true, antialias: true }} camera={{ position: [0, 0, 1000], zoom: 1, near: 1, far: 4000 }} style={{ pointerEvents: 'none' }}>
+            <Canvas orthographic frameloop="demand" dpr={[1, 1.5]} gl={{ alpha: true, antialias: true }} camera={{ position: [0, 0, 1000], zoom: 1, near: 1, far: 4000 }} style={{ pointerEvents: 'none' }}>
               <ambientLight intensity={1.6} />
               <directionalLight position={[200, 300, 400]} intensity={2} />
               <Held url={pieceUrl} />
@@ -232,6 +254,7 @@ export function HandCam({ className }: { className?: string }) {
           </div>
         )}
         <span className="pointer-events-none absolute top-2 left-2.5 text-[11px] font-semibold tracking-[0.08em] text-white/70 uppercase">Your hands</span>
+        <span ref={meter} className="pointer-events-none absolute top-1.5 right-1.5 rounded bg-black/55 px-1.5 font-mono text-[10px] leading-4 text-white/85 tabular-nums empty:hidden" />
         <span ref={label} className="pointer-events-none absolute bottom-2 left-1/2 -translate-x-1/2 rounded-full bg-black/60 px-3 py-1 font-display text-sm font-semibold whitespace-nowrap text-white tabular-nums empty:hidden" />
         {status === 'starting' && <span className="absolute inset-0 grid place-items-center font-display text-base font-medium text-white/80">Starting the camera…</span>}
         {status === 'error' && (

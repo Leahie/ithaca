@@ -295,7 +295,7 @@ export class HandEngine {
       tr.poseSince = t;
       tr.nextStep = t + WALK.holdS;
     }
-    tr.motion.update(f.palm, t);
+    tr.motion.update(f.palm, t, arrived);
     tr.pinch.update(f, t, tr.motion.speed);
   }
 
