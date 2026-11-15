@@ -108,6 +108,7 @@ def _with_asset_urls(twin: PropertyTwin, request: Request) -> PropertyTwin:
         "ortho": url(a.ortho),
         "obliques": [url(k) for k in a.obliques],
         "splat": url(a.splat),
+        "house": url(a.house),
     })
     return twin.model_copy(update={"assets": assets})
 

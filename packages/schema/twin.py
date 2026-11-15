@@ -109,6 +109,10 @@ class TwinAssets(BaseModel):
     # coordinates to the interior frame, column-major (twin/splat.py)
     splat: str | None = None
     splat_to_interior: list[float] | None = None
+    # the house rebuilt from the floor plan, with its baked light (3d_rendering_matterport's
+    # `pnpm house all`): the key of its house.json; house.glb, the light_*.png lightmaps and the
+    # surroundings (context.glb, context.jpg) sit beside it. Interior frame.
+    house: str | None = None
 
 
 class TwinQuality(BaseModel):

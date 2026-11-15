@@ -784,6 +784,7 @@ export interface TwinAssets {
   obliques?: string[];
   splat?: string | null;
   splat_to_interior?: number[] | null;
+  house?: string | null;
 }
 
 export interface TwinQuality {

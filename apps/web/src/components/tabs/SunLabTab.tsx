@@ -16,14 +16,15 @@ import { invalidate } from '@/lib/data/resource';
 import { defaultRoom, roomName } from '@/lib/rooms';
 import type { V3 } from '@/lib/geometry/frames';
 import { compassToInterior } from '@/lib/geometry/frames';
+import { loadHouseInfo, type HouseInfo } from '@/lib/house/house';
+import { sunToward } from '@/lib/house/sun';
 import { useSession } from '@/lib/store/session';
-import { useTour } from '@/lib/store/tour';
 import { openingFromCorners } from '@/lib/sunlab/annotate';
-import { panosAvailable } from '@/lib/sunlab/pano';
 import { sunPosition } from '@/lib/sun/position';
 
 /**
- * Sun Lab: the interior mesh and its surroundings under a physically placed sun.
+ * Sun Lab: the house rebuilt from the floor plan, with its baked light and the block around it,
+ * under a physically placed sun (components/sunlab/Scene.tsx, lib/house).
  * The light direction is the one value the frontend computes (A3); everything else shown
  * here (sun hours, heatmap) is read from the server's SunReport.
  */
@@ -50,13 +51,30 @@ export function SunLabTab({ twin, active }: { twin: PropertyTwin; active: boolea
   const [panelOpen, setPanelOpen] = useState(false);
   const [heatmapOn, setHeatmapOn] = useState(false);
   const [showOpenings, setShowOpenings] = useState(false);
-  // Inside a room: walk mode (scan photos projected from scan points) or the mesh's own textures.
-  const [walkMode, setWalkMode] = useState(true);
-  // Walk mode: Matterport's furniture-free scan photos instead of the furnished ones (the default, shared with the tour).
-  const defurnished = useTour((s) => s.defurnished);
-  const setDefurnished = useTour((s) => s.setDefurnished);
-  const [photoLoading, setPhotoLoading] = useState(false);
-  const walkable = !!twin.assets.interior_glb && panosAvailable(twin);
+
+  // The rebuilt house: its house.json first (it says which way north is), then the model.
+  const houseUrl = twin.assets.house ?? null;
+  const [rebuilt, setRebuilt] = useState<{ url: string; info: HouseInfo } | null>(null);
+  const [houseFailed, setHouseFailed] = useState(false);
+  useEffect(() => {
+    setRebuilt(null);
+    setHouseFailed(false);
+    if (!houseUrl) return;
+    let alive = true;
+    loadHouseInfo(houseUrl).then(
+      (info) => alive && setRebuilt({ url: houseUrl, info }),
+      (err) => {
+        if (!alive) return;
+        setHouseFailed(true);
+        setAssetError(`The rebuilt house could not be loaded: ${err instanceof Error ? err.message : String(err)}`);
+      },
+    );
+    return () => {
+      alive = false;
+    };
+  }, [houseUrl]);
+  // Draw once it is known what to draw: the house, or (without one) the rooms' outlines.
+  const sceneReady = !houseUrl || !!rebuilt || houseFailed;
 
   // Start indoors: with no room chosen yet, go to the main room. A viewer.goto like any other (A1).
   useEffect(() => {
@@ -72,11 +90,15 @@ export function SunLabTab({ twin, active }: { twin: PropertyTwin; active: boolea
     if (target) setView({ kind: 'room', room: target, seq: gotoSeq });
   }, [gotoSeq, twin]);
 
-  // Sun: suncalc position, turned into the interior frame by the twin's transform.
+  // Sun: suncalc position, turned into the interior frame. North is the one measured for the
+  // rebuilt house on Vexcel's aerial survey when there is one (Matterport's georeference, which
+  // the twin's transform comes from, is several degrees off); else the twin's transform.
+  const north = rebuilt?.info.orientation?.north ?? null;
   const sun = useMemo(() => {
     const pos = sunPosition(new Date(datetime), twin.lat, twin.lon);
-    return { ...pos, direction: compassToInterior(twin.interior_to_world, pos.azimuth_deg, pos.elevation_deg) as V3 };
-  }, [datetime, twin]);
+    const direction = north ? sunToward(pos.azimuth_deg, pos.elevation_deg, north) : compassToInterior(twin.interior_to_world, pos.azimuth_deg, pos.elevation_deg);
+    return { ...pos, direction: direction as V3 };
+  }, [datetime, twin, north]);
 
   // The house's furniture (or the layout being tried in its room).
   const placements = useMemo<PlacedItem[]>(() => {
@@ -153,41 +175,42 @@ export function SunLabTab({ twin, active }: { twin: PropertyTwin; active: boolea
       data-openings={openings.length}
       data-placed={placements.length}
     >
+      {/* flat: the house's light is worked out in its own shaders, with no tone mapping on top. */}
       <Canvas
-        shadows
+        flat
         frameloop={active ? 'always' : 'never'}
         dpr={dpr}
-        camera={{ fov: 58, near: 0.08, far: 900, position: [-40, 30, 30] }}
+        camera={{ fov: 58, near: 0.08, far: 3000, position: [-40, 30, 30] }}
         className={cn(tool && 'cursor-crosshair')}
       >
         <PerformanceMonitor flipflops={3} onChange={({ factor }) => setDprFactor(Math.round(factor * 4) / 4)} onFallback={() => setDprFactor(0)} />
-        <Scene
-          twin={twin}
-          openings={openings}
-          sun={sun}
-          placements={placements}
-          heatmap={heatmap}
-          showOpenings={showOpenings}
-          onWallClick={tool ? onWallClick : null}
-          pendingCorner={corner?.point ?? null}
-          view={view}
-          walkMode={walkMode}
-          defurnished={defurnished}
-          onPhotoLoading={setPhotoLoading}
-          onAssetError={setAssetError}
-          onReady={onReady}
-        />
+        {sceneReady && (
+          <Scene
+            twin={twin}
+            house={rebuilt}
+            openings={openings}
+            sun={sun}
+            placements={placements}
+            heatmap={heatmap}
+            showOpenings={showOpenings}
+            onWallClick={tool ? onWallClick : null}
+            pendingCorner={corner?.point ?? null}
+            view={view}
+            onAssetError={setAssetError}
+            onReady={onReady}
+          />
+        )}
       </Canvas>
 
       {!ready && !assetError && (
         <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
-          <Spinner label="Loading the house model…" />
+          <Spinner label="Loading the house…" />
         </div>
       )}
-      {!twin.assets.interior_glb && (
+      {(!houseUrl || houseFailed) && (
         <div className="absolute top-12 left-3 w-[300px]">
-          <Notice tone="warn" title="No scanned mesh yet">
-            This twin has no interior model, so rooms are drawn from their outlines.
+          <Notice tone="warn" title="No rebuilt house yet">
+            This twin has no house rebuilt from its floor plan, so rooms are drawn from their outlines.
           </Notice>
         </div>
       )}
@@ -216,27 +239,6 @@ export function SunLabTab({ twin, active }: { twin: PropertyTwin; active: boolea
         >
           {room ? `Inside ${roomName(twin, room.room_id)}` : 'Go inside'}
         </Button>
-        {walkable && view.kind === 'room' && (
-          <Button
-            size="sm"
-            variant="subtle"
-            title={walkMode ? 'Orbit the 3D mesh with its own textures' : 'Stand on scan points with the 4k scan photos'}
-            onClick={() => setWalkMode(!walkMode)}
-          >
-            {walkMode ? 'Mesh view' : 'Walk mode'}
-          </Button>
-        )}
-        {walkable && walkMode && view.kind === 'room' && (
-          <Button
-            size="sm"
-            variant={defurnished ? 'primary' : 'subtle'}
-            aria-pressed={defurnished}
-            title="Show the scan photos with the furniture painted out (Matterport's defurnished view)"
-            onClick={() => setDefurnished(!defurnished)}
-          >
-            {photoLoading ? 'Loading photo…' : 'No furniture'}
-          </Button>
-        )}
       </div>
 
       <div className="absolute top-3 right-3 bottom-3 flex flex-col items-end gap-2">

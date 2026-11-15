@@ -118,14 +118,25 @@ How the web app uses the twin:
 - **Repeated room labels.** `src/lib/rooms.ts` names rooms for display: a label used once stays
   ("Office"); a repeated one is numbered from the ground floor up and from the largest room down
   ("Bedroom 1" .. "Bedroom 6"). The room list also shows the area. Everything keys on `room_id`.
-- **No interior mesh** (`interior_glb: null`): the Sun Lab draws rooms from their outlines.
-  **No context mesh:** it draws a plain ground and shows a "No surroundings" badge.
+- **The Sun Lab draws the rebuilt house** (`assets.house`, a `house.json` with `house.glb`, the
+  `light_*.png` lightmaps and `context.glb`/`context.jpg` beside it), made by the
+  `3d_rendering_matterport` project's `pnpm house all` and copied into
+  `fixtures/blobs/<pid>/house/`. The renderer is ported from that project (`src/lib/house/`):
+  baked sky and lamp light, the sun added on top with one 4096 px shadow map of the house, its
+  lot and the block around it (neighbors' houses, trees), and the sun a sunlit room throws back.
+  North for the sun is the one measured on Vexcel's survey (`house.json` `orientation.north`),
+  not the twin's `interior_to_world`, which carries Matterport's heading (6.5 degrees off).
+  Furniture is lit the same way and casts shadows. `interior_glb` and `context_glb` are no
+  longer drawn there.
+- **No rebuilt house** (`house: null`): the Sun Lab draws rooms from their outlines on a plain
+  ground, and the sun's shadow map lets light through the twin's openings.
 - **Sun direction** uses suncalc 2.x, whose azimuth is already in degrees clockwise from north.
   The recipe in the handoff is for suncalc 1.x (radians, from south). `position.test.ts` holds
   the result within 0.5 degrees of `fixtures/sun/reference.json` (today: 0.05). That file is
   written by `scripts/fixtures/sun_reference.py` until C ships its own.
-- **Light through openings.** Windows, sliders and glazed doors let sun in: the shadow pass skips
-  the mesh inside each such opening (`src/lib/sunlab/portals.ts`). A plain door blocks light.
+- **Light through openings.** The rebuilt house has real holes and glass. For rooms drawn from
+  their outlines, windows, sliders and glazed doors let sun in: the shadow pass skips the walls
+  inside each such opening (`src/lib/house/sun.ts`). A plain door blocks light.
 - **Sun report shape.** The Sun Lab asks for a whole calendar year per room and reads
   `heatmap.hours[row][col]` with rows along +z and columns along +x from `origin_xz`.
 
@@ -146,7 +157,7 @@ list beside them. Everything else is built and tested but switched off. `NEXT_PU
 | Value | Adds |
 |---|---|
 | `tour` (default) | The Matterport tour and the room list |
-| `sun` (default) | The Sun Lab: the scanned interior under the moving sun |
+| `sun` (default) | The Sun Lab: the house rebuilt from the floor plan under the moving sun |
 | `sound`, `neighborhood`, `design` | That view, as a tab |
 | `agent` | The chat dock |
 | `phone` | QR pairing for the phone controller |

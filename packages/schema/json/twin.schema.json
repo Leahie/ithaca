@@ -481,6 +481,18 @@
           "default": null,
           "title": "Context Glb"
         },
+        "house": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "House"
+        },
         "interior_glb": {
           "anyOf": [
             {

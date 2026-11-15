@@ -1,6 +1,6 @@
 {
   "property_id": "onXQLXhfyQv",
-  "version": 9,
+  "version": 10,
   "sources": {
     "matterport_model_id": "onXQLXhfyQv",
     "vexcel_parcel_id": null,
@@ -9274,7 +9274,8 @@
     "ortho": null,
     "obliques": [],
     "splat": null,
-    "splat_to_interior": null
+    "splat_to_interior": null,
+    "house": "blobs/onXQLXhfyQv/house/house.json"
   },
   "quality": {
     "alignment": "georef",

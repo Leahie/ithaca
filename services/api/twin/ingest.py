@@ -175,6 +175,10 @@ def _assets(property_id: str) -> TwinAssets:
     if ply.exists() and placed.exists():
         assets.splat = ply.relative_to(fixtures_dir()).as_posix()
         assets.splat_to_interior = json.loads(placed.read_text(encoding="utf-8"))["splat_to_interior"]
+    # The rebuilt house is made outside this repo (3d_rendering_matterport) and copied in whole.
+    house = fixtures_dir() / "blobs" / property_id / "house" / "house.json"
+    if house.exists():
+        assets.house = house.relative_to(fixtures_dir()).as_posix()
     return assets
 
 

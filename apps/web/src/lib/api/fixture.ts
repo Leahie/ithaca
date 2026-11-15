@@ -124,6 +124,7 @@ function resolveAssets(twin: PropertyTwin): PropertyTwin {
       obliques: (a.obliques ?? []).flatMap((o) => fixtureAssetUrl(o) ?? []),
       splat: fixtureAssetUrl(a.splat),
       splat_to_interior: a.splat_to_interior ?? null,
+      house: fixtureAssetUrl(a.house),
     },
   };
 }
