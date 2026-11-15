@@ -38,6 +38,9 @@ class InventoryItem(Model):
     mask_url: str | None = None
     price: float | None = None
     product_url: str | None = None
+    # The piece's own short number ("4821"): random, unique among all stored pieces, and never
+    # reused. People and the guides name a piece by it; item_id stays the key in the database.
+    tag: str | None = None
 
 
 class CatalogPiece(Model):
@@ -49,6 +52,21 @@ class CatalogPiece(Model):
     dims_m: ItemDims  # the model's own size; the user may override it when adding
     thumbnail_url: str
     source: str  # where the model comes from and its license
+    # The look it belongs to ("Mid-century modern", "Farmhouse"), and the names of the sets it is in.
+    style: str | None = None
+    sets: list[str] = []
+
+
+class CatalogSet(Model):
+    """A room's worth of catalog pieces that were designed to go together."""
+
+    set_id: str
+    name: str
+    style: str | None = None
+    rooms: str  # the kinds of room it is for, in words
+    look: str  # one sentence on what it looks like
+    piece_ids: list[str]  # catalog_ids, the ones that make the room first
+    thumbnail_urls: list[str]  # pictures of its first pieces, for a card
 
 
 class CatalogAddRequest(Model):

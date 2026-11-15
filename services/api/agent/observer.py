@@ -12,13 +12,12 @@ deepagents' async subagents need a remote Agent Protocol server.
 from __future__ import annotations
 
 from deepagents import FilesystemPermission, create_deep_agent
-from deepagents.backends import CompositeBackend, StateBackend, StoreBackend
 from langchain.tools import ToolRuntime, tool
 from langchain_core.language_models import BaseChatModel
 from langgraph.store.base import BaseStore
 
 from services.api.agent.context import AgentContext
-from services.api.agent.graph import INVENTORY_FILE, MEMORY_ROOT, PropertyContextMiddleware, memory_files, memory_namespace
+from services.api.agent.graph import HOUSE_ROOT, INVENTORY_FILE, MEMORY_ROOT, PropertyContextMiddleware, memory_backend, memory_files
 from services.api.agent.models import get_model
 from services.api.agent.prompts import SILENT
 from services.api.agent.tools import PROPERTY_TOOLS, SUN_TOOLS
@@ -86,10 +85,6 @@ def get_tour_log(runtime: ToolRuntime[AgentContext]) -> str:
 
 
 def build_observer(property_id: str, *, store: BaseStore, model: BaseChatModel | None = None):
-    backend = CompositeBackend(
-        default=StateBackend(),
-        routes={MEMORY_ROOT: StoreBackend(namespace=lambda rt: memory_namespace(rt.context.memory_user))},
-    )
     return create_deep_agent(
         model=model or get_model("observer"),
         tools=[get_tour_log, *PROPERTY_TOOLS, *SUN_TOOLS],
@@ -98,10 +93,10 @@ def build_observer(property_id: str, *, store: BaseStore, model: BaseChatModel |
         memory=memory_files(property_id),
         permissions=[
             FilesystemPermission(
-                operations=["write"], paths=[INVENTORY_FILE, f"{MEMORY_ROOT}profile.md"], mode="deny"
+                operations=["write"], paths=[INVENTORY_FILE, f"{HOUSE_ROOT}**", f"{MEMORY_ROOT}profile.md"], mode="deny"
             )
         ],
-        backend=backend,
+        backend=memory_backend(),
         context_schema=AgentContext,
         store=store,
         name="ithaca-observer",

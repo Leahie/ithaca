@@ -16,6 +16,9 @@ import { RoomIcon } from '@/components/ui/RoomIcon';
 import { FurnitureRoom } from './FurnitureRoom';
 import { LightPanel, OFF, ON } from './LightPanel';
 import { CatalogSuggestion } from '@/components/house/CatalogSuggestion';
+import { ChoiceCards } from '@/components/house/ChoiceCards';
+import { LayoutSuggestion } from '@/components/house/LayoutSuggestion';
+import { GuidePopup } from './GuidePopup';
 import { MovePad } from './MovePad';
 import { SoundPicker } from './SoundPicker';
 
@@ -23,7 +26,7 @@ import { SoundPicker } from './SoundPicker';
  * The conversation as messages: yours on the right, the guide's on the left, newest at the bottom
  * and kept in view. The box to type in stays put under it.
  */
-function Messages({ memberId }: { memberId: string | null }) {
+function Messages({ memberId, propertyId }: { memberId: string | null; propertyId: string }) {
   const chat = useSession((s) => s.chat);
   const interim = useSession((s) => s.interim);
   const nameOf = useMemberName();
@@ -59,7 +62,15 @@ function Messages({ memberId }: { memberId: string | null }) {
             <span className="font-semibold">{nameOf(c.to_member_id) ?? 'Another member'}'s guide</span>: {c.answer ?? 'thinking…'}
           </p>
         ) : c.kind === 'layouts' ? (
-          <p key={c.id} className={aside}>{c.layout_ids.length} layout option{c.layout_ids.length === 1 ? '' : 's'} on the big screen</p>
+          // The guide's layout options as small plans: tap one to try it in the room, then keep it.
+          <div key={c.id} className="w-full self-stretch" data-testid="remote-layouts">
+            <LayoutSuggestion layoutIds={c.layout_ids} />
+          </div>
+        ) : c.kind === 'choice' ? (
+          // A question with a few answers, as pictures to tap.
+          <div key={c.id} className="w-full self-stretch" data-testid="remote-choice">
+            <ChoiceCards item={c} propertyId={propertyId} />
+          </div>
         ) : c.kind === 'catalog' ? (
           // The pieces the guide suggests, with pictures: tap one to add it to the room.
           <div key={c.id} className="w-full self-stretch" data-testid="remote-catalog">
@@ -322,7 +333,7 @@ function Remote({ propertyId }: { propertyId: string }) {
       {view === 'guide' && (
         <div className="flex min-h-0 flex-1 flex-col" data-testid="remote-guide">
           <div className="min-h-0 flex-1 overflow-y-auto px-4 py-3">
-            <Messages memberId={me?.member_id ?? null} />
+            <Messages memberId={me?.member_id ?? null} propertyId={propertyId} />
           </div>
           <form className="flex shrink-0 items-center gap-2 border-t border-line bg-raised px-3 py-2" onSubmit={(e) => { e.preventDefault(); send(); }}>
             <input value={text} onChange={(e) => setText(e.target.value)} placeholder="Message" aria-label="Message the guide" enterKeyHint="send"
@@ -363,6 +374,9 @@ function Remote({ propertyId }: { propertyId: string }) {
           </>
         )}
       </main>
+
+      {/* Whatever screen the phone is on, the guide's questions come up over it as pictures to tap. */}
+      <GuidePopup propertyId={propertyId} memberId={me?.member_id ?? null} arranging={view === 'furniture'} />
 
       <footer className="shrink-0 border-t border-line bg-ink/95">
         <nav aria-label="Remote screens" className="grid grid-cols-5 pb-[max(2px,env(safe-area-inset-bottom))]">

@@ -1,8 +1,8 @@
 # Furniture: storage, in the house, proposals
 
-Owner: B. Code: `services/api/furniture/` (store and rules), `services/api/routers/furniture.py`
-(routes), `services/api/agent/design_tools.py` (agent tools). Tests:
-`services/api/furniture/tests/`.
+Owner: B. Code: `services/api/furniture/` (store, rules, and the register the guides read),
+`services/api/routers/furniture.py` (routes), `services/api/agent/design_tools.py` (agent tools).
+Tests: `services/api/furniture/tests/`.
 
 Two things are true about a piece of furniture, and they live in two tables:
 
@@ -12,6 +12,10 @@ Two things are true about a piece of furniture, and they live in two tables:
 A third table, **proposals**, holds arrangements someone suggested (the designer agent, or the
 "where could it go?" options). A proposal is never furniture in the house; applying one writes
 `in_house` rows.
+
+A fourth, **house_log**, is the history of each house: one line for every piece placed, moved,
+taken out or deleted, with who did it and how. The guides read the house and its log back as the
+**register** (below), so none of them answers from what it remembers.
 
 ## Who is who
 
@@ -39,7 +43,8 @@ CREATE TABLE storage (
     d_m REAL NOT NULL CHECK (d_m > 0),
     h_m REAL NOT NULL CHECK (h_m > 0),
     body       TEXT NOT NULL,              -- the InventoryItem as JSON (urls, attributes, price)
-    created_at TEXT NOT NULL
+    created_at TEXT NOT NULL,
+    tag        TEXT UNIQUE                 -- the piece's own number, e.g. "4821" (F10)
 );
 
 CREATE TABLE in_house (
@@ -63,11 +68,26 @@ CREATE TABLE proposals (
     created       REAL NOT NULL,
     body          TEXT NOT NULL            -- the LayoutVariant as JSON
 );
+
+CREATE TABLE house_log (
+    seq         INTEGER PRIMARY KEY AUTOINCREMENT,
+    house_key   TEXT NOT NULL,             -- the family's house, or a screen's own (store.house_key)
+    property_id TEXT NOT NULL,
+    at          TEXT NOT NULL,
+    action      TEXT NOT NULL,             -- placed | moved | removed | deleted
+    item_id     TEXT NOT NULL,
+    tag         TEXT,                      -- kept here so a deleted piece can still be named
+    label       TEXT NOT NULL,
+    room_id     TEXT,
+    by          TEXT NOT NULL,             -- the person
+    via         TEXT NOT NULL              -- hand | layout (a kept proposal) | guide (an agent's tool call)
+);
 ```
 
 Tables from before this spec (`inventory_items`, `layouts`) are migrated once on start:
 items go to `storage`, every layout becomes a proposal, and each room's chosen layout is written
-into `in_house`. The old tables are then renamed `*_old`.
+into `in_house`. The old tables are then renamed `*_old`. A `storage` table from before F10 gets
+the `tag` column, and every piece in it a number, the first time it is opened.
 
 ## Invariants
 
@@ -97,6 +117,40 @@ into `in_house`. The old tables are then renamed `*_old`.
   (F4). What a designer would flag (an overlap, a blocked door or path) comes back in `warnings`
   and is never stored. `snap: true` instead asks the solver for the nearest spot within 2 m that
   breaks no rule (409 `no_room` if there is none).
+- **F10. Every piece has a number.** A stored piece gets a random number when it is first saved
+  (`InventoryItem.tag`: four digits while they last, then more). It is unique among all pieces,
+  it never changes, and a deleted piece's number is not handed out again while the log still
+  names it. People and guides call a piece by it ("#4821"); `item_id` stays the database key.
+  Agent tools take the number wherever they ask for an `item_id` (the full id works too), and
+  show layouts by the first eight characters of their id.
+- **F11. Every change is logged, and the register is rewritten.** Each write to `in_house`, by
+  any path (a hand move, a tap on a catalog card, a kept layout, a guide's tool call, a deleted
+  piece leaving its rooms), adds a `house_log` line in the same transaction. Nudging one piece
+  again within two minutes updates its last line rather than adding one. After the transaction
+  the house's register is written again (next section).
+
+## The register
+
+`furniture/ledger.py` reads a house back as one document: every room with a piece in it; each
+piece with its number, size, owner, where in the room it stands in words ("against the north
+wall, facing south", worked out from the room's outline) and who placed it last; the family's
+pieces that stand in no room; and the last ten changes from the log ("Maya's guide put in Living
+Room: #3067 Floor lamp").
+
+- **Every agent reads it on every model call.** The guide of each family member, the family's
+  shared guide and the designer are shown the register at the end of their instructions, read
+  from the database at that moment (`HouseRegisterMiddleware`). A guide is never told about
+  furniture any other way, so what it says matches the house even after a hand move, another
+  person's change or a restart.
+- **It is saved on every change.** The store tells the ledger after each change (F11), and the
+  ledger writes the register to the agents' memory store as `/memories/house/<property_id>.md`,
+  in one place per house (`("house", <house key>)`), shared by everyone furnishing that house.
+  Guides can read the file and cannot write it; the /me page lists it, read-only.
+- **As data:** `GET /api/properties/{pid}/furniture/register`.
+- **Someone else's piece.** `place_piece` and `remove_from_room` refuse, the first time, to touch
+  a piece that another member of the family owns or placed: the guide must tell its own person
+  whose it is and get a yes, then call again with `go_ahead_with_others_piece`. The house's own
+  pieces (the big screen's) are everyone's.
 
 ## What a screen draws
 
@@ -127,6 +181,7 @@ In the house, as the house user (`X-User-Id` = house user):
 | `GET /properties/{pid}/furniture[?room_id=]` | The house's pieces (`HousePiece[]`). |
 | `PUT /properties/{pid}/furniture/{item_id}` | Place or move one piece (`PlacePiece`: `x`, `z`, optional `yaw_deg`, `floor_id`, `room_id`, `snap`). Returns the `HousePiece` with `warnings`. |
 | `DELETE /properties/{pid}/furniture/{item_id}` | Take it out of the house (F7). 204, or 404 if it isn't there. |
+| `GET /properties/{pid}/furniture/register` | The register: rooms, pieces with their numbers and places in words, storage, last changes (F10, F11). |
 
 Proposals, as the house user:
 

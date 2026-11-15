@@ -374,7 +374,7 @@ export function FurnitureRoom({ twin, talk }: { twin: PropertyTwin; talk?: Talk 
           <section className={cn(ISLAND, 'px-3 pt-2.5 pb-3')} aria-label={`Arrange ${selectedItem.label}`} data-testid="piece-tools">
             <div className="flex items-center gap-1.5">
               <div className="min-w-0 flex-1">
-                <p className="truncate text-sm font-semibold">{selectedItem.label}</p>
+                <p className="truncate text-sm font-semibold">{selectedItem.label}{selectedItem.tag && <span className="ml-1.5 font-mono text-xs font-normal text-muted">#{selectedItem.tag}</span>}</p>
                 {facing && <p className="text-[11px] font-semibold text-leaf-deep">Faces {facing}</p>}
               </div>
               <RoundButton label="Look at it on the big screen" onClick={() => lookAt(selectedPiece.item_id)}><IconEye width={17} height={17} /></RoundButton>
@@ -427,7 +427,8 @@ export function FurnitureRoom({ twin, talk }: { twin: PropertyTwin; talk?: Talk 
                     <li key={p.item_id} className="flex items-center gap-2 rounded-xl border border-line bg-raised py-1 pr-1 pl-3">
                       <button type="button" className="min-w-0 flex-1 py-1 text-left" onClick={() => { select(p.item_id); setSheet(null); }}>
                         <span className="block truncate text-sm font-semibold">{item?.label ?? 'A piece'}</span>
-                        {item && <span className="block truncate text-xs text-muted">{item.owner_name ? `${item.owner_name}'s · ` : ''}{item.dims_m.w.toFixed(1)}×{item.dims_m.d.toFixed(1)} m</span>}
+                        {/* The piece's own number: what the guide calls it, and what you can call it too. */}
+                        {item && <span className="block truncate text-xs text-muted">{item.tag ? <span className="font-mono">#{item.tag} · </span> : null}{item.owner_name ? `${item.owner_name}'s · ` : ''}{item.dims_m.w.toFixed(1)}×{item.dims_m.d.toFixed(1)} m</span>}
                       </button>
                       <RoundButton label={`Take ${item?.label ?? 'it'} out of the room`} onClick={() => void takeOut(p.item_id)} className="h-8 w-8">
                         <IconTrash width={15} height={15} />

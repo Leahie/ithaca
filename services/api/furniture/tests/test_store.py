@@ -41,7 +41,7 @@ def test_the_database_refuses_what_breaks_the_rules(db):
     with pytest.raises(sqlite3.IntegrityError):  # F5
         _raw(db, "INSERT INTO in_house VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", ("bob",) + row[1:7] + (360.0,) + row[8:])
     with pytest.raises(sqlite3.IntegrityError):  # real sizes
-        _raw(db, "INSERT INTO storage VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)", (str(uuid.uuid4()), "alice", "x", "x", 0.0, 1.0, 1.0, "{}", "t"))
+        _raw(db, "INSERT INTO storage VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", (str(uuid.uuid4()), "alice", "x", "x", 0.0, 1.0, 1.0, "{}", "t", None))
 
 
 def test_a_piece_moves_instead_of_doubling_and_leaves_with_its_storage_row(db):

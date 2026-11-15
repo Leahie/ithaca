@@ -17,6 +17,8 @@ interface Props {
   /** One of the user's pieces to put the new one next to. */
   nearItemId: string | null;
   pieces: CatalogPiece[];
+  /** Called once a piece has been added and placed (the phone's pop-up closes on it). */
+  onAdded?(): void;
 }
 
 /**
@@ -24,7 +26,7 @@ interface Props {
  * user's furniture and puts it in the room (next to `nearItemId` when that stands there); the
  * server picks the nearest spot that works. The agent is told with a `catalog.picked` event.
  */
-export function CatalogSuggestion({ propertyId, roomId, nearItemId, pieces }: Props) {
+export function CatalogSuggestion({ propertyId, roomId, nearItemId, pieces, onAdded }: Props) {
   const twin = useTwin(propertyId);
   const house = useHouseFurniture(propertyId);
   const viewRoomId = useSession((s) => s.viewer.room_id);
@@ -59,6 +61,7 @@ export function CatalogSuggestion({ propertyId, roomId, nearItemId, pieces }: Pr
       dispatch('layout.changed', { layout_id: null });
       dispatch('catalog.picked', { catalog_id: piece.catalog_id, item_id: item.item_id, room_id: room.room_id });
       setAdded((ids) => [...ids, piece.catalog_id]);
+      onAdded?.();
     } catch (err) {
       const text = err instanceof Error ? err.message : String(err);
       setError(/"violations":\s*\["([^"]+)"/.exec(text)?.[1] ?? text);

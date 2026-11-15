@@ -13,10 +13,11 @@ const DESCRIPTIONS: [RegExp, string][] = [
   [/^preferences\.md$/, 'Style and layout likes and dislikes, with reasons.'],
   [/^inventory\.md$/, 'An index of your furniture. Rebuilt from the inventory.'],
   [/^properties\//, 'Notes and verdict for one home you viewed.'],
+  [/^house\//, 'What stands in each room of one home right now, piece by piece. Rewritten whenever furniture moves.'],
 ];
 const describe = (path: string) => DESCRIPTIONS.find(([re]) => re.test(path))?.[1] ?? 'A note the agent keeps.';
-/** B3: inventory.md is a derived view; the database is canonical. */
-const isDerived = (path: string) => path === 'inventory.md';
+/** B3: inventory.md and the house registers are derived views; the database is canonical. */
+const isDerived = (path: string) => path === 'inventory.md' || path.startsWith('house/');
 
 /** What the agent remembers, as files you can read, edit and delete. */
 export function MemorySection() {
@@ -171,7 +172,13 @@ export function MemorySection() {
                   className="h-[420px] w-full resize-y rounded-md border border-line bg-ink p-3 font-mono text-[13px] leading-5 focus:border-line-strong focus:outline-none"
                 />
               )}
-              {isDerived(path) && <p className="mt-3 text-xs text-sun-deep">This file is rebuilt from your inventory. Edits here are overwritten: change the inventory instead.</p>}
+              {isDerived(path) && (
+                <p className="mt-3 text-xs text-sun-deep">
+                  {path.startsWith('house/')
+                    ? 'The app writes this file each time furniture in the house changes. It cannot be edited or deleted here: move the furniture instead.'
+                    : 'This file is rebuilt from your inventory. Edits here are overwritten: change the inventory instead.'}
+                </p>
+              )}
               {error && <p className="mt-3 text-xs text-danger">{error}</p>}
               <div className="mt-4 flex flex-wrap items-center justify-between gap-2">
                 <div className="flex gap-2">

@@ -53,7 +53,12 @@ def provider_name() -> str:
 
 @lru_cache(maxsize=1)
 def _storage():
-    return open_dev_storage(in_memory=env("AGENT_STORAGE") == "memory")
+    from services.api.furniture import ledger
+
+    storage = open_dev_storage(in_memory=env("AGENT_STORAGE") == "memory")
+    # From here on, every change to a house writes its furniture register to the memory store.
+    ledger.attach(storage[0])
+    return storage
 
 
 def memory_store():

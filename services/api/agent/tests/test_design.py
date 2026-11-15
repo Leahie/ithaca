@@ -76,7 +76,8 @@ def test_guide_starts_the_designer_in_the_background_then_shows_valid_layouts(fu
     ])
     out = run(guide, memory, user="alice", thread="t1", text=event_message("layouts_ready", report))
 
-    assert sofa in model.tool_results[0]  # the designer's tool saw alice's furniture (context reached it)
+    # the designer's tool saw alice's furniture (context reached it), each piece named by its number
+    assert f"#{furniture.get_item(sofa).tag} " in model.tool_results[0] and sofa not in model.tool_results[0]
     layouts = furniture.list_proposals("alice", PROPERTY, LIVING_ROOM)
     assert len(layouts) == 3 and furniture.list_proposals("bob") == []
     assert furniture.house_pieces("alice", PROPERTY) == []  # proposals are not furniture in the house (F8)
@@ -98,17 +99,18 @@ def test_guide_starts_the_designer_in_the_background_then_shows_valid_layouts(fu
 
 def test_suggested_catalog_pieces_reach_the_chat_as_cards(furniture):
     """catalog_suggest sends the pieces with pictures and sizes; it adds nothing by itself."""
+    beside = furniture.list_items("alice")[0]  # the guide names it by its number; the card carries its item_id
     model = ScriptedModel(
         script=[
             call("catalog_suggest", catalog_ids=["B07B78LXYF", "B0714QGLSD", "made-up"], room_id=LIVING_ROOM),
-            call("catalog_suggest", catalog_ids=["B07B78LXYF", "B0714QGLSD"], room_id=LIVING_ROOM, near_item_id="desk-1"),
+            call("catalog_suggest", catalog_ids=["B07B78LXYF", "B0714QGLSD"], room_id=LIVING_ROOM, near_item_id=f"#{beside.tag}"),
             AIMessage(content="Two chairs that would suit a desk."),
         ]
     )
     out = run(model, InMemoryStore(), user="alice", thread="t1", text="add a chair behind the desk")
     assert model.tool_results[0].startswith("Error")  # an unknown id shows nothing
     (card,) = [e[1] for e in out if e[0] == "ui"]
-    assert card["type"] == "catalog.suggest" and card["payload"]["near_item_id"] == "desk-1"
+    assert card["type"] == "catalog.suggest" and card["payload"]["near_item_id"] == str(beside.item_id)
     assert [p["catalog_id"] for p in card["payload"]["pieces"]] == ["B07B78LXYF", "B0714QGLSD"]
     assert all(p["thumbnail_url"].endswith(".jpg") and p["dims_m"]["w"] > 0 for p in card["payload"]["pieces"])
     assert len(furniture.list_items("alice")) == 3  # only the seeded pieces: showing is not adding
@@ -134,7 +136,7 @@ def test_furnishing_with_a_set_adds_its_pieces_and_starts_the_designer(furniture
     wanted = sum(catalog.SET_COUNTS.get(("jonathan_bedroom", c), 1) for c in catalog.SET_BY_ID["jonathan_bedroom"]["pieces"])
     assert len(added) == wanted and sum(i.item_class == "nightstand" for i in added) == 2
     job = next(e[1] for e in out if e[0] == "ui" and e[1]["type"] == BACKGROUND_DESIGN)
-    assert job["payload"]["room_id"] == LIVING_ROOM and all(str(i.item_id) in job["payload"]["brief"] for i in added)
+    assert job["payload"]["room_id"] == LIVING_ROOM and all(f"#{i.tag} " in job["payload"]["brief"] for i in added)
 
 
 def test_rooms_are_planned_together_and_shown_one_at_a_time(furniture):

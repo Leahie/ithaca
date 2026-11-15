@@ -246,7 +246,7 @@ export function InventorySection() {
                   <div className="p-3">
                     <div className="truncate text-sm font-medium">{item.label}</div>
                     <div className="mt-0.5 truncate text-xs text-muted">
-                      {item.item_class.replace(/_/g, ' ')} · {item.dims_m.w.toFixed(2)} × {item.dims_m.d.toFixed(2)} × {item.dims_m.h.toFixed(2)} m
+                      {item.tag ? <span className="font-mono">#{item.tag} · </span> : null}{item.item_class.replace(/_/g, ' ')} · {item.dims_m.w.toFixed(2)} × {item.dims_m.d.toFixed(2)} × {item.dims_m.h.toFixed(2)} m
                     </div>
                   </div>
                 </button>
@@ -262,7 +262,7 @@ export function InventorySection() {
         ) : (
           <div className="space-y-4 rounded-xl border border-line bg-surface p-4" data-testid="item-detail">
             <div>
-              <h2 className="text-base font-semibold">{selected.label}</h2>
+              <h2 className="text-base font-semibold">{selected.label}{selected.tag && <span className="ml-2 font-mono text-sm font-normal text-muted" title="This piece's own number. The guide knows it by this.">#{selected.tag}</span>}</h2>
               <div className="mt-1 flex flex-wrap gap-1.5">
                 <Badge tone="sky">{selected.item_class.replace(/_/g, ' ')}</Badge>
                 {[selected.attributes.style, selected.attributes.color, selected.attributes.material].filter(Boolean).map((a) => (

@@ -1,6 +1,7 @@
 'use client';
 
 import { CatalogSuggestion } from './CatalogSuggestion';
+import { ChoiceCards } from './ChoiceCards';
 import { LayoutSuggestion } from './LayoutSuggestion';
 import { useEffect, useRef, useState } from 'react';
 import { Badge, Button, Notice, cn } from '@/components/ui';
@@ -32,7 +33,7 @@ function Who({ name, agent = false }: { name: string; agent?: boolean }) {
   );
 }
 
-function Item({ item, nameOf }: { item: ChatItem; nameOf: (id: string | null | undefined) => string | null }) {
+function Item({ item, nameOf, propertyId }: { item: ChatItem; nameOf: (id: string | null | undefined) => string | null; propertyId: string | null }) {
   // In a family session every line says whose it is: the person, or their agent.
   const who = 'member_id' in item ? nameOf(item.member_id) : null;
   switch (item.kind) {
@@ -81,6 +82,9 @@ function Item({ item, nameOf }: { item: ChatItem; nameOf: (id: string | null | u
       return <LayoutSuggestion layoutIds={item.layout_ids} />;
     case 'catalog':
       return <CatalogSuggestion propertyId={item.property_id} roomId={item.room_id} nearItemId={item.near_item_id} pieces={item.pieces} />;
+    case 'choice':
+      // The guide's question is spoken (and written just below); here are the answers to tap.
+      return <ChoiceCards item={item} propertyId={propertyId} question={false} />;
     case 'note':
       return (
         <div data-testid="family-note" className="rounded-[var(--radius-frame)] border border-line bg-raised px-3 py-2.5">
@@ -109,7 +113,7 @@ function Item({ item, nameOf }: { item: ChatItem; nameOf: (id: string | null | u
 }
 
 /** Streaming chat with the agent (A8): tokens as they arrive, a chip per action, errors shown. */
-export function AgentDock() {
+export function AgentDock({ propertyId = null }: { propertyId?: string | null }) {
   const chat = useSession((s) => s.chat);
   const interim = useSession((s) => s.interim);
   const status = useSession((s) => s.status);
@@ -181,7 +185,7 @@ export function AgentDock() {
           </div>
         )}
         {chat.map((item) => (
-          <Item key={`${item.kind}:${item.id}`} item={item} nameOf={nameOf} />
+          <Item key={`${item.kind}:${item.id}`} item={item} nameOf={nameOf} propertyId={propertyId} />
         ))}
         {interim && (
           <div className="flex justify-end">

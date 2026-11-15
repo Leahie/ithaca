@@ -274,7 +274,7 @@ function House({ propertyId }: { propertyId: string }) {
               pairing={has('family') ? <FamilyButton propertyId={propertyId} avatar /> : <PairingButton propertyId={propertyId} avatar />} />
           )}
         </main>
-        {has('agent') && dockOpen && !clean && <AgentDock />}
+        {has('agent') && dockOpen && !clean && <AgentDock propertyId={propertyId} />}
       </div>
     </div>
   );

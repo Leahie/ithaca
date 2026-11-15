@@ -209,6 +209,17 @@ class HouseholdStore:
             ).fetchall()
         return {user_id} | {r["host"] for r in rows if r["host"]} | {r["member"] for r in rows if r["member"]}
 
+    def people_of(self, household_id: str) -> set[str]:
+        """The host and every member of one household; empty if there is no such household."""
+        with self._lock:
+            hid = self._live(household_id)
+            rows = self._db.execute(
+                "SELECT h.host_user_id AS host, m.member_id AS member FROM households h LEFT JOIN members m ON m.household_id = h.household_id "
+                "WHERE h.household_id = ?",
+                (hid,),
+            ).fetchall()
+        return {r["host"] for r in rows if r["host"]} | {r["member"] for r in rows if r["member"]}
+
     def hosts_of(self, member_id: str) -> set[str]:
         """The hosts of every household this member belongs to."""
         with self._lock:

@@ -39,7 +39,7 @@ class IngestResult:
     skipped: list[str] = field(default_factory=list)  # "label: reason"
 
     def summary(self) -> str:
-        parts = [f"added {i.label} ({i.dims_m.w:.2f} × {i.dims_m.d:.2f} × {i.dims_m.h:.2f} m, item_id {i.item_id})" for i in self.items]
+        parts = [f"added {i.label} ({i.dims_m.w:.2f} × {i.dims_m.d:.2f} × {i.dims_m.h:.2f} m, piece #{i.tag})" for i in self.items]
         parts += [f"could not add {s}" for s in self.skipped]
         return "; ".join(parts) or "no furniture was found in the image"
 
@@ -188,8 +188,7 @@ def _ingest(kind: str, jobs: list[_Job], user_id: str, store: FurnitureStore, pr
                 price=piece.price,
                 product_url=None,
             )
-            store.put_item(item)
-            result.items.append(item)
+            result.items.append(store.put_item(item))  # as stored: with its number
     progress(100, "Done")
     return result
 
@@ -279,8 +278,7 @@ def import_glb(
         price=None,
         product_url=product_url,
     )
-    store.put_item(item)
-    return item
+    return store.put_item(item)  # as stored: with its number
 
 
 def add_from_catalog(

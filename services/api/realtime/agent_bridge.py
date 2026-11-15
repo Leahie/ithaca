@@ -1,7 +1,8 @@
 """Connects the hub to the agent. Owner: B.
 
 Listens to hub events and decides when the agent gets a turn:
-- `chat.user`, and `voice.transcript` with final=true  -> a normal turn
+- `chat.user`, `voice.transcript` with final=true, and `choice.picked` (a tap on one of the
+  guide's picture cards)                                -> a normal turn
 - desktop joins a session for the first time            -> <event type="property_opened">
 - a client moves to a different room                    -> <event type="room_entered"> (proactive)
 
@@ -32,10 +33,13 @@ import uuid
 from collections.abc import Callable
 from typing import Any
 
+from datetime import datetime
+from zoneinfo import ZoneInfo
+
 from packages.schema.events import EventEnvelope, make_event
 from services.api.agent import design_gate, family, house_plans
 from services.api.agent.context import AgentContext
-from services.api.agent.design_tools import BACKGROUND_DESIGN
+from services.api.agent.design_tools import BACKGROUND_DESIGN, choice_note
 from services.api.agent.provider import TurnRunner
 from services.api.agent.runner import event_message
 from services.api.agent.tour import TOUR_LOGS, TourLog
@@ -75,6 +79,8 @@ def action_summary(tool: str, args: dict) -> str:
         "propose_layouts": "Arranging the room",
         "catalog_search": "Looking through the furniture catalog",
         "catalog_add": "Adding a piece to your furniture",
+        "place_piece": "Placing a piece in the room",
+        "ask_choice": "Showing you the options",
         "catalog_suggest": "Showing you some pieces",
         "remove_from_room": "Taking a piece out of the room",
         "delete_from_inventory": "Deleting a piece from your furniture",
@@ -153,9 +159,7 @@ def spoken_cue(tool: str, args: dict, property_id: str) -> str | None:
         return f"Here is the {name}." if name else None
     if tool == "task":
         return "Give me a moment while I work that out."
-    if tool in ("area_profile", "area_search"):
-        return "Let me look that up."
-    return None
+    return None  # everything else answers at once: a filler line would only be more talk
 
 
 class AgentBridge:
@@ -184,17 +188,26 @@ class AgentBridge:
 
         if event.type == "voice.transcript" and p.get("final") and not p.get("text", "").strip():
             return  # the microphone closed without hearing anything: not a turn
+        # What the user said, if this event is them saying something: typed, spoken, or tapped on
+        # one of the guide's picture cards (the guide is also told what the card stood for).
+        said = None
+        if event.type == "chat.user" or (event.type == "voice.transcript" and p.get("final")):
+            said = p["text"]
+        elif event.type == "choice.picked" and by_user:
+            note = choice_note(p["choice_id"], p["option_id"])
+            said = f'{p["label"]}\n(They tapped this card{f": {note}" if note else ""}.)'
+        decided = said is not None or (event.type == "layout.confirm" and by_user)
         waiting, who = None, None
-        if event.type == "chat.user" or (event.type == "voice.transcript" and p.get("final")) or (event.type == "layout.confirm" and by_user):
+        if decided:
             # The user has spoken or kept a layout: the room that was waiting for them is settled,
             # and the guide may go on to another one (agent/design_gate.py).
             who = event.member_id if room.household_id else None
             waiting = design_gate.user_spoke(design_gate.key(sid, self._context(room, who).user_id))
-        if event.type == "chat.user" or (event.type == "voice.transcript" and p.get("final")):
-            log_.heard(p["text"])
+        if said is not None:
+            log_.heard(p.get("text") or p.get("label", ""))
             self._signal(room)
-            self._start(room, p["text"], proactive=False, member_id=event.member_id, interrupts=True)
-        if (event.type == "chat.user" or (event.type == "voice.transcript" and p.get("final")) or (event.type == "layout.confirm" and by_user)) and waiting:
+            self._start(room, said, proactive=False, member_id=event.member_id, interrupts=True)
+        if decided and waiting:
             # They have judged one room: the next one that was planned meanwhile comes up now.
             conversation = design_gate.key(sid, self._context(room, who).user_id)
             waiting += design_queue(conversation, design_gate._review.get(conversation), room.property_id)
@@ -230,7 +243,9 @@ class AgentBridge:
                 asyncio.get_running_loop().call_soon(self.hub.publish, make_event(sid, "server", "layout.changed", {"layout_id": p["layout_id"]}))
             kept = furniture_store().get_proposal(room.user_id, p["layout_id"])
             if kept is not None:  # the others' agents hear that this room is taken, and by whom
-                house_plans.note(self._context(room, event.member_id if room.household_id else None), kept.room_id, house_plans.KEPT)
+                keeper = self._context(room, event.member_id if room.household_id else None)
+                house_plans.note(keeper, kept.room_id, house_plans.KEPT)
+                self._remember_kept(keeper, kept)
             picked = describe_layout(room.user_id, room.property_id, p["layout_id"])
             if picked:
                 self._signal(room)
@@ -242,8 +257,9 @@ class AgentBridge:
             item = furniture_store().get_item(p["item_id"])
             if item:
                 self._signal(room)
-                note = f"{item.label} ({item.item_class}), item_id {item.item_id}, room_id {p.get('room_id') or 'the room they are in'}"
-                self._start(room, event_message("catalog_picked", note), proactive=False)
+                note = f"#{item.tag} {item.label} ({item.item_class}), room_id {p.get('room_id') or 'the room they are in'}"
+                # To the guide of whoever tapped: theirs is the conversation that showed the cards.
+                self._start(room, event_message("catalog_picked", note), proactive=False, member_id=event.member_id if room.household_id else None)
         elif event.type == "remote.view":
             self._phone_screen[(sid, event.member_id)] = p.get("view", "")
         elif event.type == "viewer.setMode":
@@ -287,6 +303,27 @@ class AgentBridge:
         if note and deliver:
             self._last_proactive[sid] = time.monotonic()  # counts as the guide's proactive turn
             self._start(room, event_message("observer_note", note), proactive=False)
+
+    def _remember_kept(self, context: AgentContext, layout) -> None:
+        """A kept layout is a decision, and decisions belong in that person's memory whether or not
+        their guide gets round to writing it: one dated line in their notes on this house, naming
+        the room and the pieces. The guide adds the reason when it learns it."""
+        from services.api.agent import memory_files
+        from services.api.agent.provider import memory_store
+        from services.api.furniture.store import furniture_store
+
+        try:
+            twin = get_twin(context.property_id)
+            name = prompts.room_short_names(twin).get(layout.room_id, layout.room_id)
+            pieces = [furniture_store().get_item(str(pl.item_id)) for pl in layout.placements]
+            listed = ", ".join(f"#{i.tag} {i.label}" for i in pieces if i is not None) or "no pieces"
+            today = datetime.now(ZoneInfo(twin.timezone)).strftime("%Y-%m-%d")
+            memory_files.add_note(
+                memory_store(), context.memory_user, f"properties/{context.property_id}.md", "## Layouts kept",
+                f"- {today}: kept a layout for {name} with {listed}. Why: not said yet.",
+            )
+        except Exception:  # the layout is in the house either way
+            log.exception("the kept layout was not noted in memory")
 
     def _keep(self, task: asyncio.Task) -> None:
         self._tasks.add(task)

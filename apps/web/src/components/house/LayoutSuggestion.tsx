@@ -19,7 +19,7 @@ function where(rationale: string): string {
  * The layout options the agent made, as small top-down plans in the chat. A click puts that
  * option in the room; the one in the room now is outlined.
  */
-export function LayoutSuggestion({ layoutIds }: { layoutIds: string[] }) {
+export function LayoutSuggestion({ layoutIds, onKept }: { layoutIds: string[]; /** Called when an option is kept (the phone's pop-up closes on it). */ onKept?(): void }) {
   // Keyed under "layout:" so a hand edit in the Arrange panel refreshes these plans too.
   const loaded = useResource(`layout:set:${layoutIds.join(',')}`, () => Promise.all(layoutIds.map((id) => api().getLayout(id))));
   const twin = useTwin(loaded.data?.[0]?.property_id ?? null);
@@ -75,12 +75,13 @@ export function LayoutSuggestion({ layoutIds }: { layoutIds: string[] }) {
             if (!inRoom) return;
             setKept(inRoom.layout_id);
             dispatch('layout.confirm', { layout_id: inRoom.layout_id });
+            onKept?.();
           }}
           className="rounded-full bg-text px-3.5 py-1.5 text-sm font-semibold text-surface disabled:opacity-40"
         >
           {inRoom ? `Keep option ${loaded.data.indexOf(inRoom) + 1}` : 'Keep this layout'}
         </button>
-        <span className="text-xs text-muted">Click an option to try it. Nothing is saved until you keep one.</span>
+        <span className="text-xs text-muted">Tap an option to try it. Nothing is saved until you keep one.</span>
       </div>
     )}
     </div>

@@ -1,4 +1,4 @@
-import type { AnyEvent, CatalogPiece, ClientKind, EventSource, JobProgressPayload, SoundPlaceSourcePayload, SoundSetScenarioPayload, ViewerMode, ViewerPlayback, ViewerState, RemoteViewPayload } from '@ithaca/schema';
+import type { AnyEvent, CatalogPiece, ChoiceOption, ClientKind, EventSource, JobProgressPayload, SoundPlaceSourcePayload, SoundSetScenarioPayload, ViewerMode, ViewerPlayback, ViewerState, RemoteViewPayload } from '@ithaca/schema';
 
 /**
  * Viewer state and its reducer (A1). Every change to what the viewer shows is an event:
@@ -50,6 +50,8 @@ export type ChatItem =
   | { kind: 'layouts'; id: string; layout_ids: string[]; member_id: string | null }
   /** Catalog pieces the agent suggested, shown as picture cards the user can click to add. */
   | { kind: 'catalog'; id: string; property_id: string; room_id: string | null; near_item_id: string | null; pieces: CatalogPiece[]; member_id: string | null }
+  /** Something the guide asked the user to pick, as picture cards. `picked` is the option they tapped. */
+  | { kind: 'choice'; id: string; question: string; options: ChoiceOption[]; picked: string | null; member_id: string | null }
   /** A note one member's agent shared on the family board. */
   | { kind: 'note'; id: string; text: string; room_id: string | null; member_id: string }
   /** One member's agent asked another's; `answer` arrives later. */
@@ -243,6 +245,16 @@ export function applyEvent(state: CoreState, event: AnyEvent): CoreState {
     case 'catalog.suggest': {
       const p = event.payload;
       return { ...state, chat: push(state.chat, { kind: 'catalog', id: event.id, property_id: p.property_id, room_id: p.room_id ?? null, near_item_id: p.near_item_id ?? null, pieces: p.pieces, member_id: event.member_id ?? null }) };
+    }
+    case 'choice.ask': {
+      const p = event.payload;
+      return { ...state, chat: push(state.chat, { kind: 'choice', id: p.choice_id, question: p.question, options: p.options, picked: null, member_id: event.member_id ?? null }) };
+    }
+    case 'choice.picked': {
+      // The tap is the user's answer: the cards show which one, and it reads as their line in the chat.
+      const p = event.payload;
+      const chat = state.chat.map((c) => (c.kind === 'choice' && c.id === p.choice_id ? { ...c, picked: p.option_id } : c));
+      return { ...state, chat: push(chat, { kind: 'user', id: event.id, text: p.label, via: 'chat', source: event.source, member_id: event.member_id ?? null }) };
     }
     case 'remote.view':
       return { ...state, remoteView: event.payload.view, remoteFloor: event.payload.floor_id ?? null };

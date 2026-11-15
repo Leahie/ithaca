@@ -147,9 +147,29 @@
           "title": "Label",
           "type": "string"
         },
+        "sets": {
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "title": "Sets",
+          "type": "array"
+        },
         "source": {
           "title": "Source",
           "type": "string"
+        },
+        "style": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Style"
         },
         "thumbnail_url": {
           "title": "Thumbnail Url",
@@ -224,6 +244,108 @@
         "text"
       ],
       "title": "ChatUserPayload",
+      "type": "object"
+    },
+    "ChoiceAskPayload": {
+      "description": "Additive to v0. The guide asks the user to pick one of a few things. They are shown as\npicture cards in the chat, and pop up on the phone over whatever screen it is on.",
+      "properties": {
+        "choice_id": {
+          "title": "Choice Id",
+          "type": "string"
+        },
+        "options": {
+          "items": {
+            "$ref": "#/$defs/ChoiceOption"
+          },
+          "title": "Options",
+          "type": "array"
+        },
+        "question": {
+          "title": "Question",
+          "type": "string"
+        }
+      },
+      "required": [
+        "choice_id",
+        "question",
+        "options"
+      ],
+      "title": "ChoiceAskPayload",
+      "type": "object"
+    },
+    "ChoiceOption": {
+      "description": "One thing the guide offers to pick, drawn as a card.",
+      "properties": {
+        "detail": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Detail"
+        },
+        "image_urls": {
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "title": "Image Urls",
+          "type": "array"
+        },
+        "label": {
+          "title": "Label",
+          "type": "string"
+        },
+        "option_id": {
+          "title": "Option Id",
+          "type": "string"
+        },
+        "room_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Room Id"
+        }
+      },
+      "required": [
+        "option_id",
+        "label"
+      ],
+      "title": "ChoiceOption",
+      "type": "object"
+    },
+    "ChoicePickedPayload": {
+      "description": "Additive to v0. The user tapped one of the cards: that is their answer to the guide.",
+      "properties": {
+        "choice_id": {
+          "title": "Choice Id",
+          "type": "string"
+        },
+        "label": {
+          "title": "Label",
+          "type": "string"
+        },
+        "option_id": {
+          "title": "Option Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "choice_id",
+        "option_id",
+        "label"
+      ],
+      "title": "ChoicePickedPayload",
       "type": "object"
     },
     "DesignShowVariantsPayload": {
@@ -858,7 +980,32 @@
       "type": "object"
     },
     "ViewerLookPayload": {
+      "description": "`ms` and `delay_ms` are additive: a slow turn (the guide showing a room once around) that\ntakes `ms` and starts after `delay_ms`. Without them the turn is quick, as from a finger.",
       "properties": {
+        "delay_ms": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Delay Ms"
+        },
+        "ms": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Ms"
+        },
         "pitch_delta_deg": {
           "title": "Pitch Delta Deg",
           "type": "number"
@@ -1131,6 +1278,13 @@
           ],
           "title": "Direction",
           "type": "string"
+        },
+        "steps": {
+          "default": 1,
+          "maximum": 4,
+          "minimum": 1,
+          "title": "Steps",
+          "type": "integer"
         }
       },
       "title": "ViewerStepPayload",
@@ -1189,6 +1343,20 @@
         "delta"
       ],
       "title": "ViewerZoomPayload",
+      "type": "object"
+    },
+    "VoiceSpokenPayload": {
+      "description": "Additive to v0. The big screen has finished saying a reply aloud. A phone waits for this\nbefore it opens its microphone for the answer, so it does not hear the guide.",
+      "properties": {
+        "message_id": {
+          "title": "Message Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "message_id"
+      ],
+      "title": "VoiceSpokenPayload",
       "type": "object"
     },
     "VoiceTranscriptPayload": {
@@ -1264,6 +1432,19 @@
     },
     "chat.user": {
       "payload": "ChatUserPayload",
+      "sent_by": [
+        "desktop",
+        "phone"
+      ]
+    },
+    "choice.ask": {
+      "payload": "ChoiceAskPayload",
+      "sent_by": [
+        "agent"
+      ]
+    },
+    "choice.picked": {
+      "payload": "ChoicePickedPayload",
       "sent_by": [
         "desktop",
         "phone"
@@ -1405,12 +1586,14 @@
     "viewer.look": {
       "payload": "ViewerLookPayload",
       "sent_by": [
+        "agent",
         "phone"
       ]
     },
     "viewer.playback": {
       "payload": "ViewerPlaybackPayload",
       "sent_by": [
+        "agent",
         "desktop",
         "phone",
         "server"
@@ -1435,6 +1618,7 @@
     "viewer.step": {
       "payload": "ViewerStepPayload",
       "sent_by": [
+        "agent",
         "phone"
       ]
     },
@@ -1447,7 +1631,14 @@
     "viewer.zoom": {
       "payload": "ViewerZoomPayload",
       "sent_by": [
+        "agent",
         "phone"
+      ]
+    },
+    "voice.spoken": {
+      "payload": "VoiceSpokenPayload",
+      "sent_by": [
+        "desktop"
       ]
     },
     "voice.transcript": {

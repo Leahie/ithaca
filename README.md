@@ -14,7 +14,10 @@ their family, find out what living there would be like:
   rooms by hand (mouse, phone, or your hands in front of the webcam), or keep a layout the guide
   proposes.
 - **Bring the family**: one QR code on the big screen. Each person's phone becomes a remote with
-  its own guide, which remembers what that person needs and compares notes with the others.
+  its own guide, which keeps its own memory of that person between visits. All the guides read one
+  register of the house's furniture (every piece has a number, a room, and who put it there), so
+  they agree on what stands where. When a guide asks you to choose, the options pop up on your
+  phone as pictures to tap.
 
 It is one web app (`apps/web`, Next.js) on one API (`services/api`, FastAPI): the twin and its
 simulations, the guide (an LLM agent with tools and per-person memory), the session hub that

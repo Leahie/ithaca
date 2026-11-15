@@ -216,6 +216,35 @@ class CatalogPickedPayload(Model):
     room_id: str | None = None
 
 
+class ChoiceOption(Model):
+    """One thing the guide offers to pick, drawn as a card."""
+
+    option_id: str
+    label: str
+    detail: str | None = None  # one short line under the label
+    # Pictures for the card: one fills it, several make a collage (a furniture set).
+    image_urls: list[str] = []
+    # When the option is a room of this house: the app draws its plan on the card.
+    room_id: str | None = None
+
+
+class ChoiceAskPayload(Model):
+    """Additive to v0. The guide asks the user to pick one of a few things. They are shown as
+    picture cards in the chat, and pop up on the phone over whatever screen it is on."""
+
+    choice_id: str
+    question: str
+    options: list[ChoiceOption]
+
+
+class ChoicePickedPayload(Model):
+    """Additive to v0. The user tapped one of the cards: that is their answer to the guide."""
+
+    choice_id: str
+    option_id: str
+    label: str
+
+
 class CaptureUploadPayload(Model):
     upload_id: str
 
@@ -298,6 +327,8 @@ EVENTS: dict[str, tuple[type[Model], frozenset[str]]] = {
     "sound.clearSource": (SoundClearSourcePayload, frozenset({"agent", "phone", "desktop"})),
     "catalog.suggest": (CatalogSuggestPayload, frozenset({"agent"})),
     "catalog.picked": (CatalogPickedPayload, frozenset({"phone", "desktop"})),
+    "choice.ask": (ChoiceAskPayload, frozenset({"agent"})),
+    "choice.picked": (ChoicePickedPayload, frozenset({"phone", "desktop"})),
     "capture.upload": (CaptureUploadPayload, frozenset({"phone", "desktop"})),
     "chat.user": (ChatUserPayload, frozenset({"desktop", "phone"})),
     "voice.transcript": (VoiceTranscriptPayload, frozenset({"desktop", "phone"})),

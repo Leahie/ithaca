@@ -10,6 +10,7 @@ from fastapi import APIRouter, Header, HTTPException, Request, WebSocket, WebSoc
 from packages.schema.events import parse_client_event
 from packages.schema.session import ClientKind, CreateSessionRequest, JoinRequest, JoinResult, Session
 from services.api.agent import memory_files
+from services.api.furniture import ledger
 from services.api.furniture.store import furniture_store
 from services.api.integrations.config import env, fixtures_dir
 from services.api.realtime.households import households
@@ -53,6 +54,10 @@ def create_session(
         households().set_active_session(household_id, session.session_id)
         households().set_host(household_id, x_user_id)
         households().open(household_id, x_user_id)  # its house and memory are the ones on screen
+    try:  # the house's furniture register is on file from the moment the house is opened (F11)
+        ledger.saved(x_user_id, property_id)
+    except Exception:  # the session matters more than the saved copy; the guides read the database anyway
+        log.exception("the furniture register of %s could not be saved", property_id)
     return session
 
 

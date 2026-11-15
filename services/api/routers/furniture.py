@@ -15,9 +15,9 @@ from packages.schema.inventory import InventoryItem
 from packages.schema.layout import HousePiece, LayoutVariant, PlacePiece
 from packages.schema.session import LayoutFeedbackRequest
 from services.api.agent import memory_files
-from services.api.furniture import house
+from services.api.furniture import house, ledger
 from services.api.furniture.house import FurnitureError
-from services.api.furniture.store import furniture_store
+from services.api.furniture.store import furniture_store, house_key
 
 router = APIRouter(tags=["furniture"])
 
@@ -78,10 +78,21 @@ def place_piece(property_id: str, item_id: str, body: PlacePiece, x_user_id: str
 
 
 @router.delete("/properties/{property_id}/furniture/{item_id}", status_code=204)
-def remove_piece(property_id: str, item_id: str, x_user_id: str = Header("demo")) -> Response:
+def remove_piece(property_id: str, item_id: str, x_user_id: str = Header("demo"), x_person_id: str | None = Header(None)) -> Response:
     """Take one piece out of the house (F7). It stays in storage."""
-    _call(house.remove, x_user_id, property_id, item_id)
+    _call(house.remove, x_user_id, property_id, item_id, x_person_id or x_user_id)
     return Response(status_code=204)
+
+
+@router.get("/properties/{property_id}/furniture/register")
+def house_register(property_id: str, x_user_id: str = Header("demo")) -> dict:
+    """The house's furniture as the guides are shown it (F10, F11): every room with a piece in it,
+    each piece with its number, its size, whose it is, where in the room it stands and who put it
+    there; the family's pieces in storage; and the last changes anyone made."""
+    try:
+        return ledger.register(x_user_id, property_id)
+    except KeyError as e:
+        raise HTTPException(404, f"no such property: {e}") from e
 
 
 # --- proposals ----------------------------------------------------------------------------------
@@ -135,25 +146,46 @@ def _memory_owner(user_id: str) -> str:
     return households().current_for(user_id) or user_id
 
 
+HOUSE_FILES = "house/"  # the furniture registers: one file per house, kept by the app (furniture/ledger.py)
+
+
+def _house_files(user_id: str) -> tuple[str, ...]:
+    """Where the registers of the house this person furnishes are saved: the big screen's house,
+    for the screen's user and for a member of the family on it."""
+    from services.api.realtime.households import households
+
+    hosts = sorted(households().hosts_of(user_id))
+    return ledger.namespace(house_key(hosts[0] if hosts else user_id))
+
+
 @router.get("/memory")
 def list_memory(request: Request, x_user_id: str = Header("demo")) -> list[str]:
-    return memory_files.list_files(request.app.state.memory_store, _memory_owner(x_user_id))
+    store = request.app.state.memory_store
+    registers = [HOUSE_FILES + name for name in memory_files.list_files(store, _house_files(x_user_id))]
+    return memory_files.list_files(store, _memory_owner(x_user_id)) + registers
 
 
 @router.get("/memory/{path:path}", response_class=PlainTextResponse)
 def get_memory(path: str, request: Request, x_user_id: str = Header("demo")) -> str:
-    return _found(memory_files.read_file(request.app.state.memory_store, _memory_owner(x_user_id), path), "memory file")
+    store = request.app.state.memory_store
+    if path.startswith(HOUSE_FILES):
+        return _found(memory_files.read_file(store, _house_files(x_user_id), path.removeprefix(HOUSE_FILES)), "memory file")
+    return _found(memory_files.read_file(store, _memory_owner(x_user_id), path), "memory file")
 
 
 @router.put("/memory/{path:path}", status_code=204)
 def put_memory(path: str, request: Request, text: str = Body(media_type="text/plain"), x_user_id: str = Header("demo")) -> Response:
     if path == memory_files.INVENTORY:
         raise HTTPException(409, "inventory.md is generated from the inventory database (B3)")
+    if path.startswith(HOUSE_FILES):
+        raise HTTPException(409, "a house register is written by the app each time the furniture changes")
     memory_files.write_file(request.app.state.memory_store, _memory_owner(x_user_id), path, text)
     return Response(status_code=204)
 
 
 @router.delete("/memory/{path:path}", status_code=204)
 def delete_memory(path: str, request: Request, x_user_id: str = Header("demo")) -> Response:
+    if path.startswith(HOUSE_FILES):
+        raise HTTPException(409, "a house register is written by the app each time the furniture changes")
     _found(memory_files.delete_file(request.app.state.memory_store, _memory_owner(x_user_id), path), "memory file")
     return Response(status_code=204)

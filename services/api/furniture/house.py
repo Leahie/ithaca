@@ -16,7 +16,7 @@ from packages.schema.inventory import InventoryItem
 from packages.schema.layout import HousePiece, LayoutVariant, Placement, PlacePiece
 from packages.schema.twin import PropertyTwin, Room, Vec3
 from services.api.agent import views
-from services.api.furniture.store import furniture_store, norm_yaw, now
+from services.api.furniture.store import HAND, furniture_store, norm_yaw, now
 from services.api.realtime.households import households
 from services.api.sim import layout_solver
 from services.api.twin.service import get_twin
@@ -53,14 +53,14 @@ def may_delete(user_id: str, item: InventoryItem) -> bool:
     return item.user_id == user_id or user_id in households().hosts_of(item.user_id)
 
 
-def delete_item(user_id: str, item_id: str) -> InventoryItem:
-    """Delete a piece for good (F1, F3)."""
+def delete_item(user_id: str, item_id: str, via: str = HAND) -> InventoryItem:
+    """Delete a piece for good (F1, F3). `via`: by hand, or a guide's tool call (the house log, F11)."""
     item = pool_item(user_id, item_id)
     if item is None:
         raise FurnitureError(404, "no such item")
     if not may_delete(user_id, item):
         raise FurnitureError(403, f"{item.label} belongs to {item.owner_name or 'someone else'}; only they can delete it")
-    furniture_store().delete_item(str(item.item_id))
+    furniture_store().delete_item(str(item.item_id), by=user_id, via=via)
     return item
 
 
@@ -110,8 +110,9 @@ def _piece(twin: PropertyTwin, property_id: str, item_id: str, room: Room, x: fl
 # --- in the house -------------------------------------------------------------------------------
 
 
-def place(house_user_id: str, property_id: str, item_id: str, body: PlacePiece, by: str) -> HousePiece:
-    """Put a piece of the family's furniture at a spot, or move it there (F2, F4, F6, F9)."""
+def place(house_user_id: str, property_id: str, item_id: str, body: PlacePiece, by: str, via: str = HAND) -> HousePiece:
+    """Put a piece of the family's furniture at a spot, or move it there (F2, F4, F6, F9).
+    `by` is the person; `via` how it came about (by hand, or a guide's tool call), for the log (F11)."""
     twin = get_twin(property_id)
     item = pool_item(house_user_id, item_id)
     if item is None:
@@ -144,7 +145,7 @@ def place(house_user_id: str, property_id: str, item_id: str, body: PlacePiece, 
         pose = layout_solver.nearest_valid_pose(_solver_room(twin, room), twin.openings, items, poses, key, body.x, body.z, walls=twin.walls, sweeps=twin.sweeps)
         if pose is None:
             raise FurnitureError(409, {"error": "no_room", "violations": [f"{item.label} doesn't fit anywhere within 2 m of that spot"]})
-        return store.put_piece(house_user_id, _piece(twin, property_id, key, room, pose.x, pose.z, pose.yaw, by))
+        return store.put_piece(house_user_id, _piece(twin, property_id, key, room, pose.x, pose.z, pose.yaw, by), via)
 
     room = room_at(twin, body.x, body.z, floor)
     if room is None:
@@ -154,13 +155,13 @@ def place(house_user_id: str, property_id: str, item_id: str, body: PlacePiece, 
     items.append(_solver_item(item))
     poses[key] = layout_solver.Pose(body.x, body.z, yaw % 360)
     warnings = layout_solver.violations(_solver_room(twin, room), twin.openings, items, poses, walls=twin.walls, sweeps=twin.sweeps)
-    saved = store.put_piece(house_user_id, _piece(twin, property_id, key, room, body.x, body.z, yaw, by))
+    saved = store.put_piece(house_user_id, _piece(twin, property_id, key, room, body.x, body.z, yaw, by), via)
     return saved.model_copy(update={"warnings": warnings or None})
 
 
-def remove(house_user_id: str, property_id: str, item_id: str) -> None:
+def remove(house_user_id: str, property_id: str, item_id: str, by: str | None = None) -> None:
     """Take a piece out of the house (F7). It stays in storage."""
-    if not furniture_store().remove_piece(house_user_id, property_id, item_id):
+    if not furniture_store().remove_piece(house_user_id, property_id, item_id, by=by):
         raise FurnitureError(404, "that piece is not in this house")
 
 
@@ -187,7 +188,7 @@ def apply(house_user_id: str, layout_id: str, by: str) -> LayoutVariant:
         # F4: the proposal's room, unless a nested room on the same floor holds the spot
         here = room_at(twin, p.position.x, p.position.z, room.floor_id) or room
         pieces.append(_piece(twin, layout.property_id, str(p.item_id), here, p.position.x, p.position.z, p.yaw_deg, by))
-    return store.apply_proposal(house_user_id, layout, pieces)
+    return store.apply_proposal(house_user_id, layout, pieces, by)
 
 
 def options(house_user_id: str, property_id: str, room_id: str, item_id: str) -> list[LayoutVariant]:
