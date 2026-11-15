@@ -113,6 +113,8 @@ class Household(Model):
 
 class CreateHouseholdRequest(Model):
     name: str
+    # True when the user asked for a new family: the host's current one is set aside, not reused.
+    fresh: bool = False
 
 
 class JoinHouseholdRequest(Model):
@@ -135,8 +137,18 @@ class UploadResult(Model):
     url: str
 
 
+class PhotoPoint(Model):
+    """A spot on an image, as fractions of its width and height (0 to 1, from the top left)."""
+
+    x: float
+    y: float
+
+
 class ObjectIngestRequest(Model):
     upload_id: str
+    # Additive to v0. The spot the user tapped on the photo: only the thing there becomes a piece.
+    # Without it, up to 4 pieces are read from the image.
+    at: PhotoPoint | None = None
 
 
 class JobRef(Model):

@@ -40,6 +40,11 @@ and a new route saves a piece the user dragged, if the layout is still valid.
 - `POST /api/objects/import` (multipart: `file` = a .glb, `label`, `item_class`, optional
   `width_m`, `depth_m`, `height_m`) adds a 3D file the user already has. Returns the
   `InventoryItem`, or 422 with the reason if it can't be sized.
+- `POST /api/objects/ingest` also takes `at: {x, y}` (fractions of the photo, from the top left):
+  the spot the user tapped. Only the thing there is built (the vision model names it, SAM 3 cuts
+  out the mask that covers the spot, SAM 3D Objects builds it), and the job fails with the reason
+  in `result_ref` if it can't be. The phone's Add sheet and the Arrange panel use it
+  (`components/design/PhotoPiece.tsx`: take or import a photo, tap the piece).
 - One image can yield up to 4 pieces. A piece that can't be cut out or sized is skipped and named
   in the guide's message; the others are still added.
 - A generated model may face the wrong way: nothing checks which side is the front. Let the user

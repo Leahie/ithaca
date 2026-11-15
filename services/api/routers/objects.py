@@ -52,21 +52,27 @@ def _find_upload(user_id: str, upload_id: str) -> Path | None:
 @router.post("/objects/ingest")
 def ingest(body: ObjectIngestRequest, request: Request, x_user_id: str = Header("demo")) -> JobRef:
     """Turn an uploaded image, or a video of a room, into inventory items. Returns at once;
-    follow `job.progress`."""
+    follow `job.progress`. With `at` (a spot tapped on the image) only the thing there is built,
+    and the job fails with the reason if it can't be."""
     path = _find_upload(x_user_id, body.upload_id)
     if path is None:
         raise HTTPException(404, "no such upload")
+    if body.at and path.suffix in video.VIDEO_SUFFIXES:
+        raise HTTPException(422, "a tapped spot only works on a photo")
     store, memory = furniture_store(), request.app.state.memory_store
     providers = request.app.state.object_providers or pipeline.default_providers()
     mime = mimetypes.guess_type(path.name)[0] or "image/png"
     source_url = f"/api/files/uploads/{x_user_id}/{path.name}"
+    at = (min(max(body.at.x, 0.0), 1.0), min(max(body.at.y, 0.0), 1.0)) if body.at else None
 
     def work(progress):
         if path.suffix in video.VIDEO_SUFFIXES:
             frames = video.sharp_frames(path, VIDEO_FRAMES)
             result = pipeline.ingest_frames(frames, pipeline.save_frames(frames, x_user_id), x_user_id, store, providers, progress)
         else:
-            result = pipeline.ingest_image(path.read_bytes(), mime, path.name.split("__", 1)[-1], source_url, x_user_id, store, providers, progress)
+            result = pipeline.ingest_image(path.read_bytes(), mime, path.name.split("__", 1)[-1], source_url, x_user_id, store, providers, progress, at=at)
+        if at and not result.items:
+            raise RuntimeError(result.summary().removeprefix("could not add "))
         memory_files.sync_inventory(memory, x_user_id, store.list_items(x_user_id))
         return result
 

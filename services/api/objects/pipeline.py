@@ -22,7 +22,7 @@ from services.api.integrations.config import IntegrationNotConfigured, env
 from services.api.objects import files
 from services.api.objects.classes import FURNITURE_CLASSES, TYPICAL_SIZE_M
 from services.api.objects.normalize import NormalizeError, normalize_glb
-from services.api.objects.providers.base import Describer, FramePiece, ImageTo3D, Piece, RoomDescriber, Segment, Segmenter
+from services.api.objects.providers.base import Describer, FramePiece, ImageTo3D, Piece, RoomDescriber, Segment, Segmenter, contains
 
 
 @dataclass
@@ -132,6 +132,7 @@ class _Job:
     image: bytes  # the photo or video frame the piece is cut from
     mime_type: str
     source_url: str
+    at: tuple[float, float] | None = None  # the spot the user tapped on it
 
 
 def _size(piece: Piece, item_class: str, estimate: tuple[float, float, float] | None) -> tuple[float | None, float | None, float | None]:
@@ -148,7 +149,7 @@ def _size(piece: Piece, item_class: str, estimate: tuple[float, float, float] | 
 
 def _build(job: _Job, item_class: str, providers: Providers) -> tuple[Segment, bytes, tuple[float, float, float]]:
     """One piece: cut it out, build its 3D model, size it. Raises with the reason if a step fails."""
-    segment = providers.segmenter.segment(job.image, job.mime_type, job.piece.segment_prompt, job.piece.box)
+    segment = providers.segmenter.segment(job.image, job.mime_type, job.piece.segment_prompt, job.piece.box, at=job.at)
     if segment is None:
         raise NormalizeError("it could not be found in the image")
     model = providers.to_3d.generate(job.image, segment, job.piece)
@@ -202,11 +203,28 @@ def ingest_image(
     store: FurnitureStore,
     providers: Providers,
     progress: Callable[[float, str], None] = lambda pct, note: None,
+    at: tuple[float, float] | None = None,
 ) -> IngestResult:
+    """An image -> inventory items: up to 4 pieces, or with `at` (the spot the user tapped, as
+    fractions of the image) only the thing there."""
+    if at is not None:
+        progress(5, "Looking at what you tapped")
+        piece = _tapped_piece(providers.describer, image, mime_type, filename, at)
+        return _ingest("tapped_photo", [_Job(piece, image, mime_type, source_url, at)], user_id, store, providers, progress)
     progress(5, "Reading the image")
     reading = providers.describer.read(image, mime_type, filename)
     jobs = [_Job(piece, image, mime_type, source_url) for piece in reading.pieces[:4]]
     return _ingest(reading.kind, jobs, user_id, store, providers, progress)
+
+
+def _tapped_piece(describer: Describer, image: bytes, mime_type: str, filename: str, at: tuple[float, float]) -> Piece:
+    """The piece at the tapped spot. A describer that can't read a single spot lists the pieces in
+    the image, and the one whose box holds the spot (else the most prominent) is taken."""
+    if hasattr(describer, "read_at"):
+        return describer.read_at(image, mime_type, at)
+    pieces = describer.read(image, mime_type, filename).pieces
+    hit = [p for p in pieces if p.box and len(p.box) == 4 and contains(p.box, at)]
+    return (hit or pieces or [Piece(label="Object", item_class="other", segment_prompt="object")])[0]
 
 
 def save_frames(frames: list[bytes], user_id: str) -> list[str]:

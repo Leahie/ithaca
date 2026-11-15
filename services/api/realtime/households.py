@@ -77,25 +77,35 @@ class HouseholdStore:
         self._db.execute("CREATE TABLE IF NOT EXISTS away_hosts (host_user_id TEXT PRIMARY KEY)")
         if "merged_into" not in columns:
             self._db.execute("ALTER TABLE households ADD COLUMN merged_into TEXT")
+        if "retired_at" not in columns:
+            self._db.execute("ALTER TABLE households ADD COLUMN retired_at TEXT")
         self._lock = threading.Lock()
         with self._lock:
             self._merge_duplicates()
 
     # --- households -----------------------------------------------------------------------------
 
-    def create(self, name: str, host_user_id: str | None = None) -> Household:
+    def create(self, name: str, host_user_id: str | None = None, fresh: bool = False) -> Household:
         """host_user_id: the big screen's user, whose house the family's phones arrange. A host has
         one family per name: a screen that lost its saved household (another browser, cleared
         storage) gets it back by typing the same name, so the members and their furniture stay one
         pool. Another name is another family, which starts with nothing: no members, no notes, and
-        agents that remember nothing of the families before it."""
+        agents that remember nothing of the families before it.
+        fresh: the user asked for a new family, so one of the same name is not handed back: it is
+        retired (its QR code stops working, and it is never merged in again) and an empty one starts."""
         name = name.strip() or "Our family"
         with self._lock:
             if host_user_id:
                 self._db.execute("DELETE FROM away_hosts WHERE host_user_id = ?", (host_user_id,))
+            if fresh and host_user_id:
+                self._db.execute(
+                    "UPDATE households SET retired_at = ?, invite_expires_at = ? "
+                    "WHERE host_user_id = ? AND lower(name) = lower(?) AND merged_into IS NULL AND retired_at IS NULL",
+                    (_now().isoformat(), _now().isoformat(), host_user_id, name),
+                )
             row = self._db.execute(
-                "SELECT household_id, invite_expires_at FROM households WHERE host_user_id = ? AND lower(name) = lower(?) AND merged_into IS NULL "
-                "ORDER BY created_at DESC LIMIT 1",
+                "SELECT household_id, invite_expires_at FROM households WHERE host_user_id = ? AND lower(name) = lower(?) "
+                "AND merged_into IS NULL AND retired_at IS NULL ORDER BY created_at DESC LIMIT 1",
                 (host_user_id, name),
             ).fetchone() if host_user_id else None
             if row is None:
@@ -137,15 +147,15 @@ class HouseholdStore:
 
     def _merge_duplicates(self) -> None:
         """Fold a host's households of the same name (made before a name meant one family) into the
-        newest of them: members and board notes move, the old rows forward to it. Call with the
-        lock held."""
+        newest of them: members and board notes move, the old rows forward to it. Retired families
+        stay as they are. Call with the lock held."""
+        live = "host_user_id IS NOT NULL AND merged_into IS NULL AND retired_at IS NULL"
         hosts = self._db.execute(
-            "SELECT host_user_id, lower(name) FROM households WHERE host_user_id IS NOT NULL AND merged_into IS NULL "
-            "GROUP BY host_user_id, lower(name) HAVING count(*) > 1"
+            f"SELECT host_user_id, lower(name) FROM households WHERE {live} GROUP BY host_user_id, lower(name) HAVING count(*) > 1"
         ).fetchall()
         for host, name in hosts:
             ids = [r[0] for r in self._db.execute(
-                "SELECT household_id FROM households WHERE host_user_id = ? AND lower(name) = ? AND merged_into IS NULL ORDER BY created_at DESC", (host, name)
+                f"SELECT household_id FROM households WHERE host_user_id = ? AND lower(name) = ? AND {live} ORDER BY created_at DESC", (host, name)
             )]
             keep, rest = ids[0], ids[1:]
             marks = ",".join("?" * len(rest))
@@ -183,7 +193,7 @@ class HouseholdStore:
         if self._db.execute("SELECT 1 FROM away_hosts WHERE host_user_id = ?", (host_user_id,)).fetchone():
             return None
         row = self._db.execute(
-            "SELECT household_id FROM households WHERE host_user_id = ? AND merged_into IS NULL ORDER BY created_at DESC LIMIT 1", (host_user_id,)
+            "SELECT household_id FROM households WHERE host_user_id = ? AND merged_into IS NULL AND retired_at IS NULL ORDER BY created_at DESC LIMIT 1", (host_user_id,)
         ).fetchone()
         return row[0] if row else None
 

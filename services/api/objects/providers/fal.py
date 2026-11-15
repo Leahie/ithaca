@@ -7,6 +7,7 @@ and 30 s a piece. The TRELLIS 2 branch has not been run.
 
 from __future__ import annotations
 
+import functools
 import io
 
 import httpx
@@ -14,7 +15,7 @@ import trimesh
 from PIL import Image
 
 from services.api.integrations.config import IntegrationNotConfigured, env
-from services.api.objects.providers.base import Model3D, Piece, Segment, cut_out, pick
+from services.api.objects.providers.base import Model3D, Piece, Segment, covers, cut_out, pick
 
 
 def _client():
@@ -25,6 +26,22 @@ def _client():
     return fal_client  # reads FAL_KEY from the environment
 
 
+def _explain_auth(fn):
+    """A key fal.ai turns down reads as a setup problem, not as a photo that didn't work."""
+
+    @functools.wraps(fn)
+    def wrapper(*args, **kwargs):
+        try:
+            return fn(*args, **kwargs)
+        except Exception as e:
+            status = getattr(e, "status_code", None) or getattr(getattr(e, "response", None), "status_code", None)
+            if status in (401, 403):
+                raise IntegrationNotConfigured("fal.ai", "a valid FAL_KEY (fal.ai turned this one down; make one at https://fal.ai/dashboard/keys)") from e
+            raise
+
+    return wrapper
+
+
 def _download(url: str) -> bytes:
     response = httpx.get(url, timeout=120, follow_redirects=True)
     response.raise_for_status()
@@ -32,14 +49,20 @@ def _download(url: str) -> bytes:
 
 
 class FalSegmenter:
-    """SAM 3 with a text prompt. Returns None when it finds nothing (near the hint, if given)."""
+    """SAM 3 with a text prompt. Returns None when it finds nothing (near the hint, if given).
 
-    def segment(self, image: bytes, mime_type: str, prompt: str, near: list[float] | None = None) -> Segment | None:
+    With a tapped spot, the prompt's detections around the spot are tried best first and the first
+    mask that covers it wins; a whole piece comes out, not just the drawer that was tapped. If none
+    covers it, SAM 3 is asked again with the spot itself as a point prompt."""
+
+    @_explain_auth
+    def segment(self, image: bytes, mime_type: str, prompt: str, near: list[float] | None = None, at: tuple[float, float] | None = None) -> Segment | None:
         fal = _client()
+        image_url = fal.upload(image, mime_type)
         result = fal.subscribe(
             "fal-ai/sam-3/image",
             arguments={
-                "image_url": fal.upload(image, mime_type),
+                "image_url": image_url,
                 "prompt": prompt,
                 "apply_mask": False,
                 "output_format": "png",
@@ -51,6 +74,8 @@ class FalSegmenter:
         )
         masks = result.get("masks") or []
         scores, boxes = result.get("scores") or [], result.get("boxes") or []
+        if at is not None:
+            return self._tapped(fal, image, image_url, prompt, masks, scores, at)
         if len(scores) == len(boxes) == len(masks):
             # fal's boxes are [center x, center y, width, height] as fractions of the image
             best = pick([(score, [cx - w / 2, cy - h / 2, cx + w / 2, cy + h / 2]) for score, (cx, cy, w, h) in zip(scores, boxes)], near)
@@ -59,6 +84,26 @@ class FalSegmenter:
         if best is None:
             return None
         return cut_out(image, Image.open(io.BytesIO(_download(masks[best]["url"]))))
+
+    def _tapped(self, fal, image: bytes, image_url: str, prompt: str, masks: list[dict], scores: list[float], at: tuple[float, float]) -> Segment | None:
+        order = sorted(range(len(masks)), key=lambda n: -scores[n]) if len(scores) == len(masks) else range(len(masks))
+        for n in order:
+            mask = Image.open(io.BytesIO(_download(masks[n]["url"])))
+            if covers(mask, at):
+                return cut_out(image, mask)
+        width, height = Image.open(io.BytesIO(image)).size
+        result = fal.subscribe(
+            "fal-ai/sam-3/image",
+            arguments={
+                "image_url": image_url,
+                "prompt": prompt,
+                "point_prompts": [{"x": round(at[0] * width), "y": round(at[1] * height), "label": 1}],
+                "apply_mask": False,
+                "output_format": "png",
+            },
+        )
+        found = result.get("masks") or []
+        return cut_out(image, Image.open(io.BytesIO(_download(found[0]["url"])))) if found else None
 
 
 class FalImageTo3D:
@@ -69,6 +114,7 @@ class FalImageTo3D:
     TRELLIS 2 (about $0.30) sees only the cut-out, so it needs a piece that is fully visible.
     """
 
+    @_explain_auth
     def generate(self, image: bytes, segment: Segment, piece: Piece) -> Model3D:
         fal = _client()
         if env("OBJECT_3D_MODEL", "sam3d").lower() == "trellis":

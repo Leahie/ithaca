@@ -161,12 +161,16 @@ export function applyEvent(state: CoreState, event: AnyEvent): CoreState {
         },
       };
     }
-    case 'design.showVariants':
+    case 'design.showVariants': {
+      // The designer shows its first options while it works; the guide shows them again when it is done.
+      const ids = event.payload.layout_ids;
+      const listed = state.chat.some((c) => c.kind === 'layouts' && c.layout_ids.length === ids.length && c.layout_ids.every((id, k) => id === ids[k]));
       return {
         ...state,
-        viewer: { ...v, shown_layout_ids: event.payload.layout_ids },
-        chat: event.payload.layout_ids.length ? push(state.chat, { kind: 'layouts', id: event.id, layout_ids: event.payload.layout_ids, member_id: event.member_id ?? null }) : state.chat,
+        viewer: { ...v, shown_layout_ids: ids },
+        chat: ids.length && !listed ? push(state.chat, { kind: 'layouts', id: event.id, layout_ids: ids, member_id: event.member_id ?? null }) : state.chat,
       };
+    }
     case 'layout.select':
       return { ...state, viewer: { ...v, selected_layout_id: event.payload.layout_id ?? null } };
     case 'sound.setScenario':

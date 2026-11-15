@@ -53,14 +53,14 @@ class TwoPieceDescriber:
         return ImageReading(
             kind="product_page",
             pieces=[
-                Piece(label="Walnut desk", item_class="desk", segment_prompt="desk", width_m=1.2, depth_m=0.6, height_m=0.75, price=249),
-                Piece(label="Ghost chair", item_class="chair", segment_prompt="missing"),
+                Piece(label="Walnut desk", item_class="desk", segment_prompt="desk", width_m=1.2, depth_m=0.6, height_m=0.75, price=249, box=[0, 0, 0.5, 1]),
+                Piece(label="Ghost chair", item_class="chair", segment_prompt="missing", box=[0.5, 0, 1, 1]),
             ],
         )
 
 
 class PickySegmenter(stub.WholeImageSegmenter):
-    def segment(self, image, mime_type, prompt, near=None):
+    def segment(self, image, mime_type, prompt, near=None, at=None):
         return None if prompt == "missing" else super().segment(image, mime_type, prompt)
 
 
@@ -100,6 +100,44 @@ def test_upload_to_inventory_through_the_routes(client):
     assert all(abs(a - b) <= 0.02 for a, b in zip(hi - lo, (1.2, 0.75, 0.6)))
     assert "Walnut desk" in client.get("/api/memory/inventory.md", headers=alice).text  # the agent can see it
     assert client.get("/api/files/../../.env").status_code == 404  # no escaping the files folder
+
+
+def _run(client, headers, body):
+    job_id = client.post("/api/objects/ingest", headers=headers, json=body).json()["job_id"]
+    for _ in range(100):
+        job = client.get(f"/api/jobs/{job_id}").json()
+        if job["status"] in ("done", "failed"):
+            return job
+        time.sleep(0.05)
+    return job
+
+
+def test_a_tapped_photo_becomes_only_the_piece_that_was_tapped(client):
+    bob = {"X-User-Id": "bob"}
+    png = io.BytesIO()
+    Image.new("RGB", (64, 48), (120, 80, 40)).save(png, "PNG")
+    up = client.post("/api/uploads", headers=bob, files={"file": ("room.png", png.getvalue(), "image/png")}).json()
+    before = {i["item_id"] for i in client.get("/api/inventory", headers=bob).json()}
+
+    desk = _run(client, bob, {"upload_id": up["upload_id"], "at": {"x": 0.25, "y": 0.5}})
+    assert desk["status"] == "done"
+    added = [i for i in client.get("/api/inventory", headers=bob).json() if i["item_id"] not in before]
+    assert [i["label"] for i in added] == ["Walnut desk"] and added[0]["item_id"] == desk["result_ref"]  # the chair was not tapped
+
+    ghost = _run(client, bob, {"upload_id": up["upload_id"], "at": {"x": 0.75, "y": 0.5}})
+    assert ghost["status"] == "failed" and "Ghost chair" in ghost["result_ref"]  # the reason, for the app to show
+
+
+def test_pick_and_covers_follow_the_tapped_spot():
+    from services.api.objects.providers.base import covers, pick
+
+    found = [(0.9, [0.0, 0.0, 0.4, 1.0]), (0.6, [0.5, 0.0, 1.0, 1.0]), (0.8, [0.45, 0.2, 0.9, 0.8])]
+    assert pick(found, None, at=(0.7, 0.5)) == 2  # the best detection around the spot, not the best overall
+    assert pick(found, None, at=(0.7, 0.95)) == 1
+    assert pick(found, None, at=(0.42, 0.1)) is None
+    mask = Image.new("L", (100, 50), 0)
+    mask.paste(255, (60, 0, 100, 50))
+    assert covers(mask, (0.8, 0.5)) and not covers(mask, (0.2, 0.5)) and covers(mask, (1.0, 1.0))
 
 
 def test_placing_moving_and_options_in_the_house(client):

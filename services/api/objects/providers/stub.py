@@ -23,7 +23,7 @@ class FilenameDescriber:
 
 
 class WholeImageSegmenter:
-    def segment(self, image: bytes, mime_type: str, prompt: str, near: list[float] | None = None) -> Segment:
+    def segment(self, image: bytes, mime_type: str, prompt: str, near: list[float] | None = None, at: tuple[float, float] | None = None) -> Segment:
         picture = Image.open(io.BytesIO(image)).convert("RGBA")
         mask, cutout = io.BytesIO(), io.BytesIO()
         Image.new("L", picture.size, 255).save(mask, "PNG")

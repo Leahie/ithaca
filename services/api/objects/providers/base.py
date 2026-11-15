@@ -68,15 +68,31 @@ def overlap(a: list[float], b: list[float]) -> float:
     return both / ((a[2] - a[0]) * (a[3] - a[1]) + (b[2] - b[0]) * (b[3] - b[1]) - both)
 
 
-def pick(found: list[tuple[float, list[float]]], near: list[float] | None) -> int | None:
+def contains(box: list[float], at: tuple[float, float]) -> bool:
+    return box[0] <= at[0] <= box[2] and box[1] <= at[1] <= box[3]
+
+
+def pick(found: list[tuple[float, list[float]]], near: list[float] | None, at: tuple[float, float] | None = None) -> int | None:
     """Which detection is the piece. `found` holds (score, box) per detection, boxes as fractions of
     the image like Piece.box. A prompt alone can land on a look-alike (a monitor for "air
-    purifier"), so with a hint only detections near it count. None when nothing qualifies."""
+    purifier"), so with a hint only detections near it count, and with a tapped spot only those
+    around the spot. None when nothing qualifies."""
+    if at is not None:
+        found = [(score if contains(box, at) else -1.0, box) for score, box in found]
+        ranked = [(score, n) for n, (score, _) in enumerate(found) if score >= 0]
+        return max(ranked)[1] if ranked else None
     if near and len(near) == 4:
         ranked = [(score * overlap(box, near), n) for n, (score, box) in enumerate(found) if overlap(box, near) >= MIN_OVERLAP]
     else:
         ranked = [(score, n) for n, (score, _) in enumerate(found)]
     return max(ranked)[1] if ranked else None
+
+
+def covers(mask: Image.Image, at: tuple[float, float]) -> bool:
+    """Whether a mask (any mode, white = the piece) covers a spot given as fractions of the image."""
+    gray = mask.convert("L")
+    x, y = min(int(at[0] * gray.width), gray.width - 1), min(int(at[1] * gray.height), gray.height - 1)
+    return gray.getpixel((x, y)) > 127
 
 
 def cut_out(image: bytes, mask: Image.Image) -> Segment | None:
@@ -97,6 +113,12 @@ class Describer(Protocol):
     def read(self, image: bytes, mime_type: str, filename: str) -> ImageReading: ...
 
 
+class TapDescriber(Protocol):
+    def read_at(self, image: bytes, mime_type: str, at: tuple[float, float]) -> Piece:
+        """The one thing at the spot the user tapped (fractions of the image), with its box."""
+        ...
+
+
 class RoomDescriber(Protocol):
     def read_frames(self, frames: list[bytes]) -> RoomReading:
         """The furniture seen across several JPEG frames of one room, each piece listed once."""
@@ -104,8 +126,9 @@ class RoomDescriber(Protocol):
 
 
 class Segmenter(Protocol):
-    def segment(self, image: bytes, mime_type: str, prompt: str, near: list[float] | None = None) -> Segment | None:
-        """Cut out the thing `prompt` names. `near` is Piece.box: where it roughly is, if known."""
+    def segment(self, image: bytes, mime_type: str, prompt: str, near: list[float] | None = None, at: tuple[float, float] | None = None) -> Segment | None:
+        """Cut out the thing `prompt` names. `near` is Piece.box: where it roughly is, if known.
+        `at` is a spot the user tapped on it (fractions of the image): the cut-out must cover it."""
         ...
 
 

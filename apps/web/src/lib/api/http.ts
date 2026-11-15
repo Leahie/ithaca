@@ -67,7 +67,7 @@ export function createHttpApi(): ApiClient {
         method: 'POST',
         ...(opts?.propertyId ? { body: JSON.stringify({ property_id: opts.propertyId, household_id: opts.householdId ?? null }) } : {}),
       }),
-    createHousehold: (name) => request('/households', { method: 'POST', body: JSON.stringify({ name }) }),
+    createHousehold: (name, fresh = false) => request('/households', { method: 'POST', body: JSON.stringify({ name, fresh }) }),
     getHousehold: (hid) => request(`/households/${enc(hid)}`),
     leaveHousehold: () => request('/households/leave', { method: 'POST' }, 'none'),
     rotateInvite: (hid) => request(`/households/${enc(hid)}/invite`, { method: 'POST' }),
@@ -79,7 +79,8 @@ export function createHttpApi(): ApiClient {
       form.append('file', file, filename);
       return request('/uploads', { method: 'POST', body: form });
     },
-    ingestObject: (uploadId) => request('/objects/ingest', { method: 'POST', body: JSON.stringify({ upload_id: uploadId }) }),
+    getJob: (jobId) => request(`/jobs/${enc(jobId)}`),
+    ingestObject: (uploadId, at) => request('/objects/ingest', { method: 'POST', body: JSON.stringify(at ? { upload_id: uploadId, at } : { upload_id: uploadId }) }),
     listInventory: () => request('/inventory'),
     getInventoryItem: (id) => request(`/inventory/${enc(id)}`),
     deleteInventoryItem: (id) => request(`/inventory/${enc(id)}`, { method: 'DELETE' }, 'none'),

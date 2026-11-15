@@ -33,12 +33,17 @@ def _changed(runtime: Runtime) -> None:
     runtime.stream_writer({"type": "layout.changed", "payload": {}})
 
 
-def _one_room_at_a_time(runtime: Runtime, room_id: str) -> str | None:
+_briefs: dict[tuple[str, str], str] = {}  # (conversation, room_id) -> the brief the designer was last given
+
+
+def _one_room_at_a_time(runtime: Runtime, room_id: str, brief: str | None = None) -> str | None:
     """What to tell the guide when this room is already being planned, else None. Other rooms
-    never block: several are planned at once and shown one at a time (agent/design_gate.py)."""
+    never block: several are planned at once and shown one at a time (agent/design_gate.py). A
+    new brief for a room still being arranged doesn't either: that run is replaced."""
     ctx = runtime.context
-    doing = design_gate.state(design_gate.key(ctx.session_id, ctx.user_id), room_id)
-    if doing is None:
+    conversation = design_gate.key(ctx.session_id, ctx.user_id)
+    doing = design_gate.state(conversation, room_id)
+    if doing is None or (doing == "arranging" and brief is not None and _briefs.get((conversation, room_id)) != brief):
         return None
     name = prompts.room_short_names(get_twin(ctx.property_id)).get(room_id, room_id)
     if doing == "arranging":
@@ -280,8 +285,10 @@ def delete_from_inventory(item_id: str, runtime: Runtime) -> str:
 
 @tool
 def design_in_background(room_id: str, brief: str, runtime: Runtime, go_ahead_over_other_plans: bool = False) -> str:
-    """Ask the interior designer to arrange a room. It works in the background and takes up to a
-    minute; you get a `layouts_ready` event with the layout_ids when it is done.
+    """Ask the interior designer to arrange a room. It works in the background, telling the user
+    what it notices and showing its first options as it goes; you get a `layouts_ready` event with
+    the layout_ids when it is done. Calling it again for the same room while it works replaces
+    that run (say, with the user's answer to your question).
 
     brief: which pieces to use (or "whatever fits"), what the user wants from the room, and every
     relevant preference from memory word for word, marking the hard ones.
@@ -290,15 +297,17 @@ def design_in_background(room_id: str, brief: str, runtime: Runtime, go_ahead_ov
     twin = get_twin(runtime.context.property_id)
     if not any(r.room_id == room_id for r in twin.rooms):
         return f"Error: no room with id {room_id}. Use an id from the room directory."
-    if refusal := _one_room_at_a_time(runtime, room_id) or _someone_elses_room(runtime, room_id, go_ahead_over_other_plans):
+    if refusal := _one_room_at_a_time(runtime, room_id, brief) or _someone_elses_room(runtime, room_id, go_ahead_over_other_plans):
         return refusal
     house_plans.note(runtime.context, room_id, house_plans.ARRANGING)
-    design_gate.started(design_gate.key(runtime.context.session_id, runtime.context.user_id), room_id)
+    conversation = design_gate.key(runtime.context.session_id, runtime.context.user_id)
+    design_gate.started(conversation, room_id)
+    _briefs[(conversation, room_id)] = brief
     runtime.stream_writer({"type": BACKGROUND_DESIGN, "payload": {"room_id": room_id, "brief": brief}})
     return ("The designer has started on this room. If the user asked for more rooms, start those now too, in this same "
-            "turn: they are all arranged at once and shown one at a time. Then tell the user in one sentence that you "
-            "are working on it and that they can keep looking around meanwhile. Do not wait, and do not describe any "
-            "layout yet.")
+            "turn: they are all arranged at once and shown one at a time. Then, in at most two short sentences, say what "
+            "you are going for, and ask your one question if something that matters is unknown. Do not wait, and do not "
+            "describe any layout yet.")
 
 
 @tool
@@ -346,6 +355,7 @@ def propose_layouts(room_id: str, item_ids: list[str], wishes: list[Constraint],
         return f"No layout for {name}: {result.reason}. Try fewer or smaller pieces, or another room."
 
     lines = [f"{len(result.variants)} layout(s) saved for {name}:"]
+    shown: list[str] = []
     for k, v in enumerate(result.variants, start=1):
         v.poses = seat_around_table(on_real_floor, twin, items, v.poses)
         left = [i.label for i in items if i.item_id not in v.poses]
@@ -368,12 +378,17 @@ def propose_layouts(room_id: str, item_ids: list[str], wishes: list[Constraint],
             status="proposed",
         )
         furniture_store().put_proposal(layout)
+        shown.append(str(layout.layout_id))
         lines.append(
             f"- layout_id {layout.layout_id} · score {v.score:.0f}/100 · where: {where} · "
             f"met: {'; '.join(v.met) or 'none'} · not met: {'; '.join(v.unmet) or 'none'}"
         )
     if result.reason:
         lines.append(f"Note: {result.reason}.")
+    # The user sees these right away, before the designer is done; the guide shows the final set.
+    runtime.stream_writer({"type": "design.showVariants", "payload": {"layout_ids": shown}})
+    runtime.stream_writer({"type": "layout.select", "payload": {"layout_id": shown[0]}})
+    lines.append("These are on the user's screen already.")
     return "\n".join(lines)
 
 

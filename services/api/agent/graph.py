@@ -12,13 +12,16 @@ Memory files are loaded into the system prompt at the start of each thread by de
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from datetime import datetime, timezone
+from typing import Any
 
 from deepagents import FilesystemPermission, create_deep_agent
 from deepagents.backends import CompositeBackend, StateBackend, StoreBackend
 from deepagents.middleware._utils import append_to_system_message
 from langchain.agents.middleware import AgentMiddleware
 from langchain_core.language_models import BaseChatModel
+from langchain_core.messages import AIMessage
 from langgraph.checkpoint.base import BaseCheckpointSaver
 from langgraph.store.base import BaseStore
 
@@ -122,7 +125,24 @@ def build_designer(property_id: str, *, store: BaseStore, model: BaseChatModel |
     )
 
 
-def run_designer(designer, context: AgentContext, room_id: str, brief: str) -> str:
-    """One background run. Returns the designer's last words (the layout_ids and what it managed)."""
-    result = designer.invoke({"messages": [{"role": "user", "content": f"room_id: {room_id}\n{brief}"}]}, context=context)
-    return result["messages"][-1].text.strip()
+def run_designer(designer, context: AgentContext, room_id: str, brief: str, on_progress: Callable[[str, Any], None] | None = None) -> str:
+    """One background run. Returns the designer's last words (the layout_ids and what it managed).
+    `on_progress` hears it as it works: ("thought", text) for what it says before each step, and
+    ("ui", {"type", "payload"}) for what its tools show (the layouts it has solved so far)."""
+    last = ""
+    for mode, data in designer.stream(
+        {"messages": [{"role": "user", "content": f"room_id: {room_id}\n{brief}"}]}, context=context, stream_mode=["updates", "custom"]
+    ):
+        if mode == "custom":
+            if on_progress:
+                on_progress("ui", data)
+            continue
+        for update in data.values():
+            for msg in (update or {}).get("messages", []) if isinstance(update, dict) else []:
+                if not isinstance(msg, AIMessage):
+                    continue
+                if not msg.tool_calls:
+                    last = msg.text.strip()
+                elif msg.text.strip() and on_progress:
+                    on_progress("thought", msg.text.strip())
+    return last

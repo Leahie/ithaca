@@ -30,6 +30,7 @@ import threading
 import time
 import uuid
 from collections.abc import Callable
+from typing import Any
 
 from packages.schema.events import EventEnvelope, make_event
 from services.api.agent import design_gate, family, house_plans
@@ -51,7 +52,8 @@ OBSERVE_MIN_INTERVAL_S = 120.0
 # Runs the observer once for a session; returns a note for the guide or None. Blocking.
 Observe = Callable[[AgentContext], "str | None"]
 # Runs the interior designer once for a room; returns its report (layout ids and notes). Blocking.
-Design = Callable[[AgentContext, str, str], str]
+# The last argument hears it as it works: ("thought", text) and ("ui", {"type", "payload"}).
+Design = Callable[[AgentContext, str, str, Callable[[str, Any], None]], str]
 
 
 def action_summary(tool: str, args: dict) -> str:
@@ -163,16 +165,15 @@ class AgentBridge:
         self.observe = observe
         self.design = design
         self._running: dict[str, threading.Event] = {}  # turn key -> "stop, the user has spoken"
-        self._designing: set[tuple[str, str]] = set()  # (turn key, room_id) the designer is busy with
+        self._design_runs: dict[tuple[str, str], int] = {}  # (turn key, room_id) -> the designer run that counts
+        self._phone_screen: dict[tuple[str, str | None], str] = {}  # (session, member) -> the screen their phone is on
         self._signals: dict[str, int] = {}  # user actions since the observer last ran
         self._last_observed: dict[str, float] = {}
         self._observing: set[str] = set()
         self._locks: dict[str, asyncio.Lock] = {}
-        self._greeted: set[str] = set()
         self._last_room: dict[str, str | None] = {}
         self._last_proactive: dict[str, float] = {}
         self._tasks: set[asyncio.Task] = set()
-        self._greeted_members: set[tuple[str, str]] = set()
         family.set_runner(runner)  # so one member's agent can ask another's
         hub.subscribe(self.on_event)
 
@@ -199,15 +200,12 @@ class AgentBridge:
             waiting += design_queue(conversation, design_gate._review.get(conversation), room.property_id)
             asyncio.get_running_loop().call_soon(lambda: self._start(room, waiting, proactive=False, member_id=who))
         elif event.type == "session.joined" and p.get("member_id") and room.household_id:
-            key = (sid, p["member_id"])
-            # Once per visit, not per connection: a phone reconnects often (a locked screen, a
-            # reload, a new session on the big screen), and each must not be welcomed again.
-            if key not in self._greeted_members and self.hub.once(f"hello:{p['member_id']}:{room.property_id}", GREET_AGAIN_S):
+            # Once per visit, not per connection or session: a phone reconnects often (a locked
+            # screen, a reload, a new session on the big screen), and each must not be welcomed again.
+            if self.hub.first_greeting(sid, p["member_id"]) and self.hub.once(f"hello:{p['member_id']}:{room.property_id}", GREET_AGAIN_S):
                 self._start(room, event_message("member_joined"), proactive=False, member_id=p["member_id"])
-            self._greeted_members.add(key)
-        elif event.type == "session.joined" and p.get("client") == "desktop" and sid not in self._greeted:
-            self._greeted.add(sid)
-            if self.hub.once(f"hello:{self._context(room, None).memory_user}:{room.property_id}", GREET_AGAIN_S):
+        elif event.type == "session.joined" and p.get("client") == "desktop":
+            if self.hub.first_greeting(sid, "desktop") and self.hub.once(f"hello:{self._context(room, None).memory_user}:{room.property_id}", GREET_AGAIN_S):
                 self._start(room, event_message("property_opened"), proactive=False)
         elif event.type == "viewer.goto" and p.get("room_id"):
             changed = self._last_room.get(sid) != p["room_id"]
@@ -246,6 +244,8 @@ class AgentBridge:
                 self._signal(room)
                 note = f"{item.label} ({item.item_class}), item_id {item.item_id}, room_id {p.get('room_id') or 'the room they are in'}"
                 self._start(room, event_message("catalog_picked", note), proactive=False)
+        elif event.type == "remote.view":
+            self._phone_screen[(sid, event.member_id)] = p.get("view", "")
         elif event.type == "viewer.setMode":
             log_.set_view(p["mode"])
         elif event.type == "viewer.setTime" and by_user:
@@ -306,7 +306,12 @@ class AgentBridge:
                 member_name=m.name if m else None,
                 house_user_id=room.user_id,
             )
-        return AgentContext(user_id=room.user_id, property_id=room.property_id, session_id=room.session_id, household_id=room.household_id)
+        return AgentContext(
+            user_id=room.user_id,
+            property_id=room.property_id,
+            session_id=room.session_id,
+            household_id=room.household_id,
+        )
 
     def _start(self, room: SessionRoom, text: str, proactive: bool, member_id: str | None = None, interrupts: bool = False) -> None:
         sid = room.session_id
@@ -335,7 +340,8 @@ class AgentBridge:
         key = turn_key
         async with lock:
             s = room.state
-            where = f'<viewer mode="{s.mode}" room_id="{s.room_id or ""}" datetime="{s.datetime or ""}"/>\n'
+            phone = self._phone_screen.get((sid, member_id), "")
+            where = f'<viewer mode="{s.mode}" room_id="{s.room_id or ""}" datetime="{s.datetime or ""}" phone="{phone}"/>\n'
             context = self._context(room, member_id)
             where += others_plans(context) + room_furniture(room, context)
             # The conversation belongs to the person (or the family's guide) and the house, not to
@@ -413,33 +419,61 @@ class AgentBridge:
             emit("agent.turn", {"status": "ended"})
 
     def _design_in_background(self, room: SessionRoom, member_id: str | None, key: str, room_id: str, brief: str) -> None:
-        """Run the designer off to the side; when it is done the guide gets an event turn with
-        its report, queued like any other turn. One run per room at a time."""
+        """Run the designer off to the side. While it works, its short thoughts go to the user as
+        guide messages and each set of layouts it solves is shown at once; when it is done the
+        guide gets an event turn with its report, queued like any other turn. A new request for the
+        same room (say, after the user answered a question) replaces a run still going: the old
+        run's thoughts, layouts and report are dropped."""
         if self.design is None:
             design_gate.dropped(design_gate.key(room.session_id, self._context(room, member_id).user_id), room_id)
             self._start(room, event_message("layouts_failed", "The designer is not available in this setup."), proactive=False, member_id=member_id)
             return
         job = (key, room_id)
-        if job in self._designing:
-            return
-        self._designing.add(job)
+        run_no = self._design_runs[job] = self._design_runs.get(job, 0) + 1
         context = self._context(room, member_id)
+        loop = asyncio.get_running_loop()
+
+        def current() -> bool:
+            return self._design_runs.get(job) == run_no
+
+        def publish(type: str, payload: dict) -> None:
+            if not current():
+                return
+            try:
+                self.hub.publish(make_event(room.session_id, "agent", type, payload, member_id=member_id))
+            except (KeyError, ValueError) as e:
+                log.warning("designer event %s dropped: %s", type, e)
+
+        said: list[str] = []
+
+        def progress(kind: str, data: Any) -> None:  # called from the designer's thread
+            if kind == "thought":
+                said.append(data)
+                loop.call_soon_threadsafe(publish, "agent.message", {"message_id": uuid.uuid4().hex, "text": data})
+            elif kind == "ui":
+                loop.call_soon_threadsafe(publish, data["type"], data["payload"])
 
         async def run() -> None:
             conversation = design_gate.key(room.session_id, context.user_id)
             try:
-                report = await asyncio.to_thread(self.design, context, room_id, brief)
-                message = event_message("layouts_ready", f"room_id: {room_id}\n{report}")
+                report = await asyncio.to_thread(self.design, context, room_id, brief, progress)
+            except Exception as e:
+                log.exception("background designer failed")
+                if not current():
+                    return  # a newer run for this room took over, gate and all
+                message = event_message("layouts_failed", f"room_id: {room_id}\n{e}")
+                design_gate.dropped(conversation, room_id)
+            else:
+                if not current():
+                    return
+                # The thoughts reached the user as the guide's own words; this is the guide's only record of them.
+                aloud = "".join(f"\n- {t}" for t in said)
+                aloud = f"\nWhile it worked, you already told the user:{aloud}\n" if aloud else ""
+                message = event_message("layouts_ready", f"room_id: {room_id}{aloud}\n{report}")
                 house_plans.note(context, room_id, house_plans.CHOOSING)
                 if not design_gate.ready(conversation, room_id, message):
                     return  # another room is waiting for the user: this one is shown after it
                 message += design_queue(conversation, room_id, room.property_id)
-            except Exception as e:
-                log.exception("background designer failed")
-                message = event_message("layouts_failed", f"room_id: {room_id}\n{e}")
-                design_gate.dropped(conversation, room_id)
-            finally:
-                self._designing.discard(job)
             self._start(room, message, proactive=False, member_id=member_id)
 
         self._keep(asyncio.create_task(run()))

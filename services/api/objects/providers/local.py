@@ -68,7 +68,7 @@ class LocalSegmenter:
     but has no clear outline. The mask covers only what is visible: a desk behind a chair comes
     back in pieces, which SAM 3D Objects can still rebuild and a cut-out based model cannot."""
 
-    def segment(self, image: bytes, mime_type: str, prompt: str, near: list[float] | None = None) -> Segment | None:
+    def segment(self, image: bytes, mime_type: str, prompt: str, near: list[float] | None = None, at: tuple[float, float] | None = None) -> Segment | None:
         picture = Image.open(io.BytesIO(image)).convert("RGB")
         with _lock:  # one model, one image at a time
             torch, device, read, detector, prepare, outliner = _load()
@@ -79,7 +79,7 @@ class LocalSegmenter:
                 )[0]
                 boxes = [box.tolist() for box in found["boxes"]]
                 w, h = picture.size
-                best = pick([(float(score), [box[0] / w, box[1] / h, box[2] / w, box[3] / h]) for score, box in zip(found["scores"], boxes)], near)
+                best = pick([(float(score), [box[0] / w, box[1] / h, box[2] / w, box[3] / h]) for score, box in zip(found["scores"], boxes)], near, at)
                 if best is None:
                     return None
                 box = boxes[best]
