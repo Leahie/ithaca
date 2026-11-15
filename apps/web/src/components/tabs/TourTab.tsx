@@ -769,6 +769,9 @@ export function TourTab({ twin, active }: { twin: PropertyTwin; active: boolean 
   // furniture.drag: the piece follows the finger on the phone's plan before the move is saved.
   const placementsRef = useRef(placements);
   placementsRef.current = placements;
+  /** The layout being tried (not kept yet), if any: its pieces are what the room shows. */
+  const triedRef = useRef<ReturnType<typeof previewLayout>>(undefined);
+  triedRef.current = previewLayout(layouts.data, selectedLayoutId);
   useEffect(() => {
     if (!sdk) return;
     let dragged: string | null = null;
@@ -862,8 +865,12 @@ export function TourTab({ twin, active }: { twin: PropertyTwin; active: boolean 
       const yaw = ((h.yaw % 360) + 360) % 360;
       const node = pieces.current.get(h.id)?.node;
       if (node) poseNode(node, h.tx, h.y, h.tz, h.yaw);
-      api()
-        .placePiece(twin.property_id, h.id, { x: h.tx, z: h.tz, yaw_deg: yaw, floor_id: floor, room_id: null, snap: false })
+      // A layout that is only being tried is not in the house yet: a piece moved out of it would
+      // jump back when the screen reloads. Moving a piece by hand takes the layout, then moves it.
+      const tried = triedRef.current;
+      const keep = tried && tried.room_id === before?.room_id ? api().selectLayout(tried.layout_id) : Promise.resolve(null);
+      keep
+        .then(() => api().placePiece(twin.property_id, h.id, { x: h.tx, z: h.tz, yaw_deg: yaw, floor_id: floor, room_id: null, snap: false }))
         .then(() => useSession.getState().dispatch('layout.changed', { layout_id: null }))
         .catch((err: unknown) => {
           // Outside every room, or the server is away: it goes back to where it stood.
