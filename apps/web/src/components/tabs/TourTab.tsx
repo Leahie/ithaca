@@ -146,6 +146,9 @@ export function TourTab({ twin, active }: { twin: PropertyTwin; active: boolean 
   /** Until when (performance.now) the guide is putting a layout on show: the room is looked at
    * from above and turned once round, so the goto that comes with it must not take the camera inside. */
   const layoutShow = useRef(0);
+  /** The scan point of the room a layout is on show in: where the camera goes when it comes down
+   * from the view above (not back to where it stood before the show). */
+  const showSweep = useRef<string | null>(null);
   /** One hop the given way, for the hand gestures; set while the tour can walk. */
   const handStep = useRef<((angleDeg: number, steps: number) => void) | null>(null);
   const [loaderGone, setLoaderGone] = useState(false);
@@ -422,7 +425,11 @@ export function TourTab({ twin, active }: { twin: PropertyTwin; active: boolean 
     // The user walked here themselves: the session is following the camera, not moving it.
     if (!first && sweepId && target === here.current) return;
     // A layout going on show is looked at from above (see aerialTarget), not from inside.
-    if (!first && performance.now() < layoutShow.current) return;
+    if (!first && performance.now() < layoutShow.current) {
+      showSweep.current = target;
+      return;
+    }
+    showSweep.current = null;
     const from = sweepPosition(target);
     moveTo(target, first, 0, best && from ? rotationToward(from, best.lookAt) : undefined);
     if (first) setTimeout(() => setRevealed(true), 400); // an instant move
@@ -437,6 +444,7 @@ export function TourTab({ twin, active }: { twin: PropertyTwin; active: boolean 
     return onSessionEvent((event) => {
       if (event.type !== 'viewer.walk') return;
       const token = ++walkToken.current;
+      showSweep.current = null;
       const { sweep_ids, look_at, duration_s } = event.payload;
       // Only sweeps the viewer has: a few of the twin's are not in the Showcase model.
       const steps = sweep_ids.filter((id) => !sdkSweeps.current.size || sdkSweeps.current.has(id));
@@ -464,6 +472,18 @@ export function TourTab({ twin, active }: { twin: PropertyTwin; active: boolean 
             } catch (err) {
               console.warn('[tour] a step of the walk failed', err);
               await sleep(300);
+              // A walk must not end one room short: the last step is tried again (the viewer
+              // refuses a move while another camera move is still finishing).
+              if (i === steps.length - 1) {
+                for (let again = 0; again < 3 && walkToken.current === token; again++) {
+                  try {
+                    await sdk.Sweep.moveTo(id, { transition: sdk.Sweep.Transition.FLY, transitionTime: 900 });
+                    break;
+                  } catch {
+                    await sleep(500);
+                  }
+                }
+              }
             }
           }
         } finally {
@@ -540,6 +560,11 @@ export function TourTab({ twin, active }: { twin: PropertyTwin; active: boolean 
         eases.push({ start: start + (delay_ms ?? 0), ms: ms ?? LOOK_EASE_MS, yaw: event.payload.yaw_delta_deg, pitch: event.payload.pitch_delta_deg, zoom: 0, done: 0, slow: !!ms });
       }
       else if (event.type === 'viewer.zoom') eases.push({ start, ms: ZOOM_EASE_MS, yaw: 0, pitch: 0, zoom: event.payload.delta, done: 0 });
+      else if (event.type === 'viewer.walk' || event.type === 'viewer.step' || (event.type === 'viewer.goto' && performance.now() >= layoutShow.current)) {
+        // Going somewhere ends the guide's slow turn: the viewer refuses to walk while it is turning.
+        eases = eases.filter((e) => !e.slow);
+        return;
+      }
       else return;
       frame ??= requestAnimationFrame(tick);
     });
@@ -564,6 +589,22 @@ export function TourTab({ twin, active }: { twin: PropertyTwin; active: boolean 
     });
     /** One hop the given way (clockwise from straight ahead); then the rest, if more were asked for. */
     const hop = (angleDeg: number, left: number) => {
+      if (showSweep.current && !moving.current) {
+        // Looking down on a layout: the first step comes down into that room, not back to where
+        // the camera stood before the show.
+        const into = showSweep.current;
+        showSweep.current = null;
+        here = into;
+        ++walkToken.current;
+        moving.current = true;
+        void sdk.Sweep.moveTo(into, { transition: sdk.Sweep.Transition.FLY, transitionTime: 900 })
+          .catch((err: unknown) => console.warn('[tour] could not come down into the room', err))
+          .finally(() => {
+            moving.current = false;
+            runQueued();
+          });
+        return;
+      }
       if (!here || moving.current) return;
       const from = sweepPosition(here);
       const neighbors = twin.sweeps.find((s) => s.sweep_id === here)?.neighbors ?? [];
@@ -1019,7 +1060,8 @@ export function TourTab({ twin, active }: { twin: PropertyTwin; active: boolean 
       aerialDismissed.current = null;
       if (!aerial.current) return;
       aerial.current = null;
-      const back = here.current ?? (roomId ? sweepForRoom(twin, roomId)?.sweep_id : undefined);
+      const back = showSweep.current ?? here.current ?? (roomId ? sweepForRoom(twin, roomId)?.sweep_id : undefined);
+      showSweep.current = null;
       if (back) moveTo(back, false);
       return;
     }

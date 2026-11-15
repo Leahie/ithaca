@@ -107,6 +107,18 @@ def others_plans(context: AgentContext) -> str:
     return f"<others_plans>{lines}\n</others_plans>\n"
 
 
+def design_queue(conversation: str, room_id: str | None, property_id: str) -> str:
+    """For a layouts_ready turn: the other rooms the user asked for and how far each is, so the
+    guide can say what comes next and not forget one."""
+    busy, held = design_gate.others(conversation, room_id or "")
+    if not busy and not held:
+        return ""
+    names = prompts.room_short_names(get_twin(property_id))
+    lines = [f"\n- {names.get(r, r)} (room_id {r}): finished, comes up as soon as they have decided on this room" for r in held]
+    lines += [f"\n- {names.get(r, r)} (room_id {r}): still being arranged" for r in busy]
+    return f"\n<other_rooms>{''.join(lines)}\n</other_rooms>"
+
+
 def spoken_cue(tool: str, args: dict, property_id: str) -> str | None:
     """One short line to say aloud the moment a tool starts, so an action in the house (or a long
     wait) is never silent. None for tools that are quick and change nothing the user can see."""
@@ -165,6 +177,8 @@ class AgentBridge:
             self._start(room, p["text"], proactive=False, member_id=event.member_id, interrupts=True)
         if (event.type == "chat.user" or (event.type == "voice.transcript" and p.get("final")) or (event.type == "layout.confirm" and by_user)) and waiting:
             # They have judged one room: the next one that was planned meanwhile comes up now.
+            conversation = design_gate.key(sid, self._context(room, who).user_id)
+            waiting += design_queue(conversation, design_gate._review.get(conversation), room.property_id)
             asyncio.get_running_loop().call_soon(lambda: self._start(room, waiting, proactive=False, member_id=who))
         elif event.type == "session.joined" and p.get("member_id") and room.household_id:
             key = (sid, p["member_id"])
@@ -397,6 +411,7 @@ class AgentBridge:
                 house_plans.note(context, room_id, house_plans.CHOOSING)
                 if not design_gate.ready(conversation, room_id, message):
                     return  # another room is waiting for the user: this one is shown after it
+                message += design_queue(conversation, room_id, room.property_id)
             except Exception as e:
                 log.exception("background designer failed")
                 message = event_message("layouts_failed", f"room_id: {room_id}\n{e}")

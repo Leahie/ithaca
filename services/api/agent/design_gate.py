@@ -64,6 +64,14 @@ def user_spoke(conversation: str) -> str | None:
     return message
 
 
+def others(conversation: str, room_id: str) -> tuple[list[str], list[str]]:
+    """Besides this room: the rooms still being arranged, and the finished ones waiting their turn."""
+    return (
+        sorted(r for r in _busy.get(conversation, ()) if r != room_id),
+        [r for r, _ in _held.get(conversation, ()) if r != room_id],
+    )
+
+
 def reset() -> None:
     _busy.clear()
     _review.clear()
