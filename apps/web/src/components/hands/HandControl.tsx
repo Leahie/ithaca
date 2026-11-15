@@ -165,12 +165,12 @@ function drawSkeletons(canvas: HTMLCanvasElement, hands: HandView[]) {
 
 // Short, one line each: the box must not change size as the gesture changes.
 const HINT = {
-  none: 'Point to walk · sweep to turn',
-  drag: 'Dragging the view',
-  zoom: 'Zooming',
-  turn: 'Turning',
-  forward: 'Walking forward',
-  back: 'Walking back',
+  none: 'Pinch a piece to pick it up',
+  drag: 'Move your hand · let go to place',
+  zoom: 'Turn your hands to turn it',
+  turn: 'Pinch a piece to pick it up',
+  forward: 'Pinch a piece to pick it up',
+  back: 'Pinch a piece to pick it up',
 } as const;
 
 /**

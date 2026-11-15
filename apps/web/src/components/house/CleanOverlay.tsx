@@ -169,7 +169,7 @@ export function CleanOverlay({ twin, pairing, onShowControls }: { twin: Property
             type="button"
             aria-pressed={handsOn}
             onClick={toggleHands}
-            title={hands === 'error' ? (handsError ?? undefined) : 'Point a finger up to walk forward, make a fist to walk back, sweep an open hand to turn. Pinch to grab the view; pinch with both hands to zoom.'}
+            title={hands === 'error' ? (handsError ?? undefined) : 'Arrange furniture with your hands: the room is shown from above. Pinch a piece to pick it up, move your hand to slide it, pinch with the other hand and turn to rotate it, let go to place it.'}
             className={`px-3.5 py-2 text-sm ${PILL}`}
           >
             {hands === 'starting' ? 'Hands…' : hands === 'error' ? 'Hands failed' : handsOn ? 'Hands on' : 'Hands off'}

@@ -14,6 +14,7 @@ import { config } from '@/lib/config';
 import { useHouseFurniture, useInventory, useLayouts } from '@/lib/data/hooks';
 import { bounds, centroid } from '@/lib/geometry/polygon';
 import { onHandNav } from '@/lib/hands/engine';
+import { handEngine, onHandTick, useHands } from '@/lib/hands/store';
 import { sweepRooms } from '@/lib/rooms';
 import { aerialView, defaultStartSweep, rotationToward, sweepForRoom, viewForRoom } from '@/lib/showcase/rooms';
 import type { MpSdk } from '@/lib/showcase/sdk-types';
@@ -41,6 +42,10 @@ declare global {
 }
 
 /** How far a hand gesture turns and zooms the tour. A drag across the whole view is `*PerView` degrees. */
+/** In the tour, hands arrange furniture and nothing else: the phone moves the camera. */
+const HANDS_MOVE_THE_VIEW = false;
+/** Picking a piece by hand: how near the pinch must be to it, as a fraction of the view's height. */
+const HAND_GRAB_RADIUS = 0.2;
 const HAND_TOUR = { yawDegPerView: 160, pitchDegPerView: 90, speedDegPerS: 900, zoomGain: 2, sweepDegPerView: 220 } as const;
 
 // Phone look and zoom are eased: quick off the mark, soft landing (an ease-out bezier).
@@ -597,7 +602,7 @@ export function TourTab({ twin, active }: { twin: PropertyTwin; active: boolean 
   // Hand control: a pinch-drag turns the view, both hands pinching zoom. The viewer takes one
   // camera call at a time, so movement gathers while a call is out and goes in the next one.
   useEffect(() => {
-    if (!sdk || !active) return;
+    if (!sdk || !active || !HANDS_MOVE_THE_VIEW) return;
     let yaw = 0;
     let pitch = 0;
     let zoom = 0;
@@ -802,9 +807,127 @@ export function TourTab({ twin, active }: { twin: PropertyTwin; active: boolean 
       }),
     [],
   );
+  // Hands arrange furniture. While hand control is on, the big screen looks down on the room the
+  // camera is in. The piece nearest a hand is pointed out; a pinch picks it up, the hand slides
+  // it over the floor, a second pinching hand turns it (as the line between the hands turns),
+  // and letting go saves it where it stands.
+  const handsOn = useHands((s) => s.status === 'on');
+  useEffect(() => {
+    if (!handsOn || !active || !roomId) return;
+    setOverview(roomId);
+    return () => setOverview(null);
+  }, [handsOn, active, roomId]);
+  useEffect(() => {
+    if (!sdk || !handsOn || !active || !canPlaceObjects) return;
+    let pose: MpSdk.Camera.Pose | null = null;
+    const poseSub = sdk.Camera.pose.subscribe((p) => {
+      pose = p;
+    });
+    const size = () => ({ w: hostRef.current?.clientWidth || 1, h: hostRef.current?.clientHeight || 1 });
+    const onScreen = (x: number, y: number, z: number): [number, number] => {
+      const at = sdk.Conversion.worldToScreen({ x, y, z }, pose!, size());
+      return [at.x, at.y];
+    };
+    let held: { id: string; hand: number; x: number; y: number; z: number; yaw: number; px: number; py: number; twist: number | null } | null = null;
+    let pointed: string | null = null;
+    const point = (id: string | null) => {
+      if (id === pointed) return;
+      pointed = id;
+      useSession.getState().dispatch('furniture.select', { item_id: id });
+    };
+    const drop = () => {
+      const h = held;
+      held = null;
+      if (!h) return;
+      const before = placementsRef.current.find((p) => p.item_id === h.id);
+      const floor = twin.rooms.find((r) => r.room_id === before?.room_id)?.floor_id;
+      const yaw = ((h.yaw % 360) + 360) % 360;
+      api()
+        .placePiece(twin.property_id, h.id, { x: h.x, z: h.z, yaw_deg: yaw, floor_id: floor, room_id: null, snap: false })
+        .then(() => useSession.getState().dispatch('layout.changed', { layout_id: null }))
+        .catch((err: unknown) => {
+          // Outside every room, or the server is away: it goes back to where it stood.
+          console.warn('[tour] the piece could not be put there', err);
+          const node = pieces.current.get(h.id)?.node;
+          if (before && node) poseNode(node, before.position.x, before.position.y, before.position.z, before.yaw_deg);
+        });
+    };
+    const off = onHandTick(() => {
+      if (!pose) return;
+      const { w, h } = size();
+      const hands = handEngine.hands.filter((x) => !x.stale);
+      if (held) {
+        const grip = held;
+        const hand = hands.find((x) => x.id === grip.hand);
+        const node = pieces.current.get(grip.id)?.node;
+        if (!hand || !hand.pinching || !node) return drop();
+        const px = hand.u * w;
+        const py = hand.v * h;
+        const dx = px - grip.px;
+        const dy = py - grip.py;
+        grip.px = px;
+        grip.py = py;
+        if (dx || dy) {
+          // How the piece's place on screen moves per metre along x and along z, here and now;
+          // from that, the floor move that keeps it under the hand.
+          const o = onScreen(grip.x, grip.y, grip.z);
+          const a = onScreen(grip.x + 0.5, grip.y, grip.z);
+          const b = onScreen(grip.x, grip.y, grip.z + 0.5);
+          const ax = (a[0] - o[0]) * 2;
+          const ay = (a[1] - o[1]) * 2;
+          const bx = (b[0] - o[0]) * 2;
+          const by = (b[1] - o[1]) * 2;
+          const det = ax * by - bx * ay;
+          if (Math.abs(det) > 25) {
+            const mx = (dx * by - bx * dy) / det;
+            const mz = (ax * dy - dx * ay) / det;
+            const far = Math.hypot(mx, mz);
+            const k = far > 0.4 ? 0.4 / far : 1; // a jump in the tracking must not throw the piece
+            grip.x += mx * k;
+            grip.z += mz * k;
+          }
+        }
+        const other = hands.find((x) => x.id !== grip.hand && x.pinching);
+        if (other) {
+          const angle = (Math.atan2((other.v - hand.v) * h, (other.u - hand.u) * w) * 180) / Math.PI;
+          if (grip.twist !== null) grip.yaw -= ((angle - grip.twist + 540) % 360) - 180; // the screen turns clockwise, yaw the other way
+          grip.twist = angle;
+        } else {
+          grip.twist = null;
+        }
+        poseNode(node, grip.x, grip.y, grip.z, grip.yaw);
+        return;
+      }
+      const hand = hands.find((x) => x.pinching) ?? hands[0];
+      if (!hand) return;
+      const px = hand.u * w;
+      const py = hand.v * h;
+      let best: (typeof placementsRef.current)[number] | null = null;
+      let bestD = HAND_GRAB_RADIUS * h;
+      for (const p of placementsRef.current) {
+        if (!pieces.current.has(p.item_id)) continue;
+        const [sx, sy] = onScreen(p.position.x, p.position.y, p.position.z);
+        const d = Math.hypot(sx - px, sy - py);
+        if (d < bestD) {
+          bestD = d;
+          best = p;
+        }
+      }
+      if (best) point(best.item_id);
+      if (best && hand.pinching) held = { id: best.item_id, hand: hand.id, x: best.position.x, y: best.position.y, z: best.position.z, yaw: best.yaw_deg, px, py, twist: null };
+    });
+    return () => {
+      off();
+      poseSub.cancel();
+      drop();
+      point(null);
+    };
+  }, [sdk, handsOn, active, twin]); // eslint-disable-line react-hooks/exhaustive-deps
+
   /** What to look down on: a key that changes when the view must, where, and in which room. 'wait': a piece just added is not loaded yet. */
   const aerialTarget = useMemo(() => {
-    if (overview && arranging) {
+    // By hand the whole room stays in view: the camera must not chase each piece a hand passes.
+    if (overview && arranging && !handsOn) {
       const p = placements.find((x) => x.item_id === arranging);
       const room = p && twin.rooms.find((r) => r.room_id === p.room_id);
       if (!p || !room) return 'wait' as const;
@@ -820,7 +943,7 @@ export function TourTab({ twin, active }: { twin: PropertyTwin; active: boolean 
     if (!room) return null;
     const [x, z] = centroid(room.polygon);
     return { key: `room:${room.room_id}`, at: { x, y: room.floor_y, z }, room };
-  }, [arranging, overview, placements, layouts.data, selectedLayoutId, twin.rooms]);
+  }, [arranging, overview, placements, layouts.data, selectedLayoutId, twin.rooms, handsOn]);
   useEffect(() => {
     if (!sdk || !canPlaceObjects || aerialTarget === 'wait') return;
     if (!aerialTarget) {
