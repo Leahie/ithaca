@@ -98,7 +98,7 @@ def get_designer():
         return None
     from services.api.agent.graph import run_designer
 
-    return lambda context, room_id, brief: run_designer(_designer(context.property_id), context, room_id, brief)
+    return lambda context, room_id, brief, on_progress=None: run_designer(_designer(context.property_id), context, room_id, brief, on_progress)
 
 
 def get_turn_runner() -> TurnRunner:

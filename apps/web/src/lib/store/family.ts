@@ -17,6 +17,8 @@ interface FamilyStore {
   error: string | null;
   /** Desktop: restore() has finished, so the session can be created for the right family. */
   restored: boolean;
+  /** Desktop: "Start a new family" was pressed, so the next family starts empty. */
+  fresh: boolean;
   /** Desktop: load the saved household, if any. */
   restore(): Promise<void>;
   create(name: string): Promise<Household>;
@@ -53,6 +55,7 @@ export const useFamily = create<FamilyStore>((set, get) => ({
   me: null,
   error: null,
   restored: false,
+  fresh: false,
 
   async restore() {
     const id = read(HOUSEHOLD_KEY);
@@ -66,9 +69,9 @@ export const useFamily = create<FamilyStore>((set, get) => ({
   },
 
   async create(name) {
-    const household = await api().createHousehold(name);
+    const household = await api().createHousehold(name, get().fresh);
     write(HOUSEHOLD_KEY, household.household_id);
-    set({ household, error: null });
+    set({ household, error: null, fresh: false });
     return household;
   },
 
@@ -89,7 +92,7 @@ export const useFamily = create<FamilyStore>((set, get) => ({
 
   leave() {
     write(HOUSEHOLD_KEY, null);
-    set({ household: null });
+    set({ household: null, fresh: true });
   },
 
   joined(household, me) {

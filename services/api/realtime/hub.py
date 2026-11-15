@@ -65,6 +65,7 @@ class SessionRoom:
     joined_pair_tokens: set[str] = field(default_factory=set)
     household_id: str | None = None
     member_tokens: dict[str, str] = field(default_factory=dict)  # client_token -> member_id
+    greeted: set[str] = field(default_factory=set)  # "desktop" and member_ids the guide has welcomed
 
 
 def _apply(state: ViewerState, event: EventEnvelope) -> None:
@@ -114,6 +115,7 @@ class Hub:
                 room.member_tokens = saved.get("member_tokens", {})
                 room.issued_pair_tokens = set(saved["issued"])
                 room.joined_pair_tokens = set(saved["joined"])
+                room.greeted = set(saved.get("greeted", []))
                 self.rooms[room.session_id] = room
 
     def _save(self, room: SessionRoom) -> None:
@@ -124,6 +126,7 @@ class Hub:
             "datetime": room.state.datetime, "client_tokens": room.client_tokens,
             "issued": sorted(room.issued_pair_tokens), "joined": sorted(room.joined_pair_tokens),
             "household_id": room.household_id, "member_tokens": room.member_tokens,
+            "greeted": sorted(room.greeted),
         })
         self._db.execute("INSERT OR REPLACE INTO sessions VALUES (?, julianday('now'), ?)", (room.session_id, body))
 
@@ -144,6 +147,16 @@ class Hub:
         client_token = secrets.token_urlsafe(24)
         room.client_tokens[client_token] = "desktop"
         return self.new_pair_token(room.session_id).model_copy(update={"client_token": client_token})
+
+    def first_greeting(self, session_id: str, who: str) -> bool:
+        """True once per session for "desktop" or a member_id, even across server restarts: a
+        reconnect is not a new arrival."""
+        room = self.rooms[session_id]
+        if who in room.greeted:
+            return False
+        room.greeted.add(who)
+        self._save(room)
+        return True
 
     def new_pair_token(self, session_id: str, now: datetime | None = None) -> Session:
         """A fresh token for the QR code. Raises KeyError for an unknown session."""

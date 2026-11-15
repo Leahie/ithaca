@@ -75,20 +75,30 @@ class HouseholdStore:
             self._db.execute("ALTER TABLE households ADD COLUMN host_user_id TEXT")
         if "merged_into" not in columns:
             self._db.execute("ALTER TABLE households ADD COLUMN merged_into TEXT")
+        if "retired_at" not in columns:
+            self._db.execute("ALTER TABLE households ADD COLUMN retired_at TEXT")
         self._lock = threading.Lock()
         with self._lock:
             self._merge_duplicates()
 
     # --- households -----------------------------------------------------------------------------
 
-    def create(self, name: str, host_user_id: str | None = None) -> Household:
+    def create(self, name: str, host_user_id: str | None = None, fresh: bool = False) -> Household:
         """host_user_id: the big screen's user, whose house the family's phones arrange. A host has
         one family: a screen that lost its saved household (another browser, cleared storage) gets
-        the same one back under the new name, so the members and their furniture stay one pool."""
+        the same one back under the new name, so the members and their furniture stay one pool.
+        fresh: the user asked for a new family. The current one is retired (its members are not
+        carried over, and it is never handed back or merged in again) and an empty one starts."""
         name = name.strip() or "Our family"
         with self._lock:
+            if fresh and host_user_id:
+                self._db.execute(
+                    "UPDATE households SET retired_at = ?, invite_expires_at = ? WHERE host_user_id = ? AND merged_into IS NULL AND retired_at IS NULL",
+                    (_now().isoformat(), _now().isoformat(), host_user_id),
+                )
             row = self._db.execute(
-                "SELECT household_id, invite_expires_at FROM households WHERE host_user_id = ? AND merged_into IS NULL ORDER BY created_at DESC LIMIT 1",
+                "SELECT household_id, invite_expires_at FROM households "
+                "WHERE host_user_id = ? AND merged_into IS NULL AND retired_at IS NULL ORDER BY created_at DESC LIMIT 1",
                 (host_user_id,),
             ).fetchone() if host_user_id else None
             if row is None:
@@ -130,13 +140,10 @@ class HouseholdStore:
     def _merge_duplicates(self) -> None:
         """Fold every host's extra households (made before a host had one family) into their newest:
         members and board notes move, the old rows forward to it. Call with the lock held."""
-        hosts = self._db.execute(
-            "SELECT host_user_id FROM households WHERE host_user_id IS NOT NULL AND merged_into IS NULL GROUP BY host_user_id HAVING count(*) > 1"
-        ).fetchall()
+        live = "host_user_id IS NOT NULL AND merged_into IS NULL AND retired_at IS NULL"
+        hosts = self._db.execute(f"SELECT host_user_id FROM households WHERE {live} GROUP BY host_user_id HAVING count(*) > 1").fetchall()
         for (host,) in hosts:
-            ids = [r[0] for r in self._db.execute(
-                "SELECT household_id FROM households WHERE host_user_id = ? AND merged_into IS NULL ORDER BY created_at DESC", (host,)
-            )]
+            ids = [r[0] for r in self._db.execute(f"SELECT household_id FROM households WHERE host_user_id = ? AND {live} ORDER BY created_at DESC", (host,))]
             keep, rest = ids[0], ids[1:]
             marks = ",".join("?" * len(rest))
             self._db.execute("BEGIN")

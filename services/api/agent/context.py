@@ -22,6 +22,13 @@ class AgentContext:
     house_user_id: str | None = None
     # Set when another member's agent asked this one a question: it answers and asks nobody else.
     asked: bool = False
+    # Whose memory this agent reads and writes, when that is not user_id. The big screen's guide in a
+    # household remembers that household, so a new family starts knowing nothing.
+    memory_user: str | None = None
+
+    @property
+    def memory_owner(self) -> str:
+        return self.memory_user or self.user_id
 
     @property
     def furniture_user(self) -> str:

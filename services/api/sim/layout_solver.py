@@ -18,14 +18,18 @@ Geometry is in the interior frame, plan view (x, z), meters. Yaw follows I-G12: 
 
 from __future__ import annotations
 
+import logging
 import math
+import os
 import random
+from concurrent.futures import ProcessPoolExecutor
 from dataclasses import dataclass, field
 from typing import Literal
 
 from pydantic import BaseModel
-from shapely.geometry import LineString, Point, Polygon
+from shapely.geometry import LineString, MultiLineString, Point, Polygon
 from shapely.ops import unary_union
+from shapely.prepared import prep
 
 from packages.schema.twin import Opening, Room, Sweep, Wall
 
@@ -37,6 +41,7 @@ WALL_GAP_M = 0.03  # between a piece and the wall face (room for a baseboard)
 DEFAULT_WALL_M = 0.14  # wall thickness assumed when the twin has no wall list
 RESTARTS = 14
 STEPS_PER_ITEM = 260
+WORKERS = 7  # restarts run side by side in this many processes (two rounds of 7)
 HARD = 1000.0  # energy per unit of hard violation: always dominates the soft terms
 PASSAGE_MIN_M = 0.8  # a gap this wide in a room's walls is a way through, like a door with no door in it
 WALKWAY_M = 1.0  # width kept free along the straight line between two ways in
@@ -135,6 +140,10 @@ class _Wall:
     b: tuple[float, float]
     normal: tuple[float, float]  # into the room
     has_window: bool = False
+    line: LineString = field(init=False, repr=False)
+
+    def __post_init__(self) -> None:
+        self.line = LineString([self.a, self.b])
 
     @property
     def length(self) -> float:
@@ -169,6 +178,31 @@ class _Scene:
     solid_low_zone: object | None = None
     strict: bool = False  # True: no piece may stand on a route centerline
     compass: dict[str, tuple[float, float]] = field(default_factory=dict)  # "north" -> unit (x, z) in the interior frame
+    # The same shapes made quick to test against (shapely's prepared geometry), once the scene is
+    # built: the search tests every footprint against them thousands of times.
+    fast: dict = field(default_factory=dict)
+
+    # Sent to the worker processes without the prepared shapes, which cannot be pickled.
+    def __getstate__(self) -> dict:
+        return {k: v for k, v in self.__dict__.items() if k != "fast"}
+
+    def __setstate__(self, state: dict) -> None:
+        self.__dict__.update(state)
+        _prepare(self)
+
+
+def _prepare(scene: _Scene) -> None:
+    some = lambda g: prep(g) if g is not None and not g.is_empty else None  # noqa: E731
+    scene.fast = {
+        "room": prep(scene.room),
+        "doors": [some(z) for z in scene.door_zones],
+        "windows": [some(z) for z, _ in scene.window_zones],
+        "solid": some(scene.solid_zone),
+        "solid_low": some(scene.solid_low_zone),
+        "lanes": some(scene.lanes),
+        "routes": some(scene.routes),
+        "walls": MultiLineString([w.line for w in scene.walls]) if scene.walls else None,
+    }
 
 
 def _passages(room: Room, outline: Polygon, walls: list[Wall]) -> list[tuple[tuple[float, float], tuple[float, float]]]:
@@ -270,6 +304,7 @@ def _scene(room: Room, openings: list[Opening], twin_walls: list[Wall] | None = 
             if line.length > 0.5:
                 scene.walkways.append(line.buffer(WALKWAY_M / 2, cap_style="flat").intersection(poly))
     scene.lanes = unary_union(scene.walkways).simplify(0.05) if scene.walkways else None
+    _prepare(scene)
     return scene
 
 
@@ -414,20 +449,24 @@ def _violations(scene: _Scene, items: list[Item], poses: dict[str, Pose]) -> lis
     return out
 
 
-def _hard_energy(scene: _Scene, items: list[Item], shapes: dict[str, Polygon]) -> float:
+def _hard_energy(scene: _Scene, items: list[Item], shapes: dict[str, Polygon], off_cache: dict[str, float] | None = None) -> float:
     """A smooth measure of how badly the hard rules are broken, so the search can climb out."""
+    fast = scene.fast
     e = 0.0
     for i in items:
         fp = shapes[i.item_id]
-        e += fp.difference(scene.room).area * 4
+        if not fast["room"].contains(fp):
+            e += fp.difference(scene.room).area * 4
         if i.is_rug:
             continue
-        e += sum(fp.intersection(z).area for z in scene.door_zones if fp.intersects(z)) * 2
-        e += sum(fp.intersection(z).area for z, sill in scene.window_zones if i.h > sill + 0.05 and fp.intersects(z)) * 2
-        if scene.strict and scene.routes is not None and fp.intersects(scene.routes):
+        e += sum(fp.intersection(z).area for z, zp in zip(scene.door_zones, fast["doors"]) if zp is not None and zp.intersects(fp)) * 2
+        e += sum(
+            fp.intersection(z).area for (z, sill), zp in zip(scene.window_zones, fast["windows"]) if i.h > sill + 0.05 and zp is not None and zp.intersects(fp)
+        ) * 2
+        if scene.strict and fast["routes"] is not None and fast["routes"].intersects(fp):
             e += 0.05 + fp.intersection(scene.routes).length
         if scene.strict and i.item_class in WALL_PIECES and scene.solid_zone is not None:
-            off = _off_wall(scene, i, fp)
+            off = _off_wall(scene, i, fp, off_cache)
             if off > 0:
                 e += 0.2 * off + 0.1 * min(2.0, scene.solid_zone.distance(fp))
     solid = [i for i in items if not i.is_rug]
@@ -469,9 +508,7 @@ def _cost(scene: _Scene, c: Constraint, by_id: dict[str, Item], poses: dict[str,
     here = (pose.x, pose.z)
     if c.kind == "against_wall":
         back = Point(pose.x - pose.front[0] * item.d / 2, pose.z - pose.front[1] * item.d / 2)
-        best = min(
-            LineString([w.a, w.b]).distance(back) / 0.6 + _angle_between(pose.front, w.normal) / 90 for w in _walls_for(scene, c.target)
-        )
+        best = min(w.line.distance(back) / 0.6 + _angle_between(pose.front, w.normal) / 90 for w in _walls_for(scene, c.target))
         return min(1.0, best)
     if c.kind == "faces":
         if c.target in poses:
@@ -502,24 +539,35 @@ def _cost(scene: _Scene, c: Constraint, by_id: dict[str, Item], poses: dict[str,
 
 def _in_walkways(scene: _Scene, items: list[Item], shapes: dict[str, Polygon]) -> float:
     """Area (m²) of furniture standing where people walk between the ways into the room."""
-    if scene.lanes is None:
+    lanes = scene.fast["lanes"]
+    if lanes is None:
         return 0.0
-    return sum(shapes[i.item_id].intersection(scene.lanes).area for i in items if not i.is_rug and shapes[i.item_id].intersects(scene.lanes))
+    return sum(shapes[i.item_id].intersection(scene.lanes).area for i in items if not i.is_rug and lanes.intersects(shapes[i.item_id]))
 
 
-def _off_wall(scene: _Scene, item: Item, shape: Polygon) -> float:
+def _off_wall(scene: _Scene, item: Item, shape: Polygon, cache: dict[str, float] | None = None) -> float:
     """0 when the piece's whole back runs along a solid stretch of wall, up to 1 when none of it does.
     A window, a door or a glass door behind the piece doesn't count as wall (low pieces may stand
-    under a window)."""
-    zone = scene.solid_low_zone if item.h < LOW_PIECE_M else scene.solid_zone
+    under a window). `cache`: answers already worked out for these same footprints."""
+    if cache is not None and item.item_id in cache:
+        return cache[item.item_id]
+    low = item.h < LOW_PIECE_M
+    zone = scene.solid_low_zone if low else scene.solid_zone
     if zone is None:
-        return 1.0
-    back = LineString(list(shape.exterior.coords)[:2])  # footprint() lists the two back corners first
-    covered = back.intersection(zone).length / back.length
-    return 0.0 if covered >= 0.9 else 1.0 - covered
+        off = 1.0
+    else:
+        back = LineString(list(shape.exterior.coords)[:2])  # footprint() lists the two back corners first
+        if scene.fast[("solid_low" if low else "solid")].contains(back):
+            off = 0.0
+        else:
+            covered = back.intersection(zone).length / back.length
+            off = 0.0 if covered >= 0.9 else 1.0 - covered
+    if cache is not None:
+        cache[item.item_id] = off
+    return off
 
 
-def _floating(scene: _Scene, items: list[Item], shapes: dict[str, Polygon]) -> dict[str, float]:
+def _floating(scene: _Scene, items: list[Item], shapes: dict[str, Polygon], off_cache: dict[str, float] | None = None) -> dict[str, float]:
     """item_id -> how much a piece stands in the open (0 = anchored, 1 = adrift).
 
     A piece is anchored when it touches a wall, or belongs to a group (pieces within GROUP_GAP_M of
@@ -528,8 +576,8 @@ def _floating(scene: _Scene, items: list[Item], shapes: dict[str, Polygon]) -> d
     solid = [i for i in items if not i.is_rug]
     if not solid or not scene.walls:
         return {}
-    wall_lines = [LineString([w.a, w.b]) for w in scene.walls]
-    wall_gap = {i.item_id: min(line.distance(shapes[i.item_id]) for line in wall_lines) for i in solid}
+    walls = scene.fast["walls"]
+    wall_gap = {i.item_id: walls.distance(shapes[i.item_id]) for i in solid}
     group = {i.item_id: i.item_id for i in solid}  # union-find by proximity
 
     def root(k: str) -> str:
@@ -549,7 +597,7 @@ def _floating(scene: _Scene, items: list[Item], shapes: dict[str, Polygon]) -> d
     anchored = {
         root(i.item_id)
         for i in solid
-        if (_off_wall(scene, i, shapes[i.item_id]) == 0.0 if i.item_class in WALL_PIECES else wall_gap[i.item_id] <= 0.15)
+        if (_off_wall(scene, i, shapes[i.item_id], off_cache) == 0.0 if i.item_class in WALL_PIECES else wall_gap[i.item_id] <= 0.15)
     }
     return {i.item_id: 0.0 if root(i.item_id) in anchored else max(0.3, min(1.0, nearest[root(i.item_id)] / 1.2)) for i in solid}
 
@@ -617,11 +665,12 @@ def _anneal(
 
     def energy(p: dict[str, Pose]) -> float:
         shapes = {i.item_id: footprint(i, p[i.item_id]) for i in items}
+        off: dict[str, float] = {}
         return (
-            HARD * _hard_energy(scene, items, shapes)
+            HARD * _hard_energy(scene, items, shapes, off)
             + _soft(scene, constraints, by_id, p)
             + WALKWAY_COST * _in_walkways(scene, items, shapes)
-            + FLOAT_COST * sum(_floating(scene, items, shapes).values())
+            + FLOAT_COST * sum(_floating(scene, items, shapes, off).values())
         )
 
     current = best = energy(poses)
@@ -651,6 +700,30 @@ def _anneal(
         else:
             poses[item.item_id] = old
     return best_poses
+
+
+_pool: ProcessPoolExecutor | None = None
+_pool_broken = False
+
+
+def _anneal_job(scene: _Scene, items: list[Item], constraints: list[Constraint], seed: int, pin: tuple | None) -> dict[str, Pose]:
+    return _anneal(scene, items, constraints, random.Random(seed), pin)
+
+
+def _anneal_all(scene: _Scene, items: list[Item], constraints: list[Constraint], seeds: list[int], pins: list) -> list[dict[str, Pose]]:
+    """Every restart's result, in order. Side by side in worker processes when the machine has the
+    cores, one after another otherwise; the same results either way, since each run has its own seed."""
+    global _pool, _pool_broken
+    jobs = [(scene, items, constraints, s, p) for s, p in zip(seeds, pins)]
+    if len(jobs) > 1 and not _pool_broken and (os.cpu_count() or 1) > 2:
+        try:
+            if _pool is None:
+                _pool = ProcessPoolExecutor(max_workers=min(WORKERS, (os.cpu_count() or 2) - 1))
+            return list(_pool.map(_anneal_job, *zip(*jobs)))
+        except Exception:
+            logging.getLogger(__name__).exception("layout solver: worker processes failed, solving in this process")
+            _pool_broken, _pool = True, None
+    return [_anneal_job(*job) for job in jobs]
 
 
 def _difference(a: dict[str, Pose], b: dict[str, Pose]) -> float:
@@ -695,10 +768,9 @@ def solve(
 
     def search() -> list[Variant]:
         found: list[Variant] = []
-        for k in range(RESTARTS):
-            # each run sends the biggest piece to a different wall in turn, so the options really differ
-            pin = (anchor_item.item_id, anchor_walls[k % len(anchor_walls)]) if anchor_walls else None
-            poses = _anneal(scene, items, constraints, random.Random(seed * 1000 + k), pin)
+        # each run sends the biggest piece to a different wall in turn, so the options really differ
+        pins = [(anchor_item.item_id, anchor_walls[k % len(anchor_walls)]) if anchor_walls else None for k in range(RESTARTS)]
+        for poses in _anneal_all(scene, items, constraints, [seed * 1000 + k for k in range(RESTARTS)], pins):
             if _violations(scene, items, poses):
                 continue
             costs = [(c, _cost(scene, c, by_id, poses)) for c in constraints]

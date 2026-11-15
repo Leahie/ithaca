@@ -1,15 +1,16 @@
 'use client';
 
-import type { InventoryItem, LayoutVariant, PropertyTwin } from '@ithaca/schema';
+import type { InventoryItem, LayoutVariant, PhotoPoint, PropertyTwin } from '@ithaca/schema';
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import { CARD, CARD_NAME, CARD_SUB, CardImage, CatalogBrowser, SearchBox, matches } from '@/components/design/CatalogBrowser';
+import { PhotoButtons, TapToPick, preparePhoto } from '@/components/design/PhotoPiece';
 import { PlanEditor, type PlanControls } from '@/components/design/PlanEditor';
 import { furnitureChanged } from '@/components/house/ArrangePanel';
 import { JobRows, useObjectUpload } from '@/components/me/InventorySection';
 import { compassWord } from '@/components/sunlab/TimeScrubber';
 import { MODAL_BACKDROP, MODAL_SCROLL, Spinner, cn, useScrollLock } from '@/components/ui';
-import { IconArrowUp, IconBackpack, IconBag, IconCamera, IconCheck, IconClose, IconCube, IconEye, IconGear, IconList, IconPeople, IconPlus, IconSend, IconSparkle, IconTrash, IconTurnLeft, IconTurnRight } from '@/components/ui/icons';
+import { IconArrowUp, IconBackpack, IconBag, IconCheck, IconClose, IconCube, IconEye, IconGear, IconList, IconMic, IconPeople, IconPlus, IconSend, IconSparkle, IconTrash, IconTurnLeft, IconTurnRight } from '@/components/ui/icons';
 import { api } from '@/lib/api';
 import { apiUserId } from '@/lib/api/user';
 import { config } from '@/lib/config';
@@ -89,14 +90,18 @@ function Sheet({ title, onClose, children, action }: { title: string; onClose():
 
 type SheetKind = 'add' | 'room' | 'suggest';
 
+/** The phone's microphone, shared with the talk button in the bar. */
+export type Talk = { supported: boolean; listening: boolean; toggle(): void; stop(): void };
+
 /**
  * The phone's furniture screen: the room you are in, from above, filling the screen, with north on
  * a compass and each wall lettered by its side. An island at the bottom adds pieces, lists what is
- * in the room and asks the guide for layouts; tapping a piece swaps it for tools to turn, move or
+ * in the room and asks the guide for layouts (by voice: Suggest opens the microphone, and the
+ * guide knows the phone is on this screen); tapping a piece swaps it for tools to turn, move or
  * remove that piece. While the guide's options are up, the island picks between them, keeps one,
  * or tells the guide what you like about one so it can suggest more.
  */
-export function FurnitureRoom({ twin }: { twin: PropertyTwin }) {
+export function FurnitureRoom({ twin, talk }: { twin: PropertyTwin; talk?: Talk }) {
   const roomId = useSession((s) => s.viewer.room_id);
   const shown = useSession((s) => s.viewer.shown_layout_ids);
   const selectedLayoutId = useSession((s) => s.viewer.selected_layout_id);
@@ -130,7 +135,7 @@ export function FurnitureRoom({ twin }: { twin: PropertyTwin }) {
   const [sheet, setSheet] = useState<SheetKind | null>(null);
   const [selected, setSelected] = useState<string | null>(null);
   const [note, setNote] = useState<{ tone: 'ok' | 'error'; text: string } | null>(null);
-  const [asked, setAsked] = useState<{ after: string | null } | null>(null);
+  const [asked, setAsked] = useState<{ after: string | null; voice?: boolean } | null>(null);
   const [above, setAbove] = useState(false);
   const controls = useRef<PlanControls | null>(null);
   const me = apiUserId();
@@ -160,20 +165,40 @@ export function FurnitureRoom({ twin }: { twin: PropertyTwin }) {
     return (Math.atan2(x, -z) * 180) / Math.PI;
   }, [twin.interior_to_world]);
 
-  // The guide's latest words since the last request, for this phone's person.
-  const reply = useMemo(() => {
-    if (!asked) return null;
+  // Since the last request, for this phone's person: whether they have spoken yet, and the guide's
+  // latest words (its thinking out loud while it works, then its answer).
+  const since = useMemo(() => {
+    if (!asked) return [];
     const from = asked.after ? chat.findIndex((c) => c.id === asked.after) + 1 : 0;
-    const said = chat.slice(from).filter((c) => c.kind === 'agent' && (!memberId || c.member_id === memberId || c.member_id === null));
+    return chat.slice(from).filter((c) => (c.kind === 'user' || c.kind === 'agent') && (!memberId || c.member_id === memberId || c.member_id === null));
+  }, [asked, chat, memberId]);
+  const spoke = since.some((c) => c.kind === 'user');
+  const reply = useMemo(() => {
+    const said = since.filter((c) => c.kind === 'agent');
     const last = said[said.length - 1];
     return last && last.kind === 'agent' ? last : null;
-  }, [asked, chat, memberId]);
+  }, [since]);
 
   const ask = (text: string) => {
     setAsked({ after: chat[chat.length - 1]?.id ?? null });
     setNote(null);
     dispatch('chat.user', { text });
   };
+  /** Suggest by voice: the microphone opens, and what they say goes to the guide like any message. */
+  const askByVoice = () => {
+    if (!talk) return;
+    if (talk.listening) return talk.stop();
+    setAsked({ after: chat[chat.length - 1]?.id ?? null, voice: true });
+    setNote(null);
+    talk.toggle();
+  };
+  const waitingForWords = !!asked?.voice && !spoke;
+  // The microphone closed without hearing anything: nothing was asked.
+  useEffect(() => {
+    if (!waitingForWords || talk?.listening) return;
+    const t = window.setTimeout(() => setAsked(null), 1500);
+    return () => window.clearTimeout(t);
+  }, [waitingForWords, talk?.listening]);
 
   /** Put a piece in this room: the server finds the nearest spot to the middle that breaks no rule. */
   const place = async (item: InventoryItem) => {
@@ -238,19 +263,15 @@ export function FurnitureRoom({ twin }: { twin: PropertyTwin }) {
     setNote({ tone: 'ok', text: `${item.label} is deleted.` });
   };
 
-  // A photo that has become a piece goes straight into this room.
-  const { upload, busy: uploading, error: uploadError, rows, dismiss } = useObjectUpload();
-  const camera = useRef<HTMLInputElement>(null);
-  const placedJobs = useRef(new Set<string>());
-  useEffect(() => {
-    for (const r of rows) {
-      const itemId = r.progress?.status === 'done' ? r.progress.result_ref?.split(',')[0] : undefined;
-      if (!itemId || placedJobs.current.has(r.job_id)) continue;
-      placedJobs.current.add(r.job_id);
-      void api().getInventoryItem(itemId).then(place, (err: unknown) => setNote({ tone: 'error', text: reason(err) }));
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [rows]);
+  // A photo: tap the piece in it, SAM cuts it out and builds it in 3D, and it goes straight into this room.
+  const { upload, busy: uploading, error: uploadError, rows, dismiss } = useObjectUpload((itemId) => {
+    void api().getInventoryItem(itemId).then(place, (err: unknown) => setNote({ tone: 'error', text: reason(err) }));
+  });
+  const [photo, setPhoto] = useState<File | null>(null);
+  const sendPhoto = async (at: PhotoPoint | undefined) => {
+    if (!photo) return;
+    if (await upload(photo, at, at ? 'The piece you tapped' : 'Every piece in the photo')) setPhoto(null);
+  };
 
   if (!room) {
     return <p className="p-6 text-center text-sm text-muted">Walk into a room, or pick one in Rooms, to arrange it.</p>;
@@ -305,24 +326,15 @@ export function FurnitureRoom({ twin }: { twin: PropertyTwin }) {
         {sheet === 'add' && (
           <AddModal name={name} stored={stored} me={me} host={me === config.userId} onClose={() => setSheet(null)} onPlace={place} onDelete={deleteForGood}
             photo={
-              <>
-                <input ref={camera} type="file" accept="image/*" capture="environment" className="sr-only" data-testid="capture-input"
-                  onChange={(e) => { const f = e.target.files?.[0]; if (f) void upload(f); e.target.value = ''; }} />
-                {(uploadError || rows.length > 0) && (
-                  <div className="space-y-2">
-                    {uploadError && <p className="text-xs text-danger">{uploadError}</p>}
-                    <JobRows rows={rows} dismiss={dismiss} />
-                  </div>
-                )}
-              </>
+              (photo || uploadError || rows.length > 0) && (
+                <div className="space-y-2">
+                  {photo && <TapToPick file={photo} busy={uploading} onSubmit={(at) => void sendPhoto(at)} onCancel={() => setPhoto(null)} />}
+                  {uploadError && <p className="text-xs text-danger">{uploadError}</p>}
+                  <JobRows rows={rows} dismiss={dismiss} />
+                </div>
+              )
             }
-            photoCard={
-              <button type="button" onClick={() => camera.current?.click()} disabled={uploading} aria-label="Add a piece from a photo"
-                className="flex h-full min-h-36 w-full flex-col items-center justify-center gap-1.5 rounded-xl border-2 border-dashed border-line-strong/60 text-[13px] font-semibold text-muted active:scale-[0.97] disabled:opacity-60">
-                {uploading ? <Spinner /> : <IconCamera width={22} height={22} />}
-                {uploading ? 'Uploading…' : 'From a photo'}
-              </button>
-            }
+            photoCard={photo ? null : <PhotoButtons layout="card" disabled={uploading} onPicked={(f) => void preparePhoto(f).then(setPhoto)} />}
           />
         )}
         {choosing && current ? (
@@ -381,7 +393,13 @@ export function FurnitureRoom({ twin }: { twin: PropertyTwin }) {
           <nav className={cn(ISLAND, 'grid grid-cols-3 gap-1 p-1.5')} aria-label="Furniture" data-testid="furniture-island">
             <IslandButton label="Add" onClick={() => setSheet('add')}><IconPlus width={20} height={20} /></IslandButton>
             <IslandButton label={`In room · ${pieces.length}`} onClick={() => setSheet('room')}><IconList width={20} height={20} /></IslandButton>
-            <IslandButton label="Suggest" onClick={() => setSheet('suggest')} disabled={!!asked && !reply}><IconSparkle width={20} height={20} /></IslandButton>
+            {talk?.supported ? (
+              <IslandButton label={talk.listening ? 'Listening' : 'Suggest'} onClick={askByVoice} live={talk.listening} disabled={!!asked && !reply && !waitingForWords}>
+                <IconMic width={20} height={20} />
+              </IslandButton>
+            ) : (
+              <IslandButton label="Suggest" onClick={() => setSheet('suggest')} disabled={!!asked && !reply}><IconSparkle width={20} height={20} /></IslandButton>
+            )}
           </nav>
         )}
 
@@ -419,9 +437,17 @@ export function FurnitureRoom({ twin }: { twin: PropertyTwin }) {
 
         {(note || asked) && !sheet && (
           <div role="status" className={cn(ISLAND, 'flex items-start gap-2 px-3 py-2 text-sm')}>
-            <p className={cn('min-w-0 flex-1 leading-5', note?.tone === 'error' ? 'text-danger' : 'text-text')}>
-              {note ? note.text : reply ? reply.text : (
-                <span className="inline-flex items-center gap-2 text-muted"><Spinner /> The guide is working on layouts…</span>
+            <p className={cn('min-w-0 flex-1 leading-5', note?.tone === 'error' ? 'text-danger' : 'text-text')} data-testid="furniture-status">
+              {note ? note.text : reply ? reply.text : waitingForWords ? (
+                <>
+                  Tell the guide what you want for the {name.toLowerCase()}, or say “surprise me”.
+                  <button type="button" className="ml-1.5 font-semibold text-leaf-deep underline underline-offset-2"
+                    onClick={() => { talk?.stop(); setAsked(null); setSheet('suggest'); }}>
+                    Type instead
+                  </button>
+                </>
+              ) : (
+                <span className="inline-flex items-center gap-2 text-muted"><Spinner /> The guide is thinking…</span>
               )}
             </p>
             <button type="button" aria-label="Dismiss" onClick={() => { setNote(null); setAsked(null); }} className="shrink-0 text-muted">
@@ -443,10 +469,10 @@ function ToolGroup({ title, children }: { title: string; children: ReactNode }) 
   );
 }
 
-function IslandButton({ label, onClick, children, disabled = false }: { label: string; onClick(): void; children: ReactNode; disabled?: boolean }) {
+function IslandButton({ label, onClick, children, disabled = false, live = false }: { label: string; onClick(): void; children: ReactNode; disabled?: boolean; live?: boolean }) {
   return (
-    <button type="button" onClick={onClick} disabled={disabled}
-      className="flex flex-col items-center gap-0.5 rounded-xl py-1.5 text-leaf-deep active:bg-leaf/15 disabled:opacity-40">
+    <button type="button" onClick={onClick} disabled={disabled} aria-pressed={live || undefined}
+      className={cn('flex flex-col items-center gap-0.5 rounded-xl py-1.5 text-leaf-deep active:bg-leaf/15 disabled:opacity-40', live && 'mic-live bg-leaf/20')}>
       {children}
       <span className="text-[11px] font-semibold text-text">{label}</span>
     </button>
@@ -611,7 +637,7 @@ function AddModal({ name, stored, me, host, onClose, onPlace, onDelete, photo, p
               {!managing && photo}
               {own.length > 0 && <SearchBox value={query} onChange={setQuery} placeholder="Search your furniture" />}
               <ul className="grid grid-cols-2 gap-2">
-                {!managing && <li>{photoCard}</li>}
+                {!managing && photoCard && <li>{photoCard}</li>}
                 {mine.map((i) => <li key={i.item_id}>{card(i, `${kind(i)} · ${size(i)}`)}</li>)}
               </ul>
               {!own.length && empty('Everything you own is already in the house. Take a photo to add something new, or look in the catalog.')}

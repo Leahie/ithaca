@@ -21,6 +21,29 @@ def drain(conn) -> list[tuple[str, str]]:
     return out
 
 
+def test_big_screen_guide_remembers_each_family_apart_from_the_host():
+    from services.api.realtime.agent_bridge import AgentBridge
+
+    hub = Hub()
+    bridge = AgentBridge(hub, runner=None)
+    rooms = [hub.rooms[hub.create_session("demo", PROPERTY, household_id=h).session_id] for h in ("h-a", "h-b", None)]
+    a, b, solo = (bridge._context(r, None) for r in rooms)
+    assert {a.memory_owner, b.memory_owner, solo.memory_owner} == {"household-h-a", "household-h-b", "demo"}
+    assert a.furniture_user == b.furniture_user == "demo"
+
+
+def test_a_restart_does_not_greet_everyone_again(tmp_path):
+    db = tmp_path / "sessions.sqlite"
+    sid = Hub(persist=db).create_session("demo", PROPERTY, household_id="h-a").session_id
+    hub = Hub(persist=db)
+    hub._save(hub.rooms[sid])
+    assert hub.first_greeting(sid, "desktop") and hub.first_greeting(sid, "m-1")
+    assert not hub.first_greeting(sid, "m-1")
+    restarted = Hub(persist=db)
+    assert not restarted.first_greeting(sid, "desktop") and not restarted.first_greeting(sid, "m-1")
+    assert restarted.first_greeting(sid, "m-2")
+
+
 def test_hub_delivers_in_order_to_everyone_and_sends_state_on_join():
     async def scenario():
         hub = Hub()
@@ -160,7 +183,7 @@ def test_a_new_message_cuts_off_the_turn_in_flight_and_the_designer_reports_back
 
     async def scenario():
         hub = Hub()
-        AgentBridge(hub, runner, design=lambda context, room_id, brief: f"layout_ids for {room_id}: a, b, c")
+        AgentBridge(hub, runner, design=lambda context, room_id, brief, progress: f"layout_ids for {room_id}: a, b, c")
         sid = hub.create_session("demo", PROPERTY).session_id
         said = []
         hub.subscribe(lambda _room, e: said.append(e.payload["text"]) if e.type == "agent.message" else None)
@@ -173,5 +196,44 @@ def test_a_new_message_cuts_off_the_turn_in_flight_and_the_designer_reports_back
         await asyncio.sleep(0.6)
         assert "Working on it." in said  # the guide did not wait for the designer
         assert any("layouts_ready" in t and "a, b, c" in t for t in said)  # and got its report as an event turn
+
+    asyncio.run(scenario())
+
+
+def test_the_designer_thinks_out_loud_and_a_new_request_replaces_the_one_still_running():
+    import time
+
+    from services.api.agent.design_tools import BACKGROUND_DESIGN
+    from services.api.realtime.agent_bridge import AgentBridge
+
+    turns = []
+
+    def runner(text, context, thread_id):
+        turns.append(text)
+        if "<event" not in text and "lay out" in text:
+            yield ("ui", {"type": BACKGROUND_DESIGN, "payload": {"room_id": "r1", "brief": text.splitlines()[-1]}})
+
+    def design(context, room_id, brief, progress):
+        progress("thought", f"thinking about {brief}")
+        progress("ui", {"type": "design.showVariants", "payload": {"layout_ids": [brief]}})
+        time.sleep(0.4 if "first" in brief else 0.05)
+        return f"layouts for {brief}"
+
+    async def scenario():
+        hub = Hub()
+        AgentBridge(hub, runner, design=design)
+        sid = hub.create_session("demo", PROPERTY).session_id
+        said, shown = [], []
+        hub.subscribe(lambda _room, e: said.append(e.payload["text"]) if e.type == "agent.message" else None)
+        hub.subscribe(lambda _room, e: shown.append(e.payload["layout_ids"]) if e.type == "design.showVariants" else None)
+        hub.publish(make_event(sid, "phone", "remote.view", {"view": "furniture"}))
+        hub.publish(make_event(sid, "phone", "chat.user", {"text": "lay out first"}))
+        await asyncio.sleep(0.15)
+        hub.publish(make_event(sid, "phone", "chat.user", {"text": "lay out second"}))  # say, the answer to its question
+        await asyncio.sleep(0.8)
+        assert 'phone="furniture"' in turns[0]  # the guide knows the phone is on the furniture screen
+        assert "thinking about lay out first" in said and ["lay out first"] in shown  # it spoke and showed a draft at once
+        reports = [t for t in turns if "layouts_ready" in t]
+        assert len(reports) == 1 and "layouts for lay out second" in reports[0]  # the first run's report was dropped
 
     asyncio.run(scenario())

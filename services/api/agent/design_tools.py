@@ -166,8 +166,9 @@ def delete_from_inventory(item_id: str, runtime: Runtime) -> str:
 
 @tool
 def design_in_background(room_id: str, brief: str, runtime: Runtime) -> str:
-    """Ask the interior designer to arrange a room. It works in the background and takes up to a
-    minute; you get a `layouts_ready` event with the layout_ids when it is done.
+    """Ask the interior designer to arrange a room. It works in the background, telling the user
+    what it notices and showing its first options as it goes; you get a `layouts_ready` event with
+    the layout_ids when it is done. Calling it again for the same room replaces a run still going.
 
     brief: which pieces to use (or "whatever fits"), what the user wants from the room, and every
     relevant preference from memory word for word, marking the hard ones."""
@@ -175,8 +176,8 @@ def design_in_background(room_id: str, brief: str, runtime: Runtime) -> str:
     if not any(r.room_id == room_id for r in twin.rooms):
         return f"Error: no room with id {room_id}. Use an id from the room directory."
     runtime.stream_writer({"type": BACKGROUND_DESIGN, "payload": {"room_id": room_id, "brief": brief}})
-    return ("The designer has started. Tell the user in one sentence that you are working on it and that they can keep "
-            "looking around or ask you anything meanwhile. Do not wait, and do not describe any layout yet.")
+    return ("The designer has started. In at most two short sentences, say what you are going for, and ask your one "
+            "question if something that matters is unknown. Do not wait, and do not describe any layout yet.")
 
 
 @tool
@@ -224,6 +225,7 @@ def propose_layouts(room_id: str, item_ids: list[str], wishes: list[Constraint],
         return f"No layout for {name}: {result.reason}. Try fewer or smaller pieces, or another room."
 
     lines = [f"{len(result.variants)} layout(s) saved for {name}:"]
+    shown: list[str] = []
     for k, v in enumerate(result.variants, start=1):
         where = _where(twin, items, v.poses)
         rationale = f"{idea} (option {k}). {where[0].upper()}{where[1:]}. " + ("Meets: " + "; ".join(v.met) + ". " if v.met else "")
@@ -242,12 +244,17 @@ def propose_layouts(room_id: str, item_ids: list[str], wishes: list[Constraint],
             status="proposed",
         )
         furniture_store().put_proposal(layout)
+        shown.append(str(layout.layout_id))
         lines.append(
             f"- layout_id {layout.layout_id} · score {v.score:.0f}/100 · where: {where} · "
             f"met: {'; '.join(v.met) or 'none'} · not met: {'; '.join(v.unmet) or 'none'}"
         )
     if result.reason:
         lines.append(f"Note: {result.reason}.")
+    # The user sees these right away, before the designer is done; the guide shows the final set.
+    runtime.stream_writer({"type": "design.showVariants", "payload": {"layout_ids": shown}})
+    runtime.stream_writer({"type": "layout.select", "payload": {"layout_id": shown[0]}})
+    lines.append("These are on the user's screen already.")
     return "\n".join(lines)
 
 

@@ -74,7 +74,11 @@ export function onFixtureJob(cb: JobListener): () => void {
   jobListeners.add(cb);
   return () => jobListeners.delete(cb);
 }
-const emitJob = (payload: JobProgressPayload) => jobListeners.forEach((cb) => cb(payload));
+const fixtureJobs = new Map<string, JobProgressPayload>();
+const emitJob = (payload: JobProgressPayload) => {
+  fixtureJobs.set(payload.job_id, payload);
+  jobListeners.forEach((cb) => cb(payload));
+};
 
 export function noiseKey(s: NoiseScenario): string {
   return `${s.glazing ?? 'asbuilt'}|${s.add_carpet ? 1 : 0}|${s.include_furniture === false ? 0 : 1}`;
@@ -265,6 +269,11 @@ export function createFixtureApi(): ApiClient {
       const url = file.size < 400_000 ? await blobToDataUrl(file) : '';
       patchOverlay((o) => (o.uploads[upload_id] = url));
       return { upload_id, url: url || `/fixtures/blobs/inventory/armchair.svg` };
+    },
+    async getJob(jobId) {
+      const job = fixtureJobs.get(jobId);
+      if (!job) throw new ApiError('no such job', 404);
+      return job;
     },
     async ingestObject(uploadId) {
       const job_id = `fx-job-${uuid().slice(0, 8)}`;
