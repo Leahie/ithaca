@@ -44,25 +44,52 @@ export function HandsButton() {
   );
 }
 
-function fitCanvas(canvas: HTMLCanvasElement): CanvasRenderingContext2D | null {
-  const dpr = window.devicePixelRatio || 1;
-  const w = Math.round(canvas.clientWidth * dpr);
-  const h = Math.round(canvas.clientHeight * dpr);
-  if (canvas.width !== w || canvas.height !== h) {
-    canvas.width = w;
-    canvas.height = h;
-  }
-  const ctx = canvas.getContext('2d');
-  ctx?.setTransform(dpr, 0, 0, dpr, 0, 0);
-  return ctx;
+/**
+ * A canvas to draw on in CSS pixels. Its size is measured when its box changes, not on every
+ * frame: reading the layout sixty times a second, twice per canvas, was work for nothing.
+ */
+interface Surface {
+  ctx: CanvasRenderingContext2D | null;
+  w: number;
+  h: number;
+  /** What was last drawn, so a frame that would look the same is not drawn again. */
+  drawn: string | null;
+}
+
+/** Keeps a canvas at its box's size in device pixels. Returns the surface and how to stop. */
+function watchCanvas(canvas: HTMLCanvasElement): [Surface, () => void] {
+  const surface: Surface = { ctx: canvas.getContext('2d'), w: 0, h: 0, drawn: null };
+  const fit = () => {
+    const dpr = window.devicePixelRatio || 1;
+    surface.w = canvas.clientWidth;
+    surface.h = canvas.clientHeight;
+    const w = Math.round(surface.w * dpr);
+    const h = Math.round(surface.h * dpr);
+    if (canvas.width !== w || canvas.height !== h) {
+      canvas.width = w;
+      canvas.height = h;
+    }
+    // Sizing a canvas clears it and resets its transform.
+    surface.ctx?.setTransform(dpr, 0, 0, dpr, 0, 0);
+    surface.drawn = null;
+  };
+  fit();
+  const observer = new ResizeObserver(fit);
+  observer.observe(canvas);
+  // A move to a screen with another pixel density changes no box.
+  window.addEventListener('resize', fit);
+  return [
+    surface,
+    () => {
+      observer.disconnect();
+      window.removeEventListener('resize', fit);
+    },
+  ];
 }
 
 /** A ring per hand over the view, tightening as the pinch closes. */
-function drawCursors(canvas: HTMLCanvasElement, hands: HandView[], zooming: boolean) {
-  const ctx = fitCanvas(canvas);
+function drawCursors({ ctx, w, h }: Surface, hands: HandView[], zooming: boolean) {
   if (!ctx) return;
-  const w = canvas.clientWidth;
-  const h = canvas.clientHeight;
   ctx.clearRect(0, 0, w, h);
   const at = (hand: HandView): [number, number] => [Math.min(Math.max(hand.u, -0.02), 1.02) * w, Math.min(Math.max(hand.v, -0.02), 1.02) * h];
 
@@ -134,12 +161,21 @@ function ring(ctx: CanvasRenderingContext2D, x: number, y: number, r: number, wi
   ctx.stroke();
 }
 
+/**
+ * What the cursor canvas would show, to the half pixel: when it is the same as last frame (a
+ * hand held still, or no hand at all) the canvas, which covers the whole view, is left alone.
+ */
+function cursorKey({ w, h }: Surface, hands: HandView[], zooming: boolean): string {
+  let key = zooming && hands.length === 2 ? 'z' : '';
+  for (const hand of hands) {
+    key += `|${hand.side}${Math.round(hand.u * w * 2)},${Math.round(hand.v * h * 2)},${hand.pinching ? 'p' : Math.round(hand.strength * 40)}${hand.stale ? 's' : ''}`;
+  }
+  return key;
+}
+
 /** The tracked hands drawn over the camera picture. */
-function drawSkeletons(canvas: HTMLCanvasElement, hands: HandView[]) {
-  const ctx = fitCanvas(canvas);
+function drawSkeletons({ ctx, w, h }: Surface, hands: HandView[]) {
   if (!ctx) return;
-  const w = canvas.clientWidth;
-  const h = canvas.clientHeight;
   ctx.clearRect(0, 0, w, h);
   for (const hand of hands) {
     const p = hand.landmarks;
@@ -198,14 +234,36 @@ export function HandsOverlay() {
 
   useEffect(() => {
     if (status !== 'on') return;
+    const [ring, unwatchRing] = cursors.current ? watchCanvas(cursors.current) : [null, () => {}];
+    const [bones, unwatchBones] = skeletons.current ? watchCanvas(skeletons.current) : [null, () => {}];
     let lastHint = '';
-    return onHandTick(() => {
+    const off = onHandTick(() => {
       const hands = handEngine.hands;
-      if (cursors.current) drawCursors(cursors.current, hands, handEngine.gesture === 'zoom');
-      if (skeletons.current) drawSkeletons(skeletons.current, hands);
+      const zooming = handEngine.gesture === 'zoom';
+      // The rings move every display frame (they glide between the tracker's results), but only
+      // while a hand moves: a frame that would look the same is not drawn.
+      const ringKey = ring ? cursorKey(ring, hands, zooming) : null;
+      if (ring && ringKey !== ring.drawn) {
+        drawCursors(ring, hands, zooming);
+        ring.drawn = ringKey;
+      }
+      // The hands in the camera picture change only when the tracker has a new result.
+      if (bones) {
+        let bonesKey = `${handEngine.results}`;
+        for (const hand of hands) bonesKey += `|${hand.id}${hand.side}${hand.pinching ? 'p' : ''}${hand.stale ? 's' : ''}`;
+        if (bonesKey !== bones.drawn) {
+          drawSkeletons(bones, hands);
+          bones.drawn = bonesKey;
+        }
+      }
       const text = hands.length === 0 ? 'Raise a hand in front of the camera' : HINT[handEngine.gesture];
       if (hint.current && text !== lastHint) hint.current.textContent = lastHint = text;
     });
+    return () => {
+      off();
+      unwatchRing();
+      unwatchBones();
+    };
   }, [status]);
 
   if (status === 'off') return null;

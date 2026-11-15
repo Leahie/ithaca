@@ -37,9 +37,14 @@ const HAND_GRAB_RADIUS = 0.16;
 /** Arranging by hand looks down from this near (m), above where the camera stood. */
 const HAND_AERIAL_DISTANCE = 4.2;
 /** Holding a piece by hand: how long a lost hand or an opened pinch is forgiven (the tracker
- * flickers), how much nearer another piece must be to take the pointer, how far the piece moves
- * toward the hand each frame, and the hand movement (px) that is only trembling. */
-const HAND_HOLD = { graceMs: 450, steal: 0.6, follow: 0.22, still: 1.5 } as const;
+ * flickers), how much nearer another piece must be to take the pointer, the time constant (ms) of
+ * the piece's move toward the hand (in time, not per frame: when the house draws slowly the piece
+ * must not follow slowly too), and the hand movement (px) that is only trembling.
+ * `dwellMs`: how long a hand must rest nearest a piece before the piece is pointed out; a hand on
+ * its way across the room passes several, and each pointing-out re-renders the tour and goes to
+ * every phone. `shadowMs`: the least time between two redraws of the shadow map while a piece is
+ * carried (it covers the whole house, so not once per frame). */
+const HAND_HOLD = { graceMs: 450, steal: 0.6, followMs: 67, still: 1.5, dwellMs: 120, shadowMs: 33 } as const;
 
 // Phone look and zoom are eased: quick off the mark, soft landing (an ease-out bezier).
 const LOOK_EASE = cubicBezier(0.22, 0.8, 0.3, 1);
@@ -520,11 +525,30 @@ export function TourTab({ twin, active, soundBar = true }: { twin: PropertyTwin;
     if (!rig) return;
     const onScreen = (x: number, y: number, z: number) => rig.project(x, y, z);
     // x, z: where the piece is drawn; tx, tz: where the hand has taken it (the drawn one follows, smoothly).
-    let held: { id: string; hand: number; x: number; y: number; z: number; tx: number; tz: number; yaw: number; px: number; py: number; twist: number | null; lostAt: number | null } | null = null;
+    // shownYaw: the turn the piece is drawn at (yaw is where the hands have turned it to).
+    let held: { id: string; hand: number; x: number; y: number; z: number; tx: number; tz: number; yaw: number; shownYaw: number; px: number; py: number; twist: number | null; lostAt: number | null } | null = null;
     let pointed: string | null = null;
+    /** The piece nearest the hand and since when: it is pointed out once the hand has rested on it. */
+    let aimed: string | null = null;
+    let aimedAt = 0;
     /** The chosen piece: picked up once, it stays chosen until another is pinched. */
     let locked: string | null = null;
     const wasPinching = new Set<number>();
+    let lastTick = performance.now();
+    let shadowAt = 0;
+    let shadowDue = false;
+    /** Move the carried piece. It is drawn there at once; its shadow follows at most every shadowMs. */
+    const carry = (id: string, x: number, y: number, z: number, yawDeg: number, now: number) => {
+      const object = pieces.current.get(id);
+      if (!object) return;
+      poseObject(object, x, y, z, yawDeg);
+      shadowDue = true;
+      if (now - shadowAt >= HAND_HOLD.shadowMs) {
+        shadowAt = now;
+        shadowDue = false;
+        shadows.current?.();
+      }
+    };
     const point = (id: string | null) => {
       if (id === pointed) return;
       pointed = id;
@@ -553,11 +577,14 @@ export function TourTab({ twin, active, soundBar = true }: { twin: PropertyTwin;
     };
     const off = onHandTick(() => {
       const { w, h } = rig.size();
-      const hands = handEngine.hands.filter((x) => !x.stale);
+      const now = performance.now();
+      const dt = Math.min(now - lastTick, 100);
+      lastTick = now;
+      const seen = handEngine.hands;
+      const hands = seen.filter((x) => !x.stale);
       if (held) {
         const grip = held;
         if (!pieces.current.has(grip.id)) return drop();
-        const now = performance.now();
         let hand = hands.find((x) => x.id === grip.hand && x.pinching);
         if (!hand) {
           // The tracker lost the hand for a moment and found it again as a new one: still the same grip.
@@ -609,15 +636,31 @@ export function TourTab({ twin, active, soundBar = true }: { twin: PropertyTwin;
         } else {
           grip.twist = null;
         }
-        grip.x += (grip.tx - grip.x) * HAND_HOLD.follow;
-        grip.z += (grip.tz - grip.z) * HAND_HOLD.follow;
-        posePiece(grip.id, grip.x, grip.y, grip.z, grip.yaw);
+        const k = 1 - Math.exp(-dt / HAND_HOLD.followMs);
+        let x = grip.x + (grip.tx - grip.x) * k;
+        let z = grip.z + (grip.tz - grip.z) * k;
+        // Arrived: it stops there, and a piece that is not moving is not drawn (or shadowed) again.
+        if (Math.hypot(grip.tx - x, grip.tz - z) < 0.002) {
+          x = grip.tx;
+          z = grip.tz;
+        }
+        if (x !== grip.x || z !== grip.z || grip.yaw !== grip.shownYaw) {
+          grip.x = x;
+          grip.z = z;
+          grip.shownYaw = grip.yaw;
+          carry(grip.id, x, grip.y, z, grip.yaw, now);
+        } else if (shadowDue && now - shadowAt >= HAND_HOLD.shadowMs) {
+          shadowAt = now;
+          shadowDue = false;
+          shadows.current?.(); // the shadow catches up with where the piece came to rest
+        }
         return;
       }
       const hand = hands.find((x) => x.pinching) ?? hands[0];
       const started = !!hand && hand.pinching && !wasPinching.has(hand.id); // a pinch counts once, when it closes
+      // From every hand in view, also one the tracker missed for a moment: its pinch is still the same pinch.
       wasPinching.clear();
-      for (const x of hands) if (x.pinching) wasPinching.add(x.id);
+      for (const x of seen) if (x.pinching) wasPinching.add(x.id);
       if (!hand) return;
       const px = hand.u * w;
       const py = hand.v * h;
@@ -628,23 +671,29 @@ export function TourTab({ twin, active, soundBar = true }: { twin: PropertyTwin;
         // Its middle, not its feet: that is where a hand reaches for a tall piece.
         const tall = itemsById.get(p.item_id)?.dims_m.h ?? 0;
         const [sx, sy] = onScreen(p.position.x, p.position.y + tall / 2, p.position.z);
-        // The piece already pointed at keeps the pointer unless another is clearly nearer, so the
+        // The piece the hand is already on keeps it unless another is clearly nearer, so the
         // choice does not flip between neighbours as the hand trembles.
-        const d = Math.hypot(sx - px, sy - py) * (p.item_id === pointed ? HAND_HOLD.steal : 1);
+        const d = Math.hypot(sx - px, sy - py) * (p.item_id === aimed ? HAND_HOLD.steal : 1);
         if (d < bestD) {
           bestD = d;
           best = p;
         }
       }
       if (locked && !placementsRef.current.some((p) => p.item_id === locked)) locked = null; // it was removed
-      if (!locked && best) point(best.item_id);
+      if (best && best.item_id !== aimed) {
+        aimed = best.item_id;
+        aimedAt = now;
+      }
+      // Pointed out once the hand has rested on it: not each piece a moving hand passes.
+      if (!locked && best && now - aimedAt >= HAND_HOLD.dwellMs) point(best.item_id);
       if (!started) return;
       // A pinch right on a piece picks that one; anywhere else, the chosen one.
       const take = best ?? placementsRef.current.find((p) => p.item_id === locked) ?? null;
       if (!take) return;
       locked = take.item_id;
-      point(take.item_id);
-      held = { id: take.item_id, hand: hand.id, x: take.position.x, y: take.position.y, z: take.position.z, tx: take.position.x, tz: take.position.z, yaw: take.yaw_deg, px, py, twist: null, lostAt: null };
+      aimed = take.item_id;
+      point(take.item_id); // a pinch does not wait
+      held = { id: take.item_id, hand: hand.id, x: take.position.x, y: take.position.y, z: take.position.z, tx: take.position.x, tz: take.position.z, yaw: take.yaw_deg, shownYaw: take.yaw_deg, px, py, twist: null, lostAt: null };
     });
     return () => {
       off();

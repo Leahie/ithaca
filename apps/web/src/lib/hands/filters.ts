@@ -59,14 +59,25 @@ export interface MotionConfig {
   velocityCutoff: number;
   /** The furthest ahead of the last sample the position is carried, in ms. */
   predictMaxMs: number;
-  /** Time constant of the follow that hides the step when a new sample lands, in ms. */
+  /** Time constant of the follow that hides the step when a new sample lands, in ms: the least it is. */
   followTauMs: number;
+  /**
+   * The follow's time constant as a share of the time between samples, when that is longer than
+   * `followTauMs`. Samples come at the tracker's pace, not the camera's: on a slow machine that
+   * is 5 to 15 a second, and a 12 ms follow then shows every sample as a jump. At 0.4 the shown
+   * position covers nine tenths of a step by the time the next sample lands, so it glides; at
+   * 30 samples a second 0.4 of the interval is 13 ms, which is what the fixed value already was.
+   */
+  followShare: number;
 }
 
 /** HoloTouch's defaults, for positions in camera-frame heights. */
-export const MOTION_DEFAULTS: MotionConfig = { minCutoff: 1.5, beta: 12, dCutoff: 1, velocityCutoff: 5, predictMaxMs: 50, followTauMs: 12 };
+export const MOTION_DEFAULTS: MotionConfig = { minCutoff: 1.5, beta: 12, dCutoff: 1, velocityCutoff: 5, predictMaxMs: 50, followTauMs: 12, followShare: 0.4 };
 
-/** Turns ~30 Hz position samples into a smooth position at any tick time (seconds). */
+/** The follow never takes longer than this to settle, however slow the samples (ms). */
+const FOLLOW_TAU_MAX_MS = 140;
+
+/** Turns position samples (about 30 a second, fewer on a slow machine) into a smooth position at any tick time (seconds). */
 export class MotionTrack {
   private readonly oneEuro: OneEuro;
   private pos: P2 | null = null;
@@ -74,6 +85,9 @@ export class MotionTrack {
   private tSample = 0;
   private shown: P2 | null = null;
   private tShown = 0;
+  /** The usual time between samples, seconds (a guess until two have come): what the follow is paced by. */
+  private interval = 1 / 30;
+  private paced = false;
 
   constructor(private readonly cfg: MotionConfig = MOTION_DEFAULTS) {
     this.oneEuro = new OneEuro(cfg.minCutoff, cfg.beta, cfg.dCutoff);
@@ -94,6 +108,11 @@ export class MotionTrack {
     const filtered = this.oneEuro.filter(p, t);
     if (prev) {
       const dt = Math.max(t - prevT, 1e-3);
+      // A gap of a second or more is a pause (the hand left, the tab was hidden), not the pace.
+      if (dt < 1) {
+        this.interval = this.paced ? this.interval + 0.3 * (dt - this.interval) : dt;
+        this.paced = true;
+      }
       const a = alpha(dt, this.cfg.velocityCutoff);
       this.vel = [this.vel[0] + a * ((filtered[0] - prev[0]) / dt - this.vel[0]), this.vel[1] + a * ((filtered[1] - prev[1]) / dt - this.vel[1])];
     }
@@ -114,7 +133,7 @@ export class MotionTrack {
       this.shown = [...target];
     } else {
       const dt = Math.max(now - this.tShown, 0);
-      const tau = this.cfg.followTauMs / 1000;
+      const tau = Math.min(Math.max(this.cfg.followTauMs / 1000, this.cfg.followShare * this.interval), FOLLOW_TAU_MAX_MS / 1000);
       const k = tau <= 0 ? 1 : 1 - Math.exp(-dt / tau);
       this.shown = [this.shown[0] + k * (target[0] - this.shown[0]), this.shown[1] + k * (target[1] - this.shown[1])];
     }

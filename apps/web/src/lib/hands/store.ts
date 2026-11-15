@@ -48,7 +48,8 @@ export const useHands = create<HandsStore>((set, get) => ({
     const gen = ++generation;
     set({ status: 'starting', error: null });
     try {
-      const t = await startTracking((frame) => handEngine.ingest(frame));
+      // The second argument is when the result arrived: the engine tells a hand that left from a slow tracker by it.
+      const t = await startTracking((frame) => handEngine.ingest(frame, performance.now() / 1000));
       if (gen !== generation) {
         t.stop();
         return;

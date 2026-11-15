@@ -7,6 +7,10 @@
  * camera stays here, each new frame goes over as a transferred ImageBitmap, and a frame that
  * arrives while the worker is busy is dropped rather than queued. Where workers or OffscreenCanvas
  * are missing, the same landmarker runs on the main thread instead.
+ *
+ * The picture is kept small (FRAME_PX): the model looks at a 224 px crop of each hand, so a
+ * 720p frame buys nothing, and copying one out of the camera and into the worker for every
+ * frame costs time on the thread that also draws the house.
  */
 
 import type { HandLandmarker, Landmark, NormalizedLandmark } from '@mediapipe/tasks-vision';
@@ -64,6 +68,10 @@ export class ModelError extends Error {
 /** Where the MediaPipe wasm is served from: copied into public/ at install (scripts/copy-assets.mjs). */
 const WASM_BASE = '/mediapipe/wasm';
 const WORKER_URL = '/hand-worker.mjs';
+/** The camera picture asked for, and the widest a frame is sent to the tracker (a camera may ignore the request). */
+const FRAME_PX = { width: 640, height: 360 } as const;
+/** A worker that has not answered a frame for this long is taken to have dropped it (ms). */
+const WORKER_SILENT_MS = 3000;
 
 /** One inference, mirrored to how the user sees themselves. */
 function toFrame(stamp: number, aspect: number, landmarks: NormalizedLandmark[][], worldLandmarks: Landmark[][], sides: string[]): FrameSample {
@@ -103,6 +111,17 @@ interface WorkerResult {
   landmarks: NormalizedLandmark[][];
   worldLandmarks: Landmark[][];
   sides: string[];
+  /** How long the inference took, ms. */
+  ms?: number;
+}
+
+/** The worker timed the CPU against the graphics card and says which it kept (see hand-worker.mjs). */
+interface WorkerDelegate {
+  type: 'delegate';
+  delegate: string;
+  ms: number;
+  was: string;
+  wasMs: number;
 }
 
 /** Inference in a worker, or in this thread. Either way: hand it frames, get FrameSamples back. */
@@ -112,6 +131,22 @@ interface Detector {
   close(): void;
 }
 
+/** False once this browser has refused to resize a video frame into a bitmap. */
+let resizeWorks = true;
+
+/** The frame as a bitmap for the worker, no wider than FRAME_PX. */
+function grab(video: HTMLVideoElement): Promise<ImageBitmap> {
+  const w = video.videoWidth;
+  const h = video.videoHeight;
+  if (!resizeWorks || !w || w <= FRAME_PX.width) return createImageBitmap(video);
+  const options: ImageBitmapOptions = { resizeWidth: FRAME_PX.width, resizeHeight: Math.round((h * FRAME_PX.width) / w), resizeQuality: 'low' };
+  return createImageBitmap(video, options).catch(() => {
+    // A browser that cannot resize a video frame here: send them whole from now on.
+    resizeWorks = false;
+    return createImageBitmap(video);
+  });
+}
+
 const workersAvailable = () => typeof Worker !== 'undefined' && typeof OffscreenCanvas !== 'undefined' && typeof createImageBitmap === 'function';
 
 /** Starts the worker and waits until its landmarker is loaded. */
@@ -119,13 +154,20 @@ function startWorkerDetector(onFrame: (frame: FrameSample) => void): Promise<Det
   return new Promise((resolve, reject) => {
     const worker = new Worker(WORKER_URL, { type: 'module', name: 'hand-tracking' });
     let busy = false;
+    let busySince = 0;
     let ready = false;
     let closed = false;
     const detector: Detector = {
       detect(video, stamp) {
-        if (busy || closed) return false;
+        if (closed) return false;
+        if (busy) {
+          // One lost answer must not stop the tracking for good.
+          if (performance.now() - busySince < WORKER_SILENT_MS) return false;
+          console.warn('[hands] the tracking worker did not answer a frame; carrying on');
+        }
         busy = true;
-        createImageBitmap(video).then(
+        busySince = performance.now();
+        grab(video).then(
           (bitmap) => {
             if (closed) return bitmap.close();
             worker.postMessage({ type: 'frame', bitmap, stamp }, [bitmap]);
@@ -143,7 +185,7 @@ function startWorkerDetector(onFrame: (frame: FrameSample) => void): Promise<Det
         setTimeout(() => worker.terminate(), 500);
       },
     };
-    worker.onmessage = (e: MessageEvent<WorkerResult | { type: 'ready'; delegate: string } | { type: 'error'; message: string }>) => {
+    worker.onmessage = (e: MessageEvent<WorkerResult | WorkerDelegate | { type: 'ready'; delegate: string } | { type: 'error'; message: string }>) => {
       const msg = e.data;
       if (msg.type === 'ready') {
         ready = true;
@@ -152,6 +194,9 @@ function startWorkerDetector(onFrame: (frame: FrameSample) => void): Promise<Det
       } else if (msg.type === 'error') {
         worker.terminate();
         reject(new Error(msg.message));
+      } else if (msg.type === 'delegate') {
+        // The graphics card was not keeping up with the camera, so the worker timed the CPU on the same frames.
+        console.info(`[hands] tracking on the ${msg.delegate} (${msg.ms.toFixed(0)} ms a frame; the ${msg.was} took ${msg.wasMs.toFixed(0)} ms)`);
       } else if (msg.type === 'result') {
         busy = false;
         if (!closed) onFrame(toFrame(msg.stamp, msg.width / Math.max(msg.height, 1), msg.landmarks, msg.worldLandmarks, msg.sides));
@@ -198,7 +243,7 @@ async function startDetector(onFrame: (frame: FrameSample) => void): Promise<Det
 async function openCamera(): Promise<HTMLVideoElement> {
   const stream = await navigator.mediaDevices.getUserMedia({
     audio: false,
-    video: { facingMode: 'user', width: { ideal: 1280 }, height: { ideal: 720 }, frameRate: { ideal: 30 } },
+    video: { facingMode: 'user', width: { ideal: FRAME_PX.width }, height: { ideal: FRAME_PX.height }, aspectRatio: { ideal: FRAME_PX.width / FRAME_PX.height }, frameRate: { ideal: 30 } },
   });
   const video = document.createElement('video');
   video.muted = true;
@@ -217,8 +262,18 @@ function closeCamera(video: HTMLVideoElement): void {
 /** Opens the camera and calls `onFrame` with the hands in each new camera frame until stopped. */
 export async function startTracking(onFrame: (frame: FrameSample) => void): Promise<Tracking> {
   let stopped = false;
+  /** Sends the newest camera frame, if there is one the tracker has not had. Set once the camera is open. */
+  let pump = () => {};
   // Both at once: the model download and the camera permission prompt take the longest.
-  const [cam, model] = await Promise.allSettled([openCamera(), startDetector((f) => !stopped && onFrame(f))]);
+  const [cam, model] = await Promise.allSettled([
+    openCamera(),
+    startDetector((f) => {
+      if (stopped) return;
+      onFrame(f);
+      // The tracker is free again: give it the next frame now, not at the next display frame.
+      pump();
+    }),
+  ]);
   if (cam.status === 'rejected' || model.status === 'rejected') {
     if (cam.status === 'fulfilled') closeCamera(cam.value);
     if (model.status === 'fulfilled') model.value.close();
@@ -230,17 +285,28 @@ export async function startTracking(onFrame: (frame: FrameSample) => void): Prom
   let lastFrameTime = -1;
   let lastStamp = 0;
 
+  let sending = false;
+  pump = () => {
+    // On the main thread `detect` answers before it returns, which calls this again: once is enough.
+    if (stopped || sending) return;
+    // One inference per camera frame, not per display frame.
+    if (video.readyState < 2 || video.currentTime === lastFrameTime) return;
+    sending = true;
+    try {
+      // The landmarker wants strictly increasing timestamps, in ms.
+      const stamp = Math.max(performance.now(), lastStamp + 1);
+      // A frame the worker is too busy for is skipped, and the next new one is tried.
+      if (!detector.detect(video, stamp)) return;
+      lastFrameTime = video.currentTime;
+      lastStamp = stamp;
+    } finally {
+      sending = false;
+    }
+  };
   const loop = () => {
     if (stopped) return;
     raf = requestAnimationFrame(loop);
-    // One inference per camera frame, not per display frame.
-    if (video.readyState < 2 || video.currentTime === lastFrameTime) return;
-    // The landmarker wants strictly increasing timestamps, in ms.
-    const stamp = Math.max(performance.now(), lastStamp + 1);
-    // A frame the worker is too busy for is skipped, and the next new one is tried.
-    if (!detector.detect(video, stamp)) return;
-    lastFrameTime = video.currentTime;
-    lastStamp = stamp;
+    pump();
   };
   raf = requestAnimationFrame(loop);
 
