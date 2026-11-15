@@ -546,7 +546,7 @@ function Sun({ center, radius }: { center: Vector3; radius: number }) {
 // ---------------------------------------------------------------------------------------------
 
 /** A piece at its stored pose. One that was just asked for drops in from above and lands with a bounce. */
-function PieceModel({ id, url, x, y, z, yaw, fresh }: { id: string; url: string; x: number; y: number; z: number; yaw: number; fresh: boolean }) {
+function PieceModel({ id, url, x, y, z, yaw, size, fresh }: { id: string; url: string; x: number; y: number; z: number; yaw: number; /** Times the model's own size: a piece resized by hand. */ size: number; fresh: boolean }) {
   const gltf = useGLTF(url);
   const scene = useMemo(() => {
     const root = gltf.scene.clone(true);
@@ -587,12 +587,12 @@ function PieceModel({ id, url, x, y, z, yaw, fresh }: { id: string; url: string;
     const squeeze = aim && aim.id === id ? aim.progress : 0;
     out.current = studioLive.gone.has(id) ? Math.min(1, out.current + dt / 0.28) : 0;
     g.visible = out.current < 1;
-    g.scale.setScalar(Math.max(0.001, scale * (1 - 0.22 * squeeze) * (1 - out.current * out.current)));
+    g.scale.setScalar(Math.max(0.001, size * scale * (1 - 0.22 * squeeze) * (1 - out.current * out.current)));
     g.rotation.y = yaw * DEG + (squeeze > 0 ? Math.sin(clock.elapsedTime * 38) * 0.04 * squeeze : 0);
   });
   return (
     <>
-      <group ref={group} position={[x, y, z]} rotation={[0, yaw * DEG, 0]} scale={fresh ? 0.001 : 1}>
+      <group ref={group} position={[x, y, z]} rotation={[0, yaw * DEG, 0]} scale={fresh ? 0.001 : size}>
         <primitive object={scene} />
       </group>
       {fresh && (
@@ -611,7 +611,10 @@ interface RoomPiece {
   label: string;
   position: { x: number; y: number; z: number };
   yaw: number;
+  /** Its size as it stands (already resized). */
   dims: { w: number; d: number; h: number };
+  /** Times its model's own size (InventoryItem.scale). */
+  scale: number;
 }
 
 /** The pieces standing in the room, each with its model, its name and its size. */
@@ -624,7 +627,7 @@ function useRoomPieces(twin: PropertyTwin, roomId: string): RoomPiece[] {
       .filter((p) => p.room_id === roomId)
       .flatMap((p): RoomPiece[] => {
         const item = byId.get(p.item_id);
-        return item ? [{ id: p.item_id, url: api().assetUrl(item.glb_url), label: item.label, position: p.position, yaw: p.yaw_deg, dims: { w: item.dims_m.w, d: item.dims_m.d, h: item.dims_m.h } }] : [];
+        return item ? [{ id: p.item_id, url: api().assetUrl(item.glb_url), label: item.label, position: p.position, yaw: p.yaw_deg, dims: { w: item.dims_m.w, d: item.dims_m.d, h: item.dims_m.h }, scale: item.scale ?? 1 }] : [];
       });
   }, [furniture.data, inventory.data, roomId]);
 }
@@ -637,7 +640,7 @@ function Pieces({ twin, roomId }: { twin: PropertyTwin; roomId: string }) {
       {pieces.map((p) => (
         <AssetBoundary key={p.id} label="A furniture model" onError={() => {}}>
           <Suspense fallback={null}>
-            <PieceModel id={p.id} url={p.url} x={p.position.x} y={p.position.y} z={p.position.z} yaw={p.yaw} fresh={p.id === placedId} />
+            <PieceModel id={p.id} url={p.url} x={p.position.x} y={p.position.y} z={p.position.z} yaw={p.yaw} size={p.scale} fresh={p.id === placedId} />
           </Suspense>
         </AssetBoundary>
       ))}
