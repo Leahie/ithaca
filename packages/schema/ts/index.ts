@@ -369,6 +369,16 @@ export interface FloorOpening {
 }
 
 /**
+ * Body of POST /properties/{property_id}/furniture/from-scan: set up a room of this house with
+ * a scanned room. `keys`: only these things (none: everything). What stood there goes to storage.
+ */
+export interface FurnishFromScanRequest {
+  scan_id: string;
+  room_id: string;
+  keys?: string[] | null;
+}
+
+/**
  * Body of POST /properties/{property_id}/furnish: have the designer furnish one room from the
  * furniture library, in a look. A job: follow `job.progress` (kind `furnish_room`).
  */
@@ -868,6 +878,44 @@ export interface RoomDaylight {
 export interface RoomFromPhotoRequest {
   upload_id: string;
   room_id: string;
+}
+
+/**
+ * A photo of someone's own room, with everything in it listed and modelled in 3D.
+ */
+export interface RoomScan {
+  scan_id: string;
+  name: string;
+  blurb: string;
+  photo_url: string;
+  width: number;
+  height: number;
+  finishes?: string[];
+  things: ScanThing[];
+}
+
+/**
+ * One thing in a scanned photo of someone's own room (services/api/furniture/scans).
+ */
+export interface ScanThing {
+  key: string;
+  label: string;
+  item_class: string;
+  group: string;
+  dims_m: ItemDims;
+  box: [number, number, number, number];
+  rests_on?: string | null;
+  on_wall?: boolean;
+  note?: string;
+  model_url: string;
+}
+
+/**
+ * Reply to putting one scanned thing in the house, or in storage.
+ */
+export interface ScanThingPlaced {
+  item: InventoryItem;
+  room_id?: string | null;
 }
 
 export interface Session {

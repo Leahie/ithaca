@@ -134,3 +134,47 @@ class CatalogAddRequest(Model):
     width_m: float | None = None
     depth_m: float | None = None
     height_m: float | None = None
+
+
+class ScanThing(Model):
+    """One thing in a scanned photo of someone's own room (services/api/furniture/scans)."""
+
+    key: str
+    label: str
+    item_class: str  # from the shared furniture class list
+    group: str  # furniture, floor, bed, desk, shelf, wall, window
+    dims_m: ItemDims
+    box: tuple[float, float, float, float]  # where it is in the photo: left, top, right, bottom, as fractions of its size
+    rests_on: str | None = None  # the key of the piece it stands on
+    on_wall: bool = False
+    note: str = ""
+    model_url: str  # its 3D model (GLB), to look at before it is added
+
+
+class RoomScan(Model):
+    """A photo of someone's own room, with everything in it listed and modelled in 3D."""
+
+    scan_id: str
+    name: str
+    blurb: str
+    photo_url: str
+    width: int  # the photo's size in pixels
+    height: int
+    finishes: list[str] = []  # the room itself: floor, walls, trim
+    things: list[ScanThing]
+
+
+class FurnishFromScanRequest(Model):
+    """Body of POST /properties/{property_id}/furniture/from-scan: set up a room of this house with
+    a scanned room. `keys`: only these things (none: everything). What stood there goes to storage."""
+
+    scan_id: str
+    room_id: str
+    keys: list[str] | None = None
+
+
+class ScanThingPlaced(Model):
+    """Reply to putting one scanned thing in the house, or in storage."""
+
+    item: InventoryItem
+    room_id: str | None = None

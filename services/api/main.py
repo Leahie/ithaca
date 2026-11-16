@@ -24,6 +24,7 @@ from services.api.routers import board
 from services.api.routers import furniture, households, objects, panos, properties, sessions, speech
 from services.api.routers import library as library_routes
 from services.api.routers import reset
+from services.api.routers import scans as scan_routes
 
 logging.basicConfig(level=logging.INFO)
 
@@ -51,6 +52,7 @@ app.include_router(library_routes.router, prefix="/api")
 app.include_router(objects.router, prefix="/api")
 app.include_router(speech.router, prefix="/api")
 app.include_router(reset.router, prefix="/api")
+app.include_router(scan_routes.router, prefix="/api")
 # The WebSocket is also served without the prefix (/ws/sessions/{sid}), which is the path in
 # WORKSTREAMS.md 2.4 and the one the web app connects to directly on port 8000.
 app.add_api_websocket_route("/ws/sessions/{session_id}", sessions.session_socket)

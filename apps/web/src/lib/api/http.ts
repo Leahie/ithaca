@@ -88,6 +88,12 @@ export function createHttpApi(): ApiClient {
     // A house route: sent as the screen's user, with the person in X-Person-Id (the photo and the new pieces are theirs).
     furnishFromPhoto: (pid, uploadId, roomId) =>
       request(`/properties/${enc(pid)}/furniture/from-photo`, { method: 'POST', body: JSON.stringify({ upload_id: uploadId, room_id: roomId }) }),
+    listScans: () => request('/scans'),
+    furnishFromScan: (pid, scanId, roomId, keys) =>
+      request(`/properties/${enc(pid)}/furniture/from-scan`, { method: 'POST', body: JSON.stringify({ scan_id: scanId, room_id: roomId, keys: keys ?? null }) }),
+    putScanThing: (pid, scanId, key, roomId) =>
+      request(`/properties/${enc(pid)}/furniture/from-scan/${enc(key)}`, { method: 'POST', body: JSON.stringify({ scan_id: scanId, room_id: roomId }) }),
+    addScanThing: (scanId, key) => request(`/scans/${enc(scanId)}/things/${enc(key)}/add`, { method: 'POST' }),
     listInventory: () => request('/inventory'),
     getInventoryItem: (id) => request(`/inventory/${enc(id)}`),
     resizePiece: (pid, id, scale) => request(`/properties/${enc(pid)}/furniture/${enc(id)}/scale`, { method: 'PUT', body: JSON.stringify({ scale }) }),

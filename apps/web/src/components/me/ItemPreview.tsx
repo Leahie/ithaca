@@ -22,7 +22,7 @@ class Boundary extends Component<{ fallback: ReactNode; children: ReactNode }, {
 }
 
 /** Turntable preview of an inventory item's GLB, on a half-meter grid for scale. */
-export function ItemPreview({ item }: { item: InventoryItem }) {
+export function ItemPreview({ item }: { item: Pick<InventoryItem, 'item_id' | 'dims_m' | 'glb_url' | 'scale'> }) {
   const { w, d, h } = item.dims_m;
   const r = Math.max(w, d, h);
   return (

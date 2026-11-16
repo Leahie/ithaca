@@ -9,6 +9,7 @@ import { houseHref, lastHouse } from '@/lib/lastHouse';
 import { HistorySection } from './HistorySection';
 import { InventorySection } from './InventorySection';
 import { MemorySection } from './MemorySection';
+import { MyRoomScan } from './MyRoomScan';
 import { ResetEverything } from './ResetEverything';
 
 type Section = 'inventory' | 'memory' | 'history';
@@ -58,7 +59,12 @@ export function MePage() {
                   : 'Every home you viewed, with the notes kept on it and the layouts you chose or rejected.'}
             </p>
           </div>
-          {section === 'inventory' && <InventorySection />}
+          {section === 'inventory' && (
+            <div className="space-y-5">
+              <MyRoomScan houseId={houseId} />
+              <InventorySection />
+            </div>
+          )}
           {section === 'memory' && <MemorySection />}
           {section === 'history' && <HistorySection />}
         </main>

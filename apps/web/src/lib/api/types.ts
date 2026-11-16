@@ -25,6 +25,8 @@ import type {
   FurnishRoomRequest,
   LibraryLook,
   LibraryPage,
+  RoomScan,
+  ScanThingPlaced,
 } from '@ithaca/schema';
 import type { Board, BoardEntry, BoardEntryCreate } from '@ithaca/schema';
 import type { ResetCounts, ResetResult } from '@ithaca/schema';
@@ -99,6 +101,14 @@ export interface ApiClient {
    * that room of the house (what stood there goes back to storage). A job: follow its progress.
    */
   furnishFromPhoto(propertyId: string, uploadId: string, roomId: string): Promise<JobRef>;
+  /** Rooms scanned by hand: a photo of someone's own room, every thing in it modelled in 3D. */
+  listScans(): Promise<RoomScan[]>;
+  /** Set up a room of the house with a scanned room (only `keys`, if given). What stood there goes to storage. A job. */
+  furnishFromScan(propertyId: string, scanId: string, roomId: string, keys?: string[]): Promise<JobRef>;
+  /** Put one scanned thing in a room of the house, beside what is there (on its desk or bed when that is in the room). */
+  putScanThing(propertyId: string, scanId: string, key: string, roomId: string): Promise<ScanThingPlaced>;
+  /** Put one scanned thing in storage, as a new piece. */
+  addScanThing(scanId: string, key: string): Promise<ScanThingPlaced>;
   // Furniture: docs/specs/furniture.md.
   /** Storage: the family's pieces (each with its owner). */
   listInventory(): Promise<InventoryItem[]>;
