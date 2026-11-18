@@ -1,0 +1,73 @@
+diff --git a/examples/datasets/colmap.py b/examples/datasets/colmap.py
+index 5e7e089..65e8af0 100644
+--- a/examples/datasets/colmap.py
++++ b/examples/datasets/colmap.py
+@@ -504,6 +504,11 @@ class Dataset:
+         K = self.parser.Ks_dict[camera_id].copy()  # undistorted K
+         camtoworlds = self.parser.camtoworlds[index]
+         mask = self.parser.mask_dict[camera_id]
++        # Local patch (ithaca): per-image masks from make_masks.py, if present.
++        _mp = os.path.join(self.parser.data_dir, f"masks_{self.parser.factor}",
++                           os.path.splitext(self.parser.image_names[index])[0] + ".png")
++        if os.path.exists(_mp):
++            mask = imageio.imread(_mp) > 127
+ 
+         if self.patch_size is not None:
+             # Random crop.
+diff --git a/examples/simple_trainer_2dgs.py b/examples/simple_trainer_2dgs.py
+index 239d6dd..3ce08f0 100644
+--- a/examples/simple_trainer_2dgs.py
++++ b/examples/simple_trainer_2dgs.py
+@@ -681,6 +681,26 @@ class Runner:
+ 
+             loss.backward()
+ 
++            # Local patch (ithaca): non-finite gradients from the 2DGS kernels poisoned whole runs
++            # (70% of means NaN by step 7k). Log where they appear and zero them before Adam and
++            # densification see them.
++            bad = {}
++            for k, v in list(self.splats.items()):
++                if v.grad is not None:
++                    nf = ~torch.isfinite(v.grad)
++                    if nf.any():
++                        bad[k] = int(nf.reshape(len(v), -1).any(dim=1).sum())
++                        v.grad.nan_to_num_(nan=0.0, posinf=0.0, neginf=0.0)
++            for k in ("means2d", "gradient_2dgs"):
++                t = info.get(k)
++                if isinstance(t, torch.Tensor) and t.grad is not None and not torch.isfinite(t.grad).all():
++                    bad[k] = int((~torch.isfinite(t.grad)).sum())
++                    t.grad.nan_to_num_(nan=0.0, posinf=0.0, neginf=0.0)
++            if bad:
++                self._nan_steps = getattr(self, "_nan_steps", 0) + 1
++                if self._nan_steps <= 30 or self._nan_steps % 500 == 0:
++                    print(f"\nNONFINITE step {step} image {int(image_ids[0])} #{self._nan_steps}: {bad}", flush=True)
++
+             desc = f"loss={loss.item():.3f}| " f"sh degree={sh_degree_to_use}| "
+             if cfg.depth_loss:
+                 desc += f"depth loss={depthloss.item():.6f}| "
+@@ -833,6 +853,9 @@ class Runner:
+             )  # [1, H, W, 3]
+             colors = torch.clamp(colors, 0.0, 1.0)
+             colors = colors[..., :3]  # Take RGB channels
++            if "mask" in data:  # Local patch (ithaca): score only the masked room pixels
++                _m = data["mask"].to(device)[..., None].float()
++                pixels, colors = pixels * _m, colors * _m
+             torch.cuda.synchronize()
+             ellipse_time += max(time.time() - tic, 1e-10)
+ 
+diff --git a/gsplat/cuda/_wrapper.py b/gsplat/cuda/_wrapper.py
+index ad7a643..0786b06 100644
+--- a/gsplat/cuda/_wrapper.py
++++ b/gsplat/cuda/_wrapper.py
+@@ -2764,6 +2764,11 @@ class RegisterProjection2DGSFused:
+ 
+     @classmethod
+     def backward(cls, ctx, v_radii, v_means2d, v_depths, v_ray_transforms, v_normals):
++        # Local patch: autograd can hand these in as expanded (non-contiguous) zeros, which the
++        # CUDA op rejects ("grad.depths must be contiguous").
++        v_means2d, v_depths, v_ray_transforms, v_normals = (
++            t.contiguous() if t is not None else t for t in (v_means2d, v_depths, v_ray_transforms, v_normals)
++        )
+         (
+             means,
+             quats,

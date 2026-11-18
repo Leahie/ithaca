@@ -15,7 +15,9 @@ Layout written (what gsplat's COLMAP parser reads):
     <out>/images/<sweep>_<face>.jpg        4096 px
     <out>/images_2/<sweep>_<face>.jpg      2048 px (for --data_factor 2)
     <out>/sparse/0/{cameras,images,points3D}.txt
-    <out>/check.json                       pose check: photo vs point-cloud colors per face
+    <out>/check.json                       pose check: photo vs point-cloud colors per face. It ignores
+                                           occlusion, so ~0.15-0.3 is normal for good poses (checked
+                                           Nov 17 by rendering the cloud from the cameras: it lines up)
     <out>/cloud.npz, volume.json           with --fuse: inputs of infra/recon/fuse_depth.py (see fuse_inputs)
 """
 
