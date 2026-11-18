@@ -1,5 +1,5 @@
 diff --git a/examples/datasets/colmap.py b/examples/datasets/colmap.py
-index 5e7e089..65e8af0 100644
+index 5e7e089..cd21c14 100644
 --- a/examples/datasets/colmap.py
 +++ b/examples/datasets/colmap.py
 @@ -504,6 +504,11 @@ class Dataset:
@@ -14,6 +14,31 @@ index 5e7e089..65e8af0 100644
  
          if self.patch_size is not None:
              # Random crop.
+@@ -531,7 +536,23 @@ class Dataset:
+         if exposure is not None:
+             data["exposure"] = torch.tensor(exposure, dtype=torch.float32)
+ 
+-        if self.load_depths:
++        _dp = os.path.join(self.parser.data_dir, "prompt",
++                           os.path.splitext(self.parser.image_names[index])[0] + ".npy")
++        if self.load_depths and os.path.exists(_dp):
++            # Local patch (ithaca): dense depth rendered from the scanner's cloud (fuse_depth.py prompt,
++            # occlusion-aware, 0 where no cloud), sampled at random pixels inside the mask.
++            d = np.load(_dp)
++            h, w = image.shape[:2]
++            ys, xs = np.nonzero(d > 0)
++            u = (xs + 0.5) * (w / d.shape[1]) - 0.5
++            v = (ys + 0.5) * (h / d.shape[0]) - 0.5
++            if mask is not None:
++                inside = mask[np.clip(np.round(v).astype(int), 0, h - 1), np.clip(np.round(u).astype(int), 0, w - 1)]
++                xs, ys, u, v = xs[inside], ys[inside], u[inside], v[inside]
++            pick = np.random.choice(len(u), min(len(u), 16384), replace=False)
++            data["points"] = torch.from_numpy(np.stack([u, v], axis=1)[pick]).float()
++            data["depths"] = torch.from_numpy(d[ys, xs][pick]).float()
++        elif self.load_depths:
+             # projected points to image plane to get depths
+             worldtocams = np.linalg.inv(camtoworlds)
+             image_name = self.parser.image_names[index]
 diff --git a/examples/simple_trainer_2dgs.py b/examples/simple_trainer_2dgs.py
 index 239d6dd..3ce08f0 100644
 --- a/examples/simple_trainer_2dgs.py

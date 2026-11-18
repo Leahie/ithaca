@@ -92,12 +92,44 @@ def voxel_thin(points: np.ndarray, colors: np.ndarray, voxel_m: float) -> tuple[
     return points[first], colors[first]
 
 
-def area_mask(points: np.ndarray, rooms, margin_m: float = 0.3) -> np.ndarray:
+def band_top(points: np.ndarray, room, all_rooms, margin_m: float) -> float:
+    """Top of a room's height band, found from the cloud.
+
+    The twin's floor_y + height_m can sit well below the scanned ceiling (onXQLXhfyQv's Living
+    Room: 2.02 m, with the ceiling at 2.35-2.45 m), and the old band cut the whole ceiling out:
+    no upward face was kept and every mask was black above the walls. So the ceiling is
+    the busiest 5 cm height slice over the room's interior, between 1.8 m above the floor and
+    1 m above the twin's ceiling. The band ends a little above it, but below the floor of any
+    upstairs room over this one (onXQLXhfyQv has a second floor at about 2.7 m over half of it)."""
+    twin_top = room.floor_y + room.height_m + margin_m
+    poly = Polygon(room.polygon)
+    inner = poly.buffer(-0.3)
+    if inner.is_empty:
+        return twin_top
+    lo, hi = room.floor_y + 1.8, room.floor_y + room.height_m + 1.0
+    y = points[:, 1]
+    sel = (y > lo) & (y < hi)
+    sel[sel] = contains_xy(inner, points[sel, 0], points[sel, 2])
+    if sel.sum() < 1000:
+        return twin_top
+    counts, edges = np.histogram(y[sel], bins=np.arange(lo, hi + 0.05, 0.05))
+    ceiling = edges[np.argmax(counts) + 1]
+    top = ceiling + 0.1
+    upstairs = [r.floor_y for r in all_rooms
+                if r.floor_y > room.floor_y + 1.5 and Polygon(r.polygon).intersection(poly).area > 0.5]
+    if upstairs:
+        top = min(top, min(upstairs) - 0.1)
+    log.info("%s: ceiling at %.2f m (twin %.2f), band top %.2f", room.label or room.room_id, ceiling,
+             room.floor_y + room.height_m, max(top, twin_top))
+    return max(top, twin_top)
+
+
+def area_mask(points: np.ndarray, rooms, all_rooms=(), margin_m: float = 0.3) -> np.ndarray:
     keep = np.zeros(len(points), bool)
     for r in rooms:
         poly = Polygon(r.polygon).buffer(margin_m)
         y = points[:, 1]
-        band = (y > r.floor_y - margin_m) & (y < r.floor_y + r.height_m + margin_m)
+        band = (y > r.floor_y - margin_m) & (y < band_top(points, r, all_rooms, margin_m))
         keep |= band & contains_xy(poly, points[:, 0], points[:, 2])
     return keep
 
@@ -136,7 +168,7 @@ def fuse_inputs(points: np.ndarray, colors: np.ndarray, rooms, sweeps, out: Path
 
 
 def export(property_id: str, out: Path, room_ids: list[str] | None, voxel_m: float = 0.01,
-           min_visible: float = 0.02, fuse: bool = False) -> dict:
+           min_visible: float = 0.02, min_cover: float = 0.5, fuse: bool = False) -> dict:
     from services.api.twin.service import get_twin
 
     twin = get_twin(property_id)
@@ -153,7 +185,7 @@ def export(property_id: str, out: Path, room_ids: list[str] | None, voxel_m: flo
         sweeps = [by_id[i] for i in sorted(ids) if by_id[i].rotation]
 
     all_points, all_colors = load_points(property_id, model_id)
-    keep = area_mask(all_points, rooms)
+    keep = area_mask(all_points, rooms, twin.rooms)
     points, colors = voxel_thin(all_points[keep], all_colors[keep], voxel_m)
     log.info("%d rooms, %d sweeps, %d points (%.0f mm voxels)", len(rooms), len(sweeps), len(points), voxel_m * 1000)
     probe = points[np.random.default_rng(0).choice(len(points), min(200_000, len(points)), replace=False)]
@@ -174,8 +206,12 @@ def export(property_id: str, out: Path, room_ids: list[str] | None, voxel_m: flo
         center = np.array([sweep.position.x, sweep.position.y, sweep.position.z])
         for face in FACES:
             r_c2w, flip = camera_to_interior(sweep, face)
-            _, seen = project(probe, r_c2w, center, n)
-            if seen.mean() < min_visible:
+            px, seen = project(probe, r_c2w, center, n)
+            # A face is kept if it sees a fair share of the area's points, or if they fill most of
+            # its image: a face looking up from inside a room sees only the ceiling patch overhead
+            # (about 1% of the points) but is all ceiling, so the share alone dropped every one.
+            cover = np.unique((px[seen] // (n // 32)).astype(np.int64) @ [1, 32]).size / 1024
+            if seen.mean() < min_visible and cover < min_cover:
                 continue
             name = f"{sweep.sweep_id}_{face}.jpg"
             jobs.append((sweep, face, flip, name, r_c2w, center))
